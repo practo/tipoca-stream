@@ -1,0 +1,17 @@
+apiVersion: v1
+data:
+  dbconfig.yaml: |-
+    mysql_username: debezium
+    mysql_password: dbz
+    database.hostname: mysql
+    database.port: 3306
+    database.user: root
+    database.password:
+    database.server.id: 184094
+    database.server.name: voice 
+    database.whitelist: chronos
+    database.history.kafka.bootstrap.servers: k8s-kafka-bootstrap.kafka:9092
+    database.history.kafka.topic: schema-changes.voice
+kind: ConfigMap
+metadata:
+  name: connector-configmap
