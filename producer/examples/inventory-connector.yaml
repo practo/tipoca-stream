@@ -9,13 +9,13 @@ spec:
   class: io.debezium.connector.mysql.MySqlConnector
   tasksMax: 1
   config:
-    database.hostname: mysql-debezium
-    database.port: "3306"
-    database.user: "debezium"
-    database.password: "dbz"
-    database.server.id: "184054"
-    database.server.name: "dbserver1"
-    database.whitelist: "inventory"
+    database.hostname: "${file:/opt/kafka/external-configuration/connector-configmap/dbconfig.yaml:database.hostname}"
+    database.port: "${file:/opt/kafka/external-configuration/connector-configmap/dbconfig.yaml:database.port}"
+    database.user: "${file:/opt/kafka/external-configuration/connector-configmap/dbconfig.yaml:database.user}"
+    database.password: "${file:/opt/kafka/external-configuration/connector-configmap/dbconfig.yaml:database.password}"
+    database.server.id: "${file:/opt/kafka/external-configuration/connector-configmap/dbconfig.yaml:database.server.id}"
+    database.server.name: "${file:/opt/kafka/external-configuration/connector-configmap/dbconfig.yaml:database.server.name}"
+    database.whitelist: "${file:/opt/kafka/external-configuration/connector-configmap/dbconfig.yaml:database.whitelist}"
     database.history.kafka.bootstrap.servers: k8s-kafka-bootstrap.kafka:9092
-    database.history.kafka.topic: "schema-changes.inventory"
+    database.history.kafka.topic: "${file:/opt/kafka/external-configuration/connector-configmap/dbconfig.yaml:database.history.kafka.topic}"
     include.schema.changes: "true"
