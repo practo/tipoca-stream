@@ -15,6 +15,5 @@ More Info:
 ```
 export DOCKER_ORG=practodev
 docker build . -t ${DOCKER_ORG}/connect-s3:0.18.0-kafka-2.5.0-camels3connector-0.4.0
-docker push ${DOCKER_ORG}/connect-s3:0.18.0-kakfa-2.5.0-camels3connector-0.4.0
-
+docker push ${DOCKER_ORG}/connect-s3:0.18.0-kafka-2.5.0-camels3connector-0.4.0
 ```
