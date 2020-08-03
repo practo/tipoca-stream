@@ -1,3 +1,7 @@
-# stream
+# tipoca-stream
 
-Near real time data pipeline using Kafka, Strimzi and transformations ported from [Tipoca](https://github.com/practo/tipoca)
+<img src="arch.png">
+
+---
+
+Near real time data pipeline using Kafka, Strimzi applying the [Tipoca](https://github.com/practo/tipoca) transformations.
