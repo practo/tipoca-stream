@@ -1,0 +1,19 @@
+apiVersion: kafka.strimzi.io/v1alpha1
+kind: KafkaConnector
+metadata:
+  name: s3-sink-connector
+  labels:
+    strimzi.io/cluster: my-connect-cluster
+spec:
+  class: org.apache.camel.kafkaconnector.CamelSinkConnector
+  tasksMax: 1
+  config:
+    key.converter: org.apache.kafka.connect.storage.StringConverter
+    value.converter: org.apache.kafka.connect.storage.StringConverter
+    topics: dbserver1.inventory.customers
+    camel.sink.url: aws-s3://docker-vault?keyName=tipoca-stream-s3sink/${date:now:yyyyMMdd}/${exchangeId}
+    camel.sink.maxPollDuration: 10000
+    camel.component.aws-s3.configuration.autocloseBody: false
+    camel.component.aws-s3.accessKey: ${file:/opt/kafka/external-configuration/connector-configmap/aws-credentials.properties:aws_access_key_id}
+    camel.component.aws-s3.secretKey: ${file:/opt/kafka/external-configuration/connector-configmap/aws-credentials.properties:aws_secret_access_key}
+    camel.component.aws-s3.region: US_WEST_1
