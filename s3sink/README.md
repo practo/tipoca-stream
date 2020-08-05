@@ -1,4 +1,4 @@
-# Tipoca Stream Producer
+# Tipoca Stream S3Sink
 
 ```
 kafka topic    => S3-Connector    => Connect => S3
