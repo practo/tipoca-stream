@@ -25,8 +25,8 @@ kubectl create -f inventory-connector.yaml
 - Trigger change:
 ```
     kubectl get pods | grep mysql-debezium | awk '{print $1}' | xargs -I {} echo kubectl exec -it {} /bin/sh
-    mysql -uroot -pdebezium
-    use inventory; UPDATE customers SET first_name='Anne Marie' WHERE id=1004;
+    mysql -uroot -pdebezium -Dinventory
+    UPDATE customers SET first_name='Anne Marie' WHERE id=1004;
 ```
 
 ### Cleanup
