@@ -4,6 +4,7 @@ import (
     "fmt"
     "os"
     "log"
+    "strings"
     "context"
 
     "github.com/Shopify/sarama"
@@ -11,69 +12,91 @@ import (
 
 type Client interface {
     Topics() ([]string, error)
-    Consume(ctx context.Context, topics []string)
-}
-
-type saramaClient struct {
-    client   sarama.Consumer
-    consumer Consumer
-}
-
-func (c *saramaClient) Topics() ([]string, error) {
-    return c.client.Topics()
-}
-
-func (c *saramaClient) Consume(ctx context.Context, topics []string) error {
-    return c.client.Consume(ctx, topics, &c.consumer)
+    Consume(ctx context.Context, topics []string, ready chan bool) error
+    Close() error
 }
 
 func NewClient(
-    brokers []string,
+    brokerURLs string,
     group string,
     clientlog bool,
-    version string,
+    ver string,
     assignor string,
-    oldest bool) (*Client, error) {
+    oldest bool) (Client, error) {
 
-    if verbose {
+    if clientlog {
 		sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags)
 	}
 
-	version, err := sarama.ParseKafkaVersion(version)
+	version, err := sarama.ParseKafkaVersion(ver)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing Kafka version: %v", err)
+		return nil, fmt.Errorf("Error parsing Kafka version: %v\n", err)
 	}
 
-	config := sarama.NewConfig()
-	config.Version = version
+	c := sarama.NewConfig()
+	c.Version = version
 
 	switch assignor {
 	case "sticky":
-		config.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
+		c.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
 	case "roundrobin":
-		config.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
+		c.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
 	case "range":
-		config.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
+		c.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
 	default:
 		return nil, fmt.Errorf(
             "Unknown group partition assignor: %s", assignor)
 	}
 
 	if oldest {
-		config.Consumer.Offsets.Initial = sarama.OffsetOldest
+		c.Consumer.Offsets.Initial = sarama.OffsetOldest
 	}
 
-    client, err := sarama.NewConsumerGroup(
-        strings.Split(brokers, ","), group, config)
+    brokers := strings.Split(brokerURLs, ",")
+
+    consumerGroup, err := sarama.NewConsumerGroup(brokers, group, c)
 	if err != nil {
-		return nil, fmt.Errorf("Error creating consumer group client: %v", err)
+		return nil, fmt.Errorf("Error creating consumer group: %v\n", err)
 	}
 
-    // TODO
-    // init Batcher
+    cluster, err := sarama.NewConsumer(brokers, c)
+    if err != nil {
+        return nil, fmt.Errorf("Error creating consumer: %v\n", err)
+    }
 
     return &saramaClient{
-        client: client,
-        batcher: b,
+        cluster: cluster,
+        consumerGroup: consumerGroup,
+        consumer: NewSaramaConsumer(),
     }, nil
+}
+
+type saramaClient struct {
+    cluster                  sarama.Consumer
+    consumerGroup            sarama.ConsumerGroup
+    consumer                 saramaConsumer
+}
+
+func (c *saramaClient) Topics() ([]string, error) {
+    return c.cluster.Topics()
+}
+
+func (c *saramaClient) Consume(
+    ctx context.Context, topics []string, ready chan bool) error {
+
+    c.consumer.ready = ready
+
+    return c.consumerGroup.Consume(ctx, topics, c.consumer)
+}
+
+func (c *saramaClient) Close() error {
+    if err := c.consumerGroup.Close(); err != nil {
+		return err
+	}
+
+    if err := c.cluster.Close(); err != nil {
+		return err
+	}
+
+    return nil
 }
