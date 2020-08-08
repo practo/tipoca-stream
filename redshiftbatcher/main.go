@@ -6,24 +6,23 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 
-	"github.com/practo/klog/v2"
-	"github.com/spf13/pflag"
+	pflag "github.com/spf13/pflag"
 	"github.com/practo/tipoca-stream/redshiftbatcher/pkg/consumer"
+	"github.com/practo/klog/v2"
 )
 
 // Sarama configuration options
 var (
-	brokers  = ""
-	version  = ""
-	group    = ""
-	topics   = ""
-	assignor = ""
-	oldest   = true
-	verbose  = false
+	brokers  		= ""
+	version  		= ""
+	group    		= ""
+	topicPrefixes   = ""
+	assignor 		= ""
+	oldest   		= true
+	clientlog  		= false
 )
 
 func init() {
@@ -42,8 +41,8 @@ func init() {
 		klog.Fatal("no Kafka bootstrap brokers defined, please set the -brokers flag")
 	}
 
-	if len(topics) == 0 {
-		klog.Fatal("no topics given to be consumed, please set the -topics flag")
+	if len(topicPrefixes) == 0 {
+		klog.Fatal("no topicPrefixes given to be consumed, please set the -topicPrefixes flag")
 	}
 
 	if len(group) == 0 {
@@ -58,22 +57,35 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	client, err := NewClient(
+	client, err := consumer.NewClient(
 		brokers, group, clientlog, version, assignor, oldest)
 	if err != nil {
 		klog.Fatal("Error creating kafka consumer client")
 	}
+	klog.Info("Succesfully created kafka client")
 
-	manager := NewManager(client, topicPrefixes)
-
+	manager := consumer.NewManager(client, topicPrefixes)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go manager.RefreshTopics(ctx, 15, wg)
 	wg.Add(1)
 	go manager.Consume(ctx, wg)
 
+	<-manager.Ready // Await till the consumer has been set up
+	klog.Info("Consumer up and running")
+
+	sigterm := make(chan os.Signal, 1)
+	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case <-ctx.Done():
+		klog.Info("Exiting. Context cancelled")
+	case <-sigterm:
+		klog.Info("Exiting. SIGTERM signal received")
+	}
 	cancel()
 	wg.Wait()
-
-	// TODO: handle signal shutdowns
+	if err = client.Close(); err != nil {
+		log.Panicf("Error closing client: %v", err)
+	}
 }

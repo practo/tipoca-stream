@@ -10,11 +10,15 @@ import (
 )
 
 type Manager struct {
-    // consumer client
-    client *consumer.Consumer
+    // consumer client, this is sarama now, can be kafka-go later
+    client Client
 
     // topicPrefixes is the list of topics to monitor
     topicPrefixes []string
+
+    // ready is used to signal the main thread about the readiness of
+    // the manager
+    Ready chan bool
 
     // mutex protects the following mutable state
 	mutex sync.Mutex
@@ -23,10 +27,13 @@ type Manager struct {
     topics []string
 }
 
-func NewManager(client *consumer.Consumer, topicPrefixes []string) *Manager {
+func NewManager(
+    client Client, topicPrefixes string) *Manager {
+
     return &Manager{
         client: client,
-        topicPrefixes: topicPrefixes,
+        topicPrefixes: strings.Split(topicPrefixes, ","),
+        Ready: make(chan bool),
     }
 }
 
@@ -48,11 +55,15 @@ func (c *Manager) updatetopics(allTopics []string) {
     c.topics = topics
 }
 
+func (c *Manager) getDeepCopyTopics() []string {
+    return append(make([]string, 0, len(c.topics)), c.topics...)
+}
+
 func (c *Manager) RefreshTopics(
-    ctx context.Context, seconds int, wg &sync.WaitGroup) {
+    ctx context.Context, seconds int, wg *sync.WaitGroup) {
 
     defer wg.Done()
-    ticker := time.NewTicker(time.Second * seconds)
+    ticker := time.NewTicker(time.Second * time.Duration(seconds))
     for {
         select {
         case <-ticker.C:
@@ -67,24 +78,21 @@ func (c *Manager) RefreshTopics(
     }
 }
 
-func(c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) error {
+func(c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
     for {
 		// `Consume` should be called inside an infinite loop, when a
 		// server-side rebalance happens, the consumer session will need to be
 		// recreated to get the new claims
+        topics := c.getDeepCopyTopics()
 
-        // TODO deep copy topics
-        topics
-
-		err := c.client.Consume(ctx, topics)
+		err := c.client.Consume(ctx, topics, c.Ready)
         if err != nil {
-			klog.Error("Error from consumer: %v", err)
+			klog.Fatalf("Error from consumer: %v", err)
 		}
 		// check if context was cancelled, signaling that the consumer should stop
 		if ctx.Err() != nil {
 			return
 		}
-		consumer.ready = make(chan bool)
 	}
 }
