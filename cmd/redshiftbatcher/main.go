@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	pflag "github.com/spf13/pflag"
-	"log"
 	"os"
 	"os/signal"
 	"sync"
@@ -98,6 +97,6 @@ func main() {
 	cancel()
 	wg.Wait()
 	if err = client.Close(); err != nil {
-		log.Panicf("Error closing client: %v", err)
+		klog.Fatalf("Error closing client: %v", err)
 	}
 }
