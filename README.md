@@ -1,5 +1,7 @@
 # tipoca-stream
 
+🚧Not ready for production. Work in progress.
+
 <img src="arch.png">
 
 ---
