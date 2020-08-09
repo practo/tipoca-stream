@@ -22,6 +22,30 @@ type Client interface {
 }
 
 func NewClient(
+	kafkaClient string,
+	brokerURLs string,
+	group string,
+	ver string,
+	saramaLog bool,
+	saramaAssignor string,
+	saramaOldest bool) (Client, error) {
+
+	switch kafkaClient {
+	case Sarama:
+		return NewSaramaClient(
+			brokerURLs, group, ver, saramaLog, saramaAssignor, saramaOldest,
+		)
+	case KafkaGo:
+		return nil, fmt.Errorf(
+			"not yet supported, waiting for: %s",
+			"https://github.com/segmentio/kafka-go/issues/131",
+		)
+	default:
+		return nil, fmt.Errorf("kafkaClient not supported: %v\n", kafkaClient)
+	}
+}
+
+func NewSaramaClient(
 	brokerURLs string,
 	group string,
 	ver string,

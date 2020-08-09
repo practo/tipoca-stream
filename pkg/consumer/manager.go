@@ -60,21 +60,27 @@ func (c *Manager) getDeepCopyTopics() []string {
 	return append(make([]string, 0, len(c.topics)), c.topics...)
 }
 
-func (c *Manager) RefreshTopics(
+func (c *Manager) refreshTopics() {
+	topics, err := c.client.Topics()
+	if err != nil {
+		klog.Fatalf("Error getting topics, err=%v\n", err)
+	}
+	klog.V(4).Infof("%d topic(s) in the cluster\n", len(topics))
+	klog.V(5).Infof("Topics in the cluster=%v\n", topics)
+	c.updatetopics(topics)
+}
+
+func (c *Manager) SyncTopics(
 	ctx context.Context, seconds int, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 	ticker := time.NewTicker(time.Second * time.Duration(seconds))
 	for {
+		c.refreshTopics()
+
 		select {
 		case <-ticker.C:
-			topics, err := c.client.Topics()
-			if err != nil {
-				klog.Fatalf("Error getting topics, err=%v\n", err)
-			}
-			klog.V(4).Infof("%d topic(s) in the cluster\n", len(topics))
-			klog.V(5).Infof("Topics in the cluster=%v\n", topics)
-			c.updatetopics(topics)
+			continue
 		case <-ctx.Done():
 			return
 		}
