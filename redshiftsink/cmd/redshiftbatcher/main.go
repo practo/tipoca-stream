@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	pflag "github.com/spf13/pflag"
 	"log"
 	"os"
 	"os/signal"
@@ -11,18 +12,18 @@ import (
 
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftbatcher/pkg/consumer"
-	pflag "github.com/spf13/pflag"
 )
 
 // Sarama configuration options
 var (
-	brokers       = ""
-	version       = ""
-	group         = ""
-	topicPrefixes = ""
-	assignor      = ""
-	oldest        = true
-	clientlog     = false
+	brokers        = ""
+	version        = ""
+	group          = ""
+	topicPrefixes  = ""
+	kafkaClient    = ""
+	saramaAssignor = ""
+	saramaOldest   = true
+	saramaLog      = false
 )
 
 func init() {
@@ -31,10 +32,14 @@ func init() {
 	flag.StringVar(&brokers, "brokers", "", "Kafka bootstrap brokers to connect to, as a comma separated list")
 	flag.StringVar(&group, "group", "", "Kafka consumer group definition")
 	flag.StringVar(&version, "version", "2.1.1", "Kafka cluster version")
-	flag.StringVar(&topicPrefixes, "topicPrefixes", "", "Kafka topics to be consumed, as a comma separated list")
-	flag.StringVar(&assignor, "assignor", "range", "Consumer group partition assignment strategy (range, roundrobin, sticky)")
-	flag.BoolVar(&oldest, "oldest", true, "Kafka consumer consume initial offset from oldest")
-	flag.BoolVar(&clientlog, "clientlog", false, "client logging")
+	flag.StringVar(&topicPrefixes, "topic-prefixes", "", "Kafka topics to be consumed, as a comma separated list")
+	flag.StringVar(&kafkaClient, "kafka-client", "sarama", "Kafka client to use: kafka-go or sarama")
+
+	// sarama specifc flags
+	flag.StringVar(&saramaAssignor, "sarama-assignor", "range", "Consumer group partition assignment strategy (range, roundrobin, sticky)")
+	flag.BoolVar(&saramaOldest, "sarama-oldest", true, "Kafka consumer consume initial offset from oldest")
+	flag.BoolVar(&saramaLog, "sarama-log", false, "Enable or disable sarama client logging")
+
 	flag.Parse()
 
 	if len(brokers) == 0 {
@@ -49,25 +54,32 @@ func init() {
 		klog.Fatal("no Kafka consumer group defined, please set the -group flag")
 	}
 
+	if kafkaClient != consumer.KafkaGo && kafkaClient != consumer.Sarama {
+		klog.Fatalf("supported kafka clients are: %s and %s\n",
+			consumer.KafkaGo, consumer.Sarama)
+	}
+
 	pflag.CommandLine.AddGoFlag(flag.CommandLine.Lookup("v"))
 }
 
 func main() {
 	klog.Info("Starting the redshift batcher")
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	client, err := consumer.NewClient(
-		brokers, group, clientlog, version, assignor, oldest)
+		kafkaClient, brokers, group, version,
+		saramaLog, saramaAssignor, saramaOldest,
+	)
 	if err != nil {
-		klog.Fatal("Error creating kafka consumer client")
+		klog.Fatalf("Error creating kafka consumer client: %v\n", err)
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 	klog.Info("Succesfully created kafka client")
 
 	manager := consumer.NewManager(client, topicPrefixes)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go manager.RefreshTopics(ctx, 15, wg)
+	go manager.SyncTopics(ctx, 15, wg)
 	wg.Add(1)
 	go manager.Consume(ctx, wg)
 

@@ -10,6 +10,11 @@ import (
 	"github.com/Shopify/sarama"
 )
 
+const (
+	KafkaGo = "kafka-go"
+	Sarama  = "sarama"
+)
+
 type Client interface {
 	Topics() ([]string, error)
 	Consume(ctx context.Context, topics []string, ready chan bool) error
@@ -17,14 +22,38 @@ type Client interface {
 }
 
 func NewClient(
+	kafkaClient string,
 	brokerURLs string,
 	group string,
-	clientlog bool,
 	ver string,
-	assignor string,
-	oldest bool) (Client, error) {
+	saramaLog bool,
+	saramaAssignor string,
+	saramaOldest bool) (Client, error) {
 
-	if clientlog {
+	switch kafkaClient {
+	case Sarama:
+		return NewSaramaClient(
+			brokerURLs, group, ver, saramaLog, saramaAssignor, saramaOldest,
+		)
+	case KafkaGo:
+		return nil, fmt.Errorf(
+			"not yet supported, waiting for: %s",
+			"https://github.com/segmentio/kafka-go/issues/131",
+		)
+	default:
+		return nil, fmt.Errorf("kafkaClient not supported: %v\n", kafkaClient)
+	}
+}
+
+func NewSaramaClient(
+	brokerURLs string,
+	group string,
+	ver string,
+	saramaLog bool,
+	saramaAssignor string,
+	saramaOldest bool) (Client, error) {
+
+	if saramaLog {
 		sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags)
 	}
 
@@ -36,7 +65,7 @@ func NewClient(
 	c := sarama.NewConfig()
 	c.Version = version
 
-	switch assignor {
+	switch saramaAssignor {
 	case "sticky":
 		c.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
 	case "roundrobin":
@@ -45,10 +74,10 @@ func NewClient(
 		c.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
 	default:
 		return nil, fmt.Errorf(
-			"Unknown group partition assignor: %s", assignor)
+			"Unknown group partition saramaAssignor: %s", saramaAssignor)
 	}
 
-	if oldest {
+	if saramaOldest {
 		c.Consumer.Offsets.Initial = sarama.OffsetOldest
 	}
 
