@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"flag"
+	pflag "github.com/spf13/pflag"
 	"log"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
-	pflag "github.com/spf13/pflag"
 
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftbatcher/pkg/consumer"
@@ -16,14 +16,14 @@ import (
 
 // Sarama configuration options
 var (
-	brokers       		= ""
-	version       		= ""
-	group         		= ""
-	topicPrefixes 		= ""
-	kafkaClient         = ""
-	saramaAssignor      = ""
-	saramaOldest        = true
-	saramaLog     		= false
+	brokers        = ""
+	version        = ""
+	group          = ""
+	topicPrefixes  = ""
+	kafkaClient    = ""
+	saramaAssignor = ""
+	saramaOldest   = true
+	saramaLog      = false
 )
 
 func init() {
@@ -33,7 +33,7 @@ func init() {
 	flag.StringVar(&group, "group", "", "Kafka consumer group definition")
 	flag.StringVar(&version, "version", "2.1.1", "Kafka cluster version")
 	flag.StringVar(&topicPrefixes, "topic-prefixes", "", "Kafka topics to be consumed, as a comma separated list")
-	flag.StringVar(&kafkaClient, "kafka-client", "kafka-go", "Kafka client to use: kafka-go or sarama")
+	flag.StringVar(&kafkaClient, "kafka-client", "sarama", "Kafka client to use: kafka-go or sarama")
 
 	// sarama specifc flags
 	flag.StringVar(&saramaAssignor, "sarama-assignor", "range", "Consumer group partition assignment strategy (range, roundrobin, sticky)")
@@ -65,20 +65,21 @@ func init() {
 func main() {
 	klog.Info("Starting the redshift batcher")
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	client, err := consumer.NewClient(
-		brokers, group, version, saramaLog, saramaAssignor, saramaOldest,
+		kafkaClient, brokers, group, version,
+		saramaLog, saramaAssignor, saramaOldest,
 	)
 	if err != nil {
-		klog.Fatal("Error creating kafka consumer client")
+		klog.Fatalf("Error creating kafka consumer client: %v\n", err)
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 	klog.Info("Succesfully created kafka client")
 
 	manager := consumer.NewManager(client, topicPrefixes)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go manager.RefreshTopics(ctx, 15, wg)
+	go manager.SyncTopics(ctx, 15, wg)
 	wg.Add(1)
 	go manager.Consume(ctx, wg)
 
