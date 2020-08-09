@@ -13,7 +13,7 @@ VERSION ?= $(shell git describe --tags --always --dirty)
 ### These variables should not need tweaking.
 ###
 
-SRC_DIRS := pkg # directories which hold app source (not vendored)
+SRC_DIRS := cmd pkg # directories which hold app source (not vendored)
 
 ALL_PLATFORMS := linux/amd64 linux/arm linux/arm64 linux/ppc64le linux/s390x
 
@@ -64,6 +64,10 @@ all-push: # @HELP pushes containers for all platforms to the defined registry
 all-push: $(addprefix push-, $(subst /,_, $(ALL_PLATFORMS)))
 
 build: $(foreach bin,$(BINS),bin/$(OS)_$(ARCH)/$(bin))
+
+fmt: # @HELP formats the code
+	@echo "formatting code"
+	/bin/sh -c "./build/format.sh"
 
 # Directories that we need created to build/test.
 BUILD_DIRS := bin/$(OS)_$(ARCH)     \
