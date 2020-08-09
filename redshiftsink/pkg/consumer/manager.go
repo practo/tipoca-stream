@@ -52,7 +52,11 @@ func (c *Manager) updatetopics(allTopics []string) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	klog.V(4).Infof("Consumer will operate on %d topic(s)\n", len(topics))
+	klog.V(4).Infof(
+		"%d topic(s) with prefixes: %v\n",
+		len(topics),
+		c.topicPrefixes,
+	)
 	c.topics = topics
 }
 
@@ -65,7 +69,7 @@ func (c *Manager) refreshTopics() {
 	if err != nil {
 		klog.Fatalf("Error getting topics, err=%v\n", err)
 	}
-	klog.V(4).Infof("%d topic(s) in the cluster\n", len(topics))
+	klog.V(5).Infof("%d topic(s) in the cluster\n", len(topics))
 	klog.V(5).Infof("Topics in the cluster=%v\n", topics)
 	c.updatetopics(topics)
 }
@@ -109,5 +113,6 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 		if ctx.Err() != nil {
 			return
 		}
+		klog.V(5).Info("Done with Consume. It will be rerun.")
 	}
 }
