@@ -10,6 +10,11 @@ import (
 	"github.com/Shopify/sarama"
 )
 
+const (
+	KafkaGo = "kafka-go"
+	Sarama  = "sarama"
+)
+
 type Client interface {
 	Topics() ([]string, error)
 	Consume(ctx context.Context, topics []string, ready chan bool) error
@@ -19,12 +24,12 @@ type Client interface {
 func NewClient(
 	brokerURLs string,
 	group string,
-	clientlog bool,
 	ver string,
-	assignor string,
-	oldest bool) (Client, error) {
+	saramaLog bool,
+	saramaAssignor string,
+	saramaOldest bool) (Client, error) {
 
-	if clientlog {
+	if saramaLog {
 		sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags)
 	}
 
@@ -36,7 +41,7 @@ func NewClient(
 	c := sarama.NewConfig()
 	c.Version = version
 
-	switch assignor {
+	switch saramaAssignor {
 	case "sticky":
 		c.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
 	case "roundrobin":
@@ -45,10 +50,10 @@ func NewClient(
 		c.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
 	default:
 		return nil, fmt.Errorf(
-			"Unknown group partition assignor: %s", assignor)
+			"Unknown group partition saramaAssignor: %s", saramaAssignor)
 	}
 
-	if oldest {
+	if saramaOldest {
 		c.Consumer.Offsets.Initial = sarama.OffsetOldest
 	}
 
