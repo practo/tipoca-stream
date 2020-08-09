@@ -46,7 +46,9 @@ func (c saramaConsumer) ConsumeClaim(
 		klog.Infof("Message claimed: value = %s, timestamp = %v, topic = %s",
 			string(message.Value), message.Timestamp, message.Topic)
 		session.MarkMessage(message, "")
+		session.Commit()
 	}
+
 	klog.V(4).Info("All messages were consumed, exiting consumerClaim.")
 
 	return nil
