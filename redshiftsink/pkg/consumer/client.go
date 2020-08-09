@@ -81,6 +81,10 @@ func NewSaramaClient(
 		c.Consumer.Offsets.Initial = sarama.OffsetOldest
 	}
 
+	// disable auto commits of offsets
+	// https://github.com/Shopify/sarama/issues/1570#issuecomment-574908417
+	c.Consumer.Offsets.AutoCommit.Enable = false
+
 	brokers := strings.Split(brokerURLs, ",")
 
 	consumerGroup, err := sarama.NewConsumerGroup(brokers, group, c)
