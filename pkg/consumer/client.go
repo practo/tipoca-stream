@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Shopify/sarama"
+	"github.com/practo/klog/v2"
 )
 
 const (
@@ -84,6 +85,8 @@ func NewSaramaClient(
 	// disable auto commits of offsets
 	// https://github.com/Shopify/sarama/issues/1570#issuecomment-574908417
 	c.Consumer.Offsets.AutoCommit.Enable = false
+	c.Consumer.Fetch.Min = 3
+	c.Consumer.Fetch.Max = 10
 
 	brokers := strings.Split(brokerURLs, ",")
 
@@ -100,14 +103,14 @@ func NewSaramaClient(
 	return &saramaClient{
 		cluster:       cluster,
 		consumerGroup: consumerGroup,
-		consumer:      NewSaramaConsumer(),
+		consumer:      NewConsumer(),
 	}, nil
 }
 
 type saramaClient struct {
 	cluster       sarama.Consumer
 	consumerGroup sarama.ConsumerGroup
-	consumer      saramaConsumer
+	consumer      consumer
 }
 
 func (c *saramaClient) Topics() ([]string, error) {
@@ -116,6 +119,14 @@ func (c *saramaClient) Topics() ([]string, error) {
 
 func (c *saramaClient) Consume(
 	ctx context.Context, topics []string, ready chan bool) error {
+
+	// create batchers
+	b := new(batchers)
+	for _, topic := range topics {
+		b.Store(topic, newBatcher(topic))
+	}
+	c.consumer.batchers = b
+	klog.V(5).Infof("Created batchers: %+v\n", b)
 
 	c.consumer.ready = ready
 
