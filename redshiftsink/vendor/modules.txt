@@ -1,4 +1,4 @@
-# github.com/Shopify/sarama v1.26.4
+# github.com/Shopify/sarama v1.26.5-0.20200805062841-c4bb5cd3a290
 ## explicit
 github.com/Shopify/sarama
 # github.com/davecgh/go-spew v1.1.1
@@ -18,27 +18,27 @@ github.com/hashicorp/go-uuid
 # github.com/jcmturner/gofork v1.0.0
 github.com/jcmturner/gofork/encoding/asn1
 github.com/jcmturner/gofork/x/crypto/pbkdf2
-# github.com/klauspost/compress v1.9.8
+# github.com/klauspost/compress v1.10.10
 github.com/klauspost/compress/fse
 github.com/klauspost/compress/huff0
 github.com/klauspost/compress/snappy
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
-# github.com/pierrec/lz4 v2.4.1+incompatible
+# github.com/pierrec/lz4 v2.5.2+incompatible
 github.com/pierrec/lz4
 github.com/pierrec/lz4/internal/xxh32
 # github.com/practo/klog/v2 v2.2.1
 ## explicit
 github.com/practo/klog/v2
-# github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563
+# github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0
 github.com/rcrowley/go-metrics
 # github.com/spf13/pflag v1.0.5
 ## explicit
 github.com/spf13/pflag
-# golang.org/x/crypto v0.0.0-20200204104054-c9f3fb736b72
+# golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
 golang.org/x/crypto/md4
 golang.org/x/crypto/pbkdf2
-# golang.org/x/net v0.0.0-20200202094626-16171245cfb2
+# golang.org/x/net v0.0.0-20200528225125-3c3fba18258b
 golang.org/x/net/internal/socks
 golang.org/x/net/proxy
 # gopkg.in/jcmturner/aescts.v1 v1.0.1

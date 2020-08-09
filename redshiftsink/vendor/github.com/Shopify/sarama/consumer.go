@@ -422,13 +422,13 @@ func (child *partitionConsumer) AsyncClose() {
 func (child *partitionConsumer) Close() error {
 	child.AsyncClose()
 
-	var errors ConsumerErrors
+	var consumerErrors ConsumerErrors
 	for err := range child.errors {
-		errors = append(errors, err)
+		consumerErrors = append(consumerErrors, err)
 	}
 
-	if len(errors) > 0 {
-		return errors
+	if len(consumerErrors) > 0 {
+		return consumerErrors
 	}
 	return nil
 }
@@ -451,6 +451,9 @@ feederLoop:
 		}
 
 		for i, msg := range msgs {
+			for _, interceptor := range child.conf.Consumer.Interceptors {
+				msg.safelyApplyInterceptor(interceptor)
+			}
 		messageSelect:
 			select {
 			case <-child.dying:
