@@ -9,20 +9,20 @@ import (
 	"sync"
 	"syscall"
 
-	pflag "github.com/spf13/pflag"
-	"github.com/practo/tipoca-stream/redshiftbatcher/pkg/consumer"
 	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/redshiftbatcher/pkg/consumer"
+	pflag "github.com/spf13/pflag"
 )
 
 // Sarama configuration options
 var (
-	brokers  		= ""
-	version  		= ""
-	group    		= ""
-	topicPrefixes   = ""
-	assignor 		= ""
-	oldest   		= true
-	clientlog  		= false
+	brokers       = ""
+	version       = ""
+	group         = ""
+	topicPrefixes = ""
+	assignor      = ""
+	oldest        = true
+	clientlog     = false
 )
 
 func init() {
@@ -72,7 +72,7 @@ func main() {
 	go manager.Consume(ctx, wg)
 
 	<-manager.Ready // Await till the consumer has been set up
-	klog.Info("Consumer up and running")
+	klog.Info("Consumer is up and running")
 
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
