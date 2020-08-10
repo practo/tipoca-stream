@@ -53,6 +53,9 @@ type batchProcessor struct {
 	topic     string
 	partition int32
 
+	// session is required to commit the offsets on succesfull processing
+	session   sarama.ConsumerGroupSession
+
 	// s3Sink
 	s3sink *s3sink.S3Sink
 
@@ -62,8 +65,6 @@ type batchProcessor struct {
 	// bodyBuf stores the batch data in buffer before upload
 	bodyBuf *bytes.Buffer
 
-	// session is required to commit the offsets on succesfull processing
-	session   sarama.ConsumerGroupSession
 }
 
 func newBatchProcessor(
@@ -74,6 +75,7 @@ func newBatchProcessor(
 		topic:     topic,
 		partition: partition,
 		session:   session,
+		s3sink:    nil,
 		bodyBuf:   bytes.NewBuffer(make([]byte, 0, 4096)),
 	}
 }
@@ -137,12 +139,12 @@ func (b batchProcessor) process(workerID int, datas []interface{}) {
 	klog.Infof("topic=%s, batch-size=%d: Processing...\n", b.topic, len(datas))
 
 	// TODO: transform the debezium event
-	b.transformedBuffer(datas)
+	// b.transformedBuffer(datas)
 
-	err := b.s3sink.upload(b.s3Key, b.bodyBuf)
-	if err != nil {
-		klog.Fatalf("Error writing to s3, err=%v\n", err)
-	}
+	// err := b.s3sink.upload(b.s3Key, b.bodyBuf)
+	// if err != nil {
+		// klog.Fatalf("Error writing to s3, err=%v\n", err)
+	// }
 
 	// TODO: add a job to load the batch to redshift
 	time.Sleep(time.Second * 3)
