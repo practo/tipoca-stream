@@ -14,16 +14,22 @@ import (
 	"github.com/practo/tipoca-stream/redshiftbatcher/pkg/consumer"
 )
 
-// Sarama configuration options
 var (
 	brokers        = ""
-	version        = ""
 	group          = ""
+	version        = ""
 	topicPrefixes  = ""
 	kafkaClient    = ""
+
 	saramaAssignor = ""
 	saramaOldest   = true
 	saramaLog      = false
+
+	awsRegion = ""
+	awsAccessKeyId = ""
+	awsSecretAccessKey = ""
+	s3Bucket = ""
+	s3BucketDir = ""
 )
 
 func init() {
@@ -39,6 +45,13 @@ func init() {
 	flag.StringVar(&saramaAssignor, "sarama-assignor", "range", "Consumer group partition assignment strategy (range, roundrobin, sticky)")
 	flag.BoolVar(&saramaOldest, "sarama-oldest", true, "Kafka consumer consume initial offset from oldest")
 	flag.BoolVar(&saramaLog, "sarama-log", false, "Enable or disable sarama client logging")
+
+	// s3 config
+	flags.StringVar(&awsRegion, "aws-region", "ap-south-1", "aws region of s3")
+	flags.StringVar(&awsAccessKeyId, "aws-access-key-id", "", "access-key id for uploading to s3")
+	flags.StringVar(&awsSecretAccessKey, "aws-secret-access-key", "", "secret for uploading to s3")
+	flags.StringVar(&s3Bucket, "s3-bucket", "tipoca-stream", "bucket tp upload in s3")
+	flags.StringVar(&s3BucketDir, "s3-bucket-dir", "redshift-commands", "redshift commands to load data in redshift from s3")
 
 	flag.Parse()
 
