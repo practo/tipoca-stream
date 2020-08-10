@@ -60,7 +60,7 @@ func (c *Manager) updatetopics(allTopics []string) {
 	c.topics = topics
 }
 
-func (c *Manager) getDeepCopyTopics() []string {
+func (c *Manager) deepCopyTopics() []string {
 	return append(make([]string, 0, len(c.topics)), c.topics...)
 }
 
@@ -97,7 +97,7 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 		// `Consume` should be called inside an infinite loop, when a
 		// server-side rebalance happens, the consumer session will need to be
 		// recreated to get the new claims
-		topics := c.getDeepCopyTopics()
+		topics := c.deepCopyTopics()
 		if len(topics) == 0 {
 			klog.Error("No topics found, waiting")
 			time.Sleep(time.Second * 5)
