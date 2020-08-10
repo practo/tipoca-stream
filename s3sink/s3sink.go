@@ -3,18 +3,13 @@ package s3sink
 package sinks
 
 import (
-	"bytes"
-	"errors"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 )
 
-/*
-S3Sink is a library which can be used to upload data to s3
-*/
+// S3Sink is a library which can be used to upload data to s3
 type S3Sink struct {
 	// uploader client from aws which makes the API call to aws for upload
 	uploader *s3manager.Uploader
@@ -28,9 +23,6 @@ type S3Sink struct {
 
 	// outPutFormat is the format in which the data is stored in the s3 file
 	outputFormat string
-
-	// bodyBuf stores all the event captured data in a buffer before upload
-	bodyBuf *bytes.Buffer
 }
 
 // NewS3Sink is the factory method constructing a new S3Sink
@@ -61,7 +53,6 @@ func NewS3Sink(
 		bucket:         s3SinkBucket,
 		bucketDir:      s3SinkBucketDir,
 		outputFormat:   outputFormat,
-		bodyBuf:        bytes.NewBuffer(make([]byte, 0, 4096)),
 	}
 
 	return s, nil
@@ -69,17 +60,14 @@ func NewS3Sink(
 
 // upload uploads the data stored in buffer to s3 in the specified key
 // and clears the buffer
-func (s *S3Sink) upload(key string) error {
+func (s *S3Sink) upload(key string, bodyBuf *bytes.Buffer) error {
 	_, err := s.uploader.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
-		Body:   s.bodyBuf,
+		Body:   bodyBuf,
 	})
 	if err != nil {
 		return err
 	}
-
-	s.bodyBuf.Truncate(0)
-
 	return nil
 }
