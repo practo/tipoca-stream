@@ -53,8 +53,8 @@ github.com/practo/gobatch v0.0.0-20190726112432-54166d458d8b h1:95TrykWkPU+OZ0TQ
 github.com/practo/gobatch v0.0.0-20190726112432-54166d458d8b/go.mod h1:2UeXn59D3tqmHrbst8T4Z+Wm6/TUMREkXTNH1PT0dU0=
 github.com/practo/klog/v2 v2.2.1 h1:yV/SavG73KHSmCVwtDap1RGe+2jd86e1eugT+Mv2/FA=
 github.com/practo/klog/v2 v2.2.1/go.mod h1:WMkpfPwTxLgSLookpI4UUv2zL7tMltKACK/FHB1zLV0=
-github.com/practo/tipoca-stream/s3sink v0.0.0-20200810193334-e7004e17b2a3 h1:dLwRfudDUvNq0BYM+JIG7vWd1j+x1hhCTTnXH7Pmhpk=
-github.com/practo/tipoca-stream/s3sink v0.0.0-20200810193334-e7004e17b2a3/go.mod h1:2WXRI5KBHx80gSpH0lDn7RcC1ckMSHxiSWvR1iMGnMM=
+github.com/practo/tipoca-stream/s3sink v0.0.0-20200810193656-ae8e25297679 h1:R0A7M8c09jIwuNysaa4YvM+WKIN3DIaD6ncBOqra5vo=
+github.com/practo/tipoca-stream/s3sink v0.0.0-20200810193656-ae8e25297679/go.mod h1:yoiMQ/ig1rm9HixwiAQWcH373JICTkLcQIADerna9Cg=
 github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0 h1:MkV+77GLUNo5oJ0jf870itWm3D0Sjh7+Za9gazKc5LQ=
 github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0/go.mod h1:bCqnVzQkZxMG4s8nGwiZ5l3QUCyqpo9Y+/ZMZ9VjZe4=
 github.com/spf13/pflag v1.0.5 h1:iy+VFUOCP1a+8yFto/drg2CJ5u0yRoB7fZw3DKv/JXA=
