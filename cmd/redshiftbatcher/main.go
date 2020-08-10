@@ -90,9 +90,9 @@ func main() {
 
 	select {
 	case <-ctx.Done():
-		klog.Info("Exiting. Context cancelled")
+		klog.Info("Context cancelled, bye bye!")
 	case <-sigterm:
-		klog.Info("Exiting. SIGTERM signal received")
+		klog.Info("Sigterm signal received, Goodbye till will meet again!")
 	}
 	cancel()
 	wg.Wait()

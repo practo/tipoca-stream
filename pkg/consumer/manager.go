@@ -52,7 +52,7 @@ func (c *Manager) updatetopics(allTopics []string) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	klog.V(4).Infof(
+	klog.V(5).Infof(
 		"%d topic(s) with prefixes: %v\n",
 		len(topics),
 		c.topicPrefixes,
