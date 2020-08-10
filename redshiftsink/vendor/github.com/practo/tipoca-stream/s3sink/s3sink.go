@@ -1,7 +1,5 @@
 package s3sink
 
-package sinks
-
 import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
