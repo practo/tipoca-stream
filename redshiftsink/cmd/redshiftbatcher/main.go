@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"context"
 	"flag"
 	pflag "github.com/spf13/pflag"
@@ -69,7 +70,8 @@ func main() {
 		saramaLog, saramaAssignor, saramaOldest,
 	)
 	if err != nil {
-		klog.Fatalf("Error creating kafka consumer client: %v\n", err)
+		fmt.Println("Error creating kafka consumer client: %v\n", err)
+		os.Exit(1)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -90,9 +92,9 @@ func main() {
 
 	select {
 	case <-ctx.Done():
-		klog.Info("Exiting. Context cancelled")
+		klog.Info("Context cancelled, bye bye!")
 	case <-sigterm:
-		klog.Info("Exiting. SIGTERM signal received")
+		klog.Info("Sigterm signal received, Goodbye till will meet again!")
 	}
 	cancel()
 	wg.Wait()

@@ -27,6 +27,9 @@ github.com/klauspost/compress/zstd/internal/xxhash
 # github.com/pierrec/lz4 v2.5.2+incompatible
 github.com/pierrec/lz4
 github.com/pierrec/lz4/internal/xxh32
+# github.com/practo/gobatch v0.0.0-20190726112432-54166d458d8b
+## explicit
+github.com/practo/gobatch
 # github.com/practo/klog/v2 v2.2.1
 ## explicit
 github.com/practo/klog/v2
