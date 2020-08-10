@@ -1,14 +1,15 @@
 package consumer
 
 import (
+	"bytes"
+	"path/filepath"
 	"sync"
 	"time"
-	"path/filepath"
 
 	"github.com/Shopify/sarama"
 
-	"github.com/practo/klog/v2"
 	"github.com/practo/gobatch"
+	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/s3sink"
 )
 
@@ -54,7 +55,7 @@ type batchProcessor struct {
 	partition int32
 
 	// session is required to commit the offsets on succesfull processing
-	session   sarama.ConsumerGroupSession
+	session sarama.ConsumerGroupSession
 
 	// s3Sink
 	s3sink *s3sink.S3Sink
@@ -64,7 +65,6 @@ type batchProcessor struct {
 
 	// bodyBuf stores the batch data in buffer before upload
 	bodyBuf *bytes.Buffer
-
 }
 
 func newBatchProcessor(
@@ -106,19 +106,17 @@ func (b batchProcessor) signalLoad(bucket string, key string) {
 }
 
 func (b batchProcessor) transform(data *sarama.ConsumerMessage) []byte {
-
+	return []byte{}
 }
 
-func (b batchProcessor) setS3key(topic string, partition int32, offset int32) {
-	b.s3Key = filepath.Join(
-		message.topic, string(partition), string(offset),
-	)
+func (b batchProcessor) setS3key(topic string, partition int32, offset int64) {
+	b.s3Key = filepath.Join(topic, string(partition), string(offset))
 }
 
-func (b batchProcessor) transformedBuffer(data *sarama.ConsumerMessage) {
+func (b batchProcessor) transformedBuffer(datas []interface{}) {
 	b.s3Key = ""
 
-	for i, data := range datas {
+	for _, data := range datas {
 		// TODO: this should not be required, fix the gobatch code
 		if data == nil {
 			continue
@@ -143,7 +141,7 @@ func (b batchProcessor) process(workerID int, datas []interface{}) {
 
 	// err := b.s3sink.upload(b.s3Key, b.bodyBuf)
 	// if err != nil {
-		// klog.Fatalf("Error writing to s3, err=%v\n", err)
+	// klog.Fatalf("Error writing to s3, err=%v\n", err)
 	// }
 
 	// TODO: add a job to load the batch to redshift

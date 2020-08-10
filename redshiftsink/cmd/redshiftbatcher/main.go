@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"context"
 	"flag"
+	"fmt"
 	pflag "github.com/spf13/pflag"
 	"os"
 	"os/signal"
@@ -15,21 +15,21 @@ import (
 )
 
 var (
-	brokers        = ""
-	group          = ""
-	version        = ""
-	topicPrefixes  = ""
-	kafkaClient    = ""
+	brokers       = ""
+	group         = ""
+	version       = ""
+	topicPrefixes = ""
+	kafkaClient   = ""
 
 	saramaAssignor = ""
 	saramaOldest   = true
 	saramaLog      = false
 
-	awsRegion = ""
-	awsAccessKeyId = ""
+	awsRegion          = ""
+	awsAccessKeyId     = ""
 	awsSecretAccessKey = ""
-	s3Bucket = ""
-	s3BucketDir = ""
+	s3Bucket           = ""
+	s3BucketDir        = ""
 )
 
 func init() {
@@ -47,11 +47,11 @@ func init() {
 	flag.BoolVar(&saramaLog, "sarama-log", false, "Enable or disable sarama client logging")
 
 	// s3 config
-	flags.StringVar(&awsRegion, "aws-region", "ap-south-1", "aws region of s3")
-	flags.StringVar(&awsAccessKeyId, "aws-access-key-id", "", "access-key id for uploading to s3")
-	flags.StringVar(&awsSecretAccessKey, "aws-secret-access-key", "", "secret for uploading to s3")
-	flags.StringVar(&s3Bucket, "s3-bucket", "tipoca-stream", "bucket tp upload in s3")
-	flags.StringVar(&s3BucketDir, "s3-bucket-dir", "redshift-commands", "redshift commands to load data in redshift from s3")
+	flag.StringVar(&awsRegion, "aws-region", "ap-south-1", "aws region of s3")
+	flag.StringVar(&awsAccessKeyId, "aws-access-key-id", "", "access-key id for uploading to s3")
+	flag.StringVar(&awsSecretAccessKey, "aws-secret-access-key", "", "secret for uploading to s3")
+	flag.StringVar(&s3Bucket, "s3-bucket", "tipoca-stream", "bucket tp upload in s3")
+	flag.StringVar(&s3BucketDir, "s3-bucket-dir", "redshift-commands", "redshift commands to load data in redshift from s3")
 
 	flag.Parse()
 
