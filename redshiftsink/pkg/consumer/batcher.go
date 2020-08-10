@@ -3,11 +3,13 @@ package consumer
 import (
 	"sync"
 	"time"
+	"path/filepath"
 
 	"github.com/Shopify/sarama"
 
-	gobatch "github.com/practo/gobatch"
 	"github.com/practo/klog/v2"
+	"github.com/practo/gobatch"
+	"github.com/practo/tipoca-stream/s3sink"
 )
 
 type batchers = sync.Map
@@ -51,8 +53,17 @@ type batchProcessor struct {
 	topic     string
 	partition int32
 
+	// s3Sink
+	s3sink *s3sink.S3Sink
+
+	// s3Key is the key at which the batch data is stored in s3
+	s3Key string
+
+	// bodyBuf stores the batch data in buffer before upload
+	bodyBuf *bytes.Buffer
+
 	// session is required to commit the offsets on succesfull processing
-	session sarama.ConsumerGroupSession
+	session   sarama.ConsumerGroupSession
 }
 
 func newBatchProcessor(
@@ -63,17 +74,11 @@ func newBatchProcessor(
 		topic:     topic,
 		partition: partition,
 		session:   session,
+		bodyBuf:   bytes.NewBuffer(make([]byte, 0, 4096)),
 	}
 }
 
-func (b batchProcessor) process(workerID int, datas []interface{}) {
-	// TODO: process datas
-	klog.Infof("topic=%s, batch-size=%d: Processing...\n", b.topic, len(datas))
-
-	// TODO: add a job to load the batch to redshift
-	time.Sleep(time.Second * 3)
-
-	// commit processed
+func (b batchProcessor) commitOffset(datas []interface{}) {
 	for _, data := range datas {
 		// TODO: this should not be required, fix the gobatch code
 		if data == nil {
@@ -92,4 +97,56 @@ func (b batchProcessor) process(workerID int, datas []interface{}) {
 			message.Topic, string(message.Value),
 		)
 	}
+}
+
+func (b batchProcessor) signalLoad(bucket string, key string) {
+
+}
+
+func (b batchProcessor) transform(data *sarama.ConsumerMessage) []byte {
+
+}
+
+func (b batchProcessor) setS3key(topic string, partition int32, offset int32) {
+	b.s3Key = filepath.Join(
+		message.topic, string(partition), string(offset),
+	)
+}
+
+func (b batchProcessor) transformedBuffer(data *sarama.ConsumerMessage) {
+	b.s3Key = ""
+
+	for i, data := range datas {
+		// TODO: this should not be required, fix the gobatch code
+		if data == nil {
+			continue
+		}
+		message := data.(*sarama.ConsumerMessage)
+
+		// key is always made based on the first not nil message in the batch
+		if b.s3Key == "" {
+			b.setS3key(message.Topic, message.Partition, message.Offset)
+		}
+
+		b.bodyBuf.Write(message.Value)
+		b.bodyBuf.Write([]byte{'\n'})
+	}
+}
+
+func (b batchProcessor) process(workerID int, datas []interface{}) {
+	klog.Infof("topic=%s, batch-size=%d: Processing...\n", b.topic, len(datas))
+
+	// TODO: transform the debezium event
+	b.transformedBuffer(datas)
+
+	err := b.s3sink.upload(b.s3Key, b.bodyBuf)
+	if err != nil {
+		klog.Fatalf("Error writing to s3, err=%v\n", err)
+	}
+
+	// TODO: add a job to load the batch to redshift
+	time.Sleep(time.Second * 3)
+
+	b.commitOffset(datas)
+
 }
