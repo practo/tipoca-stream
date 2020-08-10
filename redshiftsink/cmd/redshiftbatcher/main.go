@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"context"
 	"flag"
 	pflag "github.com/spf13/pflag"
@@ -69,7 +70,8 @@ func main() {
 		saramaLog, saramaAssignor, saramaOldest,
 	)
 	if err != nil {
-		klog.Fatalf("Error creating kafka consumer client: %v\n", err)
+		fmt.Println("Error creating kafka consumer client: %v\n", err)
+		os.Exit(1)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
