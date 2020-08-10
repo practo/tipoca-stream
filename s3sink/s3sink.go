@@ -20,24 +20,20 @@ type S3Sink struct {
 	// bucketDir is the first level directory in
 	// the bucket where the events would be stored
 	bucketDir string
-
-	// outPutFormat is the format in which the data is stored in the s3 file
-	outputFormat string
 }
 
 // NewS3Sink is the factory method constructing a new S3Sink
 func NewS3Sink(
 	awsAccessKeyID string,
-	s3SinkSecretAccessKey string,
-	s3SinkRegion string,
-	s3SinkBucket string,
-	s3SinkBucketDir string,
-	outputFormat string) (*S3Sink, error) {
+	awsSecretAccessKey string,
+	s3Region string,
+	s3Bucket string,
+	s3BucketDir string) (*S3Sink, error) {
 
 	awsConfig := &aws.Config{
-		Region:      aws.String(s3SinkRegion),
+		Region:      aws.String(s3Region),
 		Credentials: credentials.NewStaticCredentials(
-			awsAccessKeyID, s3SinkSecretAccessKey, ""),
+			awsAccessKeyID, awsSecretAccessKey, ""),
 	}
 
 	awsConfig = awsConfig.WithCredentialsChainVerboseErrors(true)
@@ -50,9 +46,8 @@ func NewS3Sink(
 
 	s := &S3Sink{
 		uploader:       uploader,
-		bucket:         s3SinkBucket,
-		bucketDir:      s3SinkBucketDir,
-		outputFormat:   outputFormat,
+		bucket:         s3Bucket,
+		bucketDir:      s3BucketDir,
 	}
 
 	return s, nil
