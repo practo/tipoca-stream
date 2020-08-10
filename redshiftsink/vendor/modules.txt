@@ -2,7 +2,6 @@
 ## explicit
 github.com/Shopify/sarama
 # github.com/aws/aws-sdk-go v1.34.1
-## explicit
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/arn
 github.com/aws/aws-sdk-go/aws/awserr
@@ -82,7 +81,7 @@ github.com/practo/gobatch
 # github.com/practo/klog/v2 v2.2.1
 ## explicit
 github.com/practo/klog/v2
-# github.com/practo/tipoca-stream/s3sink v0.0.0-20200810193334-e7004e17b2a3
+# github.com/practo/tipoca-stream/s3sink v0.0.0-20200810193656-ae8e25297679
 ## explicit
 github.com/practo/tipoca-stream/s3sink
 # github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0
