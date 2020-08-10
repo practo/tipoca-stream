@@ -3,6 +3,11 @@ package consumer
 import (
 	"sync"
 	"time"
+
+	"github.com/Shopify/sarama"
+
+	gobatch "github.com/practo/gobatch"
+	"github.com/practo/klog/v2"
 )
 
 type batchers = sync.Map
@@ -10,39 +15,81 @@ type batchers = sync.Map
 type batcher struct {
 	topic string
 
-	minItems uint64 `json:"minItems"`
-	maxItems uint64 `json:"maxItems"`
+	maxSize int
+	maxWait time.Duration
 
-	minWait time.Duration `json:"minTime"`
-	maxWait time.Duration `json:"maxTime"`
+	mbatch    *gobatch.Batch
+	processor *batchProcessor
 }
 
-func newBatcher(topic string) *batcher {
+func newBatcher(
+	topic string,
+	maxSize int,
+	maxWaitSeconds int) *batcher {
+
 	return &batcher{
-		minItems: 10,
-		maxItems: 20,
-		minWait:  time.Second * time.Duration(1),
-		maxWait:  time.Second * time.Duration(60),
+		topic:     topic,
+		maxSize:   maxSize,
+		maxWait:   time.Second * time.Duration(maxWaitSeconds),
+		processor: nil,
+		mbatch:    nil,
 	}
 }
 
-func (c *batcher) batch(topic string, partition int32, value []byte) error {
-	return nil
+func newMBatch(
+	maxSize int,
+	maxWait time.Duration,
+	process gobatch.BatchFn,
+	workers int) *gobatch.Batch {
+
+	return gobatch.NewMemoryBatch(
+		maxSize, maxWait, process, workers,
+	)
 }
 
-func (c *batcher) release() bool {
-	return false
+type batchProcessor struct {
+	topic     string
+	partition int32
+
+	// session is required to commit the offsets on succesfull processing
+	session sarama.ConsumerGroupSession
 }
 
-func (c *batcher) upload() error {
-	return nil
+func newBatchProcessor(
+	topic string, partition int32,
+	session sarama.ConsumerGroupSession) *batchProcessor {
+
+	return &batchProcessor{
+		topic:     topic,
+		partition: partition,
+		session:   session,
+	}
 }
 
-func (c *batcher) signalLoader() error {
-	return nil
-}
+func (b batchProcessor) process(workerID int, datas []interface{}) {
+	// TODO: process datas
+	klog.Infof("topic=%s, batch-size=%d: Processing...\n", b.topic, len(datas))
 
-func (c *batcher) markMessageCommit() {
-	// session.MarkMessage(message, "")
-	// session.Commit()
+	// TODO: add a job to load the batch to redshift
+	time.Sleep(time.Second * 3)
+
+	// commit processed
+	for _, data := range datas {
+		// TODO: this should not be required, fix the gobatch code
+		if data == nil {
+			continue
+		}
+		message := data.(*sarama.ConsumerMessage)
+
+		b.session.MarkMessage(message, "")
+		// TODO: not sure how to avoid any failure when the process restarts
+		// while doing this But if the system is idempotent we do not
+		// need to worry about this. Since the write to s3 again will
+		// just overwrite the same data.
+		b.session.Commit()
+		klog.Infof(
+			"topic=%s, message=%s: Processed\n",
+			message.Topic, string(message.Value),
+		)
+	}
 }

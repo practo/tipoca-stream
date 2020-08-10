@@ -39,29 +39,25 @@ func (c consumer) processMessage(
 	session sarama.ConsumerGroupSession,
 	message *sarama.ConsumerMessage) error {
 
+	// load the batcher for the topic
 	ub, _ := c.batchers.Load(message.Topic)
 	if ub == nil {
 		klog.Fatalf("Error loading batcher for topic=%s\n", message.Topic)
 	}
 	b := ub.(*batcher)
 
-	b.batch(message.Topic, message.Partition, message.Value)
-	if !b.release() {
-		return nil
+	if b.processor == nil {
+		b.processor = newBatchProcessor(
+			message.Topic, message.Partition, session)
+	}
+	// TODO: not sure added below for safety, it may not be required
+	b.processor.session = session
+
+	if b.mbatch == nil {
+		b.mbatch = newMBatch(b.maxSize, b.maxWait, b.processor.process, 1)
 	}
 
-	// upload should be idempotent
-	err := b.upload()
-	if err != nil {
-		klog.Fatalf("Error uploading to s3, err: %v\n", err)
-	}
-
-	err = b.signalLoader()
-	if err != nil {
-		klog.Fatalf("Error signaling to the loader, err: %v\n", err)
-	}
-
-	b.markMessageCommit()
+	b.mbatch.Insert(message)
 
 	return nil
 }
@@ -71,7 +67,7 @@ func (c consumer) ConsumeClaim(
 	session sarama.ConsumerGroupSession,
 	claim sarama.ConsumerGroupClaim) error {
 
-	klog.V(4).Info("Starting to consume messages...")
+	klog.V(4).Infof("Starting to consume messages... Claims: %+v\n", session.Claims())
 	// NOTE:
 	// Do not move the code below to a goroutine.
 	// The `ConsumeClaim` itself is called within a goroutine, see:
@@ -83,8 +79,6 @@ func (c consumer) ConsumeClaim(
 				string(message.Value), message.Timestamp, message.Topic)
 			continue
 		}
-		klog.Infof("Message claimed: value=%s, timestamp=%v, topic=%s",
-			string(message.Value), message.Timestamp, message.Topic)
 	}
 
 	klog.V(4).Info("Shutting down ConsumerClaim.")
