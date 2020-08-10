@@ -123,7 +123,7 @@ func (c *saramaClient) Consume(
 	// create batchers
 	b := new(batchers)
 	for _, topic := range topics {
-		b.Store(topic, newBatcher(topic))
+		b.Store(topic, newBatcher(topic, 10, 4))
 	}
 	c.consumer.batchers = b
 	klog.V(5).Infof("Created batchers: %+v\n", b)
