@@ -10,9 +10,10 @@ import (
 )
 
 type Config struct {
-	Kafka  consumer.KafkaConfig
-	Sarama consumer.SaramaConfig
-	S3Sink s3sink.Config
+	Batcher consumer.BatcherConfig	`yaml: batcher`
+	Kafka   consumer.KafkaConfig 	`yaml: kafka`
+	Sarama  consumer.SaramaConfig	`yaml: sarama`
+	S3Sink  s3sink.Config			`yaml: s3sink`
 }
 
 func LoadConfig(cmd *cobra.Command) (Config, error) {
@@ -48,6 +49,7 @@ func LoadConfig(cmd *cobra.Command) (Config, error) {
 	ValidateConfig(c)
 
 	klog.Infof("Using config file: %s\n", configName)
+	klog.V(5).Infof("ConfigFilePath: %s\n", viper.ConfigFileUsed())
 	klog.V(5).Infof("Config: %+v\n", c)
 	return c, nil
 }
