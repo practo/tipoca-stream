@@ -11,54 +11,41 @@ import (
 	"github.com/practo/klog/v2"
 )
 
-const (
-	KafkaGo = "kafka-go"
-	Sarama  = "sarama"
-)
-
 type Client interface {
 	Topics() ([]string, error)
 	Consume(ctx context.Context, topics []string, ready chan bool) error
 	Close() error
 }
 
-func NewClient(
-	kafkaClient string,
-	brokerURLs string,
-	group string,
-	ver string,
-	saramaLog bool,
-	saramaAssignor string,
-	saramaOldest bool) (Client, error) {
+type KafkaConfig struct {
+	Brokers       string `yaml: brokers`
+	Group         string `yaml: group`
+	Version       string `yaml: version`
+	TopicPrefixes string `yaml: topicPrefixes`
+	KafkaClient   string `yaml: kafkaClient`
+}
 
-	switch kafkaClient {
-	case Sarama:
-		return NewSaramaClient(
-			brokerURLs, group, ver, saramaLog, saramaAssignor, saramaOldest,
-		)
-	case KafkaGo:
-		return nil, fmt.Errorf(
-			"not yet supported, waiting for: %s",
-			"https://github.com/segmentio/kafka-go/issues/131",
-		)
+type SaramaConfig struct {
+	Assignor string `yaml: assignor`
+	Oldest   bool   `yaml: oldest`
+	Log      bool   `yaml: log`
+}
+
+func NewClient(k KafkaConfig, s SaramaConfig) (Client, error) {
+	switch k.KafkaClient {
+	case "sarama":
+		return NewSaramaClient(k, s)
 	default:
-		return nil, fmt.Errorf("kafkaClient not supported: %v\n", kafkaClient)
+		return nil, fmt.Errorf("kafkaClient not supported: %v\n", k.KafkaClient)
 	}
 }
 
-func NewSaramaClient(
-	brokerURLs string,
-	group string,
-	ver string,
-	saramaLog bool,
-	saramaAssignor string,
-	saramaOldest bool) (Client, error) {
-
-	if saramaLog {
+func NewSaramaClient(k KafkaConfig, s SaramaConfig) (Client, error) {
+	if s.Log {
 		sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags)
 	}
 
-	version, err := sarama.ParseKafkaVersion(ver)
+	version, err := sarama.ParseKafkaVersion(k.Version)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing Kafka version: %v\n", err)
 	}
@@ -66,7 +53,7 @@ func NewSaramaClient(
 	c := sarama.NewConfig()
 	c.Version = version
 
-	switch saramaAssignor {
+	switch s.Assignor {
 	case "sticky":
 		c.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
 	case "roundrobin":
@@ -75,22 +62,23 @@ func NewSaramaClient(
 		c.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
 	default:
 		return nil, fmt.Errorf(
-			"Unknown group partition saramaAssignor: %s", saramaAssignor)
+			"Unknown group partition saramaAssignor: %s", s.Assignor)
 	}
 
-	if saramaOldest {
+	if s.Oldest {
 		c.Consumer.Offsets.Initial = sarama.OffsetOldest
 	}
 
 	// disable auto commits of offsets
 	// https://github.com/Shopify/sarama/issues/1570#issuecomment-574908417
 	c.Consumer.Offsets.AutoCommit.Enable = false
-	c.Consumer.Fetch.Min = 3
-	c.Consumer.Fetch.Max = 10
 
-	brokers := strings.Split(brokerURLs, ",")
+	// TODO: find the correct values and make it confiurable
+	// c.Consumer.Fetch.Min = 3
+	// c.Consumer.Fetch.Max = 10
 
-	consumerGroup, err := sarama.NewConsumerGroup(brokers, group, c)
+	brokers := strings.Split(k.Brokers, ",")
+	consumerGroup, err := sarama.NewConsumerGroup(brokers, k.Group, c)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating consumer group: %v\n", err)
 	}
@@ -108,9 +96,15 @@ func NewSaramaClient(
 }
 
 type saramaClient struct {
-	cluster       sarama.Consumer
+	// cluster is required to get Kafka cluster related info like Topics
+	cluster sarama.Consumer
+
+	// consumerGroup uses consumer to consume records in kaafka topics
 	consumerGroup sarama.ConsumerGroup
-	consumer      consumer
+
+	// consumer is the implementation that is called by the sarama
+	// to perform consumption
+	consumer consumer
 }
 
 func (c *saramaClient) Topics() ([]string, error) {
