@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/spf13/viper"
 
 	"github.com/practo/gobatch"
 	"github.com/practo/klog/v2"
@@ -71,11 +72,22 @@ func newBatchProcessor(
 	topic string, partition int32,
 	session sarama.ConsumerGroupSession) *batchProcessor {
 
+	sink, err := s3sink.NewS3Sink(
+		viper.GetString("s3.access_key_id"),
+		viper.GetString("s3.secret_access_key"),
+		viper.GetString("s3.region"),
+		viper.GetString("s3.bucket"),
+		viper.GetString("s3.bucket_dir"),
+	)
+	if err != nil {
+		klog.Fatalf("Error creating s3 client: %v\n", err)
+	}
+
 	return &batchProcessor{
 		topic:     topic,
 		partition: partition,
 		session:   session,
-		s3sink:    nil,
+		s3sink:    sink,
 		bodyBuf:   bytes.NewBuffer(make([]byte, 0, 4096)),
 	}
 }

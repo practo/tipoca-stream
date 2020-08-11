@@ -1,0 +1,16 @@
+kafka:
+    brokers: "localhost:9092, localhost:9094"
+    group: "cosumer-group-"
+    version: "2.5.0"
+    topic-prefixes: "tipoca.producer1, tipoca.producer2"
+    kafka-client: "sarama"
+sarama:
+    assignor: "range"
+    oldest: true
+    log: false
+s3:
+    region: "ap-south-1"
+    access_key_id: "sample-aws-access-key-id"
+    secret_access_key: "sample-secret-access-key"
+    bucket: "tipoca-stream"
+    bucket_dir: "redshift-sink"
