@@ -17,24 +17,30 @@ import (
 type batchers = sync.Map
 
 type batcher struct {
-	topic string
-
-	maxSize int
-	maxWait time.Duration
-
+	topic     string
+	config    *BatcherConfig
 	mbatch    *gobatch.Batch
 	processor *batchProcessor
 }
 
-func newBatcher(
-	topic string,
-	maxSize int,
-	maxWaitSeconds int) *batcher {
+type BatcherConfig struct {
+	// Maximum size of a batch, on exceeding this batch is pushed
+	// regarless of the wait time.
+	MaxSize int `yaml:maxSize,omitempty`
+
+	// MaxWaitSeconds after which the bash would be pushed regardless of its size.
+	MaxWaitSeconds int `yaml:maxWaitSeconds,omitempty`
+}
+
+func newBatcher(topic string) *batcher {
+	c := &BatcherConfig{
+		MaxSize:        viper.GetInt("batcher.maxSize"),
+		MaxWaitSeconds: viper.GetInt("batcher.maxWaitSeconds"),
+	}
 
 	return &batcher{
 		topic:     topic,
-		maxSize:   maxSize,
-		maxWait:   time.Second * time.Duration(maxWaitSeconds),
+		config:    c,
 		processor: nil,
 		mbatch:    nil,
 	}
@@ -42,12 +48,15 @@ func newBatcher(
 
 func newMBatch(
 	maxSize int,
-	maxWait time.Duration,
+	maxWaitSeconds int,
 	process gobatch.BatchFn,
 	workers int) *gobatch.Batch {
 
 	return gobatch.NewMemoryBatch(
-		maxSize, maxWait, process, workers,
+		maxSize,
+		time.Second*time.Duration(maxWaitSeconds),
+		process,
+		workers,
 	)
 }
 
@@ -73,11 +82,11 @@ func newBatchProcessor(
 	session sarama.ConsumerGroupSession) *batchProcessor {
 
 	sink, err := s3sink.NewS3Sink(
-		viper.GetString("s3.access_key_id"),
-		viper.GetString("s3.secret_access_key"),
+		viper.GetString("s3.accessKeyId"),
+		viper.GetString("s3.secretAccessKey"),
 		viper.GetString("s3.region"),
 		viper.GetString("s3.bucket"),
-		viper.GetString("s3.bucket_dir"),
+		viper.GetString("s3.bucketDir"),
 	)
 	if err != nil {
 		klog.Fatalf("Error creating s3 client: %v\n", err)
