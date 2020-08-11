@@ -54,7 +54,12 @@ func (c consumer) processMessage(
 	b.processor.session = session
 
 	if b.mbatch == nil {
-		b.mbatch = newMBatch(b.maxSize, b.maxWait, b.processor.process, 1)
+		b.mbatch = newMBatch(
+			b.config.MaxSize,
+			b.config.MaxWaitSeconds,
+			b.processor.process,
+			1,
+		)
 	}
 
 	b.mbatch.Insert(message)
