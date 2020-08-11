@@ -22,6 +22,14 @@ type S3Sink struct {
 	bucketDir string
 }
 
+type Config struct {
+    Region          string
+    AccessKeyId     string
+    SecretAccessKey string
+    S3Bucket        string
+    S3BucketDir     string
+}
+
 // NewS3Sink is the factory method constructing a new S3Sink
 func NewS3Sink(
 	awsAccessKeyID string,
