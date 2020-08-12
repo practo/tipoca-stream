@@ -3,9 +3,9 @@ batcher:
     maxWaitSeconds: 20
 kafka:
     brokers: "localhost:9092, localhost:9094"
-    group: "cosumer-group-"
+    group: "dbname"
     version: "2.5.0"
-    topicPrefixes: "tipoca-producer1, tipoca-producer2"
+    opicPrefixes: "tipocaprefix.dbname.table1, tipocaprefix.dbname.table2"
     kafkaClient: "sarama"
 sarama:
     assignor: "range"
