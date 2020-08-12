@@ -6,7 +6,7 @@
 ## Batcher
 ```
 $ bin/darwin_amd64/redshiftbatcher --help
-Consumes the Kafka Topics, trasnform them for redshfit, batches them and uploads to s3. Also signals the load of the batch on successful batch and upload operation..
+Consumes the Kafka Topics, transform them for redshfit, batches them and uploads to s3. Also signals the load of the batch on successful batch and upload operation..
 
 Usage:
   redshiftbatcher [flags]
@@ -21,7 +21,7 @@ Flags:
 - Signals the Redshift loader to load the batch in Redshift using Kafka Topics.
 
 ### Configuration
-Create a file config.yaml, refer [sample](./cmd/redshiftbatcher/config/config.sample.yaml)
+Create a file config.yaml, refer [config-sample.yaml](./cmd/redshiftbatcher/config/config.sample.yaml).
 ```bash
 cd cmd/redshiftbatcher/config/
 cp config.sample.yaml config.yaml
