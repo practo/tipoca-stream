@@ -85,7 +85,16 @@ type batchProcessor struct {
 	bodyBuf *bytes.Buffer
 
 	// batchId is a forever increasing number which resets after maxBatchId
+	// this is useful only for logging and debugging purpose
 	batchId int
+
+	// batchStartOffset is the starting offset of the batch
+	// this is useful only for logging and debugging purpose
+	batchStartOffset int64
+
+	// batchEndOffset is the ending offset of the batch
+	// this is useful only for logging and debugging purpose
+	batchEndOffset int64
 }
 
 func newBatchProcessor(
@@ -126,7 +135,7 @@ func (b *batchProcessor) commitOffset(datas []interface{}) {
 		// need to worry about this. Since the write to s3 again will
 		// just overwrite the same data.
 		b.session.Commit()
-		klog.Infof(
+		klog.V(5).Infof(
 			"topic=%s, message=%s: Processed\n",
 			message.Topic, string(message.Value),
 		)
@@ -145,7 +154,10 @@ func (b *batchProcessor) setS3key(topic string, partition int32, offset int64) {
 	b.s3Key = filepath.Join(
 		b.s3BucketDir,
 		topic,
-		fmt.Sprintf("partition-%d_offset-%d.csv", partition, offset),
+		fmt.Sprintf(
+			"%d_offset_%d_partition.csv",
+			offset,
+			partition),
 	)
 }
 
@@ -170,6 +182,7 @@ func (b *batchProcessor) newtransformedBuffer(datas []interface{}) {
 			b.setS3key(message.Topic, message.Partition, message.Offset)
 			klog.V(5).Infof("topic=%s, batchId=%d id=%d: s3Key=%s\n",
 				b.topic, b.batchId, id, b.s3Key)
+			b.batchStartOffset = message.Offset
 		}
 
 		b.bodyBuf.Write(message.Value)
@@ -177,6 +190,7 @@ func (b *batchProcessor) newtransformedBuffer(datas []interface{}) {
 		klog.V(5).Infof(
 			"topic=%s, batchId=%d id=%d: transformed\n",
 			b.topic, b.batchId, id)
+		b.batchEndOffset = message.Offset
 	}
 }
 
@@ -202,14 +216,22 @@ func (b *batchProcessor) process(workerID int, datas []interface{}) {
 	if err != nil {
 		klog.Fatalf("Error writing to s3, err=%v\n", err)
 	}
+
+	klog.V(4).Infof(
+		"topic=%s, batchId=%d, startOffset: %d, endOffset: %d: Uploaded",
+		b.topic, b.batchId, b.batchStartOffset, b.batchEndOffset,
+	)
 	klog.V(5).Infof(
-		"topic=%s, batchId=%d: Uploaded batch to S3 at: %s",
+		"topic=%s, batchId=%d: Uploaded at: %s",
 		b.topic, b.batchId, b.s3Key,
 	)
+
 	b.bodyBuf.Truncate(0)
 
-	// // TODO: add a job to load the batch to redshift
-	// time.Sleep(time.Second * 3)
-
 	b.commitOffset(datas)
+
+	klog.Infof(
+		"topic=%s, batchId=%d, startOffset: %d, endOffset: %d: Processed",
+		b.topic, b.batchId, b.batchStartOffset, b.batchEndOffset,
+	)
 }
