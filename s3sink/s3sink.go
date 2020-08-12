@@ -16,10 +16,6 @@ type S3Sink struct {
 
 	// bucket is the s3 bucket name to store data
 	bucket string
-
-	// bucketDir is the first level directory in
-	// the bucket where the events would be stored
-	bucketDir string
 }
 
 type Config struct {
@@ -27,7 +23,6 @@ type Config struct {
     AccessKeyId     string `yaml: accessKeyId`
     SecretAccessKey string `yaml: secretAccessKey`
     Bucket        	string `yaml: bucket`
-	BucketDir     	string `yaml: bucketDir`
 }
 
 // NewS3Sink is the factory method constructing a new S3Sink
@@ -35,8 +30,7 @@ func NewS3Sink(
 	awsAccessKeyID string,
 	awsSecretAccessKey string,
 	s3Region string,
-	s3Bucket string,
-	s3BucketDir string) (*S3Sink, error) {
+	s3Bucket string) (*S3Sink, error) {
 
 	awsConfig := &aws.Config{
 		Region:      aws.String(s3Region),
@@ -55,7 +49,6 @@ func NewS3Sink(
 	s := &S3Sink{
 		uploader:       uploader,
 		bucket:         s3Bucket,
-		bucketDir:      s3BucketDir,
 	}
 
 	return s, nil
