@@ -61,9 +61,9 @@ func NewS3Sink(
 	return s, nil
 }
 
-// upload uploads the data stored in buffer to s3 in the specified key
+// Upload uploads the data stored in buffer to s3 in the specified key
 // and clears the buffer
-func (s *S3Sink) upload(key string, bodyBuf *bytes.Buffer) error {
+func (s *S3Sink) Upload(key string, bodyBuf *bytes.Buffer) error {
 	_, err := s.uploader.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
