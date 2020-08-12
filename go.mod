@@ -6,7 +6,7 @@ require (
 	github.com/Shopify/sarama v1.26.5-0.20200810201100-25aedae6c37b
 	github.com/practo/gobatch v0.0.0-20190726112432-54166d458d8b
 	github.com/practo/klog/v2 v2.2.1
-	github.com/practo/tipoca-stream/s3sink v0.0.0-20200811162844-806fb3c3e1e8
+	github.com/practo/tipoca-stream/s3sink v0.0.0-20200812103157-a35dce6b8faf
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.7.1
