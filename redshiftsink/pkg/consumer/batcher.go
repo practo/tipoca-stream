@@ -2,6 +2,7 @@ package consumer
 
 import (
 	"bytes"
+	"fmt"
 	"path/filepath"
 	"sync"
 	"time"
@@ -12,6 +13,10 @@ import (
 	"github.com/practo/gobatch"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/s3sink"
+)
+
+const (
+	maxBatchId = 99
 )
 
 type batchers = sync.Map
@@ -70,11 +75,17 @@ type batchProcessor struct {
 	// s3Sink
 	s3sink *s3sink.S3Sink
 
+	// s3BucketDir
+	s3BucketDir string
+
 	// s3Key is the key at which the batch data is stored in s3
 	s3Key string
 
 	// bodyBuf stores the batch data in buffer before upload
 	bodyBuf *bytes.Buffer
+
+	// batchId is a forever increasing number which resets after maxBatchId
+	batchId int
 }
 
 func newBatchProcessor(
@@ -82,26 +93,26 @@ func newBatchProcessor(
 	session sarama.ConsumerGroupSession) *batchProcessor {
 
 	sink, err := s3sink.NewS3Sink(
-		viper.GetString("s3.accessKeyId"),
-		viper.GetString("s3.secretAccessKey"),
-		viper.GetString("s3.region"),
-		viper.GetString("s3.bucket"),
-		viper.GetString("s3.bucketDir"),
+		viper.GetString("s3sink.accessKeyId"),
+		viper.GetString("s3sink.secretAccessKey"),
+		viper.GetString("s3sink.region"),
+		viper.GetString("s3sink.bucket"),
 	)
 	if err != nil {
 		klog.Fatalf("Error creating s3 client: %v\n", err)
 	}
 
 	return &batchProcessor{
-		topic:     topic,
-		partition: partition,
-		session:   session,
-		s3sink:    sink,
-		bodyBuf:   bytes.NewBuffer(make([]byte, 0, 4096)),
+		topic:       topic,
+		partition:   partition,
+		session:     session,
+		s3sink:      sink,
+		s3BucketDir: viper.GetString("s3sink.bucketDir"),
+		bodyBuf:     bytes.NewBuffer(make([]byte, 0, 4096)),
 	}
 }
 
-func (b batchProcessor) commitOffset(datas []interface{}) {
+func (b *batchProcessor) commitOffset(datas []interface{}) {
 	for _, data := range datas {
 		// TODO: this should not be required, fix the gobatch code
 		if data == nil {
@@ -122,52 +133,83 @@ func (b batchProcessor) commitOffset(datas []interface{}) {
 	}
 }
 
-func (b batchProcessor) signalLoad(bucket string, key string) {
+func (b *batchProcessor) signalLoad(bucket string, key string) {
 
 }
 
-func (b batchProcessor) transform(data *sarama.ConsumerMessage) []byte {
+func (b *batchProcessor) transform(data *sarama.ConsumerMessage) []byte {
 	return []byte{}
 }
 
-func (b batchProcessor) setS3key(topic string, partition int32, offset int64) {
-	b.s3Key = filepath.Join(topic, string(partition), string(offset))
+func (b *batchProcessor) setS3key(topic string, partition int32, offset int64) {
+	b.s3Key = filepath.Join(
+		b.s3BucketDir,
+		topic,
+		fmt.Sprintf("partition-%d_offset-%d.csv", partition, offset),
+	)
 }
 
-func (b batchProcessor) transformedBuffer(datas []interface{}) {
+func (b *batchProcessor) newtransformedBuffer(datas []interface{}) {
 	b.s3Key = ""
 
-	for _, data := range datas {
+	for id, data := range datas {
 		// TODO: this should not be required, fix the gobatch code
 		if data == nil {
 			continue
 		}
 		message := data.(*sarama.ConsumerMessage)
+		klog.V(5).Infof(
+			"topic=%s, batchId=%d id=%d: transforming\n",
+			b.topic, b.batchId, id)
+		klog.V(5).Infof(
+			"topic=%s, batchId=%d id=%d: message=%+v\n",
+			b.topic, b.batchId, id, message)
 
 		// key is always made based on the first not nil message in the batch
 		if b.s3Key == "" {
 			b.setS3key(message.Topic, message.Partition, message.Offset)
+			klog.V(5).Infof("topic=%s, batchId=%d id=%d: s3Key=%s\n",
+				b.topic, b.batchId, id, b.s3Key)
 		}
 
 		b.bodyBuf.Write(message.Value)
 		b.bodyBuf.Write([]byte{'\n'})
+		klog.V(5).Infof(
+			"topic=%s, batchId=%d id=%d: transformed\n",
+			b.topic, b.batchId, id)
 	}
 }
 
-func (b batchProcessor) process(workerID int, datas []interface{}) {
-	klog.Infof("topic=%s, batch-size=%d: Processing...\n", b.topic, len(datas))
+func (b *batchProcessor) setBatchId() {
+	if b.batchId == maxBatchId {
+		klog.V(5).Infof("topic=%s: Resetting batchId to zero.")
+		b.batchId = 0
+	}
 
-	// TODO: transform the debezium event
-	// b.transformedBuffer(datas)
+	b.batchId += 1
+}
 
-	// err := b.s3sink.upload(b.s3Key, b.bodyBuf)
-	// if err != nil {
-	// klog.Fatalf("Error writing to s3, err=%v\n", err)
-	// }
+func (b *batchProcessor) process(workerID int, datas []interface{}) {
+	b.setBatchId()
+	klog.Infof("topic=%s, batchId=%d, size=%d: Processing...\n",
+		b.topic, b.batchId, len(datas))
 
-	// TODO: add a job to load the batch to redshift
-	time.Sleep(time.Second * 3)
+	// TODO: transform the debezium event into redshift commands
+	// and create a new buffer
+	b.newtransformedBuffer(datas)
+
+	err := b.s3sink.Upload(b.s3Key, b.bodyBuf)
+	if err != nil {
+		klog.Fatalf("Error writing to s3, err=%v\n", err)
+	}
+	klog.V(5).Infof(
+		"topic=%s, batchId=%d: Uploaded batch to S3 at: %s",
+		b.topic, b.batchId, b.s3Key,
+	)
+	b.bodyBuf.Truncate(0)
+
+	// // TODO: add a job to load the batch to redshift
+	// time.Sleep(time.Second * 3)
 
 	b.commitOffset(datas)
-
 }

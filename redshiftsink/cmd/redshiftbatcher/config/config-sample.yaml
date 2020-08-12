@@ -5,15 +5,15 @@ kafka:
     brokers: "localhost:9092, localhost:9094"
     group: "cosumer-group-"
     version: "2.5.0"
-    topicPrefixes: "tipoca.producer1, tipoca.producer2"
+    topicPrefixes: "tipoca-producer1, tipoca-producer2"
     kafkaClient: "sarama"
 sarama:
     assignor: "range"
     oldest: true
     log: false
 s3sink:
-    region: "ap-south-1"
+    region: "us-west-1"
     accessKeyId: "sample-aws-access-key-id"
     secretAccessKey: "sample-secret-access-key"
-    bucket: "tipoca-stream"
-    bucketDir: "redshift-sink"
+    bucket: "docker-vault"
+    bucketDir: "tipoca-stream-redshiftsink"
