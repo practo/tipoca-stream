@@ -186,8 +186,8 @@ github.com/practo/gobatch v0.0.0-20190726112432-54166d458d8b h1:95TrykWkPU+OZ0TQ
 github.com/practo/gobatch v0.0.0-20190726112432-54166d458d8b/go.mod h1:2UeXn59D3tqmHrbst8T4Z+Wm6/TUMREkXTNH1PT0dU0=
 github.com/practo/klog/v2 v2.2.1 h1:yV/SavG73KHSmCVwtDap1RGe+2jd86e1eugT+Mv2/FA=
 github.com/practo/klog/v2 v2.2.1/go.mod h1:WMkpfPwTxLgSLookpI4UUv2zL7tMltKACK/FHB1zLV0=
-github.com/practo/tipoca-stream/s3sink v0.0.0-20200811162844-806fb3c3e1e8 h1:sqW5xWUOAwAJ/PBMoa+2oA8o8rzcBO8OdsMMrzz4zxc=
-github.com/practo/tipoca-stream/s3sink v0.0.0-20200811162844-806fb3c3e1e8/go.mod h1:yoiMQ/ig1rm9HixwiAQWcH373JICTkLcQIADerna9Cg=
+github.com/practo/tipoca-stream/s3sink v0.0.0-20200812103157-a35dce6b8faf h1:cgoJaxoaEF+/hpEcsoj4r1oNH6IeVKelRm+YA1Osvoo=
+github.com/practo/tipoca-stream/s3sink v0.0.0-20200812103157-a35dce6b8faf/go.mod h1:yoiMQ/ig1rm9HixwiAQWcH373JICTkLcQIADerna9Cg=
 github.com/prometheus/client_golang v0.9.1/go.mod h1:7SWBe2y4D6OKWSNQJUaRYU/AaXPKyh/dDVn+NZz0KFw=
 github.com/prometheus/client_golang v0.9.3/go.mod h1:/TN21ttK/J9q6uSwhBd54HahCDft0ttaMvbicHlPoso=
 github.com/prometheus/client_model v0.0.0-20180712105110-5c3871d89910/go.mod h1:MbSGuTsp3dbXC40dX6PRTWyKYBIrTGTE9sqQNg2J8bo=
