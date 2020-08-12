@@ -1,17 +1,19 @@
 #!/bin/sh
 
+# ./produce.sh 100 topic-prefix
+
 set -m # Enable Job Control
 
 if [ -z "$1" ]; then
-	topic="alok-topic-1"
+	messages=10
 else
-	topic=$1
+	messages=$1
 fi
 
 if [ -z "$2" ]; then
-	messages=10
+	topic="alok-topic-1"
 else
-	messages=$2
+	topic=$2
 fi
 
 timestamp=$(date +%d/%m/%Y_%H%M%S)
