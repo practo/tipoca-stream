@@ -39,9 +39,9 @@ func run(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	client, err := consumer.NewClient(config.Kafka, config.Sarama)
+	consumerGroup, err := consumer.NewConsumerGroup(config.Kafka, config.Sarama)
 	if err != nil {
-		klog.Errorf("Error creating kafka consumer client, exiting: %v\n", err)
+		klog.Errorf("Error creating kafka consumer group, exiting: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -49,7 +49,7 @@ func run(cmd *cobra.Command, args []string) {
 	klog.Info("Succesfully created kafka client")
 
 	manager := consumer.NewManager(
-		client,
+		consumerGroup,
 		config.Kafka.TopicPrefixes,
 	)
 	wg := &sync.WaitGroup{}
@@ -68,16 +68,20 @@ func run(cmd *cobra.Command, args []string) {
 	case <-ctx.Done():
 		klog.Info("Context cancelled, bye bye!")
 	case <-sigterm:
-		klog.Info("Sigterm signal received, Goodbye till will meet again!")
+		klog.Info("Sigterm signal received")
 	}
 	cancel()
 	wg.Wait()
-	if err = client.Close(); err != nil {
-		klog.Errorf("Error closing client: %v", err)
+	if err = consumerGroup.Close(); err != nil {
+		klog.Errorf("Error closing group: %v", err)
 		os.Exit(1)
 	}
+
+	klog.Info("Goodbye!")
 }
 
+// main => consumer.manager.Consume() => consumer.consumerGroup.Consume()
+// => sarama/consumer_group.Consume() => consumer.ConsumeClaim()
 func main() {
 	rootCmd.Execute()
 }
