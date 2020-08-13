@@ -11,7 +11,7 @@ import (
 
 type Manager struct {
 	// consumer client, this is sarama now, can be kafka-go later
-	client Client
+	consumerGroup ConsumerGroup
 
 	// topicPrefixes is the list of topics to monitor
 	topicPrefixes []string
@@ -28,10 +28,10 @@ type Manager struct {
 }
 
 func NewManager(
-	client Client, topicPrefixes string) *Manager {
+	consumerGroup ConsumerGroup, topicPrefixes string) *Manager {
 
 	return &Manager{
-		client:        client,
+		consumerGroup: consumerGroup,
 		topicPrefixes: strings.Split(topicPrefixes, ","),
 		Ready:         make(chan bool),
 	}
@@ -65,7 +65,7 @@ func (c *Manager) deepCopyTopics() []string {
 }
 
 func (c *Manager) refreshTopics() {
-	topics, err := c.client.Topics()
+	topics, err := c.consumerGroup.Topics()
 	if err != nil {
 		klog.Fatalf("Error getting topics, err=%v\n", err)
 	}
@@ -83,11 +83,28 @@ func (c *Manager) SyncTopics(
 		c.refreshTopics()
 
 		select {
-		case <-ticker.C:
-			continue
 		case <-ctx.Done():
 			return
+		case <-ticker.C:
+			continue
 		}
+	}
+}
+
+// TODO: prints the last offset in a topic, can help in making the metric
+// for the lag, not being used at present (can call it dead)
+func (c *Manager) printLastOffsets() {
+	for _, topic := range c.topics {
+		lastOffset, err := c.consumerGroup.LastOffset(topic, 0)
+		if err != nil {
+			klog.Errorf("Unable to get offset, err:%v\n", err)
+			continue
+		}
+		klog.Infof(
+			"topic:%s, partition:0, lastOffset:%d (kafka lastoffset)\n",
+			topic,
+			lastOffset,
+		)
 	}
 }
 
@@ -104,15 +121,18 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 			continue
 		}
 
-		klog.V(4).Infof("Calling consume for %d topic(s)\n", len(topics))
-		err := c.client.Consume(ctx, topics, c.Ready)
+		c.printLastOffsets()
+
+		klog.V(2).Infof("Manager.Consume for %d topic(s)\n", len(topics))
+		err := c.consumerGroup.Consume(ctx, topics, c.Ready)
 		if err != nil {
 			klog.Fatalf("Error from consumer: %v", err)
 		}
-		// check if context was cancelled, signaling that the consumer should stop
+		// check if context was cancelled, the consumer should stop
 		if ctx.Err() != nil {
+			klog.V(2).Info("Manager.Context cancelled")
 			return
 		}
-		klog.V(5).Info("Done with Consume. It will be rerun.")
+		klog.V(2).Info("Manager.Consume completed loop, will re run")
 	}
 }
