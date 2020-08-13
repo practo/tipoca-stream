@@ -101,7 +101,7 @@ func (c *Manager) printLastOffsets() {
 			continue
 		}
 		klog.Infof(
-			"topic:%s, partition: 0, lastOffset: %d\n",
+			"topic:%s, partition:0, lastOffset:%d (kafka lastoffset)\n",
 			topic,
 			lastOffset,
 		)
@@ -123,15 +123,16 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 
 		c.printLastOffsets()
 
-		klog.V(4).Infof("Manager.Consume for %d topic(s)\n", len(topics))
+		klog.V(2).Infof("Manager.Consume for %d topic(s)\n", len(topics))
 		err := c.consumerGroup.Consume(ctx, topics, c.Ready)
 		if err != nil {
 			klog.Fatalf("Error from consumer: %v", err)
 		}
 		// check if context was cancelled, the consumer should stop
 		if ctx.Err() != nil {
+			klog.V(2).Info("Manager.Context cancelled")
 			return
 		}
-		klog.V(4).Info("Manager.Consume completed loop, will re run")
+		klog.V(2).Info("Manager.Consume completed loop, will re run")
 	}
 }

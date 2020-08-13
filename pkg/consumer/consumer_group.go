@@ -146,6 +146,6 @@ func (c *saramaConsumerGroup) Close() error {
 		return err
 	}
 
-	klog.Info("Shutdown completed.")
+	klog.Info("Closed open connections.")
 	return nil
 }

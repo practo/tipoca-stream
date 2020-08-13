@@ -126,6 +126,22 @@ func newBatchProcessor(
 	}
 }
 
+// TODO: get rid of this https://github.com/herryg91/gobatch/issues/2
+func (b *batchProcessor) ctxCancelled() bool {
+	select {
+	case <-b.session.Context().Done():
+		klog.Infof(
+			"topic:%s, batchId:%d, lastCommittedOffset:%d: Cancelled.\n",
+			b.topic, b.batchId, b.lastCommittedOffset,
+		)
+		return true
+	default:
+		return false
+	}
+
+	return false
+}
+
 func (b *batchProcessor) setBatchId() {
 	if b.batchId == maxBatchId {
 		klog.V(5).Infof("topic:%s: Resetting batchId to zero.")
@@ -147,7 +163,7 @@ func (b *batchProcessor) setS3key(topic string, partition int32, offset int64) {
 }
 
 func (b *batchProcessor) commitOffset(datas []interface{}) {
-	for _, data := range datas {
+	for i, data := range datas {
 		// TODO: this should not be required, fix the gobatch code
 		if data == nil {
 			continue
@@ -161,24 +177,29 @@ func (b *batchProcessor) commitOffset(datas []interface{}) {
 		// just overwrite the same data.
 		b.session.Commit()
 		// 99 is an exception
-		klog.V(99).Infof(
-			"topic:%s, message:%s: Processed\n",
-			message.Topic, string(message.Value),
-		)
 		b.lastCommittedOffset = message.Offset
+		var verbosity klog.Level = 5
+		if len(datas)-1 == i {
+			verbosity = 3
+		}
+		klog.V(verbosity).Infof(
+			"topic:%s, lastCommittedOffset:%d: Processed\n",
+			message.Topic, b.lastCommittedOffset,
+		)
 	}
 }
 
 func (b *batchProcessor) shutdownInfo() {
 	klog.Infof(
-		"topic:%s: Batch processing gracefully shutdown.\n",
+		"topic:%s, batchId:%d: Batch processing gracefully shutdown.\n",
 		b.topic,
+		b.batchId,
 	)
 	if b.lastCommittedOffset == 0 {
 		klog.Infof("topic:%s: Nothing new was committed.\n", b.topic)
 	} else {
 		klog.Infof(
-			"topic:%s: lastCommittedOffset: %d.\n",
+			"topic:%s: lastCommittedOffset: %d. Shut down.\n",
 			b.topic,
 			b.lastCommittedOffset,
 		)
@@ -250,6 +271,9 @@ func (b *batchProcessor) processBatch(
 
 func (b *batchProcessor) process(workerID int, datas []interface{}) {
 	b.setBatchId()
+	if b.ctxCancelled() {
+		return
+	}
 
 	klog.Infof("topic:%s, batchId:%d, size:%d: Processing...\n",
 		b.topic, b.batchId, len(datas),
@@ -268,7 +292,7 @@ func (b *batchProcessor) process(workerID int, datas []interface{}) {
 		klog.Fatalf("Error writing to s3, err=%v\n", err)
 	}
 
-	klog.V(4).Infof(
+	klog.V(3).Infof(
 		"topic:%s, batchId:%d, startOffset:%d, endOffset:%d: Uploaded",
 		b.topic, b.batchId, b.batchStartOffset, b.batchEndOffset,
 	)
