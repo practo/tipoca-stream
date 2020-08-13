@@ -23,7 +23,7 @@ type consumer struct {
 // Setup is run at the beginning of a new session, before ConsumeClaim
 func (c consumer) Setup(sarama.ConsumerGroupSession) error {
 	// Mark the consumer as ready
-	klog.V(4).Info("Setting up consumer")
+	klog.V(3).Info("Setting up consumer")
 	close(c.ready)
 	return nil
 }
@@ -31,7 +31,7 @@ func (c consumer) Setup(sarama.ConsumerGroupSession) error {
 // Cleanup is run at the end of a session,
 // once all ConsumeClaim goroutines have exited
 func (c consumer) Cleanup(sarama.ConsumerGroupSession) error {
-	klog.V(4).Info("Cleaning up consumer")
+	klog.V(3).Info("Cleaning up consumer")
 	return nil
 }
 
@@ -67,6 +67,9 @@ func (c consumer) processMessage(
 		klog.Info("Graceful shutdown requested, not inserting in batch")
 		return nil
 	default:
+		// klog.V(99).Infof(
+		// 	"Inserted message: items=%d\n", b.mbatch.TotalItems(),
+		// )
 		b.mbatch.Insert(message)
 	}
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"time"
 
 	"flag"
 	"github.com/spf13/cobra"
@@ -71,6 +72,13 @@ func run(cmd *cobra.Command, args []string) {
 		klog.Info("Sigterm signal received")
 	}
 	cancel()
+
+	// TODO: the processing batching function should signal back
+	// It does not at present
+	// https://github.com/practo/tipoca-stream/issues/18
+	klog.Info("Waiting the batcher processees to gracefully shutdown")
+	time.Sleep(5 * time.Second)
+
 	wg.Wait()
 	if err = consumerGroup.Close(); err != nil {
 		klog.Errorf("Error closing group: %v", err)
