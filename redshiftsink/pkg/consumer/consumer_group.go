@@ -11,8 +11,9 @@ import (
 	"github.com/practo/klog/v2"
 )
 
-type Client interface {
+type ConsumerGroup interface {
 	Topics() ([]string, error)
+	LastOffset(topic string, partition int32) (int64, error)
 	Consume(ctx context.Context, topics []string, ready chan bool) error
 	Close() error
 }
@@ -31,16 +32,18 @@ type SaramaConfig struct {
 	Log      bool   `yaml: log`
 }
 
-func NewClient(k KafkaConfig, s SaramaConfig) (Client, error) {
+func NewConsumerGroup(k KafkaConfig, s SaramaConfig) (ConsumerGroup, error) {
 	switch k.KafkaClient {
 	case "sarama":
-		return NewSaramaClient(k, s)
+		return NewSaramaConsumerGroup(k, s)
 	default:
 		return nil, fmt.Errorf("kafkaClient not supported: %v\n", k.KafkaClient)
 	}
 }
 
-func NewSaramaClient(k KafkaConfig, s SaramaConfig) (Client, error) {
+func NewSaramaConsumerGroup(
+	k KafkaConfig, s SaramaConfig) (ConsumerGroup, error) {
+
 	if s.Log {
 		sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags)
 	}
@@ -83,21 +86,21 @@ func NewSaramaClient(k KafkaConfig, s SaramaConfig) (Client, error) {
 		return nil, fmt.Errorf("Error creating consumer group: %v\n", err)
 	}
 
-	cluster, err := sarama.NewConsumer(brokers, c)
+	client, err := sarama.NewClient(brokers, c)
 	if err != nil {
-		return nil, fmt.Errorf("Error creating consumer: %v\n", err)
+		return nil, fmt.Errorf("Error creating client: %v\n", err)
 	}
 
-	return &saramaClient{
-		cluster:       cluster,
+	return &saramaConsumerGroup{
+		client:        client,
 		consumerGroup: consumerGroup,
 		consumer:      NewConsumer(),
 	}, nil
 }
 
-type saramaClient struct {
-	// cluster is required to get Kafka cluster related info like Topics
-	cluster sarama.Consumer
+type saramaConsumerGroup struct {
+	// client is required to get Kafka cluster related info like Topics
+	client sarama.Client
 
 	// consumerGroup uses consumer to consume records in kaafka topics
 	consumerGroup sarama.ConsumerGroup
@@ -107,11 +110,16 @@ type saramaClient struct {
 	consumer consumer
 }
 
-func (c *saramaClient) Topics() ([]string, error) {
-	return c.cluster.Topics()
+func (c *saramaConsumerGroup) Topics() ([]string, error) {
+	return c.client.Topics()
 }
 
-func (c *saramaClient) Consume(
+func (c *saramaConsumerGroup) LastOffset(
+	topic string, partition int32) (int64, error) {
+	return c.client.GetOffset(topic, partition, sarama.OffsetNewest)
+}
+
+func (c *saramaConsumerGroup) Consume(
 	ctx context.Context, topics []string, ready chan bool) error {
 
 	// create batchers
@@ -127,14 +135,17 @@ func (c *saramaClient) Consume(
 	return c.consumerGroup.Consume(ctx, topics, c.consumer)
 }
 
-func (c *saramaClient) Close() error {
+func (c *saramaConsumerGroup) Close() error {
+	klog.V(4).Infof("Closing consumerGroup.")
 	if err := c.consumerGroup.Close(); err != nil {
 		return err
 	}
 
-	if err := c.cluster.Close(); err != nil {
+	klog.V(4).Info("Closing client.")
+	if err := c.client.Close(); err != nil {
 		return err
 	}
 
+	klog.Info("Shutdown completed.")
 	return nil
 }
