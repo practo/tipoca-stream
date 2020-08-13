@@ -23,7 +23,7 @@ type consumer struct {
 // Setup is run at the beginning of a new session, before ConsumeClaim
 func (c consumer) Setup(sarama.ConsumerGroupSession) error {
 	// Mark the consumer as ready
-	klog.V(4).Info("Setting up consumer")
+	klog.V(3).Info("Setting up consumer")
 	close(c.ready)
 	return nil
 }
@@ -31,7 +31,7 @@ func (c consumer) Setup(sarama.ConsumerGroupSession) error {
 // Cleanup is run at the end of a session,
 // once all ConsumeClaim goroutines have exited
 func (c consumer) Cleanup(sarama.ConsumerGroupSession) error {
-	klog.V(4).Info("Cleaning up consumer")
+	klog.V(3).Info("Cleaning up consumer")
 	return nil
 }
 
@@ -42,7 +42,7 @@ func (c consumer) processMessage(
 	// load the batcher for the topic
 	ub, _ := c.batchers.Load(message.Topic)
 	if ub == nil {
-		klog.Fatalf("Error loading batcher for topic=%s\n", message.Topic)
+		klog.Fatalf("Error loading batcher for topic:%s\n", message.Topic)
 	}
 	b := ub.(*batcher)
 
@@ -62,7 +62,16 @@ func (c consumer) processMessage(
 		)
 	}
 
-	b.mbatch.Insert(message)
+	select {
+	case <-b.processor.session.Context().Done():
+		klog.Info("Graceful shutdown requested, not inserting in batch")
+		return nil
+	default:
+		// klog.V(99).Infof(
+		// 	"Inserted message: items=%d\n", b.mbatch.TotalItems(),
+		// )
+		b.mbatch.Insert(message)
+	}
 
 	return nil
 }
@@ -72,21 +81,37 @@ func (c consumer) ConsumeClaim(
 	session sarama.ConsumerGroupSession,
 	claim sarama.ConsumerGroupClaim) error {
 
-	klog.V(4).Infof("Starting to consume messages... Claims: %+v\n", session.Claims())
+	klog.V(2).Infof(
+		"ConsumeClaim for topic:%s, partition:%d, initalOffset:%d\n",
+		claim.Topic(),
+		claim.Partition(),
+		claim.InitialOffset(),
+	)
 	// NOTE:
 	// Do not move the code below to a goroutine.
 	// The `ConsumeClaim` itself is called within a goroutine, see:
 	// https://github.com/Shopify/sarama/blob/master/consumer_group.go#L27-L29
 	for message := range claim.Messages() {
-		err := c.processMessage(session, message)
-		if err != nil {
-			klog.Errorf("Error processing: value=%s, timestamp=%v, topic=%s",
-				string(message.Value), message.Timestamp, message.Topic)
-			continue
+		select {
+		case <-session.Context().Done():
+			klog.Infof(
+				"Gracefully shutdown. Stopped taking new messages.")
+			return nil
+		default:
+			err := c.processMessage(session, message)
+			if err != nil {
+				klog.Errorf(
+					"Error processing: value:%s, timestamp:%v, topic:%s",
+					string(message.Value), message.Timestamp, message.Topic)
+				continue
+			}
 		}
 	}
 
-	klog.V(4).Info("Shutting down ConsumerClaim.")
-
+	klog.V(4).Infof(
+		"ConsumeClaim shut down for topic: %s, partition: %d\n",
+		claim.Topic(),
+		claim.Partition(),
+	)
 	return nil
 }
