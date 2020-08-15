@@ -10,9 +10,14 @@ More Info: Debezium Docker images https://github.com/debezium/docker-images/tree
 ### Helpful script for downloading binary
 `./docker-maven-dowload.sh`
 
+```
+export MAVEN_DEP_DESTINATION="."
+./docker-maven-download.sh confluent kafka-connect-avro-converter "5.5.0" 16c38a7378032f850f0293b7654aa6bf
+```
+
 ## Instructions to build the image
 ```
 export DOCKER_ORG=practodev
-docker build . -t ${DOCKER_ORG}/connect-debezium:0.18.0-kakfa-2.5.0-mysqlconnector-1.2.1
-docker push ${DOCKER_ORG}/connect-debezium:0.18.0-kakfa-2.5.0-mysqlconnector-1.2.1
+docker build . -t ${DOCKER_ORG}/connect-debezium:0.18.0-kakfa-2.5.0-mysqlconnector-1.2.1-avro-5.5.0
+docker push ${DOCKER_ORG}/connect-debezium:0.18.0-kakfa-2.5.0-mysqlconnector-1.2.1-avro-5.5.0
 ```
