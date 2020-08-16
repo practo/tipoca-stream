@@ -11,5 +11,8 @@ COPY ./kafka-avro-serializer-5.5.0.jar /opt/kafka/libs/
 COPY ./kafka-schema-serializer-5.5.0.jar /opt/kafka/libs/
 COPY ./kafka-schema-registry-client-5.5.0.jar /opt/kafka/libs/
 COPY ./avro-1.9.2.jar /opt/kafka/libs/
-
+COPY ./common-config-5.5.0.jar /opt/kafka/libs/
+COPY ./common-utils-5.5.0.jar /opt/kafka/libs/
+COPY ./jackson-core-asl-1.9.13.jar /opt/kafka/libs/
+COPY ./jackson-mapper-asl-1.9.13.jar /opt/kafka/libs/
 USER 1001
