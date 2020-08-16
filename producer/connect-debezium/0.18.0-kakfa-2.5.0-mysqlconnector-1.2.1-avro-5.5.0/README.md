@@ -6,13 +6,21 @@ Note: You might need to download from browser.
 
 More Info: https://strimzi.io/blog/2020/01/27/deploying-debezium-with-kafkaconnector-resource/
 More Info: Debezium Docker images https://github.com/debezium/docker-images/tree/master/connect/1.2
+AVRO JARS: https://github.com/debezium/docker-images/blob/master/connect-base/1.2/Dockerfile
 
 ### Helpful script for downloading binary
 `./docker-maven-dowload.sh`
 
 ```
 export MAVEN_DEP_DESTINATION="."
-./docker-maven-download.sh confluent kafka-connect-avro-converter "5.5.0" 16c38a7378032f850f0293b7654aa6bf
+export CONFLUENT_VERSION=5.5.0
+export AVRO_VERSION=1.9.2
+./docker-maven-download.sh confluent kafka-connect-avro-converter "$CONFLUENT_VERSION" 16c38a7378032f850f0293b7654aa6bf && \
+./docker-maven-download.sh confluent kafka-connect-avro-data "$CONFLUENT_VERSION" 63022db9533689968540f45be705786d && \
+./docker-maven-download.sh confluent kafka-avro-serializer "$CONFLUENT_VERSION" b1379606e1dcc5d7b809c82abe294cc7 && \
+./docker-maven-download.sh confluent kafka-schema-serializer "$CONFLUENT_VERSION" b68a7eebf7ce6a1b826bd5bbb443b176 && \
+./docker-maven-download.sh confluent kafka-schema-registry-client "$CONFLUENT_VERSION" e3631a8a3fe10312a727e9d50fcd5527 && \
+./docker-maven-download.sh central org/apache/avro avro "$AVRO_VERSION" cb70195f70f52b27070f9359b77690bb
 ```
 
 ## Instructions to build the image
