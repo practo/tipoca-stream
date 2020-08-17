@@ -5,15 +5,16 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
+	"github.com/practo/tipoca-stream/consumer-go/pkg/consumer"
 	"github.com/practo/tipoca-stream/s3sink"
 )
 
 type Config struct {
-	Batcher consumer.BatcherConfig `yaml: batcher`
-	Kafka   consumer.KafkaConfig   `yaml: kafka`
-	Sarama  consumer.SaramaConfig  `yaml: sarama`
-	S3Sink  s3sink.Config          `yaml: s3sink`
+	Batcher 			consumer.BatcherConfig `yaml: batcher`
+	Kafka   			consumer.KafkaConfig   `yaml: kafka`
+	Sarama  			consumer.SaramaConfig  `yaml: sarama`
+	S3Sink				s3sink.Config          `yaml: s3sink`
+	SchemaRegistryURL  	string                 `yaml: schemaRegistryURL`
 }
 
 func LoadConfig(cmd *cobra.Command) (Config, error) {
@@ -28,7 +29,7 @@ func LoadConfig(cmd *cobra.Command) (Config, error) {
 	relativePath := "./cmd/redshiftbatcher/config"
 
 	viper.AutomaticEnv()
-	viper.SetDefault("kafak.version", "2.5.0")
+	viper.SetDefault("kafka.version", "2.5.0")
 
 	if configFile, _ := cmd.Flags().GetString("config"); configFile != "" {
 		viper.SetConfigFile(relativePath + "/" + configFile)

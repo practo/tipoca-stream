@@ -14,6 +14,7 @@ import (
 	"github.com/practo/gobatch"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/s3sink"
+	serializr "github.com/practo/tipoca-stream/consumer-go/pkg/serializer"
 )
 
 const (
@@ -100,6 +101,9 @@ type batchProcessor struct {
 	// lastCommitedOffset tells the last commitedOffset
 	// this is helpful to log at the time of shutdown and can help in debugging
 	lastCommittedOffset int64
+
+	// serializer is used to Deserialize the message stored in Kafka
+	serializer serializr.Serializer
 }
 
 func newBatchProcessor(
@@ -123,6 +127,8 @@ func newBatchProcessor(
 		s3sink:      sink,
 		s3BucketDir: viper.GetString("s3sink.bucketDir"),
 		bodyBuf:     bytes.NewBuffer(make([]byte, 0, 4096)),
+		serializer:  serializr.NewSerializer(
+			viper.GetString("schemaRegistryURL")),
 	}
 }
 
@@ -261,8 +267,12 @@ func (b *batchProcessor) processBatch(
 			if data == nil {
 				continue
 			}
-			message := data.(*sarama.ConsumerMessage)
-			b.processMessage(message, id)
+			avroMessage := data.(*sarama.ConsumerMessage)
+			_, err := b.serializer.Deserialize(avroMessage)
+			if err != nil {
+				klog.Fatalf("Error deserializing, err: %s\n", err)
+			}
+			b.processMessage(avroMessage, id)
 		}
 	}
 

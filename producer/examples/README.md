@@ -27,8 +27,9 @@ kubectl create -f inventory-connector.yaml
 ```
 
 ```
-brew install kafkacat
-$ kafkacat -s avro -r https://schema-registry.practodev.com -b aff6154064db14114b7aa04c5209449a-1348931227.ap-south-1.elb.amazonaws.com:9094 -C -o begining -q -t datapipe.inventory.customers -c 1
+    brew install kafkacat
+
+    kafkacat -s avro -r https://schema-registry.practodev.com -b aff6154064db14114b7aa04c5209449a-1348931227.ap-south-1.elb.amazonaws.com:9094 -C -o begining -q -t datapipe.inventory.customers -c 1
 ```
 
 

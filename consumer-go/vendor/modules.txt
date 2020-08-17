@@ -87,6 +87,9 @@ github.com/klauspost/compress/huff0
 github.com/klauspost/compress/snappy
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
+# github.com/linkedin/goavro/v2 v2.9.8
+## explicit
+github.com/linkedin/goavro/v2
 # github.com/magiconair/properties v1.8.1
 github.com/magiconair/properties
 # github.com/mitchellh/mapstructure v1.1.2
@@ -107,6 +110,9 @@ github.com/practo/klog/v2
 github.com/practo/tipoca-stream/s3sink
 # github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0
 github.com/rcrowley/go-metrics
+# github.com/riferrei/srclient v0.0.0-20200815140040-eadcf5877265
+## explicit
+github.com/riferrei/srclient
 # github.com/spf13/afero v1.1.2
 github.com/spf13/afero
 github.com/spf13/afero/mem

@@ -1,9 +1,11 @@
-# Redshift Sink
+# Consumer GO
 
-- Batcher
-- Loader
+Consumer go holds the code of all the Kafka consumers written in Go.
 
-## Batcher
+- RedshiftSink: Batcher
+- RedshiftSink: Loader
+
+## Redshift Batcher
 ```
 $ bin/darwin_amd64/redshiftbatcher --help
 Consumes the Kafka Topics, transform them for redshfit, batches them and uploads to s3. Also signals the load of the batch on successful batch and upload operation..
@@ -41,5 +43,5 @@ make build
 - `~/.netrc` should be configured to download from private github repo. [More.](https://golang.org/doc/faq#git_https)
 
 
-## Loader
+## Redshift Loader
 TODO

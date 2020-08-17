@@ -5,7 +5,7 @@ kafka:
     brokers: "localhost:9092, localhost:9094"
     group: "dbname"
     version: "2.5.0"
-    opicPrefixes: "tipocaprefix.dbname.table1, tipocaprefix.dbname.table2"
+    topicPrefixes: "tipocaprefix.dbname.table1, tipocaprefix.dbname.table2"
     kafkaClient: "sarama"
 sarama:
     assignor: "range"
@@ -17,3 +17,4 @@ s3sink:
     secretAccessKey: "sample-secret-access-key"
     bucket: "docker-vault"
     bucketDir: "tipoca-stream-redshiftsink"
+schemaRegistryURL: "https://schema-registry.practodev.com"
