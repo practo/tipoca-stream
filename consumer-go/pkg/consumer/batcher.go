@@ -216,14 +216,12 @@ func (b *batchProcessor) signalLoad(bucket string, key string) {
 
 }
 
-func (b *batchProcessor) processMessage(
-	message *sarama.ConsumerMessage, id int) {
-
+func (b *batchProcessor) processMessage(message serializr.Message, id int) {
 	klog.V(5).Infof(
 		"topic:%s, batchId:%d id:%d: transforming\n",
 		b.topic, b.batchId, id,
 	)
-	// V(99) is an expception but required
+	// V(99) is an expception but required (never try this in prod)
 	klog.V(99).Infof(
 		"topic:%s, batchId:%d id:%d: message:%+v\n",
 		b.topic, b.batchId, id, message,
@@ -267,12 +265,13 @@ func (b *batchProcessor) processBatch(
 			if data == nil {
 				continue
 			}
-			avroMessage := data.(*sarama.ConsumerMessage)
-			_, err := b.serializer.Deserialize(avroMessage)
+			message, err := b.serializer.Deserialize(
+				data.(*sarama.ConsumerMessage),
+			)
 			if err != nil {
-				klog.Fatalf("Error deserializing, err: %s\n", err)
+				klog.Fatalf("Error deserializing binary, err: %s\n", err)
 			}
-			b.processMessage(avroMessage, id)
+			b.processMessage(message, id)
 		}
 	}
 
