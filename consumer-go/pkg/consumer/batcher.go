@@ -103,7 +103,7 @@ type batchProcessor struct {
 	lastCommittedOffset int64
 
 	// serializer is used to Deserialize the message stored in Kafka
-	serializer *serializr.Serializer
+	serializer serializr.Serializer
 }
 
 func newBatchProcessor(
@@ -267,8 +267,12 @@ func (b *batchProcessor) processBatch(
 			if data == nil {
 				continue
 			}
-			message := data.(*sarama.ConsumerMessage)
-			b.processMessage(message, id)
+			avroMessage := data.(*sarama.ConsumerMessage)
+			_, err := b.serializer.Deserialize(avroMessage)
+			if err != nil {
+				klog.Fatalf("Error deserializing, err: %s\n", err)
+			}
+			b.processMessage(avroMessage, id)
 		}
 	}
 
