@@ -5,20 +5,10 @@ import (
     "encoding/binary"
     "github.com/Shopify/sarama"
     "github.com/riferrei/srclient"
-    // "github.com/linkedin/goavro/v2"
 )
 
-// type Message struct {
-// 	SchemaId  int
-// 	Topic     string
-// 	Partition int32
-// 	Offset    int64
-// 	Key       string
-// 	Value     string
-// }
-
 type Serializer interface {
-    Deserialize(message *sarama.ConsumerMessage) (string, error)
+    Deserialize(message *sarama.ConsumerMessage) (Message, error)
 }
 
 func NewSerializer(schemaRegistryURL string) Serializer {
@@ -32,25 +22,37 @@ type avroSerializer struct {
 }
 
 func (c *avroSerializer) Deserialize(
-    message *sarama.ConsumerMessage) (string, error) {
+    message *sarama.ConsumerMessage) (Message, error) {
 
     schemaId := binary.BigEndian.Uint32(message.Value[1:5])
     schema, err := c.srclient.GetSchema(int(schemaId))
 	if err != nil {
-		return "Message{}", err
+		return Message{}, err
 	}
+    if schema == nil {
+        return Message{}, fmt.Errorf(
+            "Got nil schema for message:%+v\n", message)
+    }
 
     // Convert binary Avro data back to native Go form
 	native, _, err := schema.Codec().NativeFromBinary(message.Value[5:])
 	if err != nil {
-		return "", err
+		return Message{}, err
 	}
 
-	// Convert native Go form to textual Avro data
-	textual, err := schema.Codec().TextualFromNative(nil, native)
-	if err != nil {
-		return "", err
-	}
+	// // Convert native Go form to textual Avro data
+	// textual, err := schema.Codec().TextualFromNative(nil, native)
+	// if err != nil {
+	// 	return Message{}, err
+	// }
 
-	return string(textual), nil
+    return Message{
+        SchemaId:   int(schemaId),
+        Topic:      message.Topic,
+        Partition:  message.Partition,
+        Offset:     message.Offset,
+        Key:        string(message.Key),
+        // Value:      string(textual),
+        Value:      native,
+    }, nil
 }
