@@ -23,7 +23,7 @@ Flags:
 - Signals the Redshift loader to load the batch in Redshift using Kafka Topics.
 
 ### Configuration
-Create a file config.yaml, refer [config-sample.yaml](./cmd/redshiftbatcher/config/config.sample.yaml).
+Create a file config.yaml, refer [config-sample.yaml](./cmd/redshiftbatcher/config/config_sample.yaml).
 ```bash
 cd cmd/redshiftbatcher/config/
 cp config.sample.yaml config.yaml
