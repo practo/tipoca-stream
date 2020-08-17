@@ -4,24 +4,24 @@ import (
     "fmt"
     "encoding/binary"
     "github.com/Shopify/sarama"
-    "github.com/linkedin/goavro/v2"
     "github.com/riferrei/srclient"
+    // "github.com/linkedin/goavro/v2"
 )
 
-type Message struct {
-	SchemaId  int
-	Topic     string
-	Partition int32
-	Offset    int64
-	Key       string
-	Value     string
-}
+// type Message struct {
+// 	SchemaId  int
+// 	Topic     string
+// 	Partition int32
+// 	Offset    int64
+// 	Key       string
+// 	Value     string
+// }
 
 type Serializer interface {
-    Deserialize(message *sarama.ConsumerMessage) (Message, error)
+    Deserialize(message *sarama.ConsumerMessage) (string, error)
 }
 
-func NewSerializer(schemaRegistryURL string) *Serializer {
+func NewSerializer(schemaRegistryURL string) Serializer {
     return &avroSerializer{
         srclient: srclient.CreateSchemaRegistryClient(schemaRegistryURL),
     }
@@ -32,38 +32,25 @@ type avroSerializer struct {
 }
 
 func (c *avroSerializer) Deserialize(
-    message *sarama.ConsumerMessage) (Message, error) {
-    fmt.Printf("saramaMessage=%+v\n", message)
+    message *sarama.ConsumerMessage) (string, error) {
 
     schemaId := binary.BigEndian.Uint32(message.Value[1:5])
-    codec, err := c.GetSchema(int(schemaId))
+    schema, err := c.srclient.GetSchema(int(schemaId))
 	if err != nil {
-		return Message{}, err
+		return "Message{}", err
 	}
-    fmt.Printf("schemaID=%+v\n", schemaID)
 
     // Convert binary Avro data back to native Go form
-	native, _, err := codec.NativeFromBinary(message.Value[5:])
-    fmt.Printf("native=%+v\n", native)
+	native, _, err := schema.Codec().NativeFromBinary(message.Value[5:])
 	if err != nil {
-		return Message{}, err
+		return "", err
 	}
 
 	// Convert native Go form to textual Avro data
-	textual, err := codec.TextualFromNative(nil, native)
+	textual, err := schema.Codec().TextualFromNative(nil, native)
 	if err != nil {
-		return Message{}, err
+		return "", err
 	}
-    fmt.Printf("textual=%+v\n", textual)
 
-	msg := Message{
-        int(schemaId),
-        m.Topic,
-        m.Partition,
-        m.Offset,
-        string(m.Key),
-        string(textual),
-    }
-
-	return msg, nil
+	return string(textual), nil
 }
