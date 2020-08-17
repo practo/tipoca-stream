@@ -26,6 +26,11 @@ kubectl create -f inventory-connector.yaml
     kubectl -n kafka exec k8s-kafka-0 -c kafka -i -t -- bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic dbserver1.inventory.customers --property schema.registry.url=http://schema-registry501.kafka:8081 --formatter io.confluent.kafka.formatter.AvroMessageFormatter --property print.key=true
 ```
 
+```
+brew install kafkacat
+$ kafkacat -s avro -r https://schema-registry.practodev.com -b aff6154064db14114b7aa04c5209449a-1348931227.ap-south-1.elb.amazonaws.com:9094 -C -o begining -q -t datapipe.inventory.customers -c 1
+```
+
 
 - Trigger change:
 ```
