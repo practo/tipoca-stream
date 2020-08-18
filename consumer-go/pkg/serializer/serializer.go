@@ -1,10 +1,10 @@
 package serializer
 
 import (
-    "fmt"
-    "encoding/binary"
-    "github.com/Shopify/sarama"
-    "github.com/riferrei/srclient"
+	"encoding/binary"
+	"fmt"
+	"github.com/Shopify/sarama"
+	"github.com/riferrei/srclient"
 )
 
 type Message struct {
@@ -17,32 +17,32 @@ type Message struct {
 }
 
 type Serializer interface {
-    Deserialize(message *sarama.ConsumerMessage) (*Message, error)
+	Deserialize(message *sarama.ConsumerMessage) (*Message, error)
 }
 
 func NewSerializer(schemaRegistryURL string) Serializer {
-    return &avroSerializer{
-        srclient: srclient.CreateSchemaRegistryClient(schemaRegistryURL),
-    }
+	return &avroSerializer{
+		srclient: srclient.CreateSchemaRegistryClient(schemaRegistryURL),
+	}
 }
 
 type avroSerializer struct {
-    srclient *srclient.SchemaRegistryClient
+	srclient *srclient.SchemaRegistryClient
 }
 
 func (c *avroSerializer) Deserialize(
-    message *sarama.ConsumerMessage) (*Message, error) {
+	message *sarama.ConsumerMessage) (*Message, error) {
 
-    schemaId := binary.BigEndian.Uint32(message.Value[1:5])
-    schema, err := c.srclient.GetSchema(int(schemaId))
+	schemaId := binary.BigEndian.Uint32(message.Value[1:5])
+	schema, err := c.srclient.GetSchema(int(schemaId))
 	if err != nil {
 		return nil, err
 	}
-    if schema == nil {
-        return nil, fmt.Errorf("Got nil schema for message:%+v\n", message)
-    }
+	if schema == nil {
+		return nil, fmt.Errorf("Got nil schema for message:%+v\n", message)
+	}
 
-    // Convert binary Avro data back to native Go form
+	// Convert binary Avro data back to native Go form
 	native, _, err := schema.Codec().NativeFromBinary(message.Value[5:])
 	if err != nil {
 		return nil, err
@@ -54,13 +54,13 @@ func (c *avroSerializer) Deserialize(
 	// 	return Message{}, err
 	// }
 
-    return &Message{
-        SchemaId:   int(schemaId),
-        Topic:      message.Topic,
-        Partition:  message.Partition,
-        Offset:     message.Offset,
-        Key:        string(message.Key),
-        // Value:      string(textual),
-        Value:      native,
-    }, nil
+	return &Message{
+		SchemaId:  int(schemaId),
+		Topic:     message.Topic,
+		Partition: message.Partition,
+		Offset:    message.Offset,
+		Key:       string(message.Key),
+		// Value:      string(textual),
+		Value: native,
+	}, nil
 }

@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/spf13/viper"
 	"github.com/practo/gobatch"
+	"github.com/spf13/viper"
 )
 
 const (
