@@ -4,7 +4,8 @@ go 1.15
 
 require (
 	github.com/Shopify/sarama v1.26.5-0.20200810201100-25aedae6c37b
-	github.com/linkedin/goavro/v2 v2.9.8
+	github.com/aws/aws-sdk-go v1.34.1
+	github.com/linkedin/goavro/v2 v2.9.8 // indirect
 	github.com/practo/gobatch v0.0.0-20190726112432-54166d458d8b
 	github.com/practo/klog/v2 v2.2.1
 	github.com/practo/tipoca-stream/s3sink v0.0.0-20200812103157-a35dce6b8faf
