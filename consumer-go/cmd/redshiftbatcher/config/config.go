@@ -5,8 +5,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/consumer-go/pkg/consumer"
-	"github.com/practo/tipoca-stream/s3sink"
+	"github.com/practo/tipoca-stream/consumer-go/pkg/s3sink"
 )
 
 type Config struct {
