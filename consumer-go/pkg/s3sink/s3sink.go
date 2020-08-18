@@ -19,10 +19,10 @@ type S3Sink struct {
 }
 
 type Config struct {
-    Region          string `yaml: region`
-    AccessKeyId     string `yaml: accessKeyId`
-    SecretAccessKey string `yaml: secretAccessKey`
-    Bucket        	string `yaml: bucket`
+	Region          string `yaml: region`
+	AccessKeyId     string `yaml: accessKeyId`
+	SecretAccessKey string `yaml: secretAccessKey`
+	Bucket          string `yaml: bucket`
 }
 
 // NewS3Sink is the factory method constructing a new S3Sink
@@ -33,7 +33,7 @@ func NewS3Sink(
 	s3Bucket string) (*S3Sink, error) {
 
 	awsConfig := &aws.Config{
-		Region:      aws.String(s3Region),
+		Region: aws.String(s3Region),
 		Credentials: credentials.NewStaticCredentials(
 			awsAccessKeyID, awsSecretAccessKey, ""),
 	}
@@ -47,8 +47,8 @@ func NewS3Sink(
 	uploader := s3manager.NewUploader(sess)
 
 	s := &S3Sink{
-		uploader:       uploader,
-		bucket:         s3Bucket,
+		uploader: uploader,
+		bucket:   s3Bucket,
 	}
 
 	return s, nil
