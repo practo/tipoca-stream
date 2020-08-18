@@ -1,16 +1,16 @@
 package consumer
 
 import (
-    "bytes"
-    "fmt"
-    "context"
-    "path/filepath"
-    "github.com/spf13/viper"
-    "github.com/Shopify/sarama"
-    "github.com/practo/klog/v2"
-    "github.com/practo/tipoca-stream/consumer-go/pkg/s3sink"
-    serializr "github.com/practo/tipoca-stream/consumer-go/pkg/serializer"
-    transformr "github.com/practo/tipoca-stream/consumer-go/pkg/transformer"
+	"bytes"
+	"context"
+	"fmt"
+	"github.com/Shopify/sarama"
+	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/consumer-go/pkg/s3sink"
+	serializr "github.com/practo/tipoca-stream/consumer-go/pkg/serializer"
+	transformr "github.com/practo/tipoca-stream/consumer-go/pkg/transformer"
+	"github.com/spf13/viper"
+	"path/filepath"
 )
 
 type batchProcessor struct {
@@ -77,9 +77,9 @@ func newBatchProcessor(
 		s3sink:      sink,
 		s3BucketDir: viper.GetString("s3sink.bucketDir"),
 		bodyBuf:     bytes.NewBuffer(make([]byte, 0, 4096)),
-		serializer:  serializr.NewSerializer(
+		serializer: serializr.NewSerializer(
 			viper.GetString("schemaRegistryURL")),
-        transformer: transformr.NewTransformer(),
+		transformer: transformr.NewTransformer(),
 	}
 }
 
@@ -189,10 +189,10 @@ func (b *batchProcessor) processMessage(message *serializr.Message, id int) {
 		b.batchStartOffset = message.Offset
 	}
 
-    err := b.transformer.Transform(message)
-    if err != nil {
-        klog.Fatalf("Error transforming message:%+v, err:%v\n", message, err)
-    }
+	err := b.transformer.Transform(message)
+	if err != nil {
+		klog.Fatalf("Error transforming message:%+v, err:%v\n", message, err)
+	}
 
 	b.bodyBuf.Write(message.Value.([]byte))
 	b.bodyBuf.Write([]byte{'\n'})
