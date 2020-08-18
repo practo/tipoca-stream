@@ -106,9 +106,6 @@ github.com/practo/gobatch
 # github.com/practo/klog/v2 v2.2.1
 ## explicit
 github.com/practo/klog/v2
-# github.com/practo/tipoca-stream/s3sink v0.0.0-20200812103157-a35dce6b8faf
-## explicit
-github.com/practo/tipoca-stream/s3sink
 # github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0
 github.com/rcrowley/go-metrics
 # github.com/riferrei/srclient v0.0.0-20200815140040-eadcf5877265

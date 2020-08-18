@@ -8,7 +8,6 @@ require (
 	github.com/linkedin/goavro/v2 v2.9.8 // indirect
 	github.com/practo/gobatch v0.0.0-20190726112432-54166d458d8b
 	github.com/practo/klog/v2 v2.2.1
-	github.com/practo/tipoca-stream/s3sink v0.0.0-20200812103157-a35dce6b8faf
 	github.com/riferrei/srclient v0.0.0-20200815140040-eadcf5877265
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
