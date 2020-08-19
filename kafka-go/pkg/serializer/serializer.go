@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/Shopify/sarama"
-	"github.com/riferrei/srclient"
+	"github.com/practo/srclient"
 )
 
 type Message struct {
