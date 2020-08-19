@@ -38,7 +38,7 @@ make build
  bin/darwin_amd64/redshiftbatcher --config=config.yaml
 ```
 
-###### Note:
+###### Note (not required, all are internal now, FYI):
 - `export GOPRIVATE="github.com/practo"`. [More.](https://medium.com/mabar/today-i-learned-fix-go-get-private-repository-return-error-reading-sum-golang-org-lookup-93058a058dd8)
 - `~/.netrc` should be configured to download from private github repo. [More.](https://golang.org/doc/faq#git_https)
 

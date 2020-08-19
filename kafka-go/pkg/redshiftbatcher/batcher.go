@@ -1,7 +1,6 @@
-package consumer
+package redshiftbatcher
 
 import (
-	"sync"
 	"time"
 
 	"github.com/practo/gobatch"
@@ -11,8 +10,6 @@ import (
 const (
 	maxBatchId = 99
 )
-
-type batchers = sync.Map
 
 type batcher struct {
 	topic     string
@@ -30,6 +27,18 @@ type BatcherConfig struct {
 	MaxWaitSeconds int `yaml:maxWaitSeconds,omitempty`
 }
 
+func newMBatch(maxSize int,
+	maxWaitSeconds int, process gobatch.BatchFn,
+	workers int) *gobatch.Batch {
+
+	return gobatch.NewMemoryBatch(
+		maxSize,
+		time.Second*time.Duration(maxWaitSeconds),
+		process,
+		workers,
+	)
+}
+
 func newBatcher(topic string) *batcher {
 	c := &BatcherConfig{
 		MaxSize:        viper.GetInt("batcher.maxSize"),
@@ -42,18 +51,4 @@ func newBatcher(topic string) *batcher {
 		processor: nil,
 		mbatch:    nil,
 	}
-}
-
-func newMBatch(
-	maxSize int,
-	maxWaitSeconds int,
-	process gobatch.BatchFn,
-	workers int) *gobatch.Batch {
-
-	return gobatch.NewMemoryBatch(
-		maxSize,
-		time.Second*time.Duration(maxWaitSeconds),
-		process,
-		workers,
-	)
 }
