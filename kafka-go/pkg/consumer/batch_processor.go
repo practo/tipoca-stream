@@ -3,14 +3,18 @@ package consumer
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/consumer-go/pkg/s3sink"
-	serializr "github.com/practo/tipoca-stream/consumer-go/pkg/serializer"
-	transformr "github.com/practo/tipoca-stream/consumer-go/pkg/transformer"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/producer"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/s3sink"
+	serializr "github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
+	transformr "github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
 	"github.com/spf13/viper"
 	"path/filepath"
+	"strings"
+	"time"
 )
 
 type batchProcessor struct {
@@ -54,6 +58,10 @@ type batchProcessor struct {
 	// transformer is used to transform debezium events into
 	// redshift COPY commands with some annotations
 	transformer transformr.Transformer
+
+	// signaler is a kafka producer signaling the load the batch uploaded data
+	// TODO: make the producer have interface
+	signaler *producer.AvroProducer
 }
 
 func newBatchProcessor(
@@ -70,6 +78,15 @@ func newBatchProcessor(
 		klog.Fatalf("Error creating s3 client: %v\n", err)
 	}
 
+	signaler, err := producer.NewAvroProducer(
+		strings.Split(viper.GetString("kafka.brokers"), ","),
+		viper.GetString("kafka.version"),
+		viper.GetString("schemaRegistryURL"),
+	)
+	if err != nil {
+		klog.Fatalf("unable to make signaler client, err:%v\n", err)
+	}
+
 	return &batchProcessor{
 		topic:       topic,
 		partition:   partition,
@@ -80,6 +97,7 @@ func newBatchProcessor(
 		serializer: serializr.NewSerializer(
 			viper.GetString("schemaRegistryURL")),
 		transformer: transformr.NewTransformer(),
+		signaler:    signaler,
 	}
 }
 
@@ -161,10 +179,54 @@ func (b *batchProcessor) shutdownInfo() {
 			b.lastCommittedOffset,
 		)
 	}
+
+	b.signaler.Close()
 }
 
-func (b *batchProcessor) signalLoad(bucket string, key string) {
+func (b *batchProcessor) signalLoad() {
+	downstreamTopic := "loader-" + b.topic
+	schema := `{
+		"type": "record",
+		"name": "redshiftloader",
+		"fields": [
+			{"name": "upstreamTopic", "type": "string"},
+			{"name": "startOffset", "type": "long"},
+			{"name": "endOffset", "type": "long"},
+			{"name": "csvDialect", "type": "string"},
+			{"name": "s3Path", "type": "string"},
+			{"name": "schemaID", "type": "int"}
+		]
+	}`
 
+	schemaID, err := b.signaler.GetSchemaId(downstreamTopic, schema)
+	if err != nil {
+		klog.Fatalf("Get or create failed for schema:%v, err:%v\n", schema, err)
+	}
+
+	payload := map[string]interface{}{
+		"upstreamTopic": b.topic,
+		"startOffset":   b.batchStartOffset,
+		"endOffset":     b.batchEndOffset,
+		"csvDialect":    ",",
+		"s3Path":        b.s3Key,
+		"schemaID":      schemaID,
+	}
+
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		klog.Fatalf("Failed to marshal payload:%+v, err:%v\n", payload, err)
+	}
+
+	err = b.signaler.Add(
+		downstreamTopic, schema, []byte(time.Now().String()), payloadBytes,
+	)
+	if err != nil {
+		klog.Fatalf("Error sending the signal to the loader, err:%v\n", err)
+	}
+	klog.V(3).Infof(
+		"topic:%s, batchId:%d: Signalled the loader.\n",
+		b.topic, b.batchId,
+	)
 }
 
 func (b *batchProcessor) processMessage(message *serializr.Message, id int) {
@@ -244,8 +306,6 @@ func (b *batchProcessor) process(workerID int, datas []interface{}) {
 		b.topic, b.batchId, len(datas),
 	)
 
-	// TODO: transform the debezium event into redshift commands
-	// and create a new buffer
 	done := b.processBatch(b.session.Context(), datas)
 	if !done {
 		b.shutdownInfo()
@@ -267,6 +327,8 @@ func (b *batchProcessor) process(workerID int, datas []interface{}) {
 	)
 
 	b.bodyBuf.Truncate(0)
+
+	b.signalLoad()
 
 	b.commitOffset(datas)
 
