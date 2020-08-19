@@ -2,18 +2,24 @@ package transformer
 
 import (
 	"fmt"
+	"github.com/practo/klog/v2"
 )
 
 type debeziumTransformer struct{}
 
-func (d *debeziumTransformer) extract(key string, dataI map[string]interface{},
+func (d *debeziumTransformer) extract(
+	key string, payload map[string]interface{},
 	result map[string]string) map[string]string {
 
-	data := dataI[key].(map[string]interface{})
-	if data == nil {
+	klog.V(5).Info("extracting data: %+v", payload)
+	dataKey := payload[key]
+	if dataKey == nil {
 		return result
 	}
 
+	data := dataKey.(map[string]interface{})
+
+	// Why such handling? https://github.com/linkedin/goavro/issues/217
 	for _, v := range data {
 		for k2, v2 := range v.(map[string]interface{}) {
 			switch v2.(type) {
@@ -45,6 +51,7 @@ func (d *debeziumTransformer) after(native interface{}) map[string]string {
 }
 
 func (d *debeziumTransformer) before(native interface{}) map[string]string {
+	klog.V(5).Infof("before: native=%v\n", native)
 	result := make(map[string]string)
 	if native == nil {
 		return result
@@ -54,6 +61,7 @@ func (d *debeziumTransformer) before(native interface{}) map[string]string {
 	if data == nil {
 		return result
 	}
+	klog.V(5).Infof("before: data=%v\n", data)
 
 	return d.extract("before", data, result)
 }
