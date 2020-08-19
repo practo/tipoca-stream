@@ -16,6 +16,7 @@ import (
 	"github.com/practo/klog/v2"
 	conf "github.com/practo/tipoca-stream/kafka-go/cmd/redshiftbatcher/config"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/consumer"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/redshiftbatcher"
 )
 
 var rootCmd = &cobra.Command{
@@ -40,7 +41,10 @@ func run(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	consumerGroup, err := consumer.NewConsumerGroup(config.Kafka, config.Sarama)
+	ready := make(chan bool)
+	consumerGroup, err := consumer.NewConsumerGroup(
+		config.Kafka, config.Sarama, redshiftbatcher.NewConsumer(ready),
+	)
 	if err != nil {
 		klog.Errorf("Error creating kafka consumer group, exiting: %v\n", err)
 		os.Exit(1)
@@ -59,7 +63,7 @@ func run(cmd *cobra.Command, args []string) {
 	wg.Add(1)
 	go manager.Consume(ctx, wg)
 
-	<-manager.Ready
+	<-ready
 	klog.Info("Consumer is up and running")
 
 	sigterm := make(chan os.Signal, 1)
@@ -88,8 +92,9 @@ func run(cmd *cobra.Command, args []string) {
 	klog.Info("Goodbye!")
 }
 
-// main => consumer.manager.Consume() => consumer.consumerGroup.Consume()
-// => sarama/consumer_group.Consume() => consumer.ConsumeClaim()
+// main/main.main()
+// => consumer/manager.Consume() => consumer/consumer_group.Consume()
+// => sarama/consumer_group.Consume() => redshfitbatcher/consumer.ConsumeClaim()
 func main() {
 	rootCmd.Execute()
 }
