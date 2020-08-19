@@ -1,8 +1,8 @@
 package producer
 
 import (
-    "fmt"
 	"encoding/binary"
+	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/linkedin/goavro/v2"
 	"github.com/practo/srclient"
@@ -17,10 +17,10 @@ type AvroProducer struct {
 func NewAvroProducer(brokers []string,
 	kafkaVersion string, schemaRegistryURL string) (*AvroProducer, error) {
 
-    version, err := sarama.ParseKafkaVersion(kafkaVersion)
-    if err != nil {
-    	return nil, fmt.Errorf("Error parsing Kafka version: %v\n", err)
-    }
+	version, err := sarama.ParseKafkaVersion(kafkaVersion)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing Kafka version: %v\n", err)
+	}
 
 	config := sarama.NewConfig()
 	config.Version = version
