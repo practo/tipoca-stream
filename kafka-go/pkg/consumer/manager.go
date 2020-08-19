@@ -124,7 +124,7 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 		c.printLastOffsets()
 
 		klog.V(2).Infof("Manager.Consume for %d topic(s)\n", len(topics))
-		err := c.consumerGroup.Consume(ctx, topics, c.Ready)
+		err := c.consumerGroup.Consume(ctx, topics)
 		if err != nil {
 			klog.Fatalf("Error from consumer: %v", err)
 		}
