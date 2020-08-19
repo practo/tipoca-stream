@@ -1,4 +1,4 @@
-package consumer
+package redshiftbatcher
 
 import (
 	"bytes"
