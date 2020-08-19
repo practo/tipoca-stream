@@ -7,9 +7,9 @@ import (
 
 func NewConsumer(ready chan bool) consumer {
 	return consumer{
-		ready:    ready,
+		ready: ready,
 		// batcher is initliazed in ConsumeClaim based on the topic it gets
-		batcher:  nil,
+		batcher: nil,
 	}
 }
 
