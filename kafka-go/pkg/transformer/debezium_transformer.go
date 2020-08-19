@@ -6,14 +6,18 @@ import (
 
 type debeziumTransformer struct{}
 
-func (d *debeziumTransformer) extract(key string, dataI map[string]interface{},
+func (d *debeziumTransformer) extract(
+	key string, payload map[string]interface{},
 	result map[string]string) map[string]string {
 
-	data := dataI[key].(map[string]interface{})
-	if data == nil {
+	dataKey := payload[key]
+	if dataKey == nil {
 		return result
 	}
 
+	data := dataKey.(map[string]interface{})
+
+	// Why such handling? https://github.com/linkedin/goavro/issues/217
 	for _, v := range data {
 		for k2, v2 := range v.(map[string]interface{}) {
 			switch v2.(type) {
