@@ -1,23 +1,24 @@
-package consumer
+package redshiftbatcher
 
 import (
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 )
 
-func NewConsumer() consumer {
+func NewConsumer(ready chan bool) consumer {
 	return consumer{
-		ready:    make(chan bool),
-		batchers: new(batchers),
+		ready:    ready,
+		// batcher is initliazed in ConsumeClaim based on the topic it gets
+		batcher:  nil,
 	}
 }
 
 // consumer represents a Sarama consumer group consumer
 type consumer struct {
-	// ready is used to signal the main thread about the readiness
+	// Ready is used to signal the main thread about the readiness
 	ready chan bool
 
-	batchers *batchers
+	batcher *batcher
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
@@ -39,46 +40,38 @@ func (c consumer) processMessage(
 	session sarama.ConsumerGroupSession,
 	message *sarama.ConsumerMessage) error {
 
-	// load the batcher for the topic
-	ub, _ := c.batchers.Load(message.Topic)
-	if ub == nil {
-		klog.Fatalf("Error loading batcher for topic:%s\n", message.Topic)
-	}
-	b := ub.(*batcher)
-
-	if b.processor == nil {
-		b.processor = newBatchProcessor(
+	if c.batcher.processor == nil {
+		c.batcher.processor = newBatchProcessor(
 			message.Topic, message.Partition, session)
 	}
 	// TODO: not sure added below for safety, it may not be required
-	b.processor.session = session
+	c.batcher.processor.session = session
 
-	if b.mbatch == nil {
-		b.mbatch = newMBatch(
-			b.config.MaxSize,
-			b.config.MaxWaitSeconds,
-			b.processor.process,
+	if c.batcher.mbatch == nil {
+		c.batcher.mbatch = newMBatch(
+			c.batcher.config.MaxSize,
+			c.batcher.config.MaxWaitSeconds,
+			c.batcher.processor.process,
 			1,
 		)
 	}
 
 	select {
-	case <-b.processor.session.Context().Done():
+	case <-c.batcher.processor.session.Context().Done():
 		klog.Info("Graceful shutdown requested, not inserting in batch")
 		return nil
 	default:
 		// klog.V(99).Infof(
 		// 	"Inserted message: items=%d\n", b.mbatch.TotalItems(),
 		// )
-		b.mbatch.Insert(message)
+		c.batcher.mbatch.Insert(message)
 	}
 
 	return nil
 }
 
 // ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages().
-func (c consumer) ConsumeClaim(
-	session sarama.ConsumerGroupSession,
+func (c consumer) ConsumeClaim(session sarama.ConsumerGroupSession,
 	claim sarama.ConsumerGroupClaim) error {
 
 	klog.V(2).Infof(
@@ -87,6 +80,9 @@ func (c consumer) ConsumeClaim(
 		claim.Partition(),
 		claim.InitialOffset(),
 	)
+
+	c.batcher = newBatcher(claim.Topic())
+
 	// NOTE:
 	// Do not move the code below to a goroutine.
 	// The `ConsumeClaim` itself is called within a goroutine, see:

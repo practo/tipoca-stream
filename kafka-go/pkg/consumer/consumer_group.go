@@ -14,7 +14,7 @@ import (
 type ConsumerGroup interface {
 	Topics() ([]string, error)
 	LastOffset(topic string, partition int32) (int64, error)
-	Consume(ctx context.Context, topics []string, ready chan bool) error
+	Consume(ctx context.Context, topics []string) error
 	Close() error
 }
 
@@ -32,17 +32,19 @@ type SaramaConfig struct {
 	Log      bool   `yaml: log`
 }
 
-func NewConsumerGroup(k KafkaConfig, s SaramaConfig) (ConsumerGroup, error) {
+func NewConsumerGroup(k KafkaConfig, s SaramaConfig,
+	consumer sarama.ConsumerGroupHandler) (ConsumerGroup, error) {
+
 	switch k.KafkaClient {
 	case "sarama":
-		return NewSaramaConsumerGroup(k, s)
+		return NewSaramaConsumerGroup(k, s, consumer)
 	default:
 		return nil, fmt.Errorf("kafkaClient not supported: %v\n", k.KafkaClient)
 	}
 }
 
-func NewSaramaConsumerGroup(
-	k KafkaConfig, s SaramaConfig) (ConsumerGroup, error) {
+func NewSaramaConsumerGroup(k KafkaConfig, s SaramaConfig,
+	consumer sarama.ConsumerGroupHandler) (ConsumerGroup, error) {
 
 	if s.Log {
 		sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags)
@@ -94,7 +96,7 @@ func NewSaramaConsumerGroup(
 	return &saramaConsumerGroup{
 		client:        client,
 		consumerGroup: consumerGroup,
-		consumer:      NewConsumer(),
+		consumer:      consumer,
 	}, nil
 }
 
@@ -107,7 +109,7 @@ type saramaConsumerGroup struct {
 
 	// consumer is the implementation that is called by the sarama
 	// to perform consumption
-	consumer consumer
+	consumer sarama.ConsumerGroupHandler
 }
 
 func (c *saramaConsumerGroup) Topics() ([]string, error) {
@@ -117,22 +119,6 @@ func (c *saramaConsumerGroup) Topics() ([]string, error) {
 func (c *saramaConsumerGroup) LastOffset(
 	topic string, partition int32) (int64, error) {
 	return c.client.GetOffset(topic, partition, sarama.OffsetNewest)
-}
-
-func (c *saramaConsumerGroup) Consume(
-	ctx context.Context, topics []string, ready chan bool) error {
-
-	// create batchers
-	b := new(batchers)
-	for _, topic := range topics {
-		b.Store(topic, newBatcher(topic))
-	}
-	c.consumer.batchers = b
-	klog.V(5).Infof("Created batchers: %+v\n", b)
-
-	c.consumer.ready = ready
-
-	return c.consumerGroup.Consume(ctx, topics, c.consumer)
 }
 
 func (c *saramaConsumerGroup) Close() error {
@@ -148,4 +134,10 @@ func (c *saramaConsumerGroup) Close() error {
 
 	klog.Info("Closed open connections.")
 	return nil
+}
+
+func (c *saramaConsumerGroup) Consume(
+	ctx context.Context, topics []string) error {
+
+	return c.consumerGroup.Consume(ctx, topics, c.consumer)
 }
