@@ -2,7 +2,6 @@ package transformer
 
 import (
 	"fmt"
-	"github.com/practo/klog/v2"
 )
 
 type debeziumTransformer struct{}
@@ -11,7 +10,6 @@ func (d *debeziumTransformer) extract(
 	key string, payload map[string]interface{},
 	result map[string]string) map[string]string {
 
-	klog.V(5).Info("extracting data: %+v", payload)
 	dataKey := payload[key]
 	if dataKey == nil {
 		return result
@@ -51,7 +49,6 @@ func (d *debeziumTransformer) after(native interface{}) map[string]string {
 }
 
 func (d *debeziumTransformer) before(native interface{}) map[string]string {
-	klog.V(5).Infof("before: native=%v\n", native)
 	result := make(map[string]string)
 	if native == nil {
 		return result
@@ -61,7 +58,6 @@ func (d *debeziumTransformer) before(native interface{}) map[string]string {
 	if data == nil {
 		return result
 	}
-	klog.V(5).Infof("before: data=%v\n", data)
 
 	return d.extract("before", data, result)
 }
