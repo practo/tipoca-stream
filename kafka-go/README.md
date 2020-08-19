@@ -1,6 +1,6 @@
-# Consumer GO
+# Kafka GO
 
-Consumer go holds the code of all the Kafka consumers written in Go.
+Kafka go holds the code for the Kafka consumers and producers written in Go.
 
 - RedshiftSink: Batcher
 - RedshiftSink: Loader
