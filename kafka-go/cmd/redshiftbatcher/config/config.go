@@ -6,15 +6,16 @@ import (
 
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/consumer"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/redshiftbatcher"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/s3sink"
 )
 
 type Config struct {
-	Batcher           consumer.BatcherConfig `yaml: batcher`
-	Kafka             consumer.KafkaConfig   `yaml: kafka`
-	Sarama            consumer.SaramaConfig  `yaml: sarama`
-	S3Sink            s3sink.Config          `yaml: s3sink`
-	SchemaRegistryURL string                 `yaml: schemaRegistryURL`
+	Batcher           redshiftbatcher.BatcherConfig `yaml: batcher`
+	Kafka             consumer.KafkaConfig          `yaml: kafka`
+	Sarama            consumer.SaramaConfig         `yaml: sarama`
+	S3Sink            s3sink.Config                 `yaml: s3sink`
+	SchemaRegistryURL string                        `yaml: schemaRegistryURL`
 }
 
 func LoadConfig(cmd *cobra.Command) (Config, error) {
