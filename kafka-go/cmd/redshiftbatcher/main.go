@@ -14,8 +14,8 @@ import (
 	"syscall"
 
 	"github.com/practo/klog/v2"
-	conf "github.com/practo/tipoca-stream/consumer-go/cmd/redshiftbatcher/config"
-	"github.com/practo/tipoca-stream/consumer-go/pkg/consumer"
+	conf "github.com/practo/tipoca-stream/kafka-go/cmd/redshiftbatcher/config"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/consumer"
 )
 
 var rootCmd = &cobra.Command{
