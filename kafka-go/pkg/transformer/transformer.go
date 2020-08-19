@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/practo/tipoca-stream/consumer-go/pkg/serializer"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 )
 
 type Transformer interface {
@@ -23,10 +23,10 @@ func (c *redshiftTransformer) getOperation(
 	after map[string]string) (string, error) {
 
 	r := 0
-	if before != nil {
+	if len(before) != 0 {
 		r += 1
 	}
-	if after != nil {
+	if len(after) != 0 {
 		r += 2
 	}
 	switch r {
