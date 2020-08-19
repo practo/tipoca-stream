@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 )
 
@@ -47,7 +46,6 @@ func (c *redshiftTransformer) getOperation(
 }
 
 func (c *redshiftTransformer) Transform(message *serializer.Message) error {
-	klog.V(5).Infof("transforming message: %+v\n", message)
 	d := &debeziumTransformer{}
 
 	before := d.before(message.Value)

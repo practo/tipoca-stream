@@ -3,17 +3,17 @@ package consumer
 import (
 	"bytes"
 	"context"
-	"strings"
-	"fmt"
 	"encoding/json"
+	"fmt"
 	"github.com/Shopify/sarama"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/producer"
 	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/producer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/s3sink"
 	serializr "github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	transformr "github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
 	"github.com/spf13/viper"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -185,7 +185,7 @@ func (b *batchProcessor) shutdownInfo() {
 
 func (b *batchProcessor) signalLoad() {
 	downstreamTopic := "loader-" + b.topic
-	schema := []byte(`{
+	schema := `{
 		"type": "record",
 		"name": "redshiftloader",
 		"fields": [
@@ -194,11 +194,11 @@ func (b *batchProcessor) signalLoad() {
 			{"name": "endOffset", "type": "long"},
 			{"name": "csvDialect", "type": "string"},
 			{"name": "s3Path", "type": "string"},
-			{"name": "schemaID", "type": "int"},
+			{"name": "schemaID", "type": "int"}
 		]
-	}`)
+	}`
 
-	schemaID, err := b.signaler.GetSchemaId(downstreamTopic, string(schema))
+	schemaID, err := b.signaler.GetSchemaId(downstreamTopic, schema)
 	if err != nil {
 		klog.Fatalf("Get or create failed for schema:%v, err:%v\n", schema, err)
 	}
@@ -218,14 +218,13 @@ func (b *batchProcessor) signalLoad() {
 	}
 
 	err = b.signaler.Add(
-		downstreamTopic,
-		string(schema), []byte(time.Now().String()), payloadBytes,
+		downstreamTopic, schema, []byte(time.Now().String()), payloadBytes,
 	)
 	if err != nil {
 		klog.Fatalf("Error sending the signal to the loader, err:%v\n", err)
 	}
 	klog.V(3).Infof(
-		"topic:%s, batchId:%d: signalled the loader for load.\n",
+		"topic:%s, batchId:%d: Signalled the loader.\n",
 		b.topic, b.batchId,
 	)
 }
