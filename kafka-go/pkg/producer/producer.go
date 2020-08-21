@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/linkedin/goavro/v2"
-	"github.com/practo/srclient"
+	"github.com/riferrei/srclient"
 	"time"
 )
 
