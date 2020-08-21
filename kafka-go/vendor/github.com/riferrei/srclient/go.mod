@@ -1,4 +1,4 @@
-module github.com/practo/srclient
+module github.com/riferrei/srclient
 
 go 1.12
 
