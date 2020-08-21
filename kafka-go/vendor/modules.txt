@@ -108,9 +108,11 @@ github.com/practo/gobatch
 github.com/practo/klog/v2
 # github.com/practo/srclient v0.0.0-20200819100500-327e8380f940
 ## explicit
-github.com/practo/srclient
 # github.com/rcrowley/go-metrics v0.0.0-20200313005456-10cdbea86bc0
 github.com/rcrowley/go-metrics
+# github.com/riferrei/srclient v0.0.0-20200820123217-6a5d2a4bf9d1
+## explicit
+github.com/riferrei/srclient
 # github.com/spf13/afero v1.1.2
 github.com/spf13/afero
 github.com/spf13/afero/mem
