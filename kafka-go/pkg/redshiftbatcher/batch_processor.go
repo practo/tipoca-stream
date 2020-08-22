@@ -40,6 +40,10 @@ type batchProcessor struct {
 	// this is useful only for logging and debugging purpose
 	batchId int
 
+	// batchSchemaId contains the schema id the batch has
+	// all messages in the batch should have same schema id
+	batchSchemaId int
+
 	// batchStartOffset is the starting offset of the batch
 	// this is useful only for logging and debugging purpose
 	batchStartOffset int64
@@ -85,14 +89,14 @@ func newBatchProcessor(
 	}
 
 	return &batchProcessor{
-		topic:       topic,
-		partition:   partition,
-		session:     session,
-		s3sink:      sink,
-		s3BucketDir: viper.GetString("s3sink.bucketDir"),
-		bodyBuf:     bytes.NewBuffer(make([]byte, 0, 4096)),
-		transformer: transformer.NewTransformer(),
-		signaler:    signaler,
+		topic:       	topic,
+		partition:   	partition,
+		session:     	session,
+		s3sink:      	sink,
+		s3BucketDir: 	viper.GetString("s3sink.bucketDir"),
+		bodyBuf:     	bytes.NewBuffer(make([]byte, 0, 4096)),
+		transformer: 	transformer.NewTransformer(),
+		signaler:    	signaler,
 	}
 }
 
@@ -159,7 +163,7 @@ func (b *batchProcessor) commitOffset(datas []interface{}) {
 	}
 }
 
-func (b *batchProcessor) shutdownInfo() {
+func (b *batchProcessor) handleShutdown() {
 	klog.Infof(
 		"topic:%s, batchId:%d: Batch processing gracefully shutdown.\n",
 		b.topic,
@@ -193,18 +197,13 @@ func (b *batchProcessor) signalLoad() {
 		]
 	}`
 
-	schemaID, err := b.signaler.GetSchemaId(b.topic, schema)
-	if err != nil {
-		klog.Fatalf("Get or create failed for schema:%v, err:%v\n", schema, err)
-	}
-
 	payload := map[string]interface{}{
 		"upstreamTopic": b.topic,
 		"startOffset":   b.batchStartOffset,
 		"endOffset":     b.batchEndOffset,
 		"csvDialect":    ",",
 		"s3Path":        b.s3Key,
-		"schemaID":      schemaID,
+		"schemaID":      b.batchSchemaId, // schema of the upstreamTopic
 	}
 
 	payloadBytes, err := json.Marshal(payload)
@@ -236,7 +235,9 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 	)
 
 	// key is always made based on the first not nil message in the batch
+	// also the batchSchemaId is set only at the start of the batch
 	if b.s3Key == "" {
+		b.batchSchemaId = message.SchemaId
 		b.setS3key(message.Topic, message.Partition, message.Offset)
 
 		klog.V(5).Infof("topic:%s, batchId:%d id:%d: s3Key:%s\n",
@@ -244,6 +245,14 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 		)
 
 		b.batchStartOffset = message.Offset
+	}
+
+	if b.batchSchemaId != message.SchemaId {
+		klog.Fatalf("topic:%s, schema id mismatch in the batch, %d != %d\n",
+			b.topic,
+			b.batchSchemaId,
+			message.SchemaId,
+		)
 	}
 
 	err := b.transformer.Transform(message)
@@ -283,6 +292,8 @@ func (b *batchProcessor) processBatch(
 
 func (b *batchProcessor) process(workerID int, datas []interface{}) {
 	b.setBatchId()
+	b.batchSchemaId = -1l
+
 	if b.ctxCancelled() {
 		return
 	}
@@ -293,7 +304,7 @@ func (b *batchProcessor) process(workerID int, datas []interface{}) {
 
 	done := b.processBatch(b.session.Context(), datas)
 	if !done {
-		b.shutdownInfo()
+		b.handleShutdown()
 		return
 	}
 
