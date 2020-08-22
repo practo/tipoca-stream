@@ -193,7 +193,7 @@ func (b *batchProcessor) signalLoad() {
 		]
 	}`
 
-	schemaID, err := b.signaler.GetSchemaId(downstreamTopic, schema)
+	schemaID, err := b.signaler.GetSchemaId(b.topic, schema)
 	if err != nil {
 		klog.Fatalf("Get or create failed for schema:%v, err:%v\n", schema, err)
 	}
