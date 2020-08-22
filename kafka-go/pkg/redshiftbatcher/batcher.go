@@ -70,7 +70,7 @@ func (b *batcher) Insert(saramaMessage *sarama.ConsumerMessage) {
 		b.mbatch.Insert(message)
 		b.lastSchemaId = new(int)
 	} else if *b.lastSchemaId != message.SchemaId {
-		klog.V(3).Infof("topic:%s: Got new schema: %d => %d\n",
+		klog.V(3).Infof("topic:%s: Got new schema (new batch): %d => %d\n",
 			b.topic, *b.lastSchemaId, message.SchemaId)
 		b.mbatch.FlushInsert(message)
 	} else {
