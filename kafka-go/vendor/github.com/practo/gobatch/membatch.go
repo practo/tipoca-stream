@@ -10,7 +10,7 @@ func NewMemoryBatch(flushMaxSize int, flushMaxWait time.Duration, callback Batch
 		maxSize: flushMaxSize,
 		maxWait: flushMaxWait,
 
-		items: make([]interface{}, flushMaxSize),
+		items: make([]interface{}, 0),
 		doFn:  callback,
 		mutex: &sync.RWMutex{},
 
@@ -24,6 +24,18 @@ func NewMemoryBatch(flushMaxSize int, flushMaxWait time.Duration, callback Batch
 func (b *Batch) Insert(data interface{}) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
+	b.items = append(b.items, data)
+	if len(b.items) >= b.maxSize {
+		b.Flush()
+	}
+}
+
+func (b *Batch) FlushInsert(data interface{}) {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
+	b.Flush()
+
 	b.items = append(b.items, data)
 	if len(b.items) >= b.maxSize {
 		b.Flush()
