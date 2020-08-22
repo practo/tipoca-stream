@@ -64,14 +64,14 @@ func (b *loader) Insert(saramaMessage *sarama.ConsumerMessage) {
 	if err != nil {
 		klog.Fatalf("Error deserializing binary, err: %s\n", err)
 	}
-	klog.V(5).Infof("topic:%s, message:%+v\n", b.topic, message)
+	//klog.V(5).Infof("topic:%s, message:%+v\n", b.topic, message)
 
-	// batch by schema id
+	//  batch by schema id
 	if b.lastSchemaId == nil {
 		b.mbatch.Insert(message)
 		b.lastSchemaId = new(int)
 	} else if *b.lastSchemaId != message.SchemaId {
-		klog.V(3).Infof("topic:%s: Got new schema: %d => %d\n",
+		klog.V(3).Infof("topic:%s: Got new schema (new batch): %d => %d\n",
 			b.topic, *b.lastSchemaId, message.SchemaId)
 		b.mbatch.FlushInsert(message)
 	} else {

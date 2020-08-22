@@ -100,7 +100,7 @@ func (b *loadProcessor) commitOffset(datas []interface{}) {
 	}
 }
 
-func (b *loadProcessor) shutdownInfo() {
+func (b *loadProcessor) handleShutdown() {
 	klog.Infof(
 		"topic:%s, batchId:%d: Batch processing gracefully shutdown.\n",
 		b.topic,
@@ -150,7 +150,7 @@ func (b *loadProcessor) process(workerID int, datas []interface{}) {
 
 	done := b.processBatch(b.session.Context(), datas)
 	if !done {
-		b.shutdownInfo()
+		b.handleShutdown()
 		return
 	}
 
