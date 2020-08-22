@@ -9,8 +9,8 @@ import (
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/producer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/s3sink"
-	serializr "github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
-	transformr "github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
 	"github.com/spf13/viper"
 	"path/filepath"
 	"strings"
@@ -52,12 +52,9 @@ type batchProcessor struct {
 	// this is helpful to log at the time of shutdown and can help in debugging
 	lastCommittedOffset int64
 
-	// serializer is used to Deserialize the message stored in Kafka
-	serializer serializr.Serializer
-
 	// transformer is used to transform debezium events into
 	// redshift COPY commands with some annotations
-	transformer transformr.Transformer
+	transformer transformer.Transformer
 
 	// signaler is a kafka producer signaling the load the batch uploaded data
 	// TODO: make the producer have interface
@@ -94,9 +91,7 @@ func newBatchProcessor(
 		s3sink:      sink,
 		s3BucketDir: viper.GetString("s3sink.bucketDir"),
 		bodyBuf:     bytes.NewBuffer(make([]byte, 0, 4096)),
-		serializer: serializr.NewSerializer(
-			viper.GetString("schemaRegistryURL")),
-		transformer: transformr.NewTransformer(),
+		transformer: transformer.NewTransformer(),
 		signaler:    signaler,
 	}
 }
@@ -139,19 +134,19 @@ func (b *batchProcessor) setS3key(topic string, partition int32, offset int64) {
 
 func (b *batchProcessor) commitOffset(datas []interface{}) {
 	for i, data := range datas {
-		// TODO: this should not be required, fix the gobatch code
-		if data == nil {
-			continue
-		}
-		message := data.(*sarama.ConsumerMessage)
+		message := data.(*serializer.Message)
 
-		b.session.MarkMessage(message, "")
+		b.session.MarkOffset(
+			message.Topic,
+			message.Partition,
+			message.Offset+1,
+			"",
+		)
 		// TODO: not sure how to avoid any failure when the process restarts
 		// while doing this But if the system is idempotent we do not
 		// need to worry about this. Since the write to s3 again will
 		// just overwrite the same data.
 		b.session.Commit()
-		// 99 is an exception
 		b.lastCommittedOffset = message.Offset
 		var verbosity klog.Level = 5
 		if len(datas)-1 == i {
@@ -229,7 +224,7 @@ func (b *batchProcessor) signalLoad() {
 	)
 }
 
-func (b *batchProcessor) processMessage(message *serializr.Message, id int) {
+func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 	klog.V(5).Infof(
 		"topic:%s, batchId:%d id:%d: transforming\n",
 		b.topic, b.batchId, id,
@@ -279,17 +274,7 @@ func (b *batchProcessor) processBatch(
 		case <-ctx.Done():
 			return false
 		default:
-			// TODO: fix gobatch for this
-			if data == nil {
-				continue
-			}
-			message, err := b.serializer.Deserialize(
-				data.(*sarama.ConsumerMessage),
-			)
-			if err != nil {
-				klog.Fatalf("Error deserializing binary, err: %s\n", err)
-			}
-			b.processMessage(message, id)
+			b.processMessage(data.(*serializer.Message), id)
 		}
 	}
 
