@@ -17,11 +17,13 @@ else
 fi
 
 timestamp=$(date +%d/%m/%Y_%H%M%S)
+bootstrap=`kubectl get svc -n kafka | grep k8s-kafka-external-bootstrap  | awk '{print $4}'`
+echo bootstrap-server: $bootstrap:9094
 
 for i in $(seq 1 $messages); do # start 10 jobs in parallel
 	d="${i}-${timestamp}"
 	echo "producing message | topic: $topic | data: $d"
-	plumber write message kafka --address=a6f50e841fe284aea870ea716ecf0623-1714444736.ap-south-1.elb.amazonaws.com:9094 --key tipocakey --topic="${topic}" --input-data="$d"
+	plumber write message kafka --address=${bootstrap}:9094 --key tipocakey --topic="${topic}" --input-data="$d"
 done
 
 # Wait for all parallel jobs to finish (add & and make it parallel)
