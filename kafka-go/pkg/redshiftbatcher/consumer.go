@@ -47,24 +47,12 @@ func (c consumer) processMessage(
 	// TODO: not sure added below for safety, it may not be required
 	c.batcher.processor.session = session
 
-	if c.batcher.mbatch == nil {
-		c.batcher.mbatch = newMBatch(
-			c.batcher.config.MaxSize,
-			c.batcher.config.MaxWaitSeconds,
-			c.batcher.processor.process,
-			1,
-		)
-	}
-
 	select {
 	case <-c.batcher.processor.session.Context().Done():
 		klog.Info("Graceful shutdown requested, not inserting in batch")
 		return nil
 	default:
-		// klog.V(99).Infof(
-		// 	"Inserted message: items=%d\n", b.mbatch.TotalItems(),
-		// )
-		c.batcher.mbatch.Insert(message)
+		c.batcher.Insert(message)
 	}
 
 	return nil
