@@ -185,8 +185,8 @@ github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINE
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/posener/complete v1.1.1/go.mod h1:em0nMJCgc9GFtwrmVmEMR/ZL6WyhyjMBndrE9hABlRI=
-github.com/practo/gobatch v0.0.0-20190726112432-54166d458d8b h1:95TrykWkPU+OZ0TQueAjHL9/kxJ4uUEzZ3hen84euBQ=
-github.com/practo/gobatch v0.0.0-20190726112432-54166d458d8b/go.mod h1:2UeXn59D3tqmHrbst8T4Z+Wm6/TUMREkXTNH1PT0dU0=
+github.com/practo/gobatch v0.0.0-20200822085922-4905d08d9f40 h1:ukO+fKWBM3U9LYZhB3Mm+BA8S04Mjc880W/EUbpoMVg=
+github.com/practo/gobatch v0.0.0-20200822085922-4905d08d9f40/go.mod h1:OR//ozfD9hhQvQ1exBwHezn3VtEV1BjaLWj1LP+gAAk=
 github.com/practo/klog/v2 v2.2.1 h1:yV/SavG73KHSmCVwtDap1RGe+2jd86e1eugT+Mv2/FA=
 github.com/practo/klog/v2 v2.2.1/go.mod h1:WMkpfPwTxLgSLookpI4UUv2zL7tMltKACK/FHB1zLV0=
 github.com/prometheus/client_golang v0.9.1/go.mod h1:7SWBe2y4D6OKWSNQJUaRYU/AaXPKyh/dDVn+NZz0KFw=
