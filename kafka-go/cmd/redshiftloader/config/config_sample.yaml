@@ -1,4 +1,4 @@
-batcher:
+loader:
     maxSize: 10
     maxWaitSeconds: 20
 kafka:
@@ -11,10 +11,4 @@ sarama:
     assignor: "range"
     oldest: true
     log: false
-s3sink:
-    region: "us-west-1"
-    accessKeyId: "sample-aws-access-key-id"
-    secretAccessKey: "sample-secret-access-key"
-    bucket: "docker-vault"
-    bucketDir: "tipoca-stream-redshiftsink"
 schemaRegistryURL: "https://schema-registry.practodev.com"
