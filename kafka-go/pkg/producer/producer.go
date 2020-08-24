@@ -104,6 +104,7 @@ func (c *AvroProducer) Close() {
 	c.producer.Close()
 }
 
+// TODO: move to serializer
 // AvroEncoder encodes schemaId and Avro message.
 type AvroEncoder struct {
 	SchemaID int

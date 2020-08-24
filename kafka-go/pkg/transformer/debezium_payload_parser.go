@@ -4,9 +4,9 @@ import (
 	"fmt"
 )
 
-type debeziumParser struct{}
+type debeziumPayloadParser struct{}
 
-func (d *debeziumParser) extract(
+func (d *debeziumPayloadParser) extract(
 	key string, payload map[string]interface{},
 	result map[string]string) map[string]string {
 
@@ -34,7 +34,7 @@ func (d *debeziumParser) extract(
 	return result
 }
 
-func (d *debeziumParser) after(native interface{}) map[string]string {
+func (d *debeziumPayloadParser) after(native interface{}) map[string]string {
 	result := make(map[string]string)
 	if native == nil {
 		return result
@@ -48,7 +48,7 @@ func (d *debeziumParser) after(native interface{}) map[string]string {
 	return d.extract("after", data, result)
 }
 
-func (d *debeziumParser) before(native interface{}) map[string]string {
+func (d *debeziumPayloadParser) before(native interface{}) map[string]string {
 	result := make(map[string]string)
 	if native == nil {
 		return result

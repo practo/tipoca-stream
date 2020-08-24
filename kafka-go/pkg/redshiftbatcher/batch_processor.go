@@ -244,7 +244,7 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 		)
 	}
 
-	err := b.transformer.Transform(message)
+	err := b.transformer.TransformMessage(message)
 	if err != nil {
 		klog.Fatalf("Error transforming message:%+v, err:%v\n", message, err)
 	}

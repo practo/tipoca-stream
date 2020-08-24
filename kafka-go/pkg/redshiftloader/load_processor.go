@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
+	"github.com/riferrei/srclient"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
 )
@@ -34,6 +35,9 @@ type loadProcessor struct {
 	// transformer is used to transform debezium events into
 	// redshift COPY commands with some annotations
 	transformer transformer.Transformer
+
+	// srclient to speak to schema registry
+	srclient	*srclient.SchemaRegistryClient
 }
 
 func newLoadProcessor(
@@ -45,6 +49,9 @@ func newLoadProcessor(
 		partition:   partition,
 		session:     session,
 		transformer: transformer.NewTransformer(),
+		srclient:    srclient.CreateSchemaRegistryClient(
+			viper.GetString("schemaRegistryURL"),
+		),
 	}
 }
 
@@ -122,10 +129,13 @@ func (b *loadProcessor) processMessage(message *serializer.Message, id int) {
 
 func (b *loadProcessor) migrateSchema(message *serializer.Message) {
 	job := message.Value.(Job)
-	schemaId := job.SchemaId()
 
-	_ = job
-	_ = schemaId
+	jobSchema, err := b.srclient.GetSchema(job.SchemaId())
+	if err != nil {
+		klog.Fatalf("Error getting from registry, err:%v\n", err)
+	}
+
+	columnsRaw := b.transformer.Transfom(jobSchema)
 
 	// check if target table exists
 	// no: create and return
