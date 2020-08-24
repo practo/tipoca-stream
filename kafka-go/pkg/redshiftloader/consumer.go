@@ -8,6 +8,8 @@ import (
 func NewConsumer(ready chan bool) consumer {
 	return consumer{
 		ready: ready,
+		// loader is initliazed in ConsumeClaim based on the topic it gets
+		loader: nil,
 	}
 }
 
@@ -15,13 +17,22 @@ func NewConsumer(ready chan bool) consumer {
 type consumer struct {
 	// Ready is used to signal the main thread about the readiness
 	ready chan bool
+
+	loader *loader
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
 func (c consumer) Setup(sarama.ConsumerGroupSession) error {
-	// Mark the consumer as ready
 	klog.V(3).Info("Setting up consumer")
+
+	// Mark the consumer as ready
+	select {
+	case <-c.ready:
+		return nil
+	default:
+	}
 	close(c.ready)
+
 	return nil
 }
 
@@ -36,6 +47,21 @@ func (c consumer) processMessage(
 	session sarama.ConsumerGroupSession,
 	message *sarama.ConsumerMessage) error {
 
+	if c.loader.processor == nil {
+		c.loader.processor = newLoadProcessor(
+			message.Topic, message.Partition, session)
+	}
+	// TODO: not sure added below for safety, it may not be required
+	c.loader.processor.session = session
+
+	select {
+	case <-c.loader.processor.session.Context().Done():
+		klog.Info("Graceful shutdown requested, not inserting in batch")
+		return nil
+	default:
+		c.loader.Insert(message)
+	}
+
 	return nil
 }
 
@@ -49,6 +75,8 @@ func (c consumer) ConsumeClaim(session sarama.ConsumerGroupSession,
 		claim.Partition(),
 		claim.InitialOffset(),
 	)
+
+	c.loader = newLoader(claim.Topic())
 
 	// NOTE:
 	// Do not move the code below to a goroutine.
