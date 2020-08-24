@@ -40,10 +40,12 @@ func (c *redshiftTransformer) getOperation(
 func (c *redshiftTransformer) TransformMessage(
     message *serializer.Message) error {
 
-	d := &debeziumPayloadParser{}
+	d := &debeziumPayloadParser{
+        payload: message.Value,
+    }
 
-	before := d.before(message.Value)
-	after := d.after(message.Value)
+	before := d.before()
+	after := d.after()
 
 	operation, err := c.getOperation(message, before, after)
 	if err != nil {
@@ -61,19 +63,33 @@ func (c *redshiftTransformer) TransformMessage(
 
 // Transform debezium schema into redshift table
 func (c *redshiftTransformer) TransformSchema(
-    schema string) (interface{}, error) {
+    schemaStr string) (interface{}, error) {
 
-    d := &debeziumSchemaParser{schema: schema}
-    namespace := d.namespace()
-
+    d := &debeziumSchemaParser{schemaStr: schemaStr, schema: Debezium{}}
     tableDelim := "."
-    sNamespace := strings.Split(namespace, tableDelim)
+
+    namespace := strings.Split(d.schema.Namespace, tableDelim)
+
+    columns := d.ColumnsBefore()
+    var redshiftColumns []redshift.ColInfo
+    for _, column := range columns {
+        redshiftColumns = append(redshiftColumns, redshift.ColInfo{
+            Name: column.,
+            Type: "",
+            DefaultVal: "",
+            NotNull: false,
+            PrimaryKey: false,
+            DistKey: false,
+            SortOrdinal: 0,
+        })
+    }
 
     table := redshift.Table{
-        Name: sNamespace[len(sNamespace) - 1],
-        Meta: redshift.Meta{
+        Name:       namespace[len(namespace) - 1],
+        Columns:    redshiftColumns,
+        Meta:       redshift.Meta{
             DataDateColumn: "",
-            Schema: strings.Join(s[0:len(s)-1], tableDelim),
+            Schema: strings.Join(namespace[0:len(namespace)-1], tableDelim),
         },
     }
 
