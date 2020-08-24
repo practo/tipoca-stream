@@ -43,24 +43,30 @@ func NewAvroProducer(brokers []string,
 	}, nil
 }
 
-func (c *AvroProducer) GetSchemaId(topic string, scheme string) (int, error) {
+// CreateSchema creates schema if it does not exist
+func (c *AvroProducer) CreateSchema(
+	topic string, scheme string) (int, bool, error) {
+
+	created := false
+
 	schema, err := c.srclient.GetLatestSchema(topic, false)
 	if schema == nil {
 		schema, err = c.srclient.CreateSchema(
 			topic, scheme, srclient.Avro, false,
 		)
 		if err != nil {
-			return 0, err
+			return 0, false, err
 		}
+		created = true
 	}
 
-	return schema.ID(), nil
+	return schema.ID(), created, nil
 }
 
 func (c *AvroProducer) Add(topic string, schema string,
 	key []byte, value []byte) error {
 
-	schemaId, err := c.GetSchemaId(topic, schema)
+	schemaId, _, err := c.CreateSchema(topic, schema)
 	if err != nil {
 		return err
 	}
