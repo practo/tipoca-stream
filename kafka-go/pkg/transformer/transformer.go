@@ -46,7 +46,7 @@ func (c *redshiftTransformer) getOperation(
 }
 
 func (c *redshiftTransformer) Transform(message *serializer.Message) error {
-	d := &debeziumTransformer{}
+	d := &debeziumParser{}
 
 	before := d.before(message.Value)
 	after := d.after(message.Value)
