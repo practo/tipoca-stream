@@ -8,6 +8,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/producer"
+	loader "github.com/practo/tipoca-stream/kafka-go/pkg/redshiftloader"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/s3sink"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
@@ -39,6 +40,10 @@ type batchProcessor struct {
 	// batchId is a forever increasing number which resets after maxBatchId
 	// this is useful only for logging and debugging purpose
 	batchId int
+
+	// batchSchemaId contains the schema id the batch has
+	// all messages in the batch should have same schema id
+	batchSchemaId int
 
 	// batchStartOffset is the starting offset of the batch
 	// this is useful only for logging and debugging purpose
@@ -159,7 +164,7 @@ func (b *batchProcessor) commitOffset(datas []interface{}) {
 	}
 }
 
-func (b *batchProcessor) shutdownInfo() {
+func (b *batchProcessor) handleShutdown() {
 	klog.Infof(
 		"topic:%s, batchId:%d: Batch processing gracefully shutdown.\n",
 		b.topic,
@@ -180,40 +185,23 @@ func (b *batchProcessor) shutdownInfo() {
 
 func (b *batchProcessor) signalLoad() {
 	downstreamTopic := "loader-" + b.topic
-	schema := `{
-		"type": "record",
-		"name": "redshiftloader",
-		"fields": [
-			{"name": "upstreamTopic", "type": "string"},
-			{"name": "startOffset", "type": "long"},
-			{"name": "endOffset", "type": "long"},
-			{"name": "csvDialect", "type": "string"},
-			{"name": "s3Path", "type": "string"},
-			{"name": "schemaID", "type": "int"}
-		]
-	}`
+	job := loader.NewJob(
+		b.topic,
+		b.batchStartOffset,
+		b.batchEndOffset,
+		",",
+		b.s3Key,
+		b.batchSchemaId, // schema of upstream topic
+	)
 
-	schemaID, err := b.signaler.GetSchemaId(downstreamTopic, schema)
+	jobBytes, err := json.Marshal(job)
 	if err != nil {
-		klog.Fatalf("Get or create failed for schema:%v, err:%v\n", schema, err)
-	}
-
-	payload := map[string]interface{}{
-		"upstreamTopic": b.topic,
-		"startOffset":   b.batchStartOffset,
-		"endOffset":     b.batchEndOffset,
-		"csvDialect":    ",",
-		"s3Path":        b.s3Key,
-		"schemaID":      schemaID,
-	}
-
-	payloadBytes, err := json.Marshal(payload)
-	if err != nil {
-		klog.Fatalf("Failed to marshal payload:%+v, err:%v\n", payload, err)
+		klog.Fatalf("Failed to marshal job:%+v, err:%v\n", job, err)
 	}
 
 	err = b.signaler.Add(
-		downstreamTopic, schema, []byte(time.Now().String()), payloadBytes,
+		downstreamTopic, loader.JobAvroSchema,
+		[]byte(time.Now().String()), jobBytes,
 	)
 	if err != nil {
 		klog.Fatalf("Error sending the signal to the loader, err:%v\n", err)
@@ -236,7 +224,9 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 	)
 
 	// key is always made based on the first not nil message in the batch
+	// also the batchSchemaId is set only at the start of the batch
 	if b.s3Key == "" {
+		b.batchSchemaId = message.SchemaId
 		b.setS3key(message.Topic, message.Partition, message.Offset)
 
 		klog.V(5).Infof("topic:%s, batchId:%d id:%d: s3Key:%s\n",
@@ -244,6 +234,14 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 		)
 
 		b.batchStartOffset = message.Offset
+	}
+
+	if b.batchSchemaId != message.SchemaId {
+		klog.Fatalf("topic:%s, schema id mismatch in the batch, %d != %d\n",
+			b.topic,
+			b.batchSchemaId,
+			message.SchemaId,
+		)
 	}
 
 	err := b.transformer.Transform(message)
@@ -283,6 +281,8 @@ func (b *batchProcessor) processBatch(
 
 func (b *batchProcessor) process(workerID int, datas []interface{}) {
 	b.setBatchId()
+	b.batchSchemaId = -1
+
 	if b.ctxCancelled() {
 		return
 	}
@@ -293,7 +293,7 @@ func (b *batchProcessor) process(workerID int, datas []interface{}) {
 
 	done := b.processBatch(b.session.Context(), datas)
 	if !done {
-		b.shutdownInfo()
+		b.handleShutdown()
 		return
 	}
 

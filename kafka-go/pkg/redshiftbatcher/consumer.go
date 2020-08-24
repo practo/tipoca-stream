@@ -23,9 +23,16 @@ type consumer struct {
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
 func (c consumer) Setup(sarama.ConsumerGroupSession) error {
-	// Mark the consumer as ready
 	klog.V(3).Info("Setting up consumer")
+
+	// Mark the consumer as ready
+	select {
+	case <-c.ready:
+		return nil
+	default:
+	}
 	close(c.ready)
+
 	return nil
 }
 
