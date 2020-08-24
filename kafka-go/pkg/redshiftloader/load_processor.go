@@ -4,9 +4,9 @@ import (
 	"context"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
-	"github.com/riferrei/srclient"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
+	"github.com/riferrei/srclient"
 )
 
 type loadProcessor struct {
@@ -37,7 +37,7 @@ type loadProcessor struct {
 	transformer transformer.Transformer
 
 	// srclient to speak to schema registry
-	srclient	*srclient.SchemaRegistryClient
+	srclient *srclient.SchemaRegistryClient
 }
 
 func newLoadProcessor(
@@ -49,7 +49,7 @@ func newLoadProcessor(
 		partition:   partition,
 		session:     session,
 		transformer: transformer.NewTransformer(),
-		srclient:    srclient.CreateSchemaRegistryClient(
+		srclient: srclient.CreateSchemaRegistryClient(
 			viper.GetString("schemaRegistryURL"),
 		),
 	}
