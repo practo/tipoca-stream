@@ -120,6 +120,21 @@ func (b *loadProcessor) handleShutdown() {
 func (b *loadProcessor) processMessage(message *serializer.Message, id int) {
 }
 
+func (b *loadProcessor) migrateSchema(message *serializer.Message) {
+	job := message.Value.(Job)
+	schemaId := job.SchemaId()
+
+	_ = job
+	_ = schemaId
+
+	// check if target table exists
+	// no: create and return
+	// yes:
+	// check if the target_table_schema == schemaId
+	// yes: do nothing return
+	// no:
+}
+
 // processBatch handles the batch procesing and return true if all completes
 // otherwise return false in case of gracefull shutdown signals being captured,
 // this helps in cleanly shutting down the batch processing.
@@ -131,7 +146,12 @@ func (b *loadProcessor) processBatch(
 		case <-ctx.Done():
 			return false
 		default:
-			b.processMessage(data.(*serializer.Message), id)
+			message := data.(*serializer.Message)
+			// this assumes all batches have same schema id
+			if id == 1 {
+				b.migrateSchema(message)
+			}
+			b.processMessage(message, id)
 		}
 	}
 

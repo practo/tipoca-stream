@@ -8,6 +8,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/producer"
+	loader "github.com/practo/tipoca-stream/kafka-go/pkg/redshiftloader"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/s3sink"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
@@ -89,14 +90,14 @@ func newBatchProcessor(
 	}
 
 	return &batchProcessor{
-		topic:       	topic,
-		partition:   	partition,
-		session:     	session,
-		s3sink:      	sink,
-		s3BucketDir: 	viper.GetString("s3sink.bucketDir"),
-		bodyBuf:     	bytes.NewBuffer(make([]byte, 0, 4096)),
-		transformer: 	transformer.NewTransformer(),
-		signaler:    	signaler,
+		topic:       topic,
+		partition:   partition,
+		session:     session,
+		s3sink:      sink,
+		s3BucketDir: viper.GetString("s3sink.bucketDir"),
+		bodyBuf:     bytes.NewBuffer(make([]byte, 0, 4096)),
+		transformer: transformer.NewTransformer(),
+		signaler:    signaler,
 	}
 }
 
@@ -184,35 +185,23 @@ func (b *batchProcessor) handleShutdown() {
 
 func (b *batchProcessor) signalLoad() {
 	downstreamTopic := "loader-" + b.topic
-	schema := `{
-		"type": "record",
-		"name": "redshiftloader",
-		"fields": [
-			{"name": "upstreamTopic", "type": "string"},
-			{"name": "startOffset", "type": "long"},
-			{"name": "endOffset", "type": "long"},
-			{"name": "csvDialect", "type": "string"},
-			{"name": "s3Path", "type": "string"},
-			{"name": "schemaID", "type": "int"}
-		]
-	}`
+	job := loader.NewJob(
+		b.topic,
+		b.batchStartOffset,
+		b.batchEndOffset,
+		",",
+		b.s3Key,
+		b.batchSchemaId, // schema of upstream topic
+	)
 
-	payload := map[string]interface{}{
-		"upstreamTopic": b.topic,
-		"startOffset":   b.batchStartOffset,
-		"endOffset":     b.batchEndOffset,
-		"csvDialect":    ",",
-		"s3Path":        b.s3Key,
-		"schemaID":      b.batchSchemaId, // schema of the upstreamTopic
-	}
-
-	payloadBytes, err := json.Marshal(payload)
+	jobBytes, err := json.Marshal(job)
 	if err != nil {
-		klog.Fatalf("Failed to marshal payload:%+v, err:%v\n", payload, err)
+		klog.Fatalf("Failed to marshal job:%+v, err:%v\n", job, err)
 	}
 
 	err = b.signaler.Add(
-		downstreamTopic, schema, []byte(time.Now().String()), payloadBytes,
+		downstreamTopic, loader.JobAvroSchema,
+		[]byte(time.Now().String()), jobBytes,
 	)
 	if err != nil {
 		klog.Fatalf("Error sending the signal to the loader, err:%v\n", err)
@@ -292,7 +281,7 @@ func (b *batchProcessor) processBatch(
 
 func (b *batchProcessor) process(workerID int, datas []interface{}) {
 	b.setBatchId()
-	b.batchSchemaId = -1l
+	b.batchSchemaId = -1
 
 	if b.ctxCancelled() {
 		return

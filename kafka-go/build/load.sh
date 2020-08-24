@@ -1,6 +1,7 @@
 #!/bin/bash
 
-## Example: ./load.sh 10 datapipe.inventory.customer
+## Example: ./load.sh 10
+## this inserts 10 new rows in inventory.customers table
 
 set -e
 
