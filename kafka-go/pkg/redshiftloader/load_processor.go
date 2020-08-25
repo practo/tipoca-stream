@@ -4,9 +4,10 @@ import (
 	"context"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
-	"github.com/riferrei/srclient"
+	"github.com/spf13/viper"
 )
 
 type loadProcessor struct {
@@ -32,26 +33,47 @@ type loadProcessor struct {
 	// this is helpful to log at the time of shutdown and can help in debugging
 	lastCommittedOffset int64
 
-	// transformer is used to transform debezium events into
+	// msgTransformer is used to transform debezium events into
 	// redshift COPY commands with some annotations
-	transformer transformer.Transformer
+	msgTransformer transformer.MsgTransformer
 
-	// srclient to speak to schema registry
-	srclient *srclient.SchemaRegistryClient
+	// schemaTransfomer is used to transform debezium schema
+	// to redshift table
+	schemaTransformer transformer.SchemaTransformer
+
+	// redshifter is the redshift client to perform redshift
+	// operations
+	redshifter *redshift.Redshift
 }
 
 func newLoadProcessor(
 	topic string, partition int32,
 	session sarama.ConsumerGroupSession) *loadProcessor {
 
+	// TODO: check if session context is not a problem here.
+	redshifter, err := redshift.NewRedshift(
+		session.Context(), redshift.RedshiftConfig{
+			Host:     viper.GetString("redshift.host"),
+			Port:     viper.GetString("redshift.port"),
+			Database: viper.GetString("redshift.database"),
+			User:     viper.GetString("redshift.user"),
+			Password: viper.GetString("redshift.password"),
+			Timeout:  viper.GetInt("redshift.timeout"),
+		},
+	)
+	if err != nil {
+		klog.Fatalf("Error creating redshifter: %v\n", err)
+	}
+
 	return &loadProcessor{
-		topic:       topic,
-		partition:   partition,
-		session:     session,
-		transformer: transformer.NewTransformer(),
-		srclient: srclient.CreateSchemaRegistryClient(
+		topic:          topic,
+		partition:      partition,
+		session:        session,
+		msgTransformer: transformer.NewMsgTransformer(),
+		schemaTransformer: transformer.NewSchemaTransformer(
 			viper.GetString("schemaRegistryURL"),
 		),
+		redshifter: redshifter,
 	}
 }
 
@@ -124,48 +146,117 @@ func (b *loadProcessor) handleShutdown() {
 	}
 }
 
-func (b *loadProcessor) processMessage(message *serializer.Message, id int) {
+func (b *loadProcessor) processMessage(
+	message *serializer.Message, id int) error {
+
+	return nil
 }
 
-func (b *loadProcessor) migrateSchema(message *serializer.Message) {
+func (b *loadProcessor) migrateSchema(message *serializer.Message) error {
 	job := message.Value.(Job)
+	schemaId := job.SchemaId()
+	// TODO: mem cache it later to prevent below computation on every new batch
 
-	jobSchema, err := b.srclient.GetSchema(job.SchemaId())
+	resp, err := b.schemaTransformer.Transform(schemaId)
 	if err != nil {
-		klog.Fatalf("Error getting from registry, err:%v\n", err)
+		return err
+	}
+	targetTable := resp.(redshift.Table)
+
+	tx, err := b.redshifter.Begin()
+	if err != nil {
+		return err
 	}
 
-	columnsRaw := b.transformer.Transfom(jobSchema)
+	exist, err := b.redshifter.SchemaExist(targetTable.Meta.Schema)
+	if err != nil {
+		return err
+	}
+	if !exist {
+		err = b.redshifter.CreateSchema(tx, targetTable.Meta.Schema)
+		if err != nil {
+			return err
+		}
+	}
 
-	// check if target table exists
-	// no: create and return
-	// yes:
-	// check if the target_table_schema == schemaId
-	// yes: do nothing return
-	// no:
+	exist, err = b.redshifter.TableExist(
+		targetTable.Meta.Schema, targetTable.Name,
+	)
+	if err != nil {
+		return err
+	}
+	if !exist {
+		err = b.redshifter.CreateTable(tx, targetTable)
+		if err != nil {
+			return err
+		}
+		klog.Info(
+			"topic:%s, schema_id:%d: Table %s created",
+			b.topic,
+			schemaId,
+			targetTable.Name,
+		)
+		return nil
+	}
+
+	currentTable, err := b.redshifter.GetTableMetadata(
+		targetTable.Meta.Schema, targetTable.Name,
+	)
+	if err != nil {
+		return err
+	}
+
+	alterCommands, err := redshift.CheckSchemas(targetTable, *currentTable)
+	if err == nil {
+		klog.V(5).Info("topic:%s, schema_id:%d: Schema not changed.",
+			b.topic,
+			schemaId,
+			alterCommands,
+			err.Error(),
+		)
+		return nil
+	}
+
+	klog.Info(
+		"topic:%s, schema_id:%d: Schema different, alter:%v, msg:%s",
+		b.topic,
+		schemaId,
+		alterCommands,
+		err.Error(),
+	)
+	// TODO:
+	// handle schema migration
+	return nil
 }
 
 // processBatch handles the batch procesing and return true if all completes
 // otherwise return false in case of gracefull shutdown signals being captured,
 // this helps in cleanly shutting down the batch processing.
 func (b *loadProcessor) processBatch(
-	ctx context.Context, datas []interface{}) bool {
+	ctx context.Context, datas []interface{}) (bool, error) {
 
+	var err error
 	for id, data := range datas {
 		select {
 		case <-ctx.Done():
-			return false
+			return false, nil
 		default:
 			message := data.(*serializer.Message)
 			// this assumes all batches have same schema id
 			if id == 1 {
-				b.migrateSchema(message)
+				err = b.migrateSchema(message)
+				if err != nil {
+					return false, err
+				}
 			}
-			b.processMessage(message, id)
+			err = b.processMessage(message, id)
+			if err != nil {
+				return false, err
+			}
 		}
 	}
 
-	return true
+	return true, nil
 }
 
 func (b *loadProcessor) process(workerID int, datas []interface{}) {
@@ -178,7 +269,10 @@ func (b *loadProcessor) process(workerID int, datas []interface{}) {
 		b.topic, b.batchId, len(datas),
 	)
 
-	done := b.processBatch(b.session.Context(), datas)
+	done, err := b.processBatch(b.session.Context(), datas)
+	if err != nil {
+		klog.Fatalf("Error processing batch, err: %v\n", err)
+	}
 	if !done {
 		b.handleShutdown()
 		return

@@ -6,6 +6,7 @@ import (
 
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/consumer"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshiftloader"
 )
 
@@ -14,6 +15,7 @@ type Config struct {
 	Kafka             consumer.KafkaConfig        `yaml: kafka`
 	Sarama            consumer.SaramaConfig       `yaml: sarama`
 	SchemaRegistryURL string                      `yaml: schemaRegistryURL`
+	Redshift          redshift.RedshiftConfig     `yaml: redshift`
 }
 
 func LoadConfig(cmd *cobra.Command) (Config, error) {
