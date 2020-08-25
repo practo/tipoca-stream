@@ -57,9 +57,9 @@ type batchProcessor struct {
 	// this is helpful to log at the time of shutdown and can help in debugging
 	lastCommittedOffset int64
 
-	// transformer is used to transform debezium events into
+	// msgTransformer is used to transform debezium events into
 	// redshift COPY commands with some annotations
-	transformer transformer.Transformer
+	msgTransformer transformer.MsgTransformer
 
 	// signaler is a kafka producer signaling the load the batch uploaded data
 	// TODO: make the producer have interface
@@ -90,14 +90,14 @@ func newBatchProcessor(
 	}
 
 	return &batchProcessor{
-		topic:       topic,
-		partition:   partition,
-		session:     session,
-		s3sink:      sink,
-		s3BucketDir: viper.GetString("s3sink.bucketDir"),
-		bodyBuf:     bytes.NewBuffer(make([]byte, 0, 4096)),
-		transformer: transformer.NewTransformer(),
-		signaler:    signaler,
+		topic:          topic,
+		partition:      partition,
+		session:        session,
+		s3sink:         sink,
+		s3BucketDir:    viper.GetString("s3sink.bucketDir"),
+		bodyBuf:        bytes.NewBuffer(make([]byte, 0, 4096)),
+		msgTransformer: transformer.NewMsgTransformer(),
+		signaler:       signaler,
 	}
 }
 
@@ -244,7 +244,7 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 		)
 	}
 
-	err := b.transformer.TransformMessage(message)
+	err := b.msgTransformer.Transform(message)
 	if err != nil {
 		klog.Fatalf("Error transforming message:%+v, err:%v\n", message, err)
 	}
