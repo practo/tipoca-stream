@@ -12,3 +12,10 @@ sarama:
     oldest: true
     log: false
 schemaRegistryURL: "https://schema-registry.practodev.com"
+redshift:
+    host: "sample-host"
+    port: "sample-port"
+    database: "sample-database"
+    user: "sample-redshift-user"
+    password: "sample-password"
+    timeout: 10
