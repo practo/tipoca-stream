@@ -52,6 +52,7 @@ func debeziumColumn(v map[string]interface{}) DebeziumColInfo {
 	// TODO: figure out not null and primarykey
 	// https://stackoverflow.com/questions/63576770/
 	// debezium-schema-not-null-and-primary-key-info
+	// need to use invetory-key and not invetory-value
 	for key, _ := range v {
 		switch key {
 		case "name":

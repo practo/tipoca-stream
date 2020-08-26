@@ -3,7 +3,6 @@ package redshiftbatcher
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
@@ -194,14 +193,11 @@ func (b *batchProcessor) signalLoad() {
 		b.batchSchemaId, // schema of upstream topic
 	)
 
-	jobBytes, err := json.Marshal(job)
-	if err != nil {
-		klog.Fatalf("Failed to marshal job:%+v, err:%v\n", job, err)
-	}
-
-	err = b.signaler.Add(
-		downstreamTopic, loader.JobAvroSchema,
-		[]byte(time.Now().String()), jobBytes,
+	err := b.signaler.Add(
+		downstreamTopic,
+		loader.JobAvroSchema,
+		[]byte(time.Now().String()),
+		job.ToStringMap(),
 	)
 	if err != nil {
 		klog.Fatalf("Error sending the signal to the loader, err:%v\n", err)
