@@ -52,13 +52,25 @@ func debeziumColumn(v map[string]interface{}) DebeziumColInfo {
 	// TODO: figure out not null and primarykey
 	// https://stackoverflow.com/questions/63576770/
 	// debezium-schema-not-null-and-primary-key-info
-	// need to use invetory-key and not invetory-value
-	for key, _ := range v {
+	// need to use customers-key and not customers-value
+	// nullable fields look like, handle it
+	//    "null",
+	//    "string"
+	//     ],
+	for key, v2 := range v {
 		switch key {
 		case "name":
 			column.Name = v["name"].(string)
 		case "type":
-			column.Type = v["type"].(string)
+			switch v2.(type) {
+			case string:
+				column.Type = v["type"].(string)
+			case interface{}:
+				v3 := v2.(map[string]interface{})
+				column.Type = v3["type"].(string)
+			default:
+				column.Type = v["type"].(string)
+			}
 		case "default":
 			column.Default = v["default"].(string)
 		}
@@ -109,10 +121,10 @@ type redshiftSchemaTransformer struct {
 	srclient *srclient.SchemaRegistryClient
 }
 
-func (c *redshiftSchemaTransformer) Transform(schemaID int) (
+func (c *redshiftSchemaTransformer) Transform(schemaId int) (
 	interface{}, error) {
 
-	jobSchema, err := c.srclient.GetSchema(schemaID)
+	jobSchema, err := c.srclient.GetSchema(schemaId)
 	if err != nil {
 		return nil, err
 	}
