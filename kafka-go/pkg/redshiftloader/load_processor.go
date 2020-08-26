@@ -152,30 +152,32 @@ func (b *loadProcessor) processMessage(
 	return nil
 }
 
-func (b *loadProcessor) migrateSchema(message *serializer.Message) error {
-	job := message.Value.(Job)
+func (b *loadProcessor) migrateSchema(message *serializer.Message) {
+	klog.V(3).Infof("message=%+v\n", message)
+	job := StringMapToJob(message.Value.(map[string]interface{}))
+	klog.V(3).Infof("job=%+v\n", job)
 	schemaId := job.SchemaId()
 	// TODO: mem cache it later to prevent below computation on every new batch
 
 	resp, err := b.schemaTransformer.Transform(schemaId)
 	if err != nil {
-		return err
+		klog.Fatalf("Error fetching schemaId:%d, err: %v\n", err)
 	}
 	targetTable := resp.(redshift.Table)
 
 	tx, err := b.redshifter.Begin()
 	if err != nil {
-		return err
+		klog.Fatalf("Error redshifter tx begin, err: %v\n", err)
 	}
 
 	exist, err := b.redshifter.SchemaExist(targetTable.Meta.Schema)
 	if err != nil {
-		return err
+		klog.Fatalf("Error checking schema exist, err: %v\n", err)
 	}
 	if !exist {
 		err = b.redshifter.CreateSchema(tx, targetTable.Meta.Schema)
 		if err != nil {
-			return err
+			klog.Fatalf("Error creating schema, err: %v\n", err)
 		}
 	}
 
@@ -183,12 +185,12 @@ func (b *loadProcessor) migrateSchema(message *serializer.Message) error {
 		targetTable.Meta.Schema, targetTable.Name,
 	)
 	if err != nil {
-		return err
+		klog.Fatalf("Error checking table exist, err: %v\n", err)
 	}
 	if !exist {
 		err = b.redshifter.CreateTable(tx, targetTable)
 		if err != nil {
-			return err
+			klog.Fatalf("Error creating table, err: %v\n", err)
 		}
 		klog.Info(
 			"topic:%s, schema_id:%d: Table %s created",
@@ -196,14 +198,14 @@ func (b *loadProcessor) migrateSchema(message *serializer.Message) error {
 			schemaId,
 			targetTable.Name,
 		)
-		return nil
+		return
 	}
 
 	currentTable, err := b.redshifter.GetTableMetadata(
 		targetTable.Meta.Schema, targetTable.Name,
 	)
 	if err != nil {
-		return err
+		klog.Fatalf("Error getting table schema, err: %v\n", err)
 	}
 
 	alterCommands, err := redshift.CheckSchemas(targetTable, *currentTable)
@@ -214,7 +216,7 @@ func (b *loadProcessor) migrateSchema(message *serializer.Message) error {
 			alterCommands,
 			err.Error(),
 		)
-		return nil
+		return
 	}
 
 	klog.Info(
@@ -226,37 +228,33 @@ func (b *loadProcessor) migrateSchema(message *serializer.Message) error {
 	)
 	// TODO:
 	// handle schema migration
-	return nil
+	return
 }
 
 // processBatch handles the batch procesing and return true if all completes
 // otherwise return false in case of gracefull shutdown signals being captured,
 // this helps in cleanly shutting down the batch processing.
 func (b *loadProcessor) processBatch(
-	ctx context.Context, datas []interface{}) (bool, error) {
+	ctx context.Context, datas []interface{}) bool {
+	klog.V(3).Infof("Processing batch: %v\n", datas)
 
-	var err error
 	for id, data := range datas {
+		klog.V(3).Infof("Processing batch/id: %v\n", id)
 		select {
 		case <-ctx.Done():
-			return false, nil
+			return false
 		default:
 			message := data.(*serializer.Message)
 			// this assumes all batches have same schema id
-			if id == 1 {
-				err = b.migrateSchema(message)
-				if err != nil {
-					return false, err
-				}
+			if id == 0 {
+				klog.V(3).Infof("Processing schema: %+v\n", message)
+				b.migrateSchema(message)
 			}
-			err = b.processMessage(message, id)
-			if err != nil {
-				return false, err
-			}
+			b.processMessage(message, id)
 		}
 	}
 
-	return true, nil
+	return true
 }
 
 func (b *loadProcessor) process(workerID int, datas []interface{}) {
@@ -269,10 +267,7 @@ func (b *loadProcessor) process(workerID int, datas []interface{}) {
 		b.topic, b.batchId, len(datas),
 	)
 
-	done, err := b.processBatch(b.session.Context(), datas)
-	if err != nil {
-		klog.Fatalf("Error processing batch, err: %v\n", err)
-	}
+	done := b.processBatch(b.session.Context(), datas)
 	if !done {
 		b.handleShutdown()
 		return
