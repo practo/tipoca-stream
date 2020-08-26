@@ -64,7 +64,7 @@ func (c *AvroProducer) CreateSchema(
 }
 
 func (c *AvroProducer) Add(topic string, schema string,
-	key []byte, value []byte) error {
+	key []byte, value map[string]interface{}) error {
 
 	schemaId, _, err := c.CreateSchema(topic, schema)
 	if err != nil {
@@ -76,12 +76,7 @@ func (c *AvroProducer) Add(topic string, schema string,
 		return err
 	}
 
-	native, _, err := avroCodec.NativeFromTextual(value)
-	if err != nil {
-		return err
-	}
-
-	binaryValue, err := avroCodec.BinaryFromNative(nil, native)
+	binaryValue, err := avroCodec.BinaryFromNative(nil, value)
 	if err != nil {
 		return err
 	}
