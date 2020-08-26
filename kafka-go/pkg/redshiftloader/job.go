@@ -62,8 +62,8 @@ func StringMapToJob(data map[string]interface{}) Job {
 				job.s3Path = value
 			}
 		case "schemaId":
-			if value, ok := v.(int); ok {
-				job.schemaId = value
+			if value, ok := v.(int32); ok {
+				job.schemaId = int(value)
 			}
 		}
 	}
