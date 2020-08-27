@@ -1,4 +1,4 @@
-package main
+package redshift
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/practo/klog/v2"
+	"time"
 
 	// TODO:
 	// Use our own version of the postgres library so we get keep-alive support.
@@ -350,11 +351,11 @@ func checkColumnsAndOrdering(inputTable, targetTable Table) ([]string, error) {
 	var columnOps []string
 	var errors error
 
-	if len(inputTable.Columns) < len(targetTable.Columns) {
-		errors = multierror.Append(errors, fmt.Errorf("target table has more columns than the input table"))
-	}
+	inColMap := make(map[string]bool)
 
 	for idx, inCol := range inputTable.Columns {
+		inColMap[inCol.Name] = true
+
 		if len(targetTable.Columns) <= idx {
 			klog.V(5).Info("Missing column -- running alter table\n")
 			alterSQL := fmt.Sprintf(`ALTER TABLE "%s"."%s" ADD COLUMN %s`, targetTable.Meta.Schema, targetTable.Name, getColumnSQL(inCol))
@@ -368,6 +369,17 @@ func checkColumnsAndOrdering(inputTable, targetTable Table) ([]string, error) {
 			errors = multierror.Append(errors, err)
 		}
 
+	}
+
+	for _, taCol := range targetTable.Columns {
+		if _, ok := inColMap[taCol.Name]; !ok {
+			klog.V(5).Info(
+				"Extra column: %s -- running alter table\n", taCol.Name,
+			)
+			alterSQL := fmt.Sprintf(`ALTER TABLE "%s"."%s" DROP COLUMN %s`, targetTable.Meta.Schema, targetTable.Name, taCol.Name)
+			columnOps = append(columnOps, alterSQL)
+			continue
+		}
 	}
 
 	return columnOps, errors
