@@ -198,6 +198,9 @@ func (b *loadProcessor) migrateSchema(message *serializer.Message) {
 			schemaId,
 			targetTable.Name,
 		)
+		if err := tx.Commit(); err != nil {
+			klog.Fatalf("Error committing tx, err:%v\n", err)
+		}
 		return
 	}
 
