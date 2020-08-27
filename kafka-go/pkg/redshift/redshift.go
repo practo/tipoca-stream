@@ -1,4 +1,4 @@
-package redshift
+package main
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 const (
 	schemaExist  = `select schema_name from information_schema.schemata where schema_name='%s';`
 	schemaCreate = `create schema "%s";`
-	tableExist   = `select table_name from information_schema.tables where table_schema="%s" and table_name="%s";`
+	tableExist   = `select table_name from information_schema.tables where table_schema='%s' and table_name='%s';`
 	tableCreate  = `CREATE TABLE "%s"."%s" (%s);`
 	// returns one row per column with the attributes:
 	// name, type, default_val, not_null, primary_key, dist_key, and sort_ordinal
@@ -149,13 +149,13 @@ func (r *Redshift) TableExist(schema string, table string) (bool, error) {
 	if err != nil {
 		if err == sql.ErrNoRows {
 			klog.V(5).Infof(
-				"schema:%s, table:%s: does not exist", schema, table,
+				"schema: %s, table: %s does not exist", schema, table,
 			)
 			return false, nil
 		}
 		// TODO: fix the induced bug
-		// return false, fmt.Errorf("failed sql:%s, err:%v\n", q, err)
-		return false, nil
+		return false, fmt.Errorf("failed sql:%s, err:%v\n", q, err)
+		// return false, nil
 	}
 
 	return true, nil
@@ -222,9 +222,41 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 		return fmt.Errorf("error preparing statement: %v\n", err)
 	}
 
+	klog.V(5).Infof("Running command: %s with args: %v\n", createSQL, args)
 	_, err = createStmt.ExecContext(r.ctx)
 
 	return err
+}
+
+// UpdateTable figures out what columns we need to add to the target table based on the
+// input table, and completes this action in the transaction provided
+// Note: only supports adding columns currently, not updating existing columns or removing them
+// Supported: add columns
+// NotSupported: delete columns
+// NotSupported: alter columns
+func (r *Redshift) UpdateTable(
+	tx *sql.Tx, inputTable, targetTable Table) error {
+
+	columnOps, err := CheckSchemas(inputTable, targetTable)
+	if err != nil {
+		return fmt.Errorf("mismatched schema: %s", err)
+	}
+	fmt.Printf("columnOps: %v\nerr: %v\n", columnOps, err)
+
+	// postgres only allows adding one column at a time
+	for _, op := range columnOps {
+		alterStmt, err := tx.PrepareContext(r.ctx, op)
+		if err != nil {
+			return fmt.Errorf("issue preparing statement: '%s' - err: %s", op, err)
+		}
+
+		klog.Infof("Running command: %s", op)
+		_, err = alterStmt.ExecContext(r.ctx)
+		if err != nil {
+			return fmt.Errorf("issue running statement %s: %s", op, err)
+		}
+	}
+	return nil
 }
 
 // GetTableMetadata looks for a table and returns the Table representation
@@ -288,8 +320,10 @@ func CheckSchemas(inputTable, targetTable Table) ([]string, error) {
 }
 
 func checkColumn(inCol ColInfo, targetCol ColInfo) error {
+	fmt.Printf("inCol: %+v\ntaCol: %+v\n", inCol, targetCol)
+
 	var errors error
-	mismatchedTemplate := "mismatched column: %s property: %s, input: %v, target: %v"
+	mismatchedTemplate := "mismatched column: %s, property: %s, input: %v, target: %v"
 	if inCol.Name != targetCol.Name {
 		errors = multierror.Append(errors, fmt.Errorf(mismatchedTemplate, inCol.Name, "Name", inCol.Name, targetCol.Name))
 	}
@@ -300,8 +334,8 @@ func checkColumn(inCol ColInfo, targetCol ColInfo) error {
 			errors = multierror.Append(errors, fmt.Errorf(mismatchedTemplate, inCol.Name, "Type", typeMapping[inCol.Type], targetCol.Type))
 		}
 	}
-	if inCol.DefaultVal != targetCol.DefaultVal {
-		errors = multierror.Append(errors, fmt.Errorf(mismatchedTemplate, inCol.Name, "DefaultVal", inCol.DefaultVal, targetCol.DefaultVal))
+	if ConvertDefaultValue(inCol.DefaultVal) != targetCol.DefaultVal {
+		errors = multierror.Append(errors, fmt.Errorf(mismatchedTemplate, inCol.Name, "DefaultVal", ConvertDefaultValue(inCol.DefaultVal), targetCol.DefaultVal))
 	}
 	if inCol.NotNull != targetCol.NotNull {
 		errors = multierror.Append(errors, fmt.Errorf(mismatchedTemplate, inCol.Name, "NotNull", inCol.NotNull, targetCol.NotNull))
@@ -315,6 +349,7 @@ func checkColumn(inCol ColInfo, targetCol ColInfo) error {
 func checkColumnsAndOrdering(inputTable, targetTable Table) ([]string, error) {
 	var columnOps []string
 	var errors error
+
 	if len(inputTable.Columns) < len(targetTable.Columns) {
 		errors = multierror.Append(errors, fmt.Errorf("target table has more columns than the input table"))
 	}
@@ -334,6 +369,7 @@ func checkColumnsAndOrdering(inputTable, targetTable Table) ([]string, error) {
 		}
 
 	}
+
 	return columnOps, errors
 }
 
@@ -359,4 +395,12 @@ func checkColumnsWithoutOrdering(inputTable, targetTable Table) ([]string, error
 		}
 	}
 	return columnOps, errors
+}
+
+func ConvertDefaultValue(val string) string {
+	if val != "" {
+		return "'" + val + "'" + "::character varying"
+	}
+
+	return val
 }
