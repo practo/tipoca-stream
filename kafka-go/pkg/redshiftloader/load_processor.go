@@ -194,7 +194,7 @@ func (b *loadProcessor) migrateSchema(message *serializer.Message) {
 		if err != nil {
 			klog.Fatalf("Error creating schema, err: %v\n", err)
 		}
-		klog.Info(
+		klog.Infof(
 			"topic:%s, schemaId:%d: Schema %s created",
 			b.topic,
 			schemaId,
@@ -216,7 +216,7 @@ func (b *loadProcessor) migrateSchema(message *serializer.Message) {
 		if err != nil {
 			klog.Fatalf("Error committing tx, err:%v\n", err)
 		}
-		klog.Info(
+		klog.Infof(
 			"topic:%s, schemaId:%d: Table %s created",
 			b.topic,
 			schemaId,
@@ -236,6 +236,11 @@ func (b *loadProcessor) migrateSchema(message *serializer.Message) {
 	err = b.redshifter.UpdateTable(tx, inputTable, *targetTable)
 	if err != nil {
 		klog.Fatalf("Error running schema migration, err: %v\n", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		klog.Fatalf("Error committing tx, err:%v\n", err)
 	}
 }
 
