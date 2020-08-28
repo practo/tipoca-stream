@@ -69,7 +69,9 @@ func (b *loader) Insert(saramaMessage *sarama.ConsumerMessage) {
 		klog.Fatalf("Got message as nil, message: %+v\n", message)
 	}
 
-	job := message.Value.(Job)
+	klog.V(99).Infof("message.Value=%v\n", message.Value)
+
+	job := StringMapToJob(message.Value.(map[string]interface{}))
 	upstreamJobSchemaId := job.SchemaId()
 
 	//  batch by schema id of upstream topic

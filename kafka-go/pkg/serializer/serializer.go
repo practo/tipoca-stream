@@ -48,19 +48,12 @@ func (c *avroSerializer) Deserialize(
 		return nil, err
 	}
 
-	// // Convert native Go form to textual Avro data
-	// textual, err := schema.Codec().TextualFromNative(nil, native)
-	// if err != nil {
-	// 	return Message{}, err
-	// }
-
 	return &Message{
 		SchemaId:  int(schemaId),
 		Topic:     message.Topic,
 		Partition: message.Partition,
 		Offset:    message.Offset,
 		Key:       string(message.Key),
-		// Value:      string(textual),
-		Value: native,
+		Value:     native,
 	}, nil
 }

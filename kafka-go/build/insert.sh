@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## Example: ./load.sh 10
+## Example: ./insert.sh 10
 ## this inserts 10 new rows in inventory.customers table
 
 set -e
