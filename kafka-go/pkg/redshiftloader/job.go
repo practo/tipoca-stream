@@ -1,6 +1,6 @@
 package redshiftloader
 
-const JobAvroSchema = `{
+var JobAvroSchema string = `{
     "type": "record",
     "name": "redshiftloader",
     "fields": [
@@ -9,7 +9,7 @@ const JobAvroSchema = `{
         {"name": "endOffset", "type": "long"},
         {"name": "csvDialect", "type": "string"},
         {"name": "s3Path", "type": "string"},
-        {"name": "schemaID", "type": "int"}
+        {"name": "schemaId", "type": "int"}
     ]
 }`
 
@@ -33,6 +33,53 @@ func NewJob(
 		csvDialect:    csvDialect,
 		s3Path:        s3Path,
 		schemaId:      schemaId,
+	}
+}
+
+// StringMapToUser returns a User from a map representation of the User.
+func StringMapToJob(data map[string]interface{}) Job {
+	job := Job{}
+	for k, v := range data {
+		switch k {
+		case "upstreamTopic":
+			if value, ok := v.(string); ok {
+				job.upstreamTopic = value
+			}
+		case "startOffset":
+			if value, ok := v.(int64); ok {
+				job.startOffset = value
+			}
+		case "endOffset":
+			if value, ok := v.(int64); ok {
+				job.endOffset = value
+			}
+		case "csvDialect":
+			if value, ok := v.(string); ok {
+				job.csvDialect = value
+			}
+		case "s3Path":
+			if value, ok := v.(string); ok {
+				job.s3Path = value
+			}
+		case "schemaId":
+			if value, ok := v.(int32); ok {
+				job.schemaId = int(value)
+			}
+		}
+	}
+
+	return job
+}
+
+// ToStringMap returns a map representation of the Job
+func (c Job) ToStringMap() map[string]interface{} {
+	return map[string]interface{}{
+		"upstreamTopic": c.upstreamTopic,
+		"startOffset":   c.startOffset,
+		"endOffset":     c.endOffset,
+		"csvDialect":    c.csvDialect,
+		"s3Path":        c.s3Path,
+		"schemaId":      c.schemaId,
 	}
 }
 
