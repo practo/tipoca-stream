@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/riferrei/srclient"
+	"os"
 	"strings"
 )
 
@@ -67,21 +68,36 @@ func debeziumColumn(v map[string]interface{}) DebeziumColInfo {
 			case string:
 				column.Type = v["type"].(string)
 			case interface{}:
+				// handles
+				// [map[connect.default:singh type:string], null]
 				listSlice, ok := v2.([]interface{})
-				if !ok {
-					fmt.Printf("error typ casting: %v, ignoring", v2)
-					continue
-				}
-				for _, vx := range listSlice {
-					switch vx.(type) {
-					case map[string]interface{}:
-						for k3, v3 := range vx.(map[string]interface{}) {
-							if k3 != "type" {
-								continue
+				if ok {
+					for _, vx := range listSlice {
+						switch vx.(type) {
+						case map[string]interface{}:
+							for k3, v3 := range vx.(map[string]interface{}) {
+								if k3 != "type" {
+									continue
+								}
+								column.Type = v3.(string)
 							}
-							column.Type = v3.(string)
 						}
 					}
+					continue
+				}
+
+				// handles
+				// map[connect.default:singh type:string]
+				listMap, ok := v2.(map[string]interface{})
+				if !ok {
+					fmt.Printf("Error type casting for v2=%v\n", v2)
+					os.Exit(1)
+				}
+				for k4, v4 := range listMap {
+					if k4 != "type" {
+						continue
+					}
+					column.Type = v4.(string)
 				}
 			default:
 				column.Type = v["type"].(string)

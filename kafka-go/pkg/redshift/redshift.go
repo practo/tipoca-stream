@@ -328,7 +328,7 @@ func CheckSchemas(inputTable, targetTable Table) ([]string, error) {
 
 func checkColumn(schemaName string, tableName string,
 	inCol ColInfo, targetCol ColInfo) ([]string, error) {
-	klog.V(5).Infof("inCol: %+v\n,taCol: %+v\n", inCol, targetCol)
+	// klog.V(5).Infof("inCol: %+v\n,taCol: %+v\n", inCol, targetCol)
 
 	var errors error
 	mismatchedTemplate := "mismatch col: %s, prop: %s, input: %v, target: %v"
