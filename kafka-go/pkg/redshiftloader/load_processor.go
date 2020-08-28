@@ -152,86 +152,91 @@ func (b *loadProcessor) processMessage(
 	return nil
 }
 
+// migrateSchema construct the "inputTable" using schemaId in the message.
+// If the schema and table does not exist it creates and returns.
+// If not then it constructs the "targetTable" by querying the database.
+// It compares the targetTable and inputTable schema.
+// If the schema is same it does anything and returns.
+// If the schema is different it migrate targetTable schema to be same as
+// inputTable.
+// Following migrations are supported:
+// Supported: add columns
+// Supported: delete columns
+// Supported: alter columns
+// TODO: NotSupported: row ordering changes and row renames
 func (b *loadProcessor) migrateSchema(message *serializer.Message) {
-	klog.V(3).Infof("message=%+v\n", message)
 	job := StringMapToJob(message.Value.(map[string]interface{}))
-	klog.V(3).Infof("job=%+v\n", job)
 	schemaId := job.SchemaId()
-	// TODO: mem cache it later to prevent below computation on every new batch
+
+	// TODO: add cache here based on schema id and return
+	// save some database calls.
 
 	resp, err := b.schemaTransformer.Transform(schemaId)
 	if err != nil {
-		klog.Fatalf("Error fetching schemaId:%d, err: %v\n", err)
+		klog.Fatalf(
+			"Error transforming schema:%d into inputTable:%d, err: %v\n",
+			schemaId,
+			err)
 	}
-	targetTable := resp.(redshift.Table)
+	inputTable := resp.(redshift.Table)
 
 	tx, err := b.redshifter.Begin()
 	if err != nil {
-		klog.Fatalf("Error redshifter tx begin, err: %v\n", err)
+		klog.Fatalf("Error creating database tx, err: %v\n", err)
 	}
 
-	exist, err := b.redshifter.SchemaExist(targetTable.Meta.Schema)
+	schemaExist, err := b.redshifter.SchemaExist(inputTable.Meta.Schema)
 	if err != nil {
-		klog.Fatalf("Error checking schema exist, err: %v\n", err)
+		klog.Fatalf("Error querying schema exists, err: %v\n", err)
 	}
-	if !exist {
-		err = b.redshifter.CreateSchema(tx, targetTable.Meta.Schema)
+	if !schemaExist {
+		err = b.redshifter.CreateSchema(tx, inputTable.Meta.Schema)
 		if err != nil {
 			klog.Fatalf("Error creating schema, err: %v\n", err)
 		}
+		klog.Info(
+			"topic:%s, schemaId:%d: Schema %s created",
+			b.topic,
+			schemaId,
+			inputTable.Meta.Schema)
 	}
 
-	exist, err = b.redshifter.TableExist(
-		targetTable.Meta.Schema, targetTable.Name,
+	tableExist, err := b.redshifter.TableExist(
+		inputTable.Meta.Schema, inputTable.Name,
 	)
 	if err != nil {
-		klog.Fatalf("Error checking table exist, err: %v\n", err)
+		klog.Fatalf("Error querying table exist, err: %v\n", err)
 	}
-	if !exist {
-		err = b.redshifter.CreateTable(tx, targetTable)
+	if !tableExist {
+		err = b.redshifter.CreateTable(tx, inputTable)
 		if err != nil {
 			klog.Fatalf("Error creating table, err: %v\n", err)
 		}
-		klog.Info(
-			"topic:%s, schema_id:%d: Table %s created",
-			b.topic,
-			schemaId,
-			targetTable.Name,
-		)
-		if err := tx.Commit(); err != nil {
+		err = tx.Commit()
+		if err != nil {
 			klog.Fatalf("Error committing tx, err:%v\n", err)
 		}
-		return
-	}
-
-	currentTable, err := b.redshifter.GetTableMetadata(
-		targetTable.Meta.Schema, targetTable.Name,
-	)
-	if err != nil {
-		klog.Fatalf("Error getting table schema, err: %v\n", err)
-	}
-
-	alterCommands, err := redshift.CheckSchemas(targetTable, *currentTable)
-	if err == nil {
-		klog.V(5).Info("topic:%s, schema_id:%d: Schema not changed.",
+		klog.Info(
+			"topic:%s, schemaId:%d: Table %s created",
 			b.topic,
 			schemaId,
-			alterCommands,
-			err.Error(),
-		)
+			inputTable.Name)
 		return
 	}
 
-	klog.Info(
-		"topic:%s, schema_id:%d: Schema different, alter:%v, msg:%s",
-		b.topic,
-		schemaId,
-		alterCommands,
-		err.Error(),
+	targetTable, err := b.redshifter.GetTableMetadata(
+		inputTable.Meta.Schema, inputTable.Name,
 	)
-	// TODO:
-	// handle schema migration
-	return
+	if err != nil {
+		klog.Fatalf("Error querying targetTable, err: %v\n", err)
+	}
+
+	// UpdateTable computes the schema migration commands and executes it
+	// if required else does nothing.
+	err = b.redshifter.UpdateTable(tx, inputTable, *targetTable)
+	if err != nil {
+		klog.Fatalf("Error running schema migration, err: %v\n", err)
+	}
 }
 
 // processBatch handles the batch procesing and return true if all completes
