@@ -4,8 +4,10 @@ import (
 	"context"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
+	"github.com/spf13/viper"
 )
 
 type loadProcessor struct {
@@ -31,20 +33,47 @@ type loadProcessor struct {
 	// this is helpful to log at the time of shutdown and can help in debugging
 	lastCommittedOffset int64
 
-	// transformer is used to transform debezium events into
+	// msgTransformer is used to transform debezium events into
 	// redshift COPY commands with some annotations
-	transformer transformer.Transformer
+	msgTransformer transformer.MsgTransformer
+
+	// schemaTransfomer is used to transform debezium schema
+	// to redshift table
+	schemaTransformer transformer.SchemaTransformer
+
+	// redshifter is the redshift client to perform redshift
+	// operations
+	redshifter *redshift.Redshift
 }
 
 func newLoadProcessor(
 	topic string, partition int32,
 	session sarama.ConsumerGroupSession) *loadProcessor {
 
+	// TODO: check if session context is not a problem here.
+	redshifter, err := redshift.NewRedshift(
+		session.Context(), redshift.RedshiftConfig{
+			Host:     viper.GetString("redshift.host"),
+			Port:     viper.GetString("redshift.port"),
+			Database: viper.GetString("redshift.database"),
+			User:     viper.GetString("redshift.user"),
+			Password: viper.GetString("redshift.password"),
+			Timeout:  viper.GetInt("redshift.timeout"),
+		},
+	)
+	if err != nil {
+		klog.Fatalf("Error creating redshifter: %v\n", err)
+	}
+
 	return &loadProcessor{
-		topic:       topic,
-		partition:   partition,
-		session:     session,
-		transformer: transformer.NewTransformer(),
+		topic:          topic,
+		partition:      partition,
+		session:        session,
+		msgTransformer: transformer.NewMsgTransformer(),
+		schemaTransformer: transformer.NewSchemaTransformer(
+			viper.GetString("schemaRegistryURL"),
+		),
+		redshifter: redshifter,
 	}
 }
 
@@ -117,22 +146,102 @@ func (b *loadProcessor) handleShutdown() {
 	}
 }
 
-func (b *loadProcessor) processMessage(message *serializer.Message, id int) {
+func (b *loadProcessor) processMessage(
+	message *serializer.Message, id int) error {
+
+	return nil
 }
 
+// migrateSchema construct the "inputTable" using schemaId in the message.
+// If the schema and table does not exist it creates and returns.
+// If not then it constructs the "targetTable" by querying the database.
+// It compares the targetTable and inputTable schema.
+// If the schema is same it does anything and returns.
+// If the schema is different it migrate targetTable schema to be same as
+// inputTable.
+// Following migrations are supported:
+// Supported: add columns
+// Supported: delete columns
+// Supported: alter columns
+// TODO: NotSupported: row ordering changes and row renames
 func (b *loadProcessor) migrateSchema(message *serializer.Message) {
-	job := message.Value.(Job)
+	job := StringMapToJob(message.Value.(map[string]interface{}))
 	schemaId := job.SchemaId()
 
-	_ = job
-	_ = schemaId
+	// TODO: add cache here based on schema id and return
+	// save some database calls.
 
-	// check if target table exists
-	// no: create and return
-	// yes:
-	// check if the target_table_schema == schemaId
-	// yes: do nothing return
-	// no:
+	resp, err := b.schemaTransformer.Transform(schemaId)
+	if err != nil {
+		klog.Fatalf(
+			"Error transforming schema:%d into inputTable:%d, err: %v\n",
+			schemaId,
+			err)
+	}
+	inputTable := resp.(redshift.Table)
+
+	tx, err := b.redshifter.Begin()
+	if err != nil {
+		klog.Fatalf("Error creating database tx, err: %v\n", err)
+	}
+
+	schemaExist, err := b.redshifter.SchemaExist(inputTable.Meta.Schema)
+	if err != nil {
+		klog.Fatalf("Error querying schema exists, err: %v\n", err)
+	}
+	if !schemaExist {
+		err = b.redshifter.CreateSchema(tx, inputTable.Meta.Schema)
+		if err != nil {
+			klog.Fatalf("Error creating schema, err: %v\n", err)
+		}
+		klog.Infof(
+			"topic:%s, schemaId:%d: Schema %s created",
+			b.topic,
+			schemaId,
+			inputTable.Meta.Schema)
+	}
+
+	tableExist, err := b.redshifter.TableExist(
+		inputTable.Meta.Schema, inputTable.Name,
+	)
+	if err != nil {
+		klog.Fatalf("Error querying table exist, err: %v\n", err)
+	}
+	if !tableExist {
+		err = b.redshifter.CreateTable(tx, inputTable)
+		if err != nil {
+			klog.Fatalf("Error creating table, err: %v\n", err)
+		}
+		err = tx.Commit()
+		if err != nil {
+			klog.Fatalf("Error committing tx, err:%v\n", err)
+		}
+		klog.Infof(
+			"topic:%s, schemaId:%d: Table %s created",
+			b.topic,
+			schemaId,
+			inputTable.Name)
+		return
+	}
+
+	targetTable, err := b.redshifter.GetTableMetadata(
+		inputTable.Meta.Schema, inputTable.Name,
+	)
+	if err != nil {
+		klog.Fatalf("Error querying targetTable, err: %v\n", err)
+	}
+
+	// UpdateTable computes the schema migration commands and executes it
+	// if required else does nothing.
+	err = b.redshifter.UpdateTable(tx, inputTable, *targetTable)
+	if err != nil {
+		klog.Fatalf("Error running schema migration, err: %v\n", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		klog.Fatalf("Error committing tx, err:%v\n", err)
+	}
 }
 
 // processBatch handles the batch procesing and return true if all completes
@@ -148,7 +257,8 @@ func (b *loadProcessor) processBatch(
 		default:
 			message := data.(*serializer.Message)
 			// this assumes all batches have same schema id
-			if id == 1 {
+			if id == 0 {
+				klog.V(3).Infof("Processing schema: %+v\n", message)
 				b.migrateSchema(message)
 			}
 			b.processMessage(message, id)
