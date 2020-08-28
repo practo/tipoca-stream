@@ -2,6 +2,7 @@ package transformer
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/riferrei/srclient"
 	"strings"
@@ -66,8 +67,22 @@ func debeziumColumn(v map[string]interface{}) DebeziumColInfo {
 			case string:
 				column.Type = v["type"].(string)
 			case interface{}:
-				v3 := v2.(map[string]interface{})
-				column.Type = v3["type"].(string)
+				listSlice, ok := v2.([]interface{})
+				if !ok {
+					fmt.Printf("error typ casting: %v, ignoring", v2)
+					continue
+				}
+				for _, vx := range listSlice {
+					switch vx.(type) {
+					case map[string]interface{}:
+						for k3, v3 := range vx.(map[string]interface{}) {
+							if k3 != "type" {
+								continue
+							}
+							column.Type = v3.(string)
+						}
+					}
+				}
 			default:
 				column.Type = v["type"].(string)
 			}
@@ -124,13 +139,22 @@ type redshiftSchemaTransformer struct {
 func (c *redshiftSchemaTransformer) Transform(schemaId int) (
 	interface{}, error) {
 
-	jobSchema, err := c.srclient.GetSchema(schemaId)
+	j, err := c.srclient.GetSchema(schemaId)
 	if err != nil {
 		return nil, err
 	}
 
+	return c.transformSchema(j.Schema())
+}
+
+func (c *redshiftSchemaTransformer) transformSchema(jobSchema string) (
+	interface{}, error) {
+
+	// remove nulls
+	schema := strings.ReplaceAll(jobSchema, `"null",`, "")
+
 	var debeziumSchema DebeziumSchema
-	err = json.Unmarshal([]byte(jobSchema.Schema()), &debeziumSchema)
+	err := json.Unmarshal([]byte(schema), &debeziumSchema)
 	if err != nil {
 		return nil, err
 	}

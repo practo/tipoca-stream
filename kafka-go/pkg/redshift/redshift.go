@@ -259,11 +259,11 @@ func (r *Redshift) UpdateTable(
 
 	// postgres only allows adding one column at a time
 	for _, op := range columnOps {
+		klog.V(4).Infof("Preparing: %s", op)
 		alterStmt, err := tx.PrepareContext(r.ctx, op)
 		if err != nil {
 			return err
 		}
-
 		klog.Infof("Running: %s", op)
 		_, err = alterStmt.ExecContext(r.ctx)
 		if err != nil {
@@ -328,6 +328,7 @@ func CheckSchemas(inputTable, targetTable Table) ([]string, error) {
 
 func checkColumn(schemaName string, tableName string,
 	inCol ColInfo, targetCol ColInfo) ([]string, error) {
+	klog.V(5).Infof("inCol: %+v\n,taCol: %+v\n", inCol, targetCol)
 
 	var errors error
 	mismatchedTemplate := "mismatch col: %s, prop: %s, input: %v, target: %v"
@@ -406,6 +407,8 @@ func checkColumn(schemaName string, tableName string,
 		)
 	}
 
+	// TODO: defaultVal needs to be nullable, use pointers
+	// as default value can hold null empty string values
 	if ConvertDefaultValue(inCol.DefaultVal) != targetCol.DefaultVal {
 		alterSQL = append(alterSQL,
 			fmt.Sprintf(
