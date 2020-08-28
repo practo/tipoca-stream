@@ -11,18 +11,20 @@ import (
 	// TODO:
 	// Use our own version of the postgres library so we get keep-alive support.
 	// See https://github.com/Clever/pq/pull/1
-	// todo due to: https://github.com/Clever/s3-to-redshift/issues/163
+	// TODO: https://github.com/Clever/s3-to-redshift/issues/163
 	_ "github.com/lib/pq"
 	"strings"
 )
 
 const (
-	schemaExist  = `select schema_name from information_schema.schemata where schema_name='%s';`
+	schemaExist = `select schema_name
+from information_schema.schemata where schema_name='%s';`
 	schemaCreate = `create schema "%s";`
-	tableExist   = `select table_name from information_schema.tables where table_schema='%s' and table_name='%s';`
-	tableCreate  = `CREATE TABLE "%s"."%s" (%s);`
+	tableExist   = `select table_name from information_schema.tables where
+table_schema='%s' and table_name='%s';`
+	tableCreate = `CREATE TABLE "%s"."%s" (%s);`
 	// returns one row per column with the attributes:
-	// name, type, default_val, not_null, primary_key, dist_key, and sort_ordinal
+	// name, type, default_val, not_null, primary_key,
 	// need to pass a schema and table name as the parameters
 	tableSchema = `SELECT
   f.attname AS name,
@@ -46,8 +48,10 @@ WHERE c.relkind = 'r'::char
 
 type dbExecCloser interface {
 	Close() error
-	BeginTx(c context.Context, opts *sql.TxOptions) (*sql.Tx, error)
-	QueryContext(c context.Context, q string, a ...interface{}) (*sql.Rows, error)
+	BeginTx(
+		c context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+	QueryContext(
+		c context.Context, q string, a ...interface{}) (*sql.Rows, error)
 	QueryRowContext(c context.Context, q string, a ...interface{}) *sql.Row
 }
 
@@ -154,9 +158,7 @@ func (r *Redshift) TableExist(schema string, table string) (bool, error) {
 			)
 			return false, nil
 		}
-		// TODO: fix the induced bug
 		return false, fmt.Errorf("failed sql:%s, err:%v\n", q, err)
-		// return false, nil
 	}
 
 	return true, nil
@@ -183,7 +185,12 @@ func getColumnSQL(c ColInfo) string {
 	// currently we don't support that
 	defaultVal := ""
 	if c.DefaultVal != "" {
-		defaultVal = fmt.Sprintf("DEFAULT '%s'", c.DefaultVal)
+		switch c.Type {
+		case "string":
+			defaultVal = fmt.Sprintf("DEFAULT '%s'", c.DefaultVal)
+		default:
+			defaultVal = fmt.Sprintf("DEFAULT %s", c.DefaultVal)
+		}
 	}
 	notNull := ""
 	if c.NotNull {
@@ -229,12 +236,14 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 	return err
 }
 
-// UpdateTable figures out what columns we need to add to the target table based on the
-// input table, and completes this action in the transaction provided
-// Note: only supports adding columns currently, not updating existing columns or removing them
+// UpdateTable figures out what columns we need to add to the target table
+// based on the input table,
+// and completes this action in the transaction provided
 // Supported: add columns
 // Supported: delete columns
-// NotSupported: alter columns
+// Supported: alter columns
+// TODO:
+// NotSupported: row ordering changes and row renames
 func (r *Redshift) UpdateTable(
 	tx *sql.Tx, inputTable, targetTable Table) error {
 
@@ -248,13 +257,13 @@ func (r *Redshift) UpdateTable(
 	for _, op := range columnOps {
 		alterStmt, err := tx.PrepareContext(r.ctx, op)
 		if err != nil {
-			return fmt.Errorf("issue preparing statement: '%s' - err: %s", op, err)
+			return fmt.Errorf("error prepare statement: '%s', err: %s", op, err)
 		}
 
-		klog.Infof("Running command: %s", op)
+		klog.V(5).Infof("Running command: %s", op)
 		_, err = alterStmt.ExecContext(r.ctx)
 		if err != nil {
-			return fmt.Errorf("issue running statement %s: %s", op, err)
+			return fmt.Errorf("error running statement %s, err: %s", op, err)
 		}
 	}
 	return nil
@@ -305,53 +314,107 @@ func (r *Redshift) GetTableMetadata(schema, tableName string) (*Table, error) {
 	return &retTable, nil
 }
 
-// CheckSchemas takes in two tables and compares their column schemas to make sure they're compatible.
-// If they have any mismatched columns they are returned in the errors array. If the input table has
-// columns at the end that the target table does not then the appropriate alter tables sql commands are
-// returned.
+// CheckSchemas takes in two tables and compares their column schemas
+// to make sure they're compatible. If they have any mismatched columns
+// they are returned in the errors array. Covers most of the schema migration
+// scenarios, and returns the ALTER commands to do it.
 func CheckSchemas(inputTable, targetTable Table) ([]string, error) {
-	// If the schema is mongo_raw then we know the input files are json so ordering doesn't matter. At
-	// some point we could handle this in a more general way by checking if the input files are json.
-	// This wouldn't be too hard, but we would have to peak in the manifest file to check if all the
-	// files references are json.
-	if targetTable.Meta.Schema == "mongo_raw" {
-		return checkColumnsWithoutOrdering(inputTable, targetTable)
-	}
 	return checkColumnsAndOrdering(inputTable, targetTable)
 }
 
-func checkColumn(schemaName string, tableName string, inCol ColInfo, targetCol ColInfo) ([]string, error) {
-	fmt.Printf("inCol: %+v\ntaCol: %+v\n", inCol, targetCol)
+func checkColumn(schemaName string, tableName string,
+	inCol ColInfo, targetCol ColInfo) ([]string, error) {
 
 	var errors error
-	mismatchedTemplate := "mismatched column: %s, property: %s, input: %v, target: %v"
+	mismatchedTemplate := "mismatch col: %s, prop: %s, input: %v, target: %v"
+
 	alterSQL := []string{}
+
 	if inCol.Name != targetCol.Name {
 		// TODO: add support for renaming columns
-		errors = multierror.Append(errors, fmt.Errorf(mismatchedTemplate, inCol.Name, "Name", inCol.Name, targetCol.Name))
+		// the only migration that is not supported at present
+		errors = multierror.Append(
+			errors, fmt.Errorf(mismatchedTemplate,
+				inCol.Name, "Name", inCol.Name, targetCol.Name))
 	}
+
 	if inCol.PrimaryKey != targetCol.PrimaryKey {
 		if inCol.PrimaryKey {
-			alterSQL = append(alterSQL, fmt.Sprintf(`ALTER TABLE "%s"."%s" ADD PRIMARY KEY (%s)`, schemaName, tableName, inCol.Name))
+			alterSQL = append(alterSQL,
+				fmt.Sprintf(
+					`ALTER TABLE "%s"."%s" ADD PRIMARY KEY (%s)`,
+					schemaName, tableName,
+					inCol.Name,
+				),
+			)
 		} else {
-			alterSQL = append(alterSQL, fmt.Sprintf(`ALTER TABLE "%s"."%s" DROP CONSTRAINT %s_pkey`, schemaName, tableName, tableName))
+			alterSQL = append(alterSQL,
+				fmt.Sprintf(
+					`ALTER TABLE "%s"."%s" DROP CONSTRAINT %s_pkey`,
+					schemaName,
+					tableName,
+					tableName,
+				),
+			)
 		}
 	}
+
 	if inCol.NotNull != targetCol.NotNull {
 		if inCol.NotNull {
-			alterSQL = append(alterSQL, fmt.Sprintf(`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s`, schemaName, tableName, inCol.Name, "SET NOT NULL"))
+			alterSQL = append(alterSQL,
+				fmt.Sprintf(
+					`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s`,
+					schemaName, tableName,
+					inCol.Name,
+					"SET NOT NULL",
+				),
+			)
 		} else if inCol.PrimaryKey {
-			klog.Warningf("Cannot drop not null in table '%s.%s' for primary_key '%s'. Skipping.", schemaName, tableName, inCol.Name)
+			klog.Warningf(
+				"Cant drop null, table'%s.%s', since primary_key:'%s'. Skipped",
+				schemaName,
+				tableName,
+				inCol.Name,
+			)
 		} else {
-			alterSQL = append(alterSQL, fmt.Sprintf(`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s`, schemaName, tableName, inCol.Name, "DROP NOT NULL"))
+			alterSQL = append(alterSQL,
+				fmt.Sprintf(
+					`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s`,
+					schemaName,
+					tableName,
+					inCol.Name,
+					"DROP NOT NULL",
+				),
+			)
 		}
 	}
+
 	if typeMapping[inCol.Type] != targetCol.Type {
-		alterSQL = append(alterSQL, fmt.Sprintf(`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s %s`, schemaName, tableName, inCol.Name, "TYPE", typeMapping[inCol.Type]))
+		alterSQL = append(alterSQL,
+			fmt.Sprintf(
+				`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s %s`,
+				schemaName,
+				tableName,
+				inCol.Name,
+				"TYPE",
+				typeMapping[inCol.Type],
+			),
+		)
 	}
+
 	if ConvertDefaultValue(inCol.DefaultVal) != targetCol.DefaultVal {
-		alterSQL = append(alterSQL, fmt.Sprintf(`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s '%s'`, schemaName, tableName, inCol.Name, "SET DEFAULT", inCol.DefaultVal))
+		alterSQL = append(alterSQL,
+			fmt.Sprintf(
+				`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s '%s'`,
+				schemaName,
+				tableName,
+				inCol.Name,
+				"SET DEFAULT",
+				inCol.DefaultVal,
+			),
+		)
 	}
+
 	return alterSQL, errors
 }
 
@@ -366,15 +429,21 @@ func checkColumnsAndOrdering(inputTable, targetTable Table) ([]string, error) {
 
 		// add column
 		if len(targetTable.Columns) <= idx {
-			klog.V(5).Info("Missing column -- running alter table\n")
-			alterSQL := fmt.Sprintf(`ALTER TABLE "%s"."%s" ADD COLUMN %s`, targetTable.Meta.Schema, targetTable.Name, getColumnSQL(inCol))
+			klog.V(5).Info("Missing column, alter table will run.\n")
+			alterSQL := fmt.Sprintf(
+				`ALTER TABLE "%s"."%s" ADD COLUMN %s`,
+				targetTable.Meta.Schema,
+				targetTable.Name,
+				getColumnSQL(inCol),
+			)
 			columnOps = append(columnOps, alterSQL)
 			continue
 		}
 
 		// alter column
 		targetCol := targetTable.Columns[idx]
-		alterColumnOps, err := checkColumn(inputTable.Meta.Schema, inputTable.Name, inCol, targetCol)
+		alterColumnOps, err := checkColumn(
+			inputTable.Meta.Schema, inputTable.Name, inCol, targetCol)
 		if err != nil {
 			errors = multierror.Append(errors, err)
 		}
@@ -385,39 +454,19 @@ func checkColumnsAndOrdering(inputTable, targetTable Table) ([]string, error) {
 	for _, taCol := range targetTable.Columns {
 		if _, ok := inColMap[taCol.Name]; !ok {
 			klog.V(5).Info(
-				"Extra column: %s -- running alter table\n", taCol.Name,
+				"Extra column: %s, alter table will run\n", taCol.Name,
 			)
-			alterSQL := fmt.Sprintf(`ALTER TABLE "%s"."%s" DROP COLUMN %s`, targetTable.Meta.Schema, targetTable.Name, taCol.Name)
+			alterSQL := fmt.Sprintf(
+				`ALTER TABLE "%s"."%s" DROP COLUMN %s`,
+				targetTable.Meta.Schema,
+				targetTable.Name,
+				taCol.Name,
+			)
 			columnOps = append(columnOps, alterSQL)
 			continue
 		}
 	}
 
-	return columnOps, errors
-}
-
-func checkColumnsWithoutOrdering(inputTable, targetTable Table) ([]string, error) {
-	var columnOps []string
-	var errors error
-
-	for _, inCol := range inputTable.Columns {
-		foundMatching := false
-		for _, targetCol := range targetTable.Columns {
-			if inCol.Name == targetCol.Name {
-				foundMatching = true
-				// TODO: add support for alter columns
-				if _, err := checkColumn(inputTable.Meta.Schema, inputTable.Name, inCol, targetCol); err != nil {
-					errors = multierror.Append(errors, err)
-				}
-			}
-		}
-		if !foundMatching {
-			klog.V(5).Info("Missing column -- running alter table\n")
-			alterSQL := fmt.Sprintf(`ALTER TABLE "%s"."%s" ADD COLUMN %s`,
-				targetTable.Meta.Schema, targetTable.Name, getColumnSQL(inCol))
-			columnOps = append(columnOps, alterSQL)
-		}
-	}
 	return columnOps, errors
 }
 
