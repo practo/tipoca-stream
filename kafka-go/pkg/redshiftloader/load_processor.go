@@ -249,10 +249,8 @@ func (b *loadProcessor) migrateSchema(message *serializer.Message) {
 // this helps in cleanly shutting down the batch processing.
 func (b *loadProcessor) processBatch(
 	ctx context.Context, datas []interface{}) bool {
-	klog.V(3).Infof("Processing batch: %v\n", datas)
 
 	for id, data := range datas {
-		klog.V(3).Infof("Processing batch/id: %v\n", id)
 		select {
 		case <-ctx.Done():
 			return false
