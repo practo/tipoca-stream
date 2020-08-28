@@ -6,7 +6,6 @@ import (
 	"fmt"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/practo/klog/v2"
-	"time"
 
 	// TODO:
 	// Use our own version of the postgres library so we get keep-alive support.
@@ -230,7 +229,7 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 		return fmt.Errorf("error preparing statement: %v\n", err)
 	}
 
-	klog.V(5).Infof("Running command: %s with args: %v\n", createSQL, args)
+	klog.V(5).Infof("Running: %s with args: %v\n", createSQL, args)
 	_, err = createStmt.ExecContext(r.ctx)
 
 	return err
@@ -249,21 +248,26 @@ func (r *Redshift) UpdateTable(
 
 	columnOps, err := CheckSchemas(inputTable, targetTable)
 	if err != nil {
-		return fmt.Errorf("mismatched schema: %s", err)
+		return err
 	}
-	fmt.Printf("columnOps: %v\nerr: %v\n", columnOps, err)
+
+	if len(columnOps) == 0 {
+		klog.V(4).Infof("Schema same for table: %s\n", inputTable.Name)
+	} else {
+		klog.Infof("Migrating schema for table: %s ...\n", inputTable.Name)
+	}
 
 	// postgres only allows adding one column at a time
 	for _, op := range columnOps {
 		alterStmt, err := tx.PrepareContext(r.ctx, op)
 		if err != nil {
-			return fmt.Errorf("error prepare statement: '%s', err: %s", op, err)
+			return err
 		}
 
-		klog.V(5).Infof("Running command: %s", op)
+		klog.Infof("Running: %s", op)
 		_, err = alterStmt.ExecContext(r.ctx)
 		if err != nil {
-			return fmt.Errorf("error running statement %s, err: %s", op, err)
+			return fmt.Errorf("cmd failed, cmd:%s, err: %s", op, err)
 		}
 	}
 	return nil
@@ -286,7 +290,7 @@ func (r *Redshift) GetTableMetadata(schema, tableName string) (*Table, error) {
 		r.ctx, fmt.Sprintf(tableSchema, schema, tableName))
 	if err != nil {
 		return nil, fmt.Errorf(
-			"error running column query: %s, err: %s", tableSchema, err)
+			"error Running column query: %s, err: %s", tableSchema, err)
 	}
 	defer rows.Close()
 	for rows.Next() {
