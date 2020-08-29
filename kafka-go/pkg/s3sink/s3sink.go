@@ -1,6 +1,7 @@
 package s3sink
 
 import (
+	"fmt"
 	"bytes"
 
 	"encoding/json"
@@ -62,6 +63,14 @@ func NewS3Sink(
 	}
 
 	return s, nil
+}
+
+func (s *S3Sink) GetKeyURI(key string) string {
+	return fmt.Sprintf(
+		"s3://%s/%s",
+		s.bucket,
+		key,
+	)
 }
 
 // Upload uploads the data stored in buffer to s3 in the specified key
