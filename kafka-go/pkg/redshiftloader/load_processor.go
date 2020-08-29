@@ -109,6 +109,7 @@ func (b *loadProcessor) ctxCancelled() bool {
 	return false
 }
 
+// setBatchId is used for logging, helps in debugging.
 func (b *loadProcessor) setBatchId() {
 	if b.batchId == maxBatchId {
 		klog.V(5).Infof("topic:%s: Resetting batchId to zero.")
@@ -118,6 +119,8 @@ func (b *loadProcessor) setBatchId() {
 	b.batchId += 1
 }
 
+// commitOffset actually commits the offset and this is an sync operation
+// when a commit happens succesfully that record will never be reconsumed.
 func (b *loadProcessor) commitOffset(datas []interface{}) {
 	for i, data := range datas {
 		message := data.(*serializer.Message)
@@ -145,6 +148,7 @@ func (b *loadProcessor) commitOffset(datas []interface{}) {
 	}
 }
 
+// handleShutdown is mostly used to log the messages before going down
 func (b *loadProcessor) handleShutdown() {
 	klog.Infof(
 		"topic:%s, batchId:%d: Batch processing gracefully shutdown.\n",
@@ -162,8 +166,37 @@ func (b *loadProcessor) handleShutdown() {
 	}
 }
 
+// loadStagingTable loads the batch to redhsift staging table using
+// COPY command. staging table is the intermediate table which helps
+// in loading the data to the target table by performing merge operations.
+func (b *loadProcessor) loadStagingTable(
+	schema string, table string, s3ManifestKey string) {
+
+	tx, err := b.redshifter.Begin()
+	if err != nil {
+		klog.Fatalf("Error creating database tx, err: %v\n", err)
+	}
+	err = b.redshifter.Copy(
+		tx, schema, table, b.s3sink.GetKeyURI(s3ManifestKey))
+	if err != nil {
+		klog.Fatalf("Error loading data in staging table, err:%v\n", err)
+	}
+	err = tx.Commit()
+	if err != nil {
+		klog.Fatalf("Error committing tx, err:%v\n", err)
+	}
+
+	klog.Infof(
+		"topic:%s, batchId:%d: Loaded Staging Table: %s\n",
+		b.topic,
+		b.batchId,
+		table)
+}
+
+// createStagingTable creates a staging table based on the schema id of the
+// batch messages.
 func (b *loadProcessor) createStagingTable(
-	schemaId int, stagingTable redshift.Table) {
+	schemaId int, stagingTable redshift.Table) redshift.Table {
 
 	stagingTable.Name = "staged-" + stagingTable.Name
 	tx, err := b.redshifter.Begin()
@@ -201,6 +234,10 @@ func (b *loadProcessor) createStagingTable(
 	}
 	stagingTable.Columns = append(extraColumns, stagingTable.Columns...)
 
+	tx, err = b.redshifter.Begin()
+	if err != nil {
+		klog.Fatalf("Error creating database tx, err: %v\n", err)
+	}
 	err = b.redshifter.CreateTable(tx, stagingTable)
 	if err != nil {
 		klog.Fatalf("Error creating staging table, err: %v\n", err)
@@ -209,11 +246,13 @@ func (b *loadProcessor) createStagingTable(
 	if err != nil {
 		klog.Fatalf("Error committing tx, err:%v\n", err)
 	}
-	klog.Infof(
+	klog.V(3).Infof(
 		"topic:%s, schemaId:%d: Staging Table %s created\n",
 		b.topic,
 		schemaId,
 		stagingTable.Name)
+
+	return stagingTable
 }
 
 // migrateSchema construct the "inputTable" using schemaId in the message.
@@ -303,6 +342,7 @@ func (b *loadProcessor) processBatch(
 	ctx context.Context, datas []interface{}) bool {
 
 	var inputTable redshift.Table
+	var stagingTable redshift.Table
 	var entries []s3sink.S3ManifestEntry
 
 	for id, data := range datas {
@@ -326,7 +366,7 @@ func (b *loadProcessor) processBatch(
 				}
 				inputTable = resp.(redshift.Table)
 				b.migrateSchema(schemaId, inputTable)
-				b.createStagingTable(schemaId, inputTable)
+				stagingTable = b.createStagingTable(schemaId, inputTable)
 			}
 			entries = append(
 				entries,
@@ -350,6 +390,13 @@ func (b *loadProcessor) processBatch(
 		klog.Fatalf("Error uploading manifest: %s to s3, err:%v\n",
 			s3ManifestKey)
 	}
+
+	// load data in the staging table
+	b.loadStagingTable(
+		stagingTable.Meta.Schema,
+		stagingTable.Name,
+		s3ManifestKey,
+	)
 
 	// merge:
 	// begin transaction
