@@ -115,6 +115,7 @@ func (c *redshiftMsgTransformer) Transform(
 	if err != nil {
 		return err
 	}
+	after["kafkaOffset"] = fmt.Sprintf("%v", message.Offset)
 	after["operation"] = operation
 
 	message.Value, err = json.Marshal(after)
