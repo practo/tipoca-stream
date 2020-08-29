@@ -59,16 +59,19 @@ type dbExecCloser interface {
 // Give it a context for the duration of the job
 type Redshift struct {
 	dbExecCloser
-	ctx context.Context
+	ctx  context.Context
+	conf RedshiftConfig
 }
 
 type RedshiftConfig struct {
-	Host     string `yaml:"host"`
-	Port     string `yaml:"port"`
-	Database string `yaml:"database"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	Timeout  int    `yaml:"timeout"`
+	Host              string `yaml:"host"`
+	Port              string `yaml:"port"`
+	Database          string `yaml:"database"`
+	User              string `yaml:"user"`
+	Password          string `yaml:"password"`
+	Timeout           int    `yaml:"timeout"`
+	S3AcessKeyId      string `yaml:"s3AccessKeyId"`
+	S3SecretAccessKey string `yaml:"s3SecretAccessKey"`
 }
 
 func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
@@ -86,7 +89,7 @@ func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
 	if err := sqldb.Ping(); err != nil {
 		return nil, err
 	}
-	return &Redshift{sqldb, ctx}, nil
+	return &Redshift{sqldb, ctx, conf}, nil
 }
 
 // Begin wraps a new transaction in the databases context
@@ -483,4 +486,28 @@ func ConvertDefaultValue(val string) string {
 	}
 
 	return val
+}
+
+// Copy copies JSON data present in an S3 file
+// into redshift using manifest file.
+// this is meant to be run in a transaction, so the first arg must be a sql.Tx
+func (r *Redshift) Copy(tx *sql.Tx,
+	schema string, table string, s3ManifestURI string) error {
+
+	credentials := fmt.Sprintf(
+		`CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s'`,
+		r.conf.S3AcessKeyId,
+		r.conf.S3SecretAccessKey,
+	)
+	copySQL := fmt.Sprintf(
+		`COPY "%s"."%s" FROM '%s' %s json auto`,
+		schema,
+		table,
+		s3ManifestURI,
+		credentials,
+	)
+	klog.V(5).Infof("Running: %s", copySQL)
+	_, err := tx.ExecContext(r.ctx, copySQL)
+
+	return err
 }
