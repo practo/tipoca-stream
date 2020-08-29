@@ -5,9 +5,11 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/s3sink"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
 	"github.com/spf13/viper"
+	"path/filepath"
 )
 
 type loadProcessor struct {
@@ -16,6 +18,9 @@ type loadProcessor struct {
 
 	// session is required to commit the offsets on succesfull processing
 	session sarama.ConsumerGroupSession
+
+	// s3Sink
+	s3sink *s3sink.S3Sink
 
 	// batchId is a forever increasing number which resets after maxBatchId
 	// this is useful only for logging and debugging purpose
@@ -50,6 +55,16 @@ func newLoadProcessor(
 	topic string, partition int32,
 	session sarama.ConsumerGroupSession) *loadProcessor {
 
+	sink, err := s3sink.NewS3Sink(
+		viper.GetString("s3sink.accessKeyId"),
+		viper.GetString("s3sink.secretAccessKey"),
+		viper.GetString("s3sink.region"),
+		viper.GetString("s3sink.bucket"),
+	)
+	if err != nil {
+		klog.Fatalf("Error creating s3 client: %v\n", err)
+	}
+
 	// TODO: check if session context is not a problem here.
 	redshifter, err := redshift.NewRedshift(
 		session.Context(), redshift.RedshiftConfig{
@@ -69,6 +84,7 @@ func newLoadProcessor(
 		topic:          topic,
 		partition:      partition,
 		session:        session,
+		s3sink:         sink,
 		msgTransformer: transformer.NewMsgTransformer(),
 		schemaTransformer: transformer.NewSchemaTransformer(
 			viper.GetString("schemaRegistryURL"),
@@ -146,10 +162,58 @@ func (b *loadProcessor) handleShutdown() {
 	}
 }
 
-func (b *loadProcessor) processMessage(
-	message *serializer.Message, id int) error {
+func (b *loadProcessor) createStagingTable(
+	schemaId int, stagingTable redshift.Table) {
 
-	return nil
+	stagingTable.Name = "staged-" + stagingTable.Name
+	tx, err := b.redshifter.Begin()
+	if err != nil {
+		klog.Fatalf("Error creating database tx, err: %v\n", err)
+	}
+
+	tableExist, err := b.redshifter.TableExist(
+		stagingTable.Meta.Schema, stagingTable.Name,
+	)
+	if err != nil {
+		klog.Fatalf("Error querying table exist, err: %v\n", err)
+	}
+	if tableExist {
+		klog.Fatalf("Staging table: %s already present, did cleanup fail?",
+			stagingTable.Name)
+	}
+
+	// add columns: kafkaOffset and operation in the staging table
+	extraColumns := []redshift.ColInfo{
+		redshift.ColInfo{
+			Name:       "kafkaOffset",
+			Type:       "string",
+			DefaultVal: "",
+			NotNull:    true,
+			PrimaryKey: false,
+		},
+		redshift.ColInfo{
+			Name:       "operation",
+			Type:       "string",
+			DefaultVal: "",
+			NotNull:    true,
+			PrimaryKey: false,
+		},
+	}
+	stagingTable.Columns = append(extraColumns, stagingTable.Columns...)
+
+	err = b.redshifter.CreateTable(tx, stagingTable)
+	if err != nil {
+		klog.Fatalf("Error creating staging table, err: %v\n", err)
+	}
+	err = tx.Commit()
+	if err != nil {
+		klog.Fatalf("Error committing tx, err:%v\n", err)
+	}
+	klog.Infof(
+		"topic:%s, schemaId:%d: Staging Table %s created\n",
+		b.topic,
+		schemaId,
+		stagingTable.Name)
 }
 
 // migrateSchema construct the "inputTable" using schemaId in the message.
@@ -164,21 +228,9 @@ func (b *loadProcessor) processMessage(
 // Supported: delete columns
 // Supported: alter columns
 // TODO: NotSupported: row ordering changes and row renames
-func (b *loadProcessor) migrateSchema(message *serializer.Message) {
-	job := StringMapToJob(message.Value.(map[string]interface{}))
-	schemaId := job.SchemaId()
-
+func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 	// TODO: add cache here based on schema id and return
 	// save some database calls.
-
-	resp, err := b.schemaTransformer.Transform(schemaId)
-	if err != nil {
-		klog.Fatalf(
-			"Error transforming schema:%d into inputTable:%d, err: %v\n",
-			schemaId,
-			err)
-	}
-	inputTable := resp.(redshift.Table)
 
 	tx, err := b.redshifter.Begin()
 	if err != nil {
@@ -250,36 +302,65 @@ func (b *loadProcessor) migrateSchema(message *serializer.Message) {
 func (b *loadProcessor) processBatch(
 	ctx context.Context, datas []interface{}) bool {
 
+	var inputTable redshift.Table
+	var entries []s3sink.S3ManifestEntry
+
 	for id, data := range datas {
 		select {
 		case <-ctx.Done():
 			return false
 		default:
 			message := data.(*serializer.Message)
-			// this assumes all batches have same schema id
+			job := StringMapToJob(message.Value.(map[string]interface{}))
+			schemaId := job.SchemaId()
+
+			// this assumes all messages in a batch have same schema id
 			if id == 0 {
-				klog.V(3).Infof("Processing schema: %+v\n", message)
-				b.migrateSchema(message)
+				klog.V(3).Infof("Processing schema: %+v\n", schemaId)
+				resp, err := b.schemaTransformer.Transform(schemaId)
+				if err != nil {
+					klog.Fatalf(
+						"Transforming schema:%d => inputTable:%d failed: %v\n",
+						schemaId,
+						err)
+				}
+				inputTable = resp.(redshift.Table)
+				b.migrateSchema(schemaId, inputTable)
+				b.createStagingTable(schemaId, inputTable)
 			}
-
-			// create a staging table using the schema id of the batch
-
-			// use s3 manifest files to bulk copy data to staging table
-
-			// merge:
-			// begin transaction
-			// 1. keep highest offset per pk in staging table, keep only the
-			//    recent representation of the row in staging table.
-			// 2. delete all rows in target table by pk which are present in
-			//    in staging table
-			// 3. delete all the DELETE rows in staging table
-			// 4. insert all the rows from staging table to target table
-			// 5. drop the staging table
-			// end transaction
-
-			b.processMessage(message, id)
+			entries = append(
+				entries,
+				s3sink.S3ManifestEntry{
+					URL:       job.S3Path(),
+					Mandatory: true,
+				},
+			)
 		}
 	}
+
+	// upload s3 manifest file to bulk copy data to staging table
+	// this is an overwrite operation
+	s3ManifestKey := filepath.Join(
+		viper.GetString("s3sink.bucketDir"),
+		b.topic,
+		"manifest.json",
+	)
+	err := b.s3sink.UploadS3Manifest(s3ManifestKey, entries)
+	if err != nil {
+		klog.Fatalf("Error uploading manifest: %s to s3, err:%v\n",
+			s3ManifestKey)
+	}
+
+	// merge:
+	// begin transaction
+	// 1. keep highest offset per pk in staging table, keep only the
+	//    recent representation of the row in staging table.
+	// 2. delete all rows in target table by pk which are present in
+	//    in staging table
+	// 3. delete all the DELETE rows in staging table
+	// 4. insert all the rows from staging table to target table
+	// 5. drop the staging table
+	// end transaction
 
 	return true
 }
