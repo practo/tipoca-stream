@@ -261,6 +261,22 @@ func (b *loadProcessor) processBatch(
 				klog.V(3).Infof("Processing schema: %+v\n", message)
 				b.migrateSchema(message)
 			}
+
+			// create a staging table using the schema id of the batch
+
+			// use s3 manifest files to bulk copy data to staging table
+
+			// merge:
+			// begin transaction
+			// 1. keep highest offset per pk in staging table, keep only the
+			//    recent representation of the row in staging table.
+			// 2. delete all rows in target table by pk which are present in
+			//    in staging table
+			// 3. delete all the DELETE rows in staging table
+			// 4. insert all the rows from staging table to target table
+			// 5. drop the staging table
+			// end transaction
+
 			b.processMessage(message, id)
 		}
 	}
