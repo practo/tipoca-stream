@@ -1,8 +1,8 @@
 package s3sink
 
 import (
-	"fmt"
 	"bytes"
+	"fmt"
 
 	"encoding/json"
 	"github.com/aws/aws-sdk-go/aws"
