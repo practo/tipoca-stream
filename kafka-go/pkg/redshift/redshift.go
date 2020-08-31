@@ -353,6 +353,53 @@ func (r *Redshift) DeleteColumn(tx *sql.Tx, schema string, table string,
 	return r.prepareAndExecute(tx, command)
 }
 
+// Unload copies data present in the table to s3
+// this loads data to s3 and generates a manifest file at s3key + manifest path
+func (r *Redshift) Unload(tx *sql.Tx,
+	schema string, table string, s3Key string) error {
+
+	credentials := fmt.Sprintf(
+		`CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s'`,
+		r.conf.S3AcessKeyId,
+		r.conf.S3SecretAccessKey,
+	)
+	unLoadSQL := fmt.Sprintf(
+		`UNLOAD ('select * from "%s"."%s"') TO '%s' %s manifest`,
+		schema,
+		table,
+		s3Key,
+		credentials,
+	)
+	klog.V(5).Infof("Running: %s", unLoadSQL)
+	_, err := tx.ExecContext(r.ctx, unLoadSQL)
+
+	return err
+}
+
+// Copy using manifest file
+// into redshift using manifest file.
+// this is meant to be run in a transaction, so the first arg must be a sql.Tx
+func (r *Redshift) Copy(tx *sql.Tx,
+	schema string, table string, s3ManifestURI string) error {
+
+	credentials := fmt.Sprintf(
+		`CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s'`,
+		r.conf.S3AcessKeyId,
+		r.conf.S3SecretAccessKey,
+	)
+	copySQL := fmt.Sprintf(
+		`COPY "%s"."%s" FROM '%s' %s %s manifest`,
+		schema,
+		table,
+		s3ManifestURI,
+		credentials,
+	)
+	klog.V(5).Infof("Running: %s", copySQL)
+	_, err := tx.ExecContext(r.ctx, copySQL)
+
+	return err
+}
+
 // GetTableMetadata looks for a table and returns the Table representation
 // if the table does not exist it returns an empty table but does not error
 func (r *Redshift) GetTableMetadata(schema, tableName string) (*Table, error) {
@@ -563,28 +610,4 @@ func ConvertDefaultValue(val string) string {
 	}
 
 	return val
-}
-
-// Copy copies JSON data present in an S3 file
-// into redshift using manifest file.
-// this is meant to be run in a transaction, so the first arg must be a sql.Tx
-func (r *Redshift) Copy(tx *sql.Tx,
-	schema string, table string, s3ManifestURI string) error {
-
-	credentials := fmt.Sprintf(
-		`CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s'`,
-		r.conf.S3AcessKeyId,
-		r.conf.S3SecretAccessKey,
-	)
-	copySQL := fmt.Sprintf(
-		`COPY "%s"."%s" FROM '%s' %s json auto`,
-		schema,
-		table,
-		s3ManifestURI,
-		credentials,
-	)
-	klog.V(5).Infof("Running: %s", copySQL)
-	_, err := tx.ExecContext(r.ctx, copySQL)
-
-	return err
 }
