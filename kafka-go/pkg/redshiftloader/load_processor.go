@@ -182,12 +182,12 @@ func (b *loadProcessor) handleShutdown() {
 	}
 }
 
-// loadStagingTable loads the batch to redhsift staging table using
-// COPY command. staging table is the intermediate table which helps
-// in loading the data to the target table by performing merge operations.
+// loadStagingTable loads the batch to redhsift table using
+// COPY command. Staging table is a temp table used to merge data and
+// finally insert into target table.
 func (b *loadProcessor) loadStagingTable(s3ManifestKey string) {
-	table := b.stagingTable.Name
-	schema := b.stagingTable.Meta.Schema
+	table := b.stagingTable.Meta.Schema
+	schema := b.stagingTable.Name
 
 	tx, err := b.redshifter.Begin()
 	if err != nil {
@@ -215,8 +215,7 @@ func (b *loadProcessor) loadStagingTable(s3ManifestKey string) {
 // TODO: de duplication may need optimizations (also measure the time taken)
 // https://stackoverflow.com/questions/63664935/redshift-delete-duplicate-records-but-keep-latest/63664982?noredirect=1#comment112581353_63664982
 func (b *loadProcessor) deDupeStagingTable(tx *sql.Tx) {
-	err := b.redshifter.DeDupe(
-		tx,
+	err := b.redshifter.DeDupe(tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
 		b.primaryKey,
@@ -231,8 +230,7 @@ func (b *loadProcessor) deDupeStagingTable(tx *sql.Tx) {
 // that is to be modified in this batch. This is done because we can then
 // easily perform inserts in the target table. Also DELETE gets taken care.
 func (b *loadProcessor) deleteCommonRowsInTargetTable(tx *sql.Tx) {
-	err := b.redshifter.DeleteCommon(
-		tx,
+	err := b.redshifter.DeleteCommon(tx,
 		b.targetTable.Meta.Schema,
 		b.stagingTable.Name,
 		b.targetTable.Name,
@@ -247,8 +245,7 @@ func (b *loadProcessor) deleteCommonRowsInTargetTable(tx *sql.Tx) {
 // DELETE in the staging table. so that the delete gets taken care and
 // after this we can freely insert everything in staging table to target table.
 func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
-	err := b.redshifter.DeleteCommon(
-		tx,
+	err := b.redshifter.DeleteCommon(tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
 		transformer.OperationColumn,
@@ -259,7 +256,32 @@ func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
 	}
 }
 
-// load:
+// insertIntoTargetTable uses unload and copy strategy to bulk insert into
+// target table. This is the most efficient way to inserting in redshift
+// when the source is redshift table.
+func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
+	s3CopyDir := filepath.Join(b.topic, "unload")
+	err := b.redshifter.Unload(tx,
+		b.stagingTable.Meta.Schema,
+		b.stagingTable.Name,
+		b.s3sink.GetKeyURI(s3CopyDir),
+	)
+	if err != nil {
+		klog.Fatalf("Unloading staging table to s3 failed, %v\n", err)
+	}
+
+	s3ManifestKey := filepath.Join(s3CopyDir, "unload_", "manifest")
+	err = b.redshifter.Copy(tx,
+		b.targetTable.Meta.Schema,
+		b.targetTable.Name,
+		b.s3sink.GetKeyURI(s3ManifestKey),
+	)
+	if err != nil {
+		klog.Fatalf("Copying data to target table from s3 failed, %v\n", err)
+	}
+}
+
+// merge:
 // begin transaction
 // 1. deDupe
 // 2. delete all rows in target table by pk which are present in
@@ -268,7 +290,7 @@ func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
 // 4. insert all the rows from staging table to target table
 // 5. drop the staging table
 // end transaction
-func (b *loadProcessor) load() {
+func (b *loadProcessor) merge() {
 	tx, err := b.redshifter.Begin()
 	if err != nil {
 		klog.Fatalf("Error creating database tx, err: %v\n", err)
@@ -277,7 +299,7 @@ func (b *loadProcessor) load() {
 	b.deDupeStagingTable(tx)
 	b.deleteCommonRowsInTargetTable(tx)
 	b.deleteRowsWithDeleteOpInStagingTable(tx)
-	// b.copy()
+	b.insertIntoTargetTable(tx)
 
 	err = tx.Commit()
 	if err != nil {
@@ -480,11 +502,7 @@ func (b *loadProcessor) processBatch(
 
 	// upload s3 manifest file to bulk copy data to staging table
 	// this is an overwrite operation
-	s3ManifestKey := filepath.Join(
-		viper.GetString("s3sink.bucketDir"),
-		b.topic,
-		"manifest.json",
-	)
+	s3ManifestKey := filepath.Join(b.topic, "manifest.json")
 	err := b.s3sink.UploadS3Manifest(s3ManifestKey, entries)
 	if err != nil {
 		klog.Fatalf("Error uploading manifest: %s to s3, err:%v\n",
@@ -492,7 +510,8 @@ func (b *loadProcessor) processBatch(
 	}
 
 	b.loadStagingTable(s3ManifestKey)
-	b.load()
+	b.merge()
+
 	return true
 }
 
