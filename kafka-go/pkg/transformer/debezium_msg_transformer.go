@@ -6,6 +6,14 @@ import (
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 )
 
+const (
+	OperationColumn     = "operation"
+	OperationColumnType = "string"
+	OperationCreate     = "CREATE"
+	OperationUpdate     = "UPDATE"
+	OperationDelete     = "DELETE"
+)
+
 type debeziumMsgParser struct {
 	msg interface{}
 }
@@ -67,12 +75,12 @@ func (d *debeziumMsgParser) before() map[string]string {
 }
 
 func NewMsgTransformer() MsgTransformer {
-	return &redshiftMsgTransformer{}
+	return &debeziumMsgTransformer{}
 }
 
-type redshiftMsgTransformer struct{}
+type debeziumMsgTransformer struct{}
 
-func (c *redshiftMsgTransformer) getOperation(
+func (c *debeziumMsgTransformer) getOperation(
 	message *serializer.Message,
 	before map[string]string,
 	after map[string]string) (string, error) {
@@ -89,11 +97,11 @@ func (c *redshiftMsgTransformer) getOperation(
 		return "", fmt.Errorf(
 			"message: %v has both before and after as nil\n", message)
 	case 1:
-		return "DELETE", nil
+		return OperationDelete, nil
 	case 2:
-		return "CREATE", nil
+		return OperationCreate, nil
 	case 3:
-		return "UPDATE", nil
+		return OperationUpdate, nil
 	default:
 		return "", fmt.Errorf(
 			"message: %v not possible get operation\n", message)
@@ -101,7 +109,7 @@ func (c *redshiftMsgTransformer) getOperation(
 }
 
 // Transform debezium event into a s3 message annotating extra information
-func (c *redshiftMsgTransformer) Transform(
+func (c *debeziumMsgTransformer) Transform(
 	message *serializer.Message) error {
 
 	d := &debeziumMsgParser{
