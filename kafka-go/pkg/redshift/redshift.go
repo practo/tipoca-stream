@@ -21,7 +21,10 @@ from information_schema.schemata where schema_name='%s';`
 	schemaCreate = `create schema "%s";`
 	tableExist   = `select table_name from information_schema.tables where
 table_schema='%s' and table_name='%s';`
-	tableCreate = `CREATE TABLE "%s"."%s" (%s);`
+	tableCreate  = `CREATE TABLE "%s"."%s" (%s);`
+	deDupe       = `DELETE t1.* FROM %s t1 JOIN %s t2 USING (%s) WHERE t1.%s < t2.%s`
+	deleteCommon = `DELETE FROM %s USING %s WHERE %s.%s=%s.%s;`
+	deleteColumn = `DELETE FROM %s WHERE %s.%s=%s`
 	// returns one row per column with the attributes:
 	// name, type, default_val, not_null, primary_key,
 	// need to pass a schema and table name as the parameters
@@ -108,6 +111,14 @@ type Table struct {
 // in this case, schema a table is part of
 type Meta struct {
 	Schema string `json:"schema"`
+}
+
+func NewTable(t Table) *Table {
+	return &Table{
+		Name:    t.Name,
+		Columns: t.Columns,
+		Meta:    t.Meta,
+	}
 }
 
 // ColInfo is a struct that contains information
@@ -270,10 +281,76 @@ func (r *Redshift) UpdateTable(
 		klog.Infof("Running: %s", op)
 		_, err = alterStmt.ExecContext(r.ctx)
 		if err != nil {
-			return fmt.Errorf("cmd failed, cmd:%s, err: %s", op, err)
+			return fmt.Errorf("cmd failed, cmd:%s, err: %s\n", op, err)
 		}
 	}
 	return nil
+}
+
+func (r *Redshift) prepareAndExecute(tx *sql.Tx, command string) error {
+	klog.V(4).Infof("Preparing: %s", command)
+	statement, err := tx.PrepareContext(r.ctx, command)
+	if err != nil {
+		return err
+	}
+
+	klog.Infof("Running: %s", command)
+	_, err = statement.ExecContext(r.ctx)
+	if err != nil {
+		return fmt.Errorf("cmd failed, cmd:%s, err: %s\n", command, err)
+	}
+
+	return nil
+}
+
+// DeDupe deletes the duplicates in the redshift table and keeps only the
+// latest, it accepts a transaction
+func (r *Redshift) DeDupe(tx *sql.Tx, schema string, table string,
+	targetTablePrimaryKey string, stagingTablePrimaryKey string) error {
+
+	sTable := fmt.Sprintf("'%s'.'%s'", schema, table)
+	command := fmt.Sprintf(
+		deDupe,
+		sTable,
+		sTable,
+		targetTablePrimaryKey,
+		stagingTablePrimaryKey,
+	)
+
+	return r.prepareAndExecute(tx, command)
+}
+
+func (r *Redshift) DeleteCommon(tx *sql.Tx, schema string, stagingTable string,
+	targetTable string, commonColumn string) error {
+
+	sTable := fmt.Sprintf("'%s'.'%s'", schema, stagingTable)
+	tTable := fmt.Sprintf("'%s'.'%s'", schema, targetTable)
+	command := fmt.Sprintf(
+		deleteCommon,
+		tTable,
+		sTable,
+		tTable,
+		commonColumn,
+		sTable,
+		commonColumn,
+	)
+
+	return r.prepareAndExecute(tx, command)
+}
+
+func (r *Redshift) DeleteColumn(tx *sql.Tx, schema string, table string,
+	columnName string, columnValue string) error {
+
+	sTable := fmt.Sprintf("'%s'.'%s'", schema, table)
+	command := fmt.Sprintf(
+		deleteColumn,
+		sTable,
+		sTable,
+		columnName,
+		columnValue,
+	)
+
+	return r.prepareAndExecute(tx, command)
 }
 
 // GetTableMetadata looks for a table and returns the Table representation
