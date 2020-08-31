@@ -2,6 +2,7 @@ package redshiftloader
 
 import (
 	"context"
+	"database/sql"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
@@ -10,6 +11,10 @@ import (
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
 	"github.com/spf13/viper"
 	"path/filepath"
+)
+
+const (
+	stagingTablePrimaryKey = "kafkaOffset"
 )
 
 type loadProcessor struct {
@@ -49,6 +54,15 @@ type loadProcessor struct {
 	// redshifter is the redshift client to perform redshift
 	// operations
 	redshifter *redshift.Redshift
+
+	// stagingTable is the temp table to merge data into the target table
+	stagingTable *redshift.Table
+
+	// targetTable is actual table in redshift
+	targetTable *redshift.Table
+
+	// primaryKey is the primary key column for the topic corresponding table
+	primaryKey string
 }
 
 func newLoadProcessor(
@@ -89,7 +103,9 @@ func newLoadProcessor(
 		schemaTransformer: transformer.NewSchemaTransformer(
 			viper.GetString("schemaRegistryURL"),
 		),
-		redshifter: redshifter,
+		redshifter:   redshifter,
+		stagingTable: nil,
+		targetTable:  nil,
 	}
 }
 
@@ -169,8 +185,9 @@ func (b *loadProcessor) handleShutdown() {
 // loadStagingTable loads the batch to redhsift staging table using
 // COPY command. staging table is the intermediate table which helps
 // in loading the data to the target table by performing merge operations.
-func (b *loadProcessor) loadStagingTable(
-	schema string, table string, s3ManifestKey string) {
+func (b *loadProcessor) loadStagingTable(s3ManifestKey string) {
+	table := b.stagingTable.Name
+	schema := b.stagingTable.Meta.Schema
 
 	tx, err := b.redshifter.Begin()
 	if err != nil {
@@ -193,52 +210,136 @@ func (b *loadProcessor) loadStagingTable(
 		table)
 }
 
+// deDupeStagingTable keeps the highest offset per pk in the table, keeping
+// only the recent representation of the row in staging table, deleting others.
+// TODO: de duplication may need optimizations (also measure the time taken)
+// https://stackoverflow.com/questions/63664935/redshift-delete-duplicate-records-but-keep-latest/63664982?noredirect=1#comment112581353_63664982
+func (b *loadProcessor) deDupeStagingTable(tx *sql.Tx) {
+	err := b.redshifter.DeDupe(
+		tx,
+		b.stagingTable.Meta.Schema,
+		b.stagingTable.Name,
+		b.primaryKey,
+		stagingTablePrimaryKey,
+	)
+	if err != nil {
+		klog.Fatalf("Deduplication failed, %v\n", err)
+	}
+}
+
+// deleteCommonRowsInTargetTable removes all the rows from the target table
+// that is to be modified in this batch. This is done because we can then
+// easily perform inserts in the target table. Also DELETE gets taken care.
+func (b *loadProcessor) deleteCommonRowsInTargetTable(tx *sql.Tx) {
+	err := b.redshifter.DeleteCommon(
+		tx,
+		b.targetTable.Meta.Schema,
+		b.stagingTable.Name,
+		b.targetTable.Name,
+		b.primaryKey,
+	)
+	if err != nil {
+		klog.Fatalf("DeleteComon failed, %v\n", err)
+	}
+}
+
+// deleteRowsWithDeleteOpInStagingTable deletes the rows with operation
+// DELETE in the staging table. so that the delete gets taken care and
+// after this we can freely insert everything in staging table to target table.
+func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
+	err := b.redshifter.DeleteCommon(
+		tx,
+		b.stagingTable.Meta.Schema,
+		b.stagingTable.Name,
+		transformer.OperationColumn,
+		transformer.OperationDelete,
+	)
+	if err != nil {
+		klog.Fatalf("DeleteComon failed, %v\n", err)
+	}
+}
+
+// load:
+// begin transaction
+// 1. deDupe
+// 2. delete all rows in target table by pk which are present in
+//    in staging table
+// 3. delete all the DELETE rows in staging table
+// 4. insert all the rows from staging table to target table
+// 5. drop the staging table
+// end transaction
+func (b *loadProcessor) load() {
+	tx, err := b.redshifter.Begin()
+	if err != nil {
+		klog.Fatalf("Error creating database tx, err: %v\n", err)
+	}
+
+	b.deDupeStagingTable(tx)
+	b.deleteCommonRowsInTargetTable(tx)
+	b.deleteRowsWithDeleteOpInStagingTable(tx)
+	// b.copy()
+
+	err = tx.Commit()
+	if err != nil {
+		klog.Fatalf("Error committing tx, err:%v\n", err)
+	}
+}
+
 // createStagingTable creates a staging table based on the schema id of the
 // batch messages.
+// this also intializes b.stagingTable
 func (b *loadProcessor) createStagingTable(
-	schemaId int, stagingTable redshift.Table) redshift.Table {
+	schemaId int, inputTable redshift.Table) {
 
-	stagingTable.Name = "staged-" + stagingTable.Name
+	b.stagingTable = redshift.NewTable(inputTable)
+	b.stagingTable.Name = "staged-" + b.stagingTable.Name
+
 	tx, err := b.redshifter.Begin()
 	if err != nil {
 		klog.Fatalf("Error creating database tx, err: %v\n", err)
 	}
 
 	tableExist, err := b.redshifter.TableExist(
-		stagingTable.Meta.Schema, stagingTable.Name,
+		b.stagingTable.Meta.Schema, b.stagingTable.Name,
 	)
 	if err != nil {
 		klog.Fatalf("Error querying table exist, err: %v\n", err)
 	}
 	if tableExist {
 		klog.Fatalf("Staging table: %s already present, did cleanup fail?",
-			stagingTable.Name)
+			b.stagingTable.Name)
 	}
+
+	primaryKey, primaryKeyType, err := b.schemaTransformer.TransformKey(b.topic)
+	if err != nil {
+		klog.Fatalf("Error getting primarykey for: %s, err: %v\n", b.topic, err)
+	}
+	b.primaryKey = primaryKey
 
 	// add columns: kafkaOffset and operation in the staging table
 	extraColumns := []redshift.ColInfo{
 		redshift.ColInfo{
-			Name:       "kafkaOffset",
-			Type:       "string",
+			Name:       stagingTablePrimaryKey,
+			Type:       primaryKeyType,
 			DefaultVal: "",
 			NotNull:    true,
-			PrimaryKey: false,
+			PrimaryKey: true,
 		},
 		redshift.ColInfo{
-			Name:       "operation",
-			Type:       "string",
+			Name:       transformer.OperationColumn,
+			Type:       transformer.OperationColumnType,
 			DefaultVal: "",
 			NotNull:    true,
 			PrimaryKey: false,
 		},
 	}
-	stagingTable.Columns = append(extraColumns, stagingTable.Columns...)
+	b.stagingTable.Columns = append(extraColumns, b.stagingTable.Columns...)
 
 	tx, err = b.redshifter.Begin()
 	if err != nil {
 		klog.Fatalf("Error creating database tx, err: %v\n", err)
 	}
-	err = b.redshifter.CreateTable(tx, stagingTable)
+	err = b.redshifter.CreateTable(tx, *b.stagingTable)
 	if err != nil {
 		klog.Fatalf("Error creating staging table, err: %v\n", err)
 	}
@@ -250,9 +351,7 @@ func (b *loadProcessor) createStagingTable(
 		"topic:%s, schemaId:%d: Staging Table %s created\n",
 		b.topic,
 		schemaId,
-		stagingTable.Name)
-
-	return stagingTable
+		b.stagingTable.Name)
 }
 
 // migrateSchema construct the "inputTable" using schemaId in the message.
@@ -270,7 +369,6 @@ func (b *loadProcessor) createStagingTable(
 func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 	// TODO: add cache here based on schema id and return
 	// save some database calls.
-
 	tx, err := b.redshifter.Begin()
 	if err != nil {
 		klog.Fatalf("Error creating database tx, err: %v\n", err)
@@ -342,7 +440,9 @@ func (b *loadProcessor) processBatch(
 	ctx context.Context, datas []interface{}) bool {
 
 	var inputTable redshift.Table
-	var stagingTable redshift.Table
+	b.stagingTable = nil
+	b.targetTable = nil
+
 	var entries []s3sink.S3ManifestEntry
 
 	for id, data := range datas {
@@ -357,7 +457,7 @@ func (b *loadProcessor) processBatch(
 			// this assumes all messages in a batch have same schema id
 			if id == 0 {
 				klog.V(3).Infof("Processing schema: %+v\n", schemaId)
-				resp, err := b.schemaTransformer.Transform(schemaId)
+				resp, err := b.schemaTransformer.TransformValue(schemaId)
 				if err != nil {
 					klog.Fatalf(
 						"Transforming schema:%d => inputTable:%d failed: %v\n",
@@ -366,7 +466,7 @@ func (b *loadProcessor) processBatch(
 				}
 				inputTable = resp.(redshift.Table)
 				b.migrateSchema(schemaId, inputTable)
-				stagingTable = b.createStagingTable(schemaId, inputTable)
+				b.createStagingTable(schemaId, inputTable)
 			}
 			entries = append(
 				entries,
@@ -391,24 +491,8 @@ func (b *loadProcessor) processBatch(
 			s3ManifestKey)
 	}
 
-	// load data in the staging table
-	b.loadStagingTable(
-		stagingTable.Meta.Schema,
-		stagingTable.Name,
-		s3ManifestKey,
-	)
-
-	// merge:
-	// begin transaction
-	// 1. keep highest offset per pk in staging table, keep only the
-	//    recent representation of the row in staging table.
-	// 2. delete all rows in target table by pk which are present in
-	//    in staging table
-	// 3. delete all the DELETE rows in staging table
-	// 4. insert all the rows from staging table to target table
-	// 5. drop the staging table
-	// end transaction
-
+	b.loadStagingTable(s3ManifestKey)
+	b.load()
 	return true
 }
 

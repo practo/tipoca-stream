@@ -9,5 +9,9 @@ type MsgTransformer interface {
 }
 
 type SchemaTransformer interface {
-	Transform(schemaId int) (interface{}, error)
+	// TransformKey transforms the topic schema into name of the primary
+	// key and its type.
+	TransformKey(topic string) (string, string, error)
+	// Transform value transforms the schemaId for various use cases.
+	TransformValue(schemaId int) (interface{}, error)
 }
