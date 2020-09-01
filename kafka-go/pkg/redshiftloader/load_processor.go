@@ -281,6 +281,16 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 	}
 }
 
+func (b *loadProcessor) dropTable(tx *sql.Tx, schema string, table string) {
+	err := b.redshifter.DropTable(tx,
+		schema,
+		table,
+	)
+	if err != nil {
+		klog.Fatalf("Dropping staging table failed, %v\n", err)
+	}
+}
+
 // merge:
 // begin transaction
 // 1. deDupe
@@ -300,6 +310,7 @@ func (b *loadProcessor) merge() {
 	b.deleteCommonRowsInTargetTable(tx)
 	b.deleteRowsWithDeleteOpInStagingTable(tx)
 	b.insertIntoTargetTable(tx)
+	b.dropTable(tx, b.stagingTable.Meta.Schema, b.stagingTable.Name)
 
 	err = tx.Commit()
 	if err != nil {
@@ -328,8 +339,8 @@ func (b *loadProcessor) createStagingTable(
 		klog.Fatalf("Error querying table exist, err: %v\n", err)
 	}
 	if tableExist {
-		klog.Fatalf("Staging table: %s already present, did cleanup fail?",
-			b.stagingTable.Name)
+		klog.Infof("topic:%s, Dropping table: %s", b.topic, b.stagingTable.Name)
+		b.dropTable(tx, b.stagingTable.Meta.Schema, b.stagingTable.Name)
 	}
 
 	primaryKey, primaryKeyType, err := b.schemaTransformer.TransformKey(b.topic)
