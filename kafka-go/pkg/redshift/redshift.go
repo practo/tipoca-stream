@@ -25,6 +25,7 @@ table_schema='%s' and table_name='%s';`
 	deDupe       = `DELETE t1.* FROM %s t1 JOIN %s t2 USING (%s) WHERE t1.%s < t2.%s`
 	deleteCommon = `DELETE FROM %s USING %s WHERE %s.%s=%s.%s;`
 	deleteColumn = `DELETE FROM %s WHERE %s.%s=%s`
+	dropTable    = `DROP TABLE %s`
 	// returns one row per column with the attributes:
 	// name, type, default_val, not_null, primary_key,
 	// need to pass a schema and table name as the parameters
@@ -336,6 +337,16 @@ func (r *Redshift) DeleteCommon(tx *sql.Tx, schema string, stagingTable string,
 	)
 
 	return r.prepareAndExecute(tx, command)
+}
+
+func (r *Redshift) DropTable(tx *sql.Tx, schema string, table string) error {
+	return r.prepareAndExecute(
+		tx,
+		fmt.Sprintf(
+			dropTable,
+			fmt.Sprintf("'%s'.'%s'", schema, table),
+		),
+	)
 }
 
 func (r *Redshift) DeleteColumn(tx *sql.Tx, schema string, table string,
