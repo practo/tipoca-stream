@@ -27,6 +27,7 @@ select t1.%s from %s t1 join %s t2 on t1.%s=t2.%s where t1.%s < t2.%s);`
 	deleteCommon = `delete from %s where %s in (
 select t1.%s from %s t1 join %s t2 on t1.%s=t2.%s);`
 	deleteColumn = `delete from %s where %s.%s='%s';`
+	dropColumn   = `ALTER TABLE "%s"."%s" DROP COLUMN %s;`
 	dropTable    = `DROP TABLE %s;`
 	// returns one row per column with the attributes:
 	// name, type, default_val, not_null, primary_key,
@@ -256,7 +257,7 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 // based on the input table,
 // and completes this action in the transaction provided
 // Supported: add columns
-// Supported: delete columns
+// Supported: drop columns
 // Supported: alter columns
 // TODO:
 // NotSupported: row ordering changes and row renames
@@ -376,6 +377,19 @@ func (r *Redshift) DeleteColumn(tx *sql.Tx, schema string, table string,
 	return r.prepareAndExecute(tx, command)
 }
 
+func (r *Redshift) DropColumn(tx *sql.Tx, schema string, table string,
+	columnName string) error {
+
+	command := fmt.Sprintf(
+		dropColumn,
+		schema,
+		table,
+		columnName,
+	)
+
+	return r.prepareAndExecute(tx, command)
+}
+
 // Unload copies data present in the table to s3
 // this loads data to s3 and generates a manifest file at s3key + manifest path
 func (r *Redshift) Unload(tx *sql.Tx,
@@ -403,7 +417,12 @@ func (r *Redshift) Unload(tx *sql.Tx,
 // into redshift using manifest file.
 // this is meant to be run in a transaction, so the first arg must be a sql.Tx
 func (r *Redshift) Copy(tx *sql.Tx,
-	schema string, table string, s3ManifestURI string) error {
+	schema string, table string, s3ManifestURI string, typeJson bool) error {
+
+	json := ""
+	if typeJson == true {
+		json = "json 'auto'"
+	}
 
 	credentials := fmt.Sprintf(
 		`CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s'`,
@@ -411,11 +430,12 @@ func (r *Redshift) Copy(tx *sql.Tx,
 		r.conf.S3SecretAccessKey,
 	)
 	copySQL := fmt.Sprintf(
-		`COPY "%s"."%s" FROM '%s' %s manifest json 'auto'`,
+		`COPY "%s"."%s" FROM '%s' %s manifest %s`,
 		schema,
 		table,
 		s3ManifestURI,
 		credentials,
+		json,
 	)
 	klog.V(5).Infof("Running: %s", copySQL)
 	_, err := tx.ExecContext(r.ctx, copySQL)
@@ -607,14 +627,14 @@ func checkColumnsAndOrdering(inputTable, targetTable Table) ([]string, error) {
 		columnOps = append(columnOps, alterColumnOps...)
 	}
 
-	// delete column
+	// drop column
 	for _, taCol := range targetTable.Columns {
 		if _, ok := inColMap[taCol.Name]; !ok {
 			klog.V(5).Info(
 				"Extra column: %s, alter table will run\n", taCol.Name,
 			)
 			alterSQL := fmt.Sprintf(
-				`ALTER TABLE "%s"."%s" DROP COLUMN %s`,
+				dropColumn,
 				targetTable.Meta.Schema,
 				targetTable.Name,
 				taCol.Name,
