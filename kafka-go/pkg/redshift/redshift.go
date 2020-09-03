@@ -21,11 +21,13 @@ from information_schema.schemata where schema_name='%s';`
 	schemaCreate = `create schema "%s";`
 	tableExist   = `select table_name from information_schema.tables where
 table_schema='%s' and table_name='%s';`
-	tableCreate  = `CREATE TABLE "%s"."%s" (%s);`
-	deDupe       = `DELETE t1.* FROM %s t1 JOIN %s t2 USING (%s) WHERE t1.%s < t2.%s`
-	deleteCommon = `DELETE FROM %s USING %s WHERE %s.%s=%s.%s;`
-	deleteColumn = `DELETE FROM %s WHERE %s.%s=%s`
-	dropTable    = `DROP TABLE %s`
+	tableCreate = `CREATE TABLE "%s"."%s" (%s);`
+	deDupe      = `delete from %s where %s in (
+select t1.%s from %s t1 join %s t2 on t1.%s=t2.%s where t1.%s < t2.%s);`
+	deleteCommon = `delete from %s where %s in (
+select t1.%s from %s t1 join %s t2 on t1.%s=t2.%s);`
+	deleteColumn = `delete from %s where %s.%s=%s;`
+	dropTable    = `DROP TABLE %s;`
 	// returns one row per column with the attributes:
 	// name, type, default_val, not_null, primary_key,
 	// need to pass a schema and table name as the parameters
@@ -306,6 +308,8 @@ func (r *Redshift) prepareAndExecute(tx *sql.Tx, command string) error {
 
 // DeDupe deletes the duplicates in the redshift table and keeps only the
 // latest, it accepts a transaction
+// ex: targetTablePrimaryKey = some id, timestamp
+// ex: stagingTablePrimaryKey = kafkaoffset
 func (r *Redshift) DeDupe(tx *sql.Tx, schema string, table string,
 	targetTablePrimaryKey string, stagingTablePrimaryKey string) error {
 
@@ -313,26 +317,34 @@ func (r *Redshift) DeDupe(tx *sql.Tx, schema string, table string,
 	command := fmt.Sprintf(
 		deDupe,
 		sTable,
+		stagingTablePrimaryKey,
+		stagingTablePrimaryKey,
+		sTable,
 		sTable,
 		targetTablePrimaryKey,
+		targetTablePrimaryKey,
+		stagingTablePrimaryKey,
 		stagingTablePrimaryKey,
 	)
 
 	return r.prepareAndExecute(tx, command)
 }
 
+// DeleteCommon deletes the common based on commonColumn from targetTable.
 func (r *Redshift) DeleteCommon(tx *sql.Tx, schema string, stagingTable string,
 	targetTable string, commonColumn string) error {
 
 	sTable := fmt.Sprintf(`"%s"."%s"`, schema, stagingTable)
 	tTable := fmt.Sprintf(`"%s"."%s"`, schema, targetTable)
+
 	command := fmt.Sprintf(
 		deleteCommon,
 		tTable,
+		commonColumn,
+		commonColumn,
 		sTable,
 		tTable,
 		commonColumn,
-		sTable,
 		commonColumn,
 	)
 
