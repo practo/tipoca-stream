@@ -22,6 +22,13 @@ from information_schema.schemata where schema_name='%s';`
 	tableExist   = `select table_name from information_schema.tables where
 table_schema='%s' and table_name='%s';`
 	tableCreate = `CREATE TABLE "%s"."%s" (%s);`
+	deDupe      = `delete from %s where %s in (
+select t1.%s from %s t1 join %s t2 on t1.%s=t2.%s where t1.%s < t2.%s);`
+	deleteCommon = `delete from %s where %s in (
+select t1.%s from %s t1 join %s t2 on t1.%s=t2.%s);`
+	deleteColumn = `delete from %s where %s.%s='%s';`
+	dropColumn   = `ALTER TABLE "%s"."%s" DROP COLUMN %s;`
+	dropTable    = `DROP TABLE %s;`
 	// returns one row per column with the attributes:
 	// name, type, default_val, not_null, primary_key,
 	// need to pass a schema and table name as the parameters
@@ -59,16 +66,19 @@ type dbExecCloser interface {
 // Give it a context for the duration of the job
 type Redshift struct {
 	dbExecCloser
-	ctx context.Context
+	ctx  context.Context
+	conf RedshiftConfig
 }
 
 type RedshiftConfig struct {
-	Host     string `yaml:"host"`
-	Port     string `yaml:"port"`
-	Database string `yaml:"database"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	Timeout  int    `yaml:"timeout"`
+	Host              string `yaml:"host"`
+	Port              string `yaml:"port"`
+	Database          string `yaml:"database"`
+	User              string `yaml:"user"`
+	Password          string `yaml:"password"`
+	Timeout           int    `yaml:"timeout"`
+	S3AcessKeyId      string `yaml:"s3AccessKeyId"`
+	S3SecretAccessKey string `yaml:"s3SecretAccessKey"`
 }
 
 func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
@@ -86,7 +96,7 @@ func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
 	if err := sqldb.Ping(); err != nil {
 		return nil, err
 	}
-	return &Redshift{sqldb, ctx}, nil
+	return &Redshift{sqldb, ctx, conf}, nil
 }
 
 // Begin wraps a new transaction in the databases context
@@ -105,6 +115,14 @@ type Table struct {
 // in this case, schema a table is part of
 type Meta struct {
 	Schema string `json:"schema"`
+}
+
+func NewTable(t Table) *Table {
+	return &Table{
+		Name:    t.Name,
+		Columns: t.Columns,
+		Meta:    t.Meta,
+	}
 }
 
 // ColInfo is a struct that contains information
@@ -239,7 +257,7 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 // based on the input table,
 // and completes this action in the transaction provided
 // Supported: add columns
-// Supported: delete columns
+// Supported: drop columns
 // Supported: alter columns
 // TODO:
 // NotSupported: row ordering changes and row renames
@@ -267,10 +285,162 @@ func (r *Redshift) UpdateTable(
 		klog.Infof("Running: %s", op)
 		_, err = alterStmt.ExecContext(r.ctx)
 		if err != nil {
-			return fmt.Errorf("cmd failed, cmd:%s, err: %s", op, err)
+			return fmt.Errorf("cmd failed, cmd:%s, err: %s\n", op, err)
 		}
 	}
 	return nil
+}
+
+func (r *Redshift) prepareAndExecute(tx *sql.Tx, command string) error {
+	klog.V(4).Infof("Preparing: %s\n", command)
+	statement, err := tx.PrepareContext(r.ctx, command)
+	if err != nil {
+		return err
+	}
+
+	klog.Infof("Running: %s\n", command)
+	_, err = statement.ExecContext(r.ctx)
+	if err != nil {
+		return fmt.Errorf("cmd failed, cmd:%s, err: %s\n", command, err)
+	}
+
+	return nil
+}
+
+// DeDupe deletes the duplicates in the redshift table and keeps only the
+// latest, it accepts a transaction
+// ex: targetTablePrimaryKey = some id, timestamp
+// ex: stagingTablePrimaryKey = kafkaoffset
+func (r *Redshift) DeDupe(tx *sql.Tx, schema string, table string,
+	targetTablePrimaryKey string, stagingTablePrimaryKey string) error {
+
+	sTable := fmt.Sprintf(`"%s"."%s"`, schema, table)
+	command := fmt.Sprintf(
+		deDupe,
+		sTable,
+		stagingTablePrimaryKey,
+		stagingTablePrimaryKey,
+		sTable,
+		sTable,
+		targetTablePrimaryKey,
+		targetTablePrimaryKey,
+		stagingTablePrimaryKey,
+		stagingTablePrimaryKey,
+	)
+
+	return r.prepareAndExecute(tx, command)
+}
+
+// DeleteCommon deletes the common based on commonColumn from targetTable.
+func (r *Redshift) DeleteCommon(tx *sql.Tx, schema string, stagingTable string,
+	targetTable string, commonColumn string) error {
+
+	sTable := fmt.Sprintf(`"%s"."%s"`, schema, stagingTable)
+	tTable := fmt.Sprintf(`"%s"."%s"`, schema, targetTable)
+
+	command := fmt.Sprintf(
+		deleteCommon,
+		tTable,
+		commonColumn,
+		commonColumn,
+		sTable,
+		tTable,
+		commonColumn,
+		commonColumn,
+	)
+
+	return r.prepareAndExecute(tx, command)
+}
+
+func (r *Redshift) DropTable(tx *sql.Tx, schema string, table string) error {
+	return r.prepareAndExecute(
+		tx,
+		fmt.Sprintf(
+			dropTable,
+			fmt.Sprintf(`"%s"."%s"`, schema, table),
+		),
+	)
+}
+
+func (r *Redshift) DeleteColumn(tx *sql.Tx, schema string, table string,
+	columnName string, columnValue string) error {
+
+	sTable := fmt.Sprintf(`"%s"."%s"`, schema, table)
+	command := fmt.Sprintf(
+		deleteColumn,
+		sTable,
+		sTable,
+		columnName,
+		columnValue,
+	)
+
+	return r.prepareAndExecute(tx, command)
+}
+
+func (r *Redshift) DropColumn(tx *sql.Tx, schema string, table string,
+	columnName string) error {
+
+	command := fmt.Sprintf(
+		dropColumn,
+		schema,
+		table,
+		columnName,
+	)
+
+	return r.prepareAndExecute(tx, command)
+}
+
+// Unload copies data present in the table to s3
+// this loads data to s3 and generates a manifest file at s3key + manifest path
+func (r *Redshift) Unload(tx *sql.Tx,
+	schema string, table string, s3Key string) error {
+
+	credentials := fmt.Sprintf(
+		`CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s'`,
+		r.conf.S3AcessKeyId,
+		r.conf.S3SecretAccessKey,
+	)
+	unLoadSQL := fmt.Sprintf(
+		`UNLOAD ('select * from "%s"."%s"') TO '%s' %s manifest`,
+		schema,
+		table,
+		s3Key,
+		credentials,
+	)
+	klog.V(5).Infof("Running: %s", unLoadSQL)
+	_, err := tx.ExecContext(r.ctx, unLoadSQL)
+
+	return err
+}
+
+// Copy using manifest file
+// into redshift using manifest file.
+// this is meant to be run in a transaction, so the first arg must be a sql.Tx
+func (r *Redshift) Copy(tx *sql.Tx,
+	schema string, table string, s3ManifestURI string, typeJson bool) error {
+
+	json := ""
+	if typeJson == true {
+		json = "json 'auto'"
+	}
+
+	credentials := fmt.Sprintf(
+		`CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s'`,
+		r.conf.S3AcessKeyId,
+		r.conf.S3SecretAccessKey,
+	)
+	copySQL := fmt.Sprintf(
+		`COPY "%s"."%s" FROM '%s' %s manifest %s`,
+		schema,
+		table,
+		s3ManifestURI,
+		credentials,
+		json,
+	)
+	klog.V(5).Infof("Running: %s", copySQL)
+	_, err := tx.ExecContext(r.ctx, copySQL)
+
+	return err
 }
 
 // GetTableMetadata looks for a table and returns the Table representation
@@ -457,14 +627,14 @@ func checkColumnsAndOrdering(inputTable, targetTable Table) ([]string, error) {
 		columnOps = append(columnOps, alterColumnOps...)
 	}
 
-	// delete column
+	// drop column
 	for _, taCol := range targetTable.Columns {
 		if _, ok := inColMap[taCol.Name]; !ok {
 			klog.V(5).Info(
 				"Extra column: %s, alter table will run\n", taCol.Name,
 			)
 			alterSQL := fmt.Sprintf(
-				`ALTER TABLE "%s"."%s" DROP COLUMN %s`,
+				dropColumn,
 				targetTable.Meta.Schema,
 				targetTable.Name,
 				taCol.Name,

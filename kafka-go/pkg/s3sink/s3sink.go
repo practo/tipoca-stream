@@ -2,7 +2,9 @@ package s3sink
 
 import (
 	"bytes"
+	"fmt"
 
+	"encoding/json"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -16,6 +18,15 @@ type S3Sink struct {
 
 	// bucket is the s3 bucket name to store data
 	bucket string
+}
+
+type S3Manifest struct {
+	Entries []S3ManifestEntry `json:"entries"`
+}
+
+type S3ManifestEntry struct {
+	URL       string `json:"url"`
+	Mandatory bool   `json:"mandatory"`
 }
 
 type Config struct {
@@ -54,6 +65,14 @@ func NewS3Sink(
 	return s, nil
 }
 
+func (s *S3Sink) GetKeyURI(key string) string {
+	return fmt.Sprintf(
+		"s3://%s/%s",
+		s.bucket,
+		key,
+	)
+}
+
 // Upload uploads the data stored in buffer to s3 in the specified key
 // and clears the buffer
 func (s *S3Sink) Upload(key string, bodyBuf *bytes.Buffer) error {
@@ -65,5 +84,20 @@ func (s *S3Sink) Upload(key string, bodyBuf *bytes.Buffer) error {
 	if err != nil {
 		return err
 	}
+
 	return nil
+}
+
+func (s *S3Sink) UploadS3Manifest(key string, entries []S3ManifestEntry) error {
+	s3Manifest := S3Manifest{
+		Entries: entries,
+	}
+	s3Bytes, err := json.Marshal(s3Manifest)
+	if err != nil {
+		return err
+	}
+	bodyBuf := bytes.NewBuffer(make([]byte, 0, 4096))
+	bodyBuf.Write(s3Bytes)
+
+	return s.Upload(key, bodyBuf)
 }
