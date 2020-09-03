@@ -26,7 +26,7 @@ table_schema='%s' and table_name='%s';`
 select t1.%s from %s t1 join %s t2 on t1.%s=t2.%s where t1.%s < t2.%s);`
 	deleteCommon = `delete from %s where %s in (
 select t1.%s from %s t1 join %s t2 on t1.%s=t2.%s);`
-	deleteColumn = `delete from %s where %s.%s=%s;`
+	deleteColumn = `delete from %s where %s.%s='%s';`
 	dropTable    = `DROP TABLE %s;`
 	// returns one row per column with the attributes:
 	// name, type, default_val, not_null, primary_key,
