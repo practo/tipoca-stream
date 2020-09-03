@@ -286,31 +286,33 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 }
 
 // dropTable removes the table only if it exists else returns and does nothing
-func (b *loadProcessor) dropTable(schema string, table string) {
+func (b *loadProcessor) dropTable(schema string, table string) error {
 	tableExist, err := b.redshifter.TableExist(
 		b.stagingTable.Meta.Schema, b.stagingTable.Name,
 	)
 	if err != nil {
-		klog.Fatalf("Error querying table exist, err: %v\n", err)
+		return err
 	}
 	if !tableExist {
-		return
+		return nil
 	}
 	tx, err := b.redshifter.Begin()
 	if err != nil {
-		klog.Fatalf("Error creating database tx, err: %v\n", err)
+		return err
 	}
 	err = b.redshifter.DropTable(tx,
 		schema,
 		table,
 	)
 	if err != nil {
-		klog.Fatalf("Dropping staging table failed, %v\n", err)
+		return err
 	}
 	err = tx.Commit()
 	if err != nil {
-		klog.Fatalf("Error committing tx, err:%v\n", err)
+		return err
 	}
+
+	return nil
 }
 
 // merge:
@@ -336,6 +338,7 @@ func (b *loadProcessor) merge() {
 	if err != nil {
 		klog.Fatalf("Error committing tx, err:%v\n", err)
 	}
+	// error is ignored in the below task since we clean on start
 	b.dropTable(b.stagingTable.Meta.Schema, b.stagingTable.Name)
 }
 
@@ -347,7 +350,10 @@ func (b *loadProcessor) createStagingTable(
 
 	b.stagingTable = redshift.NewTable(inputTable)
 	b.stagingTable.Name = "staged-" + b.stagingTable.Name
-	b.dropTable(b.stagingTable.Meta.Schema, b.stagingTable.Name)
+	err := b.dropTable(b.stagingTable.Meta.Schema, b.stagingTable.Name)
+	if err != nil {
+		klog.Fatalf("Error dropping staging table: %v\n", err)
+	}
 
 	tx, err := b.redshifter.Begin()
 	if err != nil {
