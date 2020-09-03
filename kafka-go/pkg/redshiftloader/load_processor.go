@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	stagingTablePrimaryKey = "kafkaOffset"
+	stagingTablePrimaryKey = "kafkaoffset"
 )
 
 type loadProcessor struct {
@@ -354,7 +354,8 @@ func (b *loadProcessor) createStagingTable(
 		klog.Fatalf("Error creating database tx, err: %v\n", err)
 	}
 
-	primaryKey, primaryKeyType, err := b.schemaTransformer.TransformKey(b.upstreamTopic)
+	primaryKey, primaryKeyType, err := b.schemaTransformer.TransformKey(
+		b.upstreamTopic)
 	if err != nil {
 		klog.Fatalf("Error getting primarykey for: %s, err: %v\n", b.topic, err)
 	}

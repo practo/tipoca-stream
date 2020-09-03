@@ -35,10 +35,10 @@ func (d *debeziumMsgParser) extract(
 			switch v2.(type) {
 			case map[string]interface{}:
 				for _, v3 := range v2.(map[string]interface{}) {
-					result[k2] = fmt.Sprintf("%v", v3)
+					result[strings.ToLower(k2)] = fmt.Sprintf("%v", v3)
 				}
 			default:
-				result[k2] = fmt.Sprintf("%v", v2)
+				result[strings.ToLower(k2)] = fmt.Sprintf("%v", v2)
 			}
 		}
 	}
@@ -123,7 +123,8 @@ func (c *debeziumMsgTransformer) Transform(
 	if err != nil {
 		return err
 	}
-	after["kafkaOffset"] = fmt.Sprintf("%v", message.Offset)
+	// redshift only has all columns as lower cases
+	after["kafkaoffset"] = fmt.Sprintf("%v", message.Offset)
 	after["operation"] = operation
 
 	message.Value, err = json.Marshal(after)
