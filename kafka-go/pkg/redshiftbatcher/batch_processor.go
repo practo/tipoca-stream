@@ -189,7 +189,7 @@ func (b *batchProcessor) signalLoad() {
 		b.batchStartOffset,
 		b.batchEndOffset,
 		",",
-		b.s3Key,
+		b.s3sink.GetKeyURI(b.s3Key),
 		b.batchSchemaId, // schema of upstream topic
 	)
 
