@@ -309,7 +309,7 @@ func (r *Redshift) prepareAndExecute(tx *sql.Tx, command string) error {
 func (r *Redshift) DeDupe(tx *sql.Tx, schema string, table string,
 	targetTablePrimaryKey string, stagingTablePrimaryKey string) error {
 
-	sTable := fmt.Sprintf("'%s'.'%s'", schema, table)
+	sTable := fmt.Sprintf(`"%s"."%s"`, schema, table)
 	command := fmt.Sprintf(
 		deDupe,
 		sTable,
@@ -324,8 +324,8 @@ func (r *Redshift) DeDupe(tx *sql.Tx, schema string, table string,
 func (r *Redshift) DeleteCommon(tx *sql.Tx, schema string, stagingTable string,
 	targetTable string, commonColumn string) error {
 
-	sTable := fmt.Sprintf("'%s'.'%s'", schema, stagingTable)
-	tTable := fmt.Sprintf("'%s'.'%s'", schema, targetTable)
+	sTable := fmt.Sprintf(`"%s"."%s"`, schema, stagingTable)
+	tTable := fmt.Sprintf(`"%s"."%s"`, schema, targetTable)
 	command := fmt.Sprintf(
 		deleteCommon,
 		tTable,
@@ -344,7 +344,7 @@ func (r *Redshift) DropTable(tx *sql.Tx, schema string, table string) error {
 		tx,
 		fmt.Sprintf(
 			dropTable,
-			fmt.Sprintf("'%s'.'%s'", schema, table),
+			fmt.Sprintf(`"%s"."%s"`, schema, table),
 		),
 	)
 }
@@ -352,7 +352,7 @@ func (r *Redshift) DropTable(tx *sql.Tx, schema string, table string) error {
 func (r *Redshift) DeleteColumn(tx *sql.Tx, schema string, table string,
 	columnName string, columnValue string) error {
 
-	sTable := fmt.Sprintf("'%s'.'%s'", schema, table)
+	sTable := fmt.Sprintf(`"%s"."%s"`, schema, table)
 	command := fmt.Sprintf(
 		deleteColumn,
 		sTable,
@@ -399,7 +399,7 @@ func (r *Redshift) Copy(tx *sql.Tx,
 		r.conf.S3SecretAccessKey,
 	)
 	copySQL := fmt.Sprintf(
-		`COPY "%s"."%s" FROM '%s' %s %s manifest`,
+		`COPY "%s"."%s" FROM '%s' %s manifest json 'auto'`,
 		schema,
 		table,
 		s3ManifestURI,

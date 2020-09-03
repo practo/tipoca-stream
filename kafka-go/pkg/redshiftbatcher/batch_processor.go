@@ -130,7 +130,7 @@ func (b *batchProcessor) setS3key(topic string, partition int32, offset int64) {
 		b.s3BucketDir,
 		topic,
 		fmt.Sprintf(
-			"%d_offset_%d_partition.csv",
+			"%d_offset_%d_partition.json",
 			offset,
 			partition),
 	)
