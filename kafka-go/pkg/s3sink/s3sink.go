@@ -21,12 +21,16 @@ type S3Sink struct {
 }
 
 type S3Manifest struct {
-	Entries []S3ManifestEntry `json:"entries"`
+	FileLocations        []FileLocations      `json:"fileLocations"`
+	GlobalUploadSettings GlobalUploadSettings `json:"globalUploadSettings"`
 }
 
-type S3ManifestEntry struct {
-	URL       string `json:"url"`
-	Mandatory bool   `json:"mandatory"`
+type FileLocations struct {
+	URIs []string `json:"URIs"`
+}
+
+type GlobalUploadSettings struct {
+	Format string `json:"format"`
 }
 
 type Config struct {
@@ -88,9 +92,15 @@ func (s *S3Sink) Upload(key string, bodyBuf *bytes.Buffer) error {
 	return nil
 }
 
-func (s *S3Sink) UploadS3Manifest(key string, entries []S3ManifestEntry) error {
+func (s *S3Sink) UploadS3Manifest(
+	key string, uris []string, format string) error {
+
+       var fileLocations []FileLocations
+       for uri
+
+
 	s3Manifest := S3Manifest{
-		Entries: entries,
+		FileLocations: uris,
 	}
 	s3Bytes, err := json.Marshal(s3Manifest)
 	if err != nil {
