@@ -197,7 +197,7 @@ func (b *loadProcessor) loadStagingTable(s3ManifestKey string) {
 		klog.Fatalf("Error creating database tx, err: %v\n", err)
 	}
 	err = b.redshifter.Copy(
-		tx, schema, table, b.s3sink.GetKeyURI(s3ManifestKey))
+		tx, schema, table, b.s3sink.GetKeyURI(s3ManifestKey), true)
 	if err != nil {
 		klog.Fatalf("Error loading data in staging table, err:%v\n", err)
 	}
@@ -263,9 +263,29 @@ func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
 // target table. This is the most efficient way to inserting in redshift
 // when the source is redshift table.
 func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
+	err := b.redshifter.DropColumn(
+		tx,
+		b.stagingTable.Meta.Schema,
+		b.stagingTable.Name,
+		stagingTablePrimaryKey,
+	)
+	if err != nil {
+		klog.Fatal(err)
+	}
+
+	err = b.redshifter.DropColumn(
+		tx,
+		b.stagingTable.Meta.Schema,
+		b.stagingTable.Name,
+		transformer.OperationColumn,
+	)
+	if err != nil {
+		klog.Fatal(err)
+	}
+
 	s3CopyDir := filepath.Join(
-		viper.GetString("s3sink.bucketDir"), b.topic, "unload")
-	err := b.redshifter.Unload(tx,
+		viper.GetString("s3sink.bucketDir"), b.topic, "unload_")
+	err = b.redshifter.Unload(tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
 		b.s3sink.GetKeyURI(s3CopyDir),
@@ -274,11 +294,12 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 		klog.Fatalf("Unloading staging table to s3 failed, %v\n", err)
 	}
 
-	s3ManifestKey := filepath.Join(s3CopyDir, "unload_", "manifest")
+	s3ManifestKey := s3CopyDir + "manifest"
 	err = b.redshifter.Copy(tx,
 		b.targetTable.Meta.Schema,
 		b.targetTable.Name,
 		b.s3sink.GetKeyURI(s3ManifestKey),
+		false,
 	)
 	if err != nil {
 		klog.Fatalf("Copying data to target table from s3 failed, %v\n", err)
