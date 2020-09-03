@@ -18,8 +18,9 @@ const (
 )
 
 type loadProcessor struct {
-	topic     string
-	partition int32
+	topic         string
+	upstreamTopic string
+	partition     int32
 
 	// session is required to commit the offsets on succesfull processing
 	session sarama.ConsumerGroupSession
@@ -82,12 +83,14 @@ func newLoadProcessor(
 	// TODO: check if session context is not a problem here.
 	redshifter, err := redshift.NewRedshift(
 		session.Context(), redshift.RedshiftConfig{
-			Host:     viper.GetString("redshift.host"),
-			Port:     viper.GetString("redshift.port"),
-			Database: viper.GetString("redshift.database"),
-			User:     viper.GetString("redshift.user"),
-			Password: viper.GetString("redshift.password"),
-			Timeout:  viper.GetInt("redshift.timeout"),
+			Host:              viper.GetString("redshift.host"),
+			Port:              viper.GetString("redshift.port"),
+			Database:          viper.GetString("redshift.database"),
+			User:              viper.GetString("redshift.user"),
+			Password:          viper.GetString("redshift.password"),
+			Timeout:           viper.GetInt("redshift.timeout"),
+			S3AcessKeyId:      viper.GetString("redshift.s3AccessKeyId"),
+			S3SecretAccessKey: viper.GetString("redshift.s3SecretAccessKey"),
 		},
 	)
 	if err != nil {
@@ -186,8 +189,8 @@ func (b *loadProcessor) handleShutdown() {
 // COPY command. Staging table is a temp table used to merge data and
 // finally insert into target table.
 func (b *loadProcessor) loadStagingTable(s3ManifestKey string) {
-	table := b.stagingTable.Meta.Schema
-	schema := b.stagingTable.Name
+	schema := b.stagingTable.Meta.Schema
+	table := b.stagingTable.Name
 
 	tx, err := b.redshifter.Begin()
 	if err != nil {
@@ -260,7 +263,8 @@ func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
 // target table. This is the most efficient way to inserting in redshift
 // when the source is redshift table.
 func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
-	s3CopyDir := filepath.Join(b.topic, "unload")
+	s3CopyDir := filepath.Join(
+		viper.GetString("s3sink.bucketDir"), b.topic, "unload")
 	err := b.redshifter.Unload(tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
@@ -281,13 +285,31 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 	}
 }
 
-func (b *loadProcessor) dropTable(tx *sql.Tx, schema string, table string) {
-	err := b.redshifter.DropTable(tx,
+// dropTable removes the table only if it exists else returns and does nothing
+func (b *loadProcessor) dropTable(schema string, table string) {
+	tableExist, err := b.redshifter.TableExist(
+		b.stagingTable.Meta.Schema, b.stagingTable.Name,
+	)
+	if err != nil {
+		klog.Fatalf("Error querying table exist, err: %v\n", err)
+	}
+	if !tableExist {
+		return
+	}
+	tx, err := b.redshifter.Begin()
+	if err != nil {
+		klog.Fatalf("Error creating database tx, err: %v\n", err)
+	}
+	err = b.redshifter.DropTable(tx,
 		schema,
 		table,
 	)
 	if err != nil {
 		klog.Fatalf("Dropping staging table failed, %v\n", err)
+	}
+	err = tx.Commit()
+	if err != nil {
+		klog.Fatalf("Error committing tx, err:%v\n", err)
 	}
 }
 
@@ -310,12 +332,11 @@ func (b *loadProcessor) merge() {
 	b.deleteCommonRowsInTargetTable(tx)
 	b.deleteRowsWithDeleteOpInStagingTable(tx)
 	b.insertIntoTargetTable(tx)
-	b.dropTable(tx, b.stagingTable.Meta.Schema, b.stagingTable.Name)
-
 	err = tx.Commit()
 	if err != nil {
 		klog.Fatalf("Error committing tx, err:%v\n", err)
 	}
+	b.dropTable(b.stagingTable.Meta.Schema, b.stagingTable.Name)
 }
 
 // createStagingTable creates a staging table based on the schema id of the
@@ -326,24 +347,14 @@ func (b *loadProcessor) createStagingTable(
 
 	b.stagingTable = redshift.NewTable(inputTable)
 	b.stagingTable.Name = "staged-" + b.stagingTable.Name
+	b.dropTable(b.stagingTable.Meta.Schema, b.stagingTable.Name)
 
 	tx, err := b.redshifter.Begin()
 	if err != nil {
 		klog.Fatalf("Error creating database tx, err: %v\n", err)
 	}
 
-	tableExist, err := b.redshifter.TableExist(
-		b.stagingTable.Meta.Schema, b.stagingTable.Name,
-	)
-	if err != nil {
-		klog.Fatalf("Error querying table exist, err: %v\n", err)
-	}
-	if tableExist {
-		klog.Infof("topic:%s, Dropping table: %s", b.topic, b.stagingTable.Name)
-		b.dropTable(tx, b.stagingTable.Meta.Schema, b.stagingTable.Name)
-	}
-
-	primaryKey, primaryKeyType, err := b.schemaTransformer.TransformKey(b.topic)
+	primaryKey, primaryKeyType, err := b.schemaTransformer.TransformKey(b.upstreamTopic)
 	if err != nil {
 		klog.Fatalf("Error getting primarykey for: %s, err: %v\n", b.topic, err)
 	}
@@ -475,6 +486,7 @@ func (b *loadProcessor) processBatch(
 	var inputTable redshift.Table
 	b.stagingTable = nil
 	b.targetTable = nil
+	b.upstreamTopic = ""
 
 	var entries []s3sink.S3ManifestEntry
 
@@ -489,6 +501,7 @@ func (b *loadProcessor) processBatch(
 
 			// this assumes all messages in a batch have same schema id
 			if id == 0 {
+				b.upstreamTopic = job.UpstreamTopic()
 				klog.V(3).Infof("Processing schema: %+v\n", schemaId)
 				resp, err := b.schemaTransformer.TransformValue(schemaId)
 				if err != nil {
@@ -513,11 +526,12 @@ func (b *loadProcessor) processBatch(
 
 	// upload s3 manifest file to bulk copy data to staging table
 	// this is an overwrite operation
-	s3ManifestKey := filepath.Join(b.topic, "manifest.json")
+	s3ManifestKey := filepath.Join(
+		viper.GetString("s3sink.bucketDir"), b.topic, "manifest.json")
 	err := b.s3sink.UploadS3Manifest(s3ManifestKey, entries)
 	if err != nil {
 		klog.Fatalf("Error uploading manifest: %s to s3, err:%v\n",
-			s3ManifestKey)
+			s3ManifestKey, err)
 	}
 
 	b.loadStagingTable(s3ManifestKey)
