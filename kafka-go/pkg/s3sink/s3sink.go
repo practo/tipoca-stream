@@ -20,6 +20,10 @@ type S3Sink struct {
 	bucket string
 }
 
+const (
+	S3ManifestJSONFormat = "JSON"
+)
+
 type S3Manifest struct {
 	FileLocations        []FileLocations      `json:"fileLocations"`
 	GlobalUploadSettings GlobalUploadSettings `json:"globalUploadSettings"`
@@ -92,15 +96,15 @@ func (s *S3Sink) Upload(key string, bodyBuf *bytes.Buffer) error {
 	return nil
 }
 
-func (s *S3Sink) UploadS3Manifest(
-	key string, uris []string, format string) error {
+func (s *S3Sink) UploadS3Manifest(key string, uris []string,
+	format string) error {
 
-       var fileLocations []FileLocations
-       for uri
-
+	var fileLocations []FileLocations
+	fileLocations = append(fileLocations, FileLocations{URIs: uris})
 
 	s3Manifest := S3Manifest{
-		FileLocations: uris,
+		FileLocations:        fileLocations,
+		GlobalUploadSettings: GlobalUploadSettings{Format: format},
 	}
 	s3Bytes, err := json.Marshal(s3Manifest)
 	if err != nil {
