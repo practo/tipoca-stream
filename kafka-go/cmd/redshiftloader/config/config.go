@@ -8,12 +8,14 @@ import (
 	"github.com/practo/tipoca-stream/kafka-go/pkg/consumer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshiftloader"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/s3sink"
 )
 
 type Config struct {
 	Loader            redshiftloader.LoaderConfig `yaml: loader`
 	Kafka             consumer.KafkaConfig        `yaml: kafka`
 	Sarama            consumer.SaramaConfig       `yaml: sarama`
+	S3Sink            s3sink.Config               `yaml: s3sink`
 	SchemaRegistryURL string                      `yaml: schemaRegistryURL`
 	Redshift          redshift.RedshiftConfig     `yaml: redshift`
 }

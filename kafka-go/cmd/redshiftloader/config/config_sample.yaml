@@ -12,6 +12,12 @@ sarama:
     oldest: true
     log: false
 schemaRegistryURL: "https://schema-registry.practodev.com"
+s3sink:
+    region: "us-west-1"
+    accessKeyId: "sample-aws-access-key-id"
+    secretAccessKey: "sample-secret-access-key"
+    bucket: "docker-vault"
+    bucketDir: "tipoca-stream-redshiftsink"
 redshift:
     host: "sample-host"
     port: "sample-port"
@@ -19,3 +25,5 @@ redshift:
     user: "sample-redshift-user"
     password: "sample-password"
     timeout: 10
+    s3AccessKeyId: "sample-s3-access-key"
+    s3SecretAccessKey: "sample-secret-key"

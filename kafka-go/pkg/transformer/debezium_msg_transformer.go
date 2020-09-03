@@ -4,6 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
+	"strings"
+)
+
+const (
+	OperationColumn     = "operation"
+	OperationColumnType = "string"
+	OperationCreate     = "CREATE"
+	OperationUpdate     = "UPDATE"
+	OperationDelete     = "DELETE"
 )
 
 type debeziumMsgParser struct {
@@ -27,10 +36,10 @@ func (d *debeziumMsgParser) extract(
 			switch v2.(type) {
 			case map[string]interface{}:
 				for _, v3 := range v2.(map[string]interface{}) {
-					result[k2] = fmt.Sprintf("%v", v3)
+					result[strings.ToLower(k2)] = fmt.Sprintf("%v", v3)
 				}
 			default:
-				result[k2] = fmt.Sprintf("%v", v2)
+				result[strings.ToLower(k2)] = fmt.Sprintf("%v", v2)
 			}
 		}
 	}
@@ -67,12 +76,12 @@ func (d *debeziumMsgParser) before() map[string]string {
 }
 
 func NewMsgTransformer() MsgTransformer {
-	return &redshiftMsgTransformer{}
+	return &debeziumMsgTransformer{}
 }
 
-type redshiftMsgTransformer struct{}
+type debeziumMsgTransformer struct{}
 
-func (c *redshiftMsgTransformer) getOperation(
+func (c *debeziumMsgTransformer) getOperation(
 	message *serializer.Message,
 	before map[string]string,
 	after map[string]string) (string, error) {
@@ -89,11 +98,11 @@ func (c *redshiftMsgTransformer) getOperation(
 		return "", fmt.Errorf(
 			"message: %v has both before and after as nil\n", message)
 	case 1:
-		return "DELETE", nil
+		return OperationDelete, nil
 	case 2:
-		return "CREATE", nil
+		return OperationCreate, nil
 	case 3:
-		return "UPDATE", nil
+		return OperationUpdate, nil
 	default:
 		return "", fmt.Errorf(
 			"message: %v not possible get operation\n", message)
@@ -101,7 +110,7 @@ func (c *redshiftMsgTransformer) getOperation(
 }
 
 // Transform debezium event into a s3 message annotating extra information
-func (c *redshiftMsgTransformer) Transform(
+func (c *debeziumMsgTransformer) Transform(
 	message *serializer.Message) error {
 
 	d := &debeziumMsgParser{
@@ -115,6 +124,8 @@ func (c *redshiftMsgTransformer) Transform(
 	if err != nil {
 		return err
 	}
+	// redshift only has all columns as lower cases
+	after["kafkaoffset"] = fmt.Sprintf("%v", message.Offset)
 	after["operation"] = operation
 
 	message.Value, err = json.Marshal(after)

@@ -6,7 +6,7 @@
 set -e
 
 echo "generating load"
-kubectl get pods -n kafka | grep mysql  | awk '{print $1}' | xargs -I {} kubectl exec {} -n kafka -- bash /var/lib/mysql/load.sh $1
+kubectl get pods -n kafka | grep inventory-mysql  | awk '{print $1}' | xargs -I {} kubectl exec {} -n kafka -- bash /var/lib/mysql/load.sh $1
 
 
 # ##### load.sh ####
