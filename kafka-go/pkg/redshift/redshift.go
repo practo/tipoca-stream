@@ -325,7 +325,6 @@ func (r *Redshift) DeDupe(tx *sql.Tx, schema string, table string,
 		targetTablePrimaryKey,
 		stagingTablePrimaryKey,
 		stagingTablePrimaryKey,
-		stagingTablePrimaryKey,
 	)
 
 	return r.prepareAndExecute(tx, command)
