@@ -240,7 +240,7 @@ func (b *loadProcessor) deleteCommonRowsInTargetTable(tx *sql.Tx) {
 		b.primaryKey,
 	)
 	if err != nil {
-		klog.Fatalf("DeleteComon failed, %v\n", err)
+		klog.Fatalf("DeleteCommon failed, %v\n", err)
 	}
 }
 
@@ -248,14 +248,14 @@ func (b *loadProcessor) deleteCommonRowsInTargetTable(tx *sql.Tx) {
 // DELETE in the staging table. so that the delete gets taken care and
 // after this we can freely insert everything in staging table to target table.
 func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
-	err := b.redshifter.DeleteCommon(tx,
+	err := b.redshifter.DeleteColumn(tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
 		transformer.OperationColumn,
 		transformer.OperationDelete,
 	)
 	if err != nil {
-		klog.Fatalf("DeleteComon failed, %v\n", err)
+		klog.Fatalf("DeleteRowsWithDeleteOp failed, %v\n", err)
 	}
 }
 
@@ -461,12 +461,14 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 			b.topic,
 			schemaId,
 			inputTable.Name)
+		b.targetTable = redshift.NewTable(inputTable)
 		return
 	}
 
 	targetTable, err := b.redshifter.GetTableMetadata(
 		inputTable.Meta.Schema, inputTable.Name,
 	)
+	b.targetTable = targetTable
 	if err != nil {
 		klog.Fatalf("Error querying targetTable, err: %v\n", err)
 	}
