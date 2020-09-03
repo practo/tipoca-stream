@@ -143,27 +143,74 @@ func (d *debeziumSchemaParser) columnsBefore() []DebeziumColInfo {
 }
 
 func NewSchemaTransformer(schemaRegistryURL string) SchemaTransformer {
-	return &redshiftSchemaTransformer{
+	return &debeziumSchemaTransformer{
 		srclient: srclient.CreateSchemaRegistryClient(schemaRegistryURL),
 	}
 }
 
-type redshiftSchemaTransformer struct {
+type debeziumSchemaTransformer struct {
 	srclient *srclient.SchemaRegistryClient
 }
 
-func (c *redshiftSchemaTransformer) Transform(schemaId int) (
+func (c *debeziumSchemaTransformer) TransformKey(topic string) (
+	string, string, error) {
+
+	s, err := c.srclient.GetLatestSchema(topic, true)
+	if err != nil {
+		return "", "", err
+	}
+
+	return c.transformSchemaKey(s.Schema())
+}
+
+func (c *debeziumSchemaTransformer) transformSchemaKey(
+	schema string) (string, string, error) {
+
+	debeziumSchema := make(map[string]interface{})
+	err := json.Unmarshal([]byte(schema), &debeziumSchema)
+	if err != nil {
+		return "", "", err
+	}
+
+	fields, ok := debeziumSchema["fields"].([]interface{})
+	if !ok {
+		return "", "", fmt.Errorf("Error parsing schema: %s\n", schema)
+	}
+
+	for _, field := range fields {
+		switch field.(type) {
+		case map[string]interface{}:
+			primaryKey := ""
+			primaryKeyType := ""
+			for fieldKey, fieldValue := range field.(map[string]interface{}) {
+				switch fieldKey {
+				case "name":
+					primaryKey = fmt.Sprintf("%v", fieldValue)
+				case "type":
+					primaryKeyType = fmt.Sprintf("%v", fieldValue)
+				}
+			}
+			if primaryKey != "" && primaryKeyType != "" {
+				return primaryKey, primaryKeyType, nil
+			}
+		}
+	}
+
+	return "", "", fmt.Errorf("Primary key not found in schema: %s\n", schema)
+}
+
+func (c *debeziumSchemaTransformer) TransformValue(schemaId int) (
 	interface{}, error) {
 
-	j, err := c.srclient.GetSchema(schemaId)
+	s, err := c.srclient.GetSchema(schemaId)
 	if err != nil {
 		return nil, err
 	}
 
-	return c.transformSchema(j.Schema())
+	return c.transformSchemaValue(s.Schema())
 }
 
-func (c *redshiftSchemaTransformer) transformSchema(jobSchema string) (
+func (c *debeziumSchemaTransformer) transformSchemaValue(jobSchema string) (
 	interface{}, error) {
 
 	// remove nulls
