@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
+	"strings"
 )
 
 const (
