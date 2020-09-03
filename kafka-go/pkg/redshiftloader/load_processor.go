@@ -488,8 +488,7 @@ func (b *loadProcessor) processBatch(
 	b.targetTable = nil
 	b.upstreamTopic = ""
 
-	var entries []s3sink.S3ManifestEntry
-
+	s3URIs := []string{}
 	for id, data := range datas {
 		select {
 		case <-ctx.Done():
@@ -514,13 +513,7 @@ func (b *loadProcessor) processBatch(
 				b.migrateSchema(schemaId, inputTable)
 				b.createStagingTable(schemaId, inputTable)
 			}
-			entries = append(
-				entries,
-				s3sink.S3ManifestEntry{
-					URL:       job.S3Path(),
-					Mandatory: true,
-				},
-			)
+			s3URIs = append(s3URIs, job.S3Path())
 		}
 	}
 
@@ -528,7 +521,8 @@ func (b *loadProcessor) processBatch(
 	// this is an overwrite operation
 	s3ManifestKey := filepath.Join(
 		viper.GetString("s3sink.bucketDir"), b.topic, "manifest.json")
-	err := b.s3sink.UploadS3Manifest(s3ManifestKey, entries)
+	err := b.s3sink.UploadS3Manifest(
+		s3ManifestKey, s3URIs, s3sink.S3ManifestJSONFormat)
 	if err != nil {
 		klog.Fatalf("Error uploading manifest: %s to s3, err:%v\n",
 			s3ManifestKey, err)
