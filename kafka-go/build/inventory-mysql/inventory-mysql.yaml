@@ -32,7 +32,7 @@ spec:
           value: mysqluser
         - name: MYSQL_PASSWORD
           value: mysqlpw
-        image: debezium/example-mysql:1.0
+        image: practodev/example-mysql:1.4
         imagePullPolicy: IfNotPresent
         name: mysql
         ports:
