@@ -401,7 +401,7 @@ func (r *Redshift) Unload(tx *sql.Tx,
 		r.conf.S3SecretAccessKey,
 	)
 	unLoadSQL := fmt.Sprintf(
-		`UNLOAD ('select * from "%s"."%s"') TO '%s' %s manifest`,
+		`UNLOAD ('select * from "%s"."%s"') TO '%s' %s manifest allowoverwrite`,
 		schema,
 		table,
 		s3Key,
