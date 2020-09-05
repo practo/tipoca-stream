@@ -1,0 +1,13 @@
+[
+  {
+    "directory": "/www/app/",
+    "command": "/redshiftbatcher --config=/config.yaml",
+    "name": "redshiftbatcher0",
+    "resources": {
+      "requestCpu": "100",
+      "requestMemory": "150Mi",
+      "limitCpu": "200m",
+      "limitMemory": "150Mi"
+    }
+  }
+]
