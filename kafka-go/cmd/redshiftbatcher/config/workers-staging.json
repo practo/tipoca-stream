@@ -4,6 +4,7 @@
     "command": "/redshiftbatcher",
     "args": ["--config=/config.yaml"],
     "name": "redshiftbatcher0",
+    "deploymentStrategy": "rolling",
     "resources": {
       "requestCpu": "100m",
       "requestMemory": "150Mi",
