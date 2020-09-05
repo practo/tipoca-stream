@@ -1,7 +1,8 @@
 [
   {
-    "directory": "/www/app/",
-    "command": "/redshiftbatcher --config=/config.yaml",
+    "directory": "/",
+    "command": "/redshiftbatcher",
+    "args": "--config=/config.yaml",
     "name": "redshiftbatcher0",
     "resources": {
       "requestCpu": "100",
