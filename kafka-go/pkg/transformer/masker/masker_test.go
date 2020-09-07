@@ -1,0 +1,5 @@
+package masker
+
+func TestNonPiiKeys() {
+
+}

@@ -2,6 +2,7 @@ package transformer
 
 import (
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
+	"strings"
 )
 
 type MsgTransformer interface {
@@ -14,4 +15,10 @@ type SchemaTransformer interface {
 	TransformKey(topic string) (string, string, error)
 	// Transform value transforms the schemaId for various use cases.
 	TransformValue(schemaId int) (interface{}, error)
+}
+
+// ParseTopic breaks down the topic string into server, database, table
+func ParseTopic(topic string) (string, string, string) {
+	t := strings.Split(topic, ".")
+	return t[0], t[1], t[2]
 }
