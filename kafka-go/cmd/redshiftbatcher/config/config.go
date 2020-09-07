@@ -33,7 +33,7 @@ func LoadConfig(cmd *cobra.Command) (Config, error) {
 	viper.SetDefault("kafka.version", "2.5.0")
 
 	if configFile, _ := cmd.Flags().GetString("config"); configFile != "" {
-		viper.SetConfigFile(relativePath + "/" + configFile)
+		viper.SetConfigFile(configFile)
 		configName = configFile
 	} else {
 		viper.AddConfigPath(relativePath)
