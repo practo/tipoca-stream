@@ -23,7 +23,7 @@ ARCH := $(if $(GOARCH),$(GOARCH),$(shell go env GOARCH))
 
 BASEIMAGE ?= gcr.io/distroless/static
 
-TAG := $(VERSION)__$(OS)_$(ARCH)
+TAG := $(VERSION)
 
 BUILD_IMAGE ?= golang:1.15.1-alpine
 
