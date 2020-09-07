@@ -11,6 +11,7 @@ import (
 	"github.com/practo/tipoca-stream/kafka-go/pkg/s3sink"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer/masker"
 	"github.com/spf13/viper"
 	"path/filepath"
 	"strings"
@@ -60,6 +61,15 @@ type batchProcessor struct {
 	// redshift COPY commands with some annotations
 	msgTransformer transformer.MsgTransformer
 
+	// msgMasker is used to mask the message based on the configuration
+	// provided. Default is always to mask everything.
+	// this gets activated only when batcher.mask is set to true
+	// and batcher.maskConfigDir is defined.
+	msgMasker transformer.MsgTransformer
+
+	// maskMessages stores if the masking is enabled
+	maskMessages bool
+
 	// signaler is a kafka producer signaling the load the batch uploaded data
 	// TODO: make the producer have interface
 	signaler *producer.AvroProducer
@@ -88,6 +98,13 @@ func newBatchProcessor(
 		klog.Fatalf("unable to make signaler client, err:%v\n", err)
 	}
 
+	maskMessages := viper.GetBool("batcher.mask")
+	msgMasker, err := masker.NewMsgMasker(
+		viper.GetString("batcher.maskConfigDir"), topic)
+	if err != nil && maskMessages {
+		klog.Fatalf("unable to create the masker, err:%v", err)
+	}
+
 	return &batchProcessor{
 		topic:          topic,
 		partition:      partition,
@@ -96,6 +113,8 @@ func newBatchProcessor(
 		s3BucketDir:    viper.GetString("s3sink.bucketDir"),
 		bodyBuf:        bytes.NewBuffer(make([]byte, 0, 4096)),
 		msgTransformer: transformer.NewMsgTransformer(),
+		msgMasker:      msgMasker,
+		maskMessages:   maskMessages,
 		signaler:       signaler,
 	}
 }
@@ -243,6 +262,13 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 	err := b.msgTransformer.Transform(message)
 	if err != nil {
 		klog.Fatalf("Error transforming message:%+v, err:%v\n", message, err)
+	}
+
+	if b.maskMessages {
+		err := b.msgMasker.Transform(message)
+		if err != nil {
+			klog.Fatalf("Error masking message:%+v, err:%v\n", message, err)
+		}
 	}
 
 	b.bodyBuf.Write(message.Value.([]byte))
