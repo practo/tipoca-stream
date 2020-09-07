@@ -11,8 +11,7 @@ import (
 )
 
 type MaskConfig struct {
-	IncludeTables []string            `json:"include_tables"`
-	NonPiiKeys    map[string][]string `json:"non_pii_keys"`
+	NonPiiKeys map[string][]string `yaml:"non_pii_keys"`
 }
 
 type masker struct {
@@ -21,7 +20,8 @@ type masker struct {
 	table    string
 	topic    string
 
-	config MaskConfig
+	configFile string
+	config     MaskConfig
 }
 
 func NewMsgMasker(dir string, topic string) (
@@ -35,22 +35,23 @@ func NewMsgMasker(dir string, topic string) (
 	//     mask=true         (in redshiftbatcher config)
 	// Then the configuration file should be present at below location:
 	//        /usr/inventory.yaml
-	fileLocation := filepath.Join(dir, database+".yaml")
-	yamlFile, err := ioutil.ReadFile(fileLocation)
+	configFile := filepath.Join(dir, database+".yaml")
+	yamlFile, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return nil, err
 	}
 	var config MaskConfig
-	err = yaml.Unmarshal(yamlFile, config)
+	err = yaml.Unmarshal(yamlFile, &config)
 	if err != nil {
 		return nil, err
 	}
 
 	return &masker{
-		config:   config,
-		server:   server,
-		database: database,
-		table:    table,
+		config:     config,
+		configFile: configFile,
+		server:     server,
+		database:   database,
+		table:      table,
 	}, nil
 }
 
