@@ -14,7 +14,7 @@ type SchemaTransformer interface {
 	// key and its type.
 	TransformKey(topic string) (string, string, error)
 	// Transform value transforms the schemaId for various use cases.
-	TransformValue(schemaId int) (interface{}, error)
+	TransformValue(topic string, schemaId int) (interface{}, error)
 }
 
 // ParseTopic breaks down the topic string into server, database, table

@@ -533,7 +533,8 @@ func (b *loadProcessor) processBatch(
 			if id == 0 {
 				b.upstreamTopic = job.UpstreamTopic()
 				klog.V(3).Infof("Processing schema: %+v\n", schemaId)
-				resp, err := b.schemaTransformer.TransformValue(schemaId)
+				resp, err := b.schemaTransformer.TransformValue(
+					b.upstreamTopic, schemaId)
 				if err != nil {
 					klog.Fatalf(
 						"Transforming schema:%d => inputTable:%d failed: %v\n",
