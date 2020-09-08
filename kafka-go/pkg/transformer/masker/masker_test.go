@@ -2,7 +2,6 @@ package masker
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"os"
 	"testing"
@@ -61,8 +60,6 @@ func TestNonPiiKeys(t *testing.T) {
 		t.Error(err)
 	}
 
-	fmt.Printf("%+v\n", maskedColumns)
-
 	if *maskedColumns["id"] != "1001" {
 		t.Errorf("Expected id=1001, got %v\n", maskedColumns["id"])
 	}
@@ -77,6 +74,6 @@ func TestNonPiiKeys(t *testing.T) {
 	}
 
 	if maskedColumns["last_name"] != nil {
-		t.Error("Expected last_name=nil, got %v\n", maskedColumns["last_name"])
+		t.Errorf("Expected last_name=nil, got %v\n", maskedColumns["last_name"])
 	}
 }
