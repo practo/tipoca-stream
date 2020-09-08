@@ -2,6 +2,7 @@ package masker
 
 import (
 	"crypto/sha1"
+	"encoding/json"
 	"fmt"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
@@ -9,6 +10,13 @@ import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"path/filepath"
+)
+
+var (
+	ignoreColumns = map[string]bool{
+		"kafkaoffset": true,
+		"operation":   true,
+	}
 )
 
 type MaskConfig struct {
@@ -63,6 +71,15 @@ func (m *masker) mask(data string) string {
 	))
 }
 
+func (m *masker) stageColumns(cName string) bool {
+	_, ok := ignoreColumns[cName]
+	if ok {
+		return true
+	}
+
+	return false
+}
+
 func (m *masker) unMaskNonPiiKeys(cName string) bool {
 	columnsToUnmask, ok := m.config.NonPiiKeys[m.table]
 	if !ok {
@@ -87,6 +104,9 @@ func (m *masker) unMaskMobileKeys(cName string) bool {
 }
 
 func (m *masker) performUnMasking(cName string) bool {
+	if m.stageColumns(cName) {
+		return true
+	}
 	if m.unMaskNonPiiKeys(cName) || m.unMaskConditionalNonPiiKeys(
 		cName) || m.unMaskMobileKeys(cName) {
 
@@ -104,7 +124,11 @@ func (m *masker) performUnMasking(cName string) bool {
 // 2. unMaskConditionalNonPiiKeys() TODO://
 // 3. unMaskMobileKeys() TODO://
 func (m *masker) Transform(message *serializer.Message) error {
-	columns := message.Value.(map[string]string)
+	var columns map[string]string
+	err := json.Unmarshal(message.Value.([]byte), &columns)
+	if err != nil {
+		return err
+	}
 	maskedColumns := make(map[string]string)
 
 	for cName, cVal := range columns {
@@ -114,6 +138,10 @@ func (m *masker) Transform(message *serializer.Message) error {
 		}
 	}
 
-	message.Value = maskedColumns
+	message.Value, err = json.Marshal(maskedColumns)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

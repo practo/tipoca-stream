@@ -1,6 +1,7 @@
 package masker
 
 import (
+	"encoding/json"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"os"
 	"testing"
@@ -19,10 +20,17 @@ func TestNonPiiKeys(t *testing.T) {
 	}
 
 	columns := map[string]string{
-		"id":         "1001",
-		"first_name": "Mother",
-		"last_name":  "Teresa",
-		"email":      "mother@example.org",
+		"kafkaoffset": "1023",
+		"operation":   "create",
+		"id":          "1001",
+		"first_name":  "Mother",
+		"last_name":   "Teresa",
+		"email":       "mother@example.org",
+	}
+
+	value, err := json.Marshal(columns)
+	if err != nil {
+		t.Error(err)
 	}
 
 	message := &serializer.Message{
@@ -31,12 +39,21 @@ func TestNonPiiKeys(t *testing.T) {
 		Partition: 0,
 		Offset:    0,
 		Key:       "key",
-		Value:     columns,
+		Value:     value,
 	}
 
-	masker.Transform(message)
+	err = masker.Transform(message)
+	if err != nil {
+		t.Error(err)
+	}
 
-	maskedColumns := message.Value.(map[string]string)
+	var maskedColumns map[string]string
+
+	err = json.Unmarshal(message.Value.([]byte), &maskedColumns)
+	if err != nil {
+		t.Error(err)
+	}
+
 	if maskedColumns["id"] != "1001" {
 		t.Errorf("Expected id=1001, got %v\n", maskedColumns["id"])
 	}
@@ -44,8 +61,8 @@ func TestNonPiiKeys(t *testing.T) {
 	if maskedColumns["first_name"] != maskedFirstName {
 		t.Errorf(
 			"Expected first_name=%v, got %v\n",
-			maskedColumns["first_name"],
 			maskedFirstName,
+			maskedColumns["first_name"],
 		)
 	}
 }
