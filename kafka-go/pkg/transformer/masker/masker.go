@@ -3,6 +3,7 @@ package masker
 import (
 	"crypto/sha1"
 	"fmt"
+	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
 	"gopkg.in/yaml.v2"
@@ -36,6 +37,7 @@ func NewMsgMasker(dir string, topic string) (
 	// Then the configuration file should be present at below location:
 	//        /usr/inventory.yaml
 	configFile := filepath.Join(dir, database+".yaml")
+	klog.V(2).Infof("Using mask config file: %s\n", configFile)
 	yamlFile, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return nil, err
