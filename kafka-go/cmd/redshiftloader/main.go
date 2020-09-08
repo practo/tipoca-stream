@@ -28,7 +28,7 @@ var rootCmd = &cobra.Command{
 
 func init() {
 	klog.InitFlags(nil)
-	rootCmd.PersistentFlags().String("config", "config.yaml", "config file")
+	rootCmd.PersistentFlags().String("config", "./cmd/redshiftloader/config/config.yaml", "config file")
 	pflag.CommandLine.AddGoFlag(flag.CommandLine.Lookup("v"))
 }
 
