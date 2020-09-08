@@ -65,10 +65,12 @@ func NewMsgMasker(dir string, topic string) (
 	}, nil
 }
 
-func (m *masker) mask(data string) string {
-	return fmt.Sprintf("%x", sha1.Sum(
+func (m *masker) mask(data string) *string {
+	val := fmt.Sprintf("%x", sha1.Sum(
 		[]byte(data),
 	))
+
+	return &val
 }
 
 func (m *masker) stageColumns(cName string) bool {
@@ -124,15 +126,20 @@ func (m *masker) performUnMasking(cName string) bool {
 // 2. unMaskConditionalNonPiiKeys() TODO://
 // 3. unMaskMobileKeys() TODO://
 func (m *masker) Transform(message *serializer.Message) error {
-	var columns map[string]string
+	var columns map[string]*string
 	err := json.Unmarshal(message.Value.([]byte), &columns)
 	if err != nil {
 		return err
 	}
-	maskedColumns := make(map[string]string)
 
+	maskedColumns := make(map[string]*string)
 	for cName, cVal := range columns {
-		maskedColumns[cName] = m.mask(cVal)
+		// takes care of null values
+		if cVal == nil {
+			maskedColumns[cName] = nil
+			continue
+		}
+		maskedColumns[cName] = m.mask(*cVal)
 		if m.performUnMasking(cName) {
 			maskedColumns[cName] = cVal
 		}
