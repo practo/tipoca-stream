@@ -503,7 +503,6 @@ func checkColumn(schemaName string, tableName string,
 
 	var errors error
 	mismatchedTemplate := "mismatch col: %s, prop: %s, input: %v, target: %v"
-
 	alterSQL := []string{}
 
 	if inCol.Name != targetCol.Name {
@@ -535,36 +534,6 @@ func checkColumn(schemaName string, tableName string,
 		}
 	}
 
-	if inCol.NotNull != targetCol.NotNull {
-		if inCol.NotNull {
-			alterSQL = append(alterSQL,
-				fmt.Sprintf(
-					`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s`,
-					schemaName, tableName,
-					inCol.Name,
-					"SET NOT NULL",
-				),
-			)
-		} else if inCol.PrimaryKey {
-			klog.Warningf(
-				"Cant drop null, table'%s.%s', since primary_key:'%s'. Skipped",
-				schemaName,
-				tableName,
-				inCol.Name,
-			)
-		} else {
-			alterSQL = append(alterSQL,
-				fmt.Sprintf(
-					`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s`,
-					schemaName,
-					tableName,
-					inCol.Name,
-					"DROP NOT NULL",
-				),
-			)
-		}
-	}
-
 	if typeMapping[inCol.Type] != targetCol.Type {
 		alterSQL = append(alterSQL,
 			fmt.Sprintf(
@@ -578,20 +547,57 @@ func checkColumn(schemaName string, tableName string,
 		)
 	}
 
-	// TODO: defaultVal needs to be nullable, use pointers
-	// as default value can hold null empty string values
-	if ConvertDefaultValue(inCol.DefaultVal) != targetCol.DefaultVal {
-		alterSQL = append(alterSQL,
-			fmt.Sprintf(
-				`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s '%s'`,
-				schemaName,
-				tableName,
-				inCol.Name,
-				"SET DEFAULT",
-				inCol.DefaultVal,
-			),
-		)
+	// #40: specially handled since redshift does not support
+	// all ALTER COLUMN commands.
+	// Though this changes the ordering of columns.
+	duplicateAlterCol := false
+	if (inCol.NotNull != targetCol.NotNull) && !inCol.PrimaryKey {
+		duplicateAlterCol = true
 	}
+	if ConvertDefaultValue(inCol.DefaultVal) != targetCol.DefaultVal {
+		duplicateAlterCol = true
+	}
+	if !duplicateAlterCol {
+		return alterSQL, errors
+	}
+	addDefault := ""
+	duplicateCol := inCol
+	duplicateCol.Name = inCol.Name + "_duplicated"
+	// Defaults are required to alter column with  not null
+	if duplicateCol.DefaultVal == "" && duplicateCol.NotNull == true {
+		addDefault = "DEFAULT ''"
+	}
+	// add duplicate column with updated column defination
+	alterSQL = append(alterSQL,
+		`ALTER TABLE "%s"."%s" ADD COLUMN %s %s`,
+		schemaName,
+		tableName,
+		getColumnSQL(duplicateCol),
+		addDefault,
+	)
+	// update data into the new duplicated column
+	alterSQL = append(alterSQL,
+		`UPDATE "%s"."%s" SET %s = %s`,
+		schemaName,
+		tableName,
+		duplicateCol.Name,
+		inCol.Name,
+	)
+	// drop existing column
+	alterSQL = append(alterSQL,
+		`ALTER TABLE "%s"."%s" DROP COLUMN %s`,
+		schemaName,
+		tableName,
+		inCol.Name,
+	)
+	// rename duplicated column
+	alterSQL = append(alterSQL,
+		`ALTER TABLE "%s"."%s" RENAME COLUMN %s TO %s`,
+		schemaName,
+		tableName,
+		duplicateCol.Name,
+		inCol.Name,
+	)
 
 	return alterSQL, errors
 }
