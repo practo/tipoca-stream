@@ -371,6 +371,21 @@ func (b *loadProcessor) createStagingTable(
 
 	b.stagingTable = redshift.NewTable(inputTable)
 	b.stagingTable.Name = "staged-" + b.stagingTable.Name
+
+	// remove existing primary key if any
+	for idx, column := range b.stagingTable.Columns {
+		if column.Name == stagingTablePrimaryKey {
+			continue
+		}
+		if column.Name == transformer.OperationColumn {
+			continue
+		}
+
+		if column.PrimaryKey == true {
+			column.PrimaryKey = false
+			b.stagingTable.Columns[idx] = column
+		}
+	}
 	err := b.dropTable(b.stagingTable.Meta.Schema, b.stagingTable.Name)
 	if err != nil {
 		klog.Fatalf("Error dropping staging table: %v\n", err)
