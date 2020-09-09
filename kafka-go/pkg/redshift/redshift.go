@@ -503,7 +503,6 @@ func checkColumn(schemaName string, tableName string,
 
 	var errors error
 	mismatchedTemplate := "mismatch col: %s, prop: %s, input: %v, target: %v"
-
 	alterSQL := []string{}
 
 	if inCol.Name != targetCol.Name {
@@ -535,36 +534,6 @@ func checkColumn(schemaName string, tableName string,
 		}
 	}
 
-	if inCol.NotNull != targetCol.NotNull {
-		if inCol.NotNull {
-			alterSQL = append(alterSQL,
-				fmt.Sprintf(
-					`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s`,
-					schemaName, tableName,
-					inCol.Name,
-					"SET NOT NULL",
-				),
-			)
-		} else if inCol.PrimaryKey {
-			klog.Warningf(
-				"Cant drop null, table'%s.%s', since primary_key:'%s'. Skipped",
-				schemaName,
-				tableName,
-				inCol.Name,
-			)
-		} else {
-			alterSQL = append(alterSQL,
-				fmt.Sprintf(
-					`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s`,
-					schemaName,
-					tableName,
-					inCol.Name,
-					"DROP NOT NULL",
-				),
-			)
-		}
-	}
-
 	if typeMapping[inCol.Type] != targetCol.Type {
 		alterSQL = append(alterSQL,
 			fmt.Sprintf(
@@ -578,20 +547,14 @@ func checkColumn(schemaName string, tableName string,
 		)
 	}
 
-	// TODO: defaultVal needs to be nullable, use pointers
-	// as default value can hold null empty string values
-	if ConvertDefaultValue(inCol.DefaultVal) != targetCol.DefaultVal {
-		alterSQL = append(alterSQL,
-			fmt.Sprintf(
-				`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s '%s'`,
-				schemaName,
-				tableName,
-				inCol.Name,
-				"SET DEFAULT",
-				inCol.DefaultVal,
-			),
-		)
-	}
+	// TODO: #40 #41 handle changes in null
+	// if (inCol.NotNull != targetCol.NotNull) && !inCol.PrimaryKey {
+	//
+	// }
+
+	// TODO: #40 #41 handle changes in default values
+	// if ConvertDefaultValue(inCol.DefaultVal) != targetCol.DefaultVal {
+	// }
 
 	return alterSQL, errors
 }
