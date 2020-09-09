@@ -242,6 +242,7 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 		strings.Join(columnSQL, ","),
 	)
 
+	klog.V(5).Infof("Preparing: %s with args: %v\n", createSQL, args)
 	createStmt, err := tx.PrepareContext(r.ctx, createSQL)
 	if err != nil {
 		return fmt.Errorf("error preparing statement: %v\n", err)
