@@ -2,6 +2,7 @@ package transformer
 
 import (
 	"encoding/json"
+	// "reflect"
 	"fmt"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/riferrei/srclient"
@@ -53,28 +54,41 @@ func debeziumColumn(v map[string]interface{}) DebeziumColInfo {
 
 	// TODO: Have figured out not null and primary key, TODO is open
 	// because not null is set only when the default==nil
-	// https://stackoverflow.com/questions/63576770/
+	// https://stackoverflow.com/questions/63576770/debezium-schema-not-null-and-primary-key-info/
 	for key, v2 := range v {
 		switch key {
 		case "name":
 			column.Name = v["name"].(string)
 		case "type":
+			//fmt.Printf("v2=%v\n", v2)
 			switch v2.(type) {
 			case string:
 				column.Type = v["type"].(string)
+			case int:
+				column.Type = v["type"].(string)
 			case interface{}:
-				// handles
-				// [map[connect.default:singh type:string], null]
+				// handles []
 				listSlice, ok := v2.([]interface{})
 				if ok {
+					//fmt.Println("its a list slice")
 					for _, vx := range listSlice {
+						//fmt.Printf("got vx_type=%v\n", reflect.TypeOf(vx))
 						switch vx.(type) {
+						// handles
+						// [map[connect.default:singh type:string], null]
 						case map[string]interface{}:
 							for k3, v3 := range vx.(map[string]interface{}) {
 								if k3 != "type" {
 									continue
 								}
 								column.Type = v3.(string)
+							}
+						// handles
+						// ["null", "string"]
+						case string:
+							if vx != "null" {
+								column.Type = vx.(string)
+								//fmt.Printf("got vx=%v\n", vx)
 							}
 						}
 					}
@@ -95,7 +109,8 @@ func debeziumColumn(v map[string]interface{}) DebeziumColInfo {
 					column.Type = v4.(string)
 				}
 			default:
-				column.Type = v["type"].(string)
+				fmt.Printf("Unhandled type for v2=%v\n", v2)
+				os.Exit(1)
 			}
 		case "default":
 			if v["default"] == nil {
@@ -269,8 +284,6 @@ func (c *debeziumSchemaTransformer) transformSchemaValue(jobSchema string,
 			Schema: d.schemaName(),
 		},
 	}
-
-	fmt.Printf("%+v\n", table)
 
 	return table, nil
 }

@@ -98,11 +98,14 @@ func newBatchProcessor(
 		klog.Fatalf("unable to make signaler client, err:%v\n", err)
 	}
 
+	var msgMasker transformer.MsgTransformer
 	maskMessages := viper.GetBool("batcher.mask")
-	msgMasker, err := masker.NewMsgMasker(
-		viper.GetString("batcher.maskConfigDir"), topic)
-	if err != nil && maskMessages {
-		klog.Fatalf("unable to create the masker, err:%v", err)
+	if maskMessages {
+		msgMasker, err = masker.NewMsgMasker(
+			viper.GetString("batcher.maskConfigDir"), topic)
+		if err != nil && maskMessages {
+			klog.Fatalf("unable to create the masker, err:%v", err)
+		}
 	}
 
 	return &batchProcessor{
