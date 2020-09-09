@@ -42,7 +42,7 @@ func TestSchemaTransformMapWithNulls(t *testing.T) {
 
 	table := r.(redshift.Table)
 	nullColumn := table.Columns[2]
-	if nullColumn.NotNull == false {
+	if nullColumn.NotNull == true {
 		t.Errorf("Expected NotNull: true, got: %+v\n", nullColumn)
 	}
 	if nullColumn.Type != "string" {
