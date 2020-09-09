@@ -2,6 +2,7 @@ package transformer
 
 import (
 	"encoding/json"
+	// "reflect"
 	"fmt"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/riferrei/srclient"
@@ -51,35 +52,43 @@ func (d *debeziumSchemaParser) tableName() string {
 func debeziumColumn(v map[string]interface{}) DebeziumColInfo {
 	column := DebeziumColInfo{}
 
-	// TODO: figure out not null and primarykey
-	// https://stackoverflow.com/questions/63576770/
-	// debezium-schema-not-null-and-primary-key-info
-	// need to use customers-key and not customers-value
-	// nullable fields look like, handle it
-	//    "null",
-	//    "string"
-	//     ],
+	// TODO: Have figured out not null and primary key, TODO is open
+	// because not null is set only when the default==nil
+	// https://stackoverflow.com/questions/63576770/debezium-schema-not-null-and-primary-key-info/
 	for key, v2 := range v {
 		switch key {
 		case "name":
 			column.Name = v["name"].(string)
 		case "type":
+			//fmt.Printf("v2=%v\n", v2)
 			switch v2.(type) {
 			case string:
 				column.Type = v["type"].(string)
+			case int:
+				column.Type = v["type"].(string)
 			case interface{}:
-				// handles
-				// [map[connect.default:singh type:string], null]
+				// handles []
 				listSlice, ok := v2.([]interface{})
 				if ok {
+					//fmt.Println("its a list slice")
 					for _, vx := range listSlice {
+						//fmt.Printf("got vx_type=%v\n", reflect.TypeOf(vx))
 						switch vx.(type) {
+						// handles
+						// [map[connect.default:singh type:string], null]
 						case map[string]interface{}:
 							for k3, v3 := range vx.(map[string]interface{}) {
 								if k3 != "type" {
 									continue
 								}
 								column.Type = v3.(string)
+							}
+						// handles
+						// ["null", "string"]
+						case string:
+							if vx != "null" {
+								column.Type = vx.(string)
+								//fmt.Printf("got vx=%v\n", vx)
 							}
 						}
 					}
@@ -100,10 +109,16 @@ func debeziumColumn(v map[string]interface{}) DebeziumColInfo {
 					column.Type = v4.(string)
 				}
 			default:
-				column.Type = v["type"].(string)
+				fmt.Printf("Unhandled type for v2=%v\n", v2)
+				os.Exit(1)
 			}
 		case "default":
-			column.Default = v["default"].(string)
+			if v["default"] == nil {
+				column.Default = ""
+				column.NotNull = false
+			} else {
+				column.Default = v["default"].(string)
+			}
 		}
 	}
 
@@ -199,7 +214,7 @@ func (c *debeziumSchemaTransformer) transformSchemaKey(
 	return "", "", fmt.Errorf("Primary key not found in schema: %s\n", schema)
 }
 
-func (c *debeziumSchemaTransformer) TransformValue(schemaId int) (
+func (c *debeziumSchemaTransformer) TransformValue(topic string, schemaId int) (
 	interface{}, error) {
 
 	s, err := c.srclient.GetSchema(schemaId)
@@ -207,14 +222,29 @@ func (c *debeziumSchemaTransformer) TransformValue(schemaId int) (
 		return nil, err
 	}
 
-	return c.transformSchemaValue(s.Schema())
+	primaryKey, primaryKeyType, err := c.TransformKey(topic)
+	if err != nil {
+		return nil, err
+	}
+
+	if primaryKey == "" || primaryKeyType == "" {
+		return nil, fmt.Errorf(
+			"primary key not found for topic:%s, schemaId:%d\n",
+			topic,
+			schemaId,
+		)
+	}
+
+	return c.transformSchemaValue(s.Schema(), primaryKey, primaryKeyType)
 }
 
-func (c *debeziumSchemaTransformer) transformSchemaValue(jobSchema string) (
-	interface{}, error) {
+func (c *debeziumSchemaTransformer) transformSchemaValue(jobSchema string,
+	primaryKey string, primaryKeyType string) (interface{}, error) {
 
 	// remove nulls
-	schema := strings.ReplaceAll(jobSchema, `"null",`, "")
+	// TODO: this might be required, better if not
+	// schema := strings.ReplaceAll(jobSchema, `"null",`, "")
+	schema := jobSchema
 
 	var debeziumSchema DebeziumSchema
 	err := json.Unmarshal([]byte(schema), &debeziumSchema)
@@ -237,6 +267,14 @@ func (c *debeziumSchemaTransformer) transformSchemaValue(jobSchema string) (
 			NotNull:    column.NotNull,
 			PrimaryKey: column.PrimaryKey,
 		})
+	}
+
+	// set primary key
+	for idx, column := range redshiftColumns {
+		if column.Name == primaryKey && column.Type == primaryKeyType {
+			column.PrimaryKey = true
+			redshiftColumns[idx] = column
+		}
 	}
 
 	table := redshift.Table{
