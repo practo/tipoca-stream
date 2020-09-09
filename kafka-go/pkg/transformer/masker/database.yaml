@@ -1,0 +1,3 @@
+non_pii_keys:
+    customers:
+    - id
