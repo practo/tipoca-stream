@@ -192,6 +192,7 @@ var typeMapping = map[string]string{
 	"int":     "integer",
 	"int16":   "smallint",
 	"int32":   "integer",
+	"long":    "character varying(256)",
 	"bigint":  "bigint",
 	"string":  "character varying(256)",
 }
