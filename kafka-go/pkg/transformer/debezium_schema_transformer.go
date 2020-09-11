@@ -261,7 +261,7 @@ func (c *debeziumSchemaTransformer) transformSchemaValue(jobSchema string,
 	var redshiftColumns []redshift.ColInfo
 	for _, column := range columns {
 		redshiftColumns = append(redshiftColumns, redshift.ColInfo{
-			Name:       column.Name,
+			Name:       strings.ToLower(column.Name),
 			Type:       column.Type,
 			DefaultVal: column.Default,
 			NotNull:    column.NotNull,
