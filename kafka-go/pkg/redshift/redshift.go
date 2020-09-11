@@ -265,6 +265,8 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 // NotSupported: row ordering changes and row renames
 func (r *Redshift) UpdateTable(
 	tx *sql.Tx, inputTable, targetTable Table) error {
+        klog.V(5).Infof("inputt Table: \n%+v\n", inputTable)
+        klog.V(5).Infof("target Table: \n%+v\n", targetTable)
 
 	columnOps, err := CheckSchemas(inputTable, targetTable)
 	if err != nil {
@@ -595,7 +597,7 @@ func checkColumnsAndOrdering(inputTable, targetTable Table) ([]string, error) {
 	// drop column
 	for _, taCol := range targetTable.Columns {
 		if _, ok := inColMap[taCol.Name]; !ok {
-			klog.V(5).Info(
+			klog.V(5).Infof(
 				"Extra column: %s, alter table will run\n", taCol.Name,
 			)
 			alterSQL := fmt.Sprintf(
