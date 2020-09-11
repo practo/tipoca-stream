@@ -117,7 +117,7 @@ func debeziumColumn(v map[string]interface{}) DebeziumColInfo {
 				column.Default = ""
 				column.NotNull = false
 			} else {
-				column.Default = v["default"].(string)
+				column.Default = fmt.Sprintf("%v", v["default"])
 			}
 		}
 	}
