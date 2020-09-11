@@ -456,6 +456,8 @@ func (b *loadProcessor) createStagingTable(
 func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 	// TODO: add cache here based on schema id and return
 	// save some database calls.
+	klog.V(5).Infof("inputTable: %+v\n", inputTable)
+
 	tx, err := b.redshifter.Begin()
 	if err != nil {
 		klog.Fatalf("Error creating database tx, err: %v\n", err)
