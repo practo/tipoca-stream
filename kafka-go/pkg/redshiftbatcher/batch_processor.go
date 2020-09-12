@@ -22,6 +22,9 @@ type batchProcessor struct {
 	topic     string
 	partition int32
 
+	// autoCommit to Kafka
+	autoCommit bool
+
 	// session is required to commit the offsets on succesfull processing
 	session sarama.ConsumerGroupSession
 
@@ -111,6 +114,7 @@ func newBatchProcessor(
 	return &batchProcessor{
 		topic:          topic,
 		partition:      partition,
+		autoCommit:     viper.GetBool("sarama.autoCommit"),
 		session:        session,
 		s3sink:         sink,
 		s3BucketDir:    viper.GetString("s3sink.bucketDir"),
@@ -348,7 +352,9 @@ func (b *batchProcessor) process(workerID int, datas []interface{}) {
 
 	b.signalLoad()
 
-	b.commitOffset(datas)
+	if b.autoCommit == false {
+		b.commitOffset(datas)
+	}
 
 	klog.Infof(
 		"topic:%s, batchId:%d, startOffset:%d, endOffset:%d: Processed",
