@@ -23,7 +23,7 @@ type loadProcessor struct {
 	partition     int32
 
 	// autoCommit to Kafka
-	autoCommit    bool
+	autoCommit bool
 
 	// session is required to commit the offsets on succesfull processing
 	session sarama.ConsumerGroupSession
@@ -58,6 +58,9 @@ type loadProcessor struct {
 	// redshifter is the redshift client to perform redshift
 	// operations
 	redshifter *redshift.Redshift
+
+	// redshift schema to operate on
+	redshiftSchema string
 
 	// stagingTable is the temp table to merge data into the target table
 	stagingTable *redshift.Table
@@ -110,9 +113,10 @@ func newLoadProcessor(
 		schemaTransformer: transformer.NewSchemaTransformer(
 			viper.GetString("schemaRegistryURL"),
 		),
-		redshifter:   redshifter,
-		stagingTable: nil,
-		targetTable:  nil,
+		redshifter:     redshifter,
+		redshiftSchema: viper.GetString("redshift.schema"),
+		stagingTable:   nil,
+		targetTable:    nil,
 	}
 }
 
@@ -561,6 +565,7 @@ func (b *loadProcessor) processBatch(
 						err)
 				}
 				inputTable = resp.(redshift.Table)
+				inputTable.Meta.Schema = b.redshiftSchema
 				b.migrateSchema(schemaId, inputTable)
 				b.createStagingTable(schemaId, inputTable)
 			}

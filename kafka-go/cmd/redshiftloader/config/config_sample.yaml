@@ -20,6 +20,7 @@ s3sink:
     bucket: "docker-vault"
     bucketDir: "tipoca-stream-redshiftsink"
 redshift:
+    schema: "schema-to-operate-on"
     host: "sample-host"
     port: "sample-port"
     database: "sample-database"
