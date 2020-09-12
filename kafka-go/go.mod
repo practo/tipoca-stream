@@ -10,6 +10,7 @@ require (
 	github.com/linkedin/goavro/v2 v2.9.8
 	github.com/practo/gobatch v0.0.0-20200822085922-4905d08d9f40
 	github.com/practo/klog/v2 v2.2.1
+	github.com/prometheus/client_golang v1.7.0
 	github.com/riferrei/srclient v0.0.0-20200820123217-6a5d2a4bf9d1
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5

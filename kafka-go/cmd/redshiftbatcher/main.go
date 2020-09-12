@@ -7,6 +7,7 @@ import (
 	"flag"
 	"github.com/spf13/cobra"
 	pflag "github.com/spf13/pflag"
+	"net/http"
 
 	"os"
 	"os/signal"
@@ -17,6 +18,7 @@ import (
 	conf "github.com/practo/tipoca-stream/kafka-go/cmd/redshiftbatcher/config"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/consumer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshiftbatcher"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var rootCmd = &cobra.Command{
@@ -32,8 +34,20 @@ func init() {
 	pflag.CommandLine.AddGoFlag(flag.CommandLine.Lookup("v"))
 }
 
+func serveMetrics() {
+	klog.Info("Starting prometheus metric endpoint")
+	http.HandleFunc("/status", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	http.Handle("/metrics", promhttp.Handler())
+	http.ListenAndServe(":8787", nil)
+}
+
 func run(cmd *cobra.Command, args []string) {
 	klog.Info("Starting the redshift batcher")
+	go serveMetrics()
 
 	config, err := conf.LoadConfig(cmd)
 	if err != nil {
