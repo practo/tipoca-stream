@@ -79,7 +79,6 @@ type RedshiftConfig struct {
 	Timeout           int    `yaml:"timeout"`
 	S3AcessKeyId      string `yaml:"s3AccessKeyId"`
 	S3SecretAccessKey string `yaml:"s3SecretAccessKey"`
-	Schema            string `yaml:"schema"`
 }
 
 func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
