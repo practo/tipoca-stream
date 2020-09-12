@@ -2,11 +2,12 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    k8s-app: redshiftbatcher
-  name: redshiftbatcher
+    k8s-app: tipoca-stream-redshiftbatcher 
+  name: tipoca-stream-redshiftbatcher
 spec:
+  clusterIP: None
   ports:
-  - name: redshiftbatcher-metrics
+  - name: tipoca-stream-redshiftbatcher-metrics
     port: 8787
     protocol: TCP
     targetPort: 8787
