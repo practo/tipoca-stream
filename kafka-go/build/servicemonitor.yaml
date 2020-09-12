@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: redshiftbatcher
+  labels:
+    k8s-app: redshiftbatcher
+  namespace: monitoring
+spec:
+  jobLabel: k8s-app
+  selector:
+    matchLabels:
+      app: tipoca-stream-redshiftbatcher
+  namespaceSelector:
+    matchNames:
+    - tipoca-stream-redshiftbatcher-latest
+  endpoints:
+  - port: redshiftbatcher-metrics
+    path: /metrics
+    interval: 5s
