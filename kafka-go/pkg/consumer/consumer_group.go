@@ -27,10 +27,10 @@ type KafkaConfig struct {
 }
 
 type SaramaConfig struct {
-	Assignor 	string `yaml: assignor`
-	Oldest   	bool   `yaml: oldest`
-	Log      	bool   `yaml: log`
-	AutoCommit	bool   `yaml: autoCommit`
+	Assignor   string `yaml: assignor`
+	Oldest     bool   `yaml: oldest`
+	Log        bool   `yaml: log`
+	AutoCommit bool   `yaml: autoCommit`
 }
 
 func NewConsumerGroup(k KafkaConfig, s SaramaConfig,
