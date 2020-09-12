@@ -12,7 +12,7 @@ sarama:
     oldest: true
     log: false
     autoCommit: false
-schemaRegistryURL: "https://schema-registry.example.com"
+schemaRegistryURL: "https://schema-registry.practodev.com"
 s3sink:
     region: "us-west-1"
     accessKeyId: "sample-aws-access-key-id"
@@ -20,8 +20,6 @@ s3sink:
     bucket: "docker-vault"
     bucketDir: "tipoca-stream-redshiftsink"
 redshift:
-    schema: "schema-to-operate-on"
-    tableSuffix: ""
     host: "sample-host"
     port: "sample-port"
     database: "sample-database"
