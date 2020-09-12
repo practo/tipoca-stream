@@ -39,7 +39,7 @@ func setBatchProcessingSeconds(now time.Time, topic string) {
 }
 
 func setBatchMessageProcessingSeconds(now time.Time, topic string) {
-	batchProcessingSeconds.WithLabelValues(topic).Set(
+	batchMessageProcessingSeconds.WithLabelValues(topic).Set(
 		time.Since(now).Seconds(),
 	)
 }
