@@ -231,6 +231,8 @@ func (b *batchProcessor) signalLoad() {
 }
 
 func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
+	now := time.Now()
+
 	klog.V(5).Infof(
 		"topic:%s, batchId:%d id:%d: transforming\n",
 		b.topic, b.batchId, id,
@@ -283,6 +285,7 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 	)
 
 	b.batchEndOffset = message.Offset
+	setBatchMessageProcessingSeconds(now, b.topic)
 }
 
 // processBatch handles the batch procesing and return true if all completes
@@ -291,6 +294,7 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 func (b *batchProcessor) processBatch(
 	ctx context.Context, datas []interface{}) bool {
 
+	now := time.Now()
 	b.s3Key = ""
 	for id, data := range datas {
 		select {
@@ -300,6 +304,7 @@ func (b *batchProcessor) processBatch(
 			b.processMessage(data.(*serializer.Message), id)
 		}
 	}
+	setBatchProcessingSeconds(now, b.topic)
 
 	return true
 }
