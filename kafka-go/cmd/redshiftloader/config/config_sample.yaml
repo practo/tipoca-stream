@@ -11,6 +11,7 @@ sarama:
     assignor: "range"
     oldest: true
     log: false
+    autoCommit: false
 schemaRegistryURL: "https://schema-registry.practodev.com"
 s3sink:
     region: "us-west-1"

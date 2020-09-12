@@ -27,9 +27,10 @@ type KafkaConfig struct {
 }
 
 type SaramaConfig struct {
-	Assignor string `yaml: assignor`
-	Oldest   bool   `yaml: oldest`
-	Log      bool   `yaml: log`
+	Assignor 	string `yaml: assignor`
+	Oldest   	bool   `yaml: oldest`
+	Log      	bool   `yaml: log`
+	AutoCommit	bool   `yaml: autoCommit`
 }
 
 func NewConsumerGroup(k KafkaConfig, s SaramaConfig,
@@ -76,7 +77,7 @@ func NewSaramaConsumerGroup(k KafkaConfig, s SaramaConfig,
 
 	// disable auto commits of offsets
 	// https://github.com/Shopify/sarama/issues/1570#issuecomment-574908417
-	c.Consumer.Offsets.AutoCommit.Enable = false
+	c.Consumer.Offsets.AutoCommit.Enable = s.AutoCommit
 
 	// TODO: find the correct values and make it confiurable
 	// c.Consumer.Fetch.Min = 3
