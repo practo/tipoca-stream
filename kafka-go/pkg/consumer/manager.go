@@ -38,16 +38,22 @@ func NewManager(
 }
 
 func (c *Manager) updatetopics(allTopics []string) {
+	topicsAppended := make(map[string]bool)
 	topics := []string{}
 
 	for _, topic := range allTopics {
 		for _, prefix := range c.topicPrefixes {
-			if strings.HasPrefix(topic, prefix) {
-				topics = append(topics, topic)
+			if !strings.HasPrefix(topic, prefix) {
+				continue
 			}
+			_, ok := topicsAppended[topic]
+			if ok {
+				continue
+			}
+			topics = append(topics, topic)
+			topicsAppended[topic] = true
 		}
 	}
-	// TODO: remove duplicates in topics
 
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
