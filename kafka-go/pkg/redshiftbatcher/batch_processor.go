@@ -22,6 +22,9 @@ type batchProcessor struct {
 	topic     string
 	partition int32
 
+	// autoCommit to Kafka
+	autoCommit bool
+
 	// session is required to commit the offsets on succesfull processing
 	session sarama.ConsumerGroupSession
 
@@ -111,6 +114,7 @@ func newBatchProcessor(
 	return &batchProcessor{
 		topic:          topic,
 		partition:      partition,
+		autoCommit:     viper.GetBool("sarama.autoCommit"),
 		session:        session,
 		s3sink:         sink,
 		s3BucketDir:    viper.GetString("s3sink.bucketDir"),
@@ -294,7 +298,6 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 func (b *batchProcessor) processBatch(
 	ctx context.Context, datas []interface{}) bool {
 
-	now := time.Now()
 	b.s3Key = ""
 	for id, data := range datas {
 		select {
@@ -304,12 +307,13 @@ func (b *batchProcessor) processBatch(
 			b.processMessage(data.(*serializer.Message), id)
 		}
 	}
-	setBatchProcessingSeconds(now, b.topic)
 
 	return true
 }
 
 func (b *batchProcessor) process(workerID int, datas []interface{}) {
+	now := time.Now()
+
 	b.setBatchId()
 	b.batchSchemaId = -1
 
@@ -327,6 +331,9 @@ func (b *batchProcessor) process(workerID int, datas []interface{}) {
 		return
 	}
 
+	klog.Infof("topic:%s, batchId:%d, size:%d: Uploading...\n",
+		b.topic, b.batchId, len(datas),
+	)
 	err := b.s3sink.Upload(b.s3Key, b.bodyBuf)
 	if err != nil {
 		klog.Fatalf("Error writing to s3, err=%v\n", err)
@@ -345,10 +352,14 @@ func (b *batchProcessor) process(workerID int, datas []interface{}) {
 
 	b.signalLoad()
 
-	b.commitOffset(datas)
+	if b.autoCommit == false {
+		b.commitOffset(datas)
+	}
 
 	klog.Infof(
 		"topic:%s, batchId:%d, startOffset:%d, endOffset:%d: Processed",
 		b.topic, b.batchId, b.batchStartOffset, b.batchEndOffset,
 	)
+
+	setBatchProcessingSeconds(now, b.topic)
 }
