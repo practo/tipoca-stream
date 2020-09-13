@@ -14,6 +14,7 @@ sarama:
     assignor: "range"
     oldest: true
     log: false
+    autoCommit: true
 s3sink:
     region: "us-west-1"
     accessKeyId: "sample-aws-access-key-id"
