@@ -112,10 +112,10 @@ func newLoadProcessor(
 		msgTransformer: transformer.NewMsgTransformer(),
 		schemaTransformer: transformer.NewSchemaTransformer(
 			viper.GetString("schemaRegistryURL")),
-		redshifter:          redshifter,
-		redshiftSchema:      viper.GetString("redshift.schema"),
-		stagingTable:        nil,
-		targetTable:         nil,
+		redshifter:     redshifter,
+		redshiftSchema: viper.GetString("redshift.schema"),
+		stagingTable:   nil,
+		targetTable:    nil,
 	}
 }
 
@@ -475,13 +475,21 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 	if !schemaExist {
 		err = b.redshifter.CreateSchema(tx, inputTable.Meta.Schema)
 		if err != nil {
-			klog.Fatalf("Error creating schema, err: %v\n", err)
+			exist, err2 := b.redshifter.SchemaExist(inputTable.Meta.Schema)
+			if err2 != nil {
+				klog.Fatalf("Error checking schema exist, err: %v\n", err2)
+			}
+			if !exist {
+				klog.Fatalf("Error creating schema, err: %v\n", err)
+			}
+		} else {
+			klog.Infof(
+				"topic:%s, schemaId:%d: Schema %s created",
+				b.topic,
+				schemaId,
+				inputTable.Meta.Schema,
+			)
 		}
-		klog.Infof(
-			"topic:%s, schemaId:%d: Schema %s created",
-			b.topic,
-			schemaId,
-			inputTable.Meta.Schema)
 	}
 
 	tableExist, err := b.redshifter.TableExist(
