@@ -22,6 +22,9 @@ type loadProcessor struct {
 	upstreamTopic string
 	partition     int32
 
+	// autoCommit to Kafka
+	autoCommit bool
+
 	// session is required to commit the offsets on succesfull processing
 	session sarama.ConsumerGroupSession
 
@@ -55,6 +58,9 @@ type loadProcessor struct {
 	// redshifter is the redshift client to perform redshift
 	// operations
 	redshifter *redshift.Redshift
+
+	// redshift schema to operate on
+	redshiftSchema string
 
 	// stagingTable is the temp table to merge data into the target table
 	stagingTable *redshift.Table
@@ -100,15 +106,16 @@ func newLoadProcessor(
 	return &loadProcessor{
 		topic:          topic,
 		partition:      partition,
+		autoCommit:     viper.GetBool("sarama.autoCommit"),
 		session:        session,
 		s3sink:         sink,
 		msgTransformer: transformer.NewMsgTransformer(),
 		schemaTransformer: transformer.NewSchemaTransformer(
-			viper.GetString("schemaRegistryURL"),
-		),
-		redshifter:   redshifter,
-		stagingTable: nil,
-		targetTable:  nil,
+			viper.GetString("schemaRegistryURL")),
+		redshifter:     redshifter,
+		redshiftSchema: viper.GetString("redshift.schema"),
+		stagingTable:   nil,
+		targetTable:    nil,
 	}
 }
 
@@ -468,13 +475,21 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 	if !schemaExist {
 		err = b.redshifter.CreateSchema(tx, inputTable.Meta.Schema)
 		if err != nil {
-			klog.Fatalf("Error creating schema, err: %v\n", err)
+			exist, err2 := b.redshifter.SchemaExist(inputTable.Meta.Schema)
+			if err2 != nil {
+				klog.Fatalf("Error checking schema exist, err: %v\n", err2)
+			}
+			if !exist {
+				klog.Fatalf("Error creating schema, err: %v\n", err)
+			}
+		} else {
+			klog.Infof(
+				"topic:%s, schemaId:%d: Schema %s created",
+				b.topic,
+				schemaId,
+				inputTable.Meta.Schema,
+			)
 		}
-		klog.Infof(
-			"topic:%s, schemaId:%d: Schema %s created",
-			b.topic,
-			schemaId,
-			inputTable.Meta.Schema)
 	}
 
 	tableExist, err := b.redshifter.TableExist(
@@ -557,6 +572,7 @@ func (b *loadProcessor) processBatch(
 						err)
 				}
 				inputTable = resp.(redshift.Table)
+				inputTable.Meta.Schema = b.redshiftSchema
 				b.migrateSchema(schemaId, inputTable)
 				b.createStagingTable(schemaId, inputTable)
 			}
@@ -602,7 +618,9 @@ func (b *loadProcessor) process(workerID int, datas []interface{}) {
 		return
 	}
 
-	b.commitOffset(datas)
+	if b.autoCommit == false {
+		b.commitOffset(datas)
+	}
 
 	klog.Infof(
 		"topic:%s, batchId:%d, startOffset:%d, endOffset:%d: Processed",
