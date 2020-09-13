@@ -6,10 +6,10 @@
     "name": "redshiftbatcher0",
     "deploymentStrategy": "recreate",
     "resources": {
-      "requestCpu": "1024m",
-      "requestMemory": "1024Mi",
+      "requestCpu": "1348m",
+      "requestMemory": "3048Mi",
       "limitCpu": "2048m",
-      "limitMemory": "2048Mi"
+      "limitMemory": "3048Mi"
     }
   }
 ]
