@@ -2,7 +2,7 @@
   {
     "directory": "/",
     "command": "/redshiftloader",
-    "args": ["--config=/config.yaml"],
+    "args": ["-v=2", "--config=/config.yaml"],
     "name": "redshiftloader0",
     "deploymentStrategy": "recreate",
     "resources": {
