@@ -622,3 +622,64 @@ func ConvertDefaultValue(val string) string {
 
 	return val
 }
+
+var mysqlToRedshiftType = map[string]string{
+	"BOOL":                        "INT2",
+	"BOOLEAN":                     "INT2",
+	"BIGINT":                      "INT8",
+	"BIGINT UNSIGNED":             "NUMERIC(20, 0)",
+	"BINARY":                      "VARCHAR",
+	"BIT":                         "INT8",
+	"BLOB":                        "VARCHAR(65535)",
+	"CHAR":                        "VARCHAR",
+	"DEC":                         "NUMERIC",
+	"DECIMAL":                     "NUMERIC",
+	"DECIMAL UNSIGNED":            "NUMERIC",
+	"DOUBLE [PRECISION]":          "FLOAT8",
+	"DOUBLE [PRECISION] UNSIGNED": "FLOAT8",
+	"DATE":                        "DATE",
+	"DATETIME":                    "TIMESTAMP",
+	"ENUM":                        "VARCHAR",
+	"FIXED":                       "NUMERIC",
+	"FLOAT":                       "FLOAT4",
+	"INT":                         "INT4",
+	"INTEGER":                     "INT4",
+	"INTEGER UNSIGNED":            "INT8",
+	"LONGBLOB":                    "VARCHAR",
+	"LONGTEXT":                    "VARCHAR(MAX)",
+	"MEDIUMBLOB":                  "VARCHAR",
+	"MEDIUMINT":                   "INT4",
+	"MEDIUMINT UNSIGNED":          "INT4",
+	"MEDIUMTEXT":                  "VARCHAR(MAX)",
+	"NUMERIC":                     "NUMERIC",
+	"SET":                         "VARCHAR",
+	"SMALLINT":                    "INT2",
+	"SMALLINT UNSIGNED":           "INT4",
+	"TEXT":                        "VARCHAR(MAX)",
+	"TIME":                        "TIMESTAMP",
+	"TIMESTAMP":                   "TIMESTAMP",
+	"TINYBLOB":                    "VARCHAR",
+	"TINYINT":                     "INT2",
+	"TINYINT UNSIGNED":            "INT2",
+	"TINYTEXT":                    "VARCHAR(MAX)",
+	"VARBINARY":                   "VARCHAR(MAX)",
+	"VARCHAR":                     "VARCHAR",
+	"YEAR":                        "DATE",
+}
+
+// GetRedshiftDataType returns the mapped type for the sqlType's data type
+func GetRedshiftDataType(sqlType, defaultType,
+	sourceColType string) (string, error) {
+
+	switch sqlType {
+	case "mysql":
+		redshiftType, ok := mysqlToRedshiftType[sourceColType]
+		if ok {
+			return redshiftType, nil
+		}
+		// default is not cause error but use the default type
+		return defaultType, nil
+	}
+
+	return "", fmt.Errorf("Unsupported sqlType:%s\n", sqlType)
+}
