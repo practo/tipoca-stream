@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	// "reflect"
 	"fmt"
+	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/riferrei/srclient"
 	"os"
@@ -25,11 +26,23 @@ type DebeziumSchemaField struct {
 }
 
 type DebeziumColInfo struct {
-	Name       string `yaml:"name"`
-	Type       string `yaml:"type"`
-	Default    string `yaml:"default"`
-	NotNull    bool   `yaml:"notnull"`
-	PrimaryKey bool   `yaml:"primarykey"`
+	Name       string             `yaml:"name"`
+	Type       string             `yaml:"type"`
+	SourceType DebeziumSourceType `yaml:"debeziumSourceType"`
+	Default    string             `yaml:"default"`
+	NotNull    bool               `yaml:"notnull"`
+	PrimaryKey bool               `yaml:"primarykey"`
+}
+
+type DebeziumSourceType struct {
+	ColumnLength string `yaml:"columnLength"`
+	ColumnType   string `yaml:"columnType"`
+}
+
+type DebeziumDataType struct {
+	Type               string `yaml:"type"`
+	SourceColumnType   string `yaml:"sourceColumnType"`
+	SourceColumnLength string `yaml:"sourceColumnLength"`
 }
 
 type debeziumSchemaParser struct {
@@ -49,64 +62,106 @@ func (d *debeziumSchemaParser) tableName() string {
 	return namespace[len(namespace)-1]
 }
 
+func (d *debeziumSchemaParser) sqlType() string {
+	// TODO: parse to send mysql and postgres dependening on the connector
+	// do this when postgres comes
+	return "mysql"
+}
+
+func getSourceType(v interface{}) DebeziumSourceType {
+	valueMap := v.(map[string]interface{})
+
+	var columnType string
+	var columnLength string
+	fieldsFound := 0
+
+	for key, value := range valueMap {
+		if key == "__debezium.source.column.length" {
+			columnLength = fmt.Sprintf("%s", value)
+			fieldsFound = fieldsFound + 1
+		}
+
+		if key == "__debezium.source.column.type" {
+			columnType = fmt.Sprintf("%s", value)
+			fieldsFound = fieldsFound + 1
+		}
+	}
+
+	if fieldsFound == 0 {
+		klog.Warningf("Source info missing in %+v\n", v)
+	}
+
+	return DebeziumSourceType{
+		ColumnType:   columnType,
+		ColumnLength: columnLength,
+	}
+}
+
 func debeziumColumn(v map[string]interface{}) DebeziumColInfo {
 	column := DebeziumColInfo{}
 
 	// TODO: Have figured out not null and primary key, TODO is open
 	// because not null is set only when the default==nil
 	// https://stackoverflow.com/questions/63576770/debezium-schema-not-null-and-primary-key-info/
+
 	for key, v2 := range v {
 		switch key {
 		case "name":
 			column.Name = v["name"].(string)
 		case "type":
-			//fmt.Printf("v2=%v\n", v2)
 			switch v2.(type) {
-			case string:
-				column.Type = v["type"].(string)
-			case int:
-				column.Type = v["type"].(string)
 			case interface{}:
-				// handles []
+				// handles slice
+				// [
+				//   null,
+				//   map[
+				//       connect.parameters:map[
+				//			__debezium.source.column.length:255
+				//          __debezium.source.column.type:VARCHAR
+				//       ]
+				//       type:string
+				//   ],
+				// ]
 				listSlice, ok := v2.([]interface{})
 				if ok {
-					//fmt.Println("its a list slice")
 					for _, vx := range listSlice {
-						//fmt.Printf("got vx_type=%v\n", reflect.TypeOf(vx))
 						switch vx.(type) {
-						// handles
-						// [map[connect.default:singh type:string], null]
+						// handles if value is map
 						case map[string]interface{}:
 							for k3, v3 := range vx.(map[string]interface{}) {
-								if k3 != "type" {
-									continue
+								if k3 == "type" {
+									column.Type = v3.(string)
 								}
-								column.Type = v3.(string)
-							}
-						// handles
-						// ["null", "string"]
-						case string:
-							if vx != "null" {
-								column.Type = vx.(string)
-								//fmt.Printf("got vx=%v\n", vx)
+								if k3 == "connect.parameters" {
+									column.SourceType = getSourceType(v3)
+								}
 							}
 						}
 					}
+					// handled the case continue case
 					continue
 				}
 
-				// handles
-				// map[connect.default:singh type:string]
+				// handles map
+				// map[
+				// 		connect.parameters:map[
+				//          __debezium.source.column.length:255
+				//          __debezium.source.column.type:VARCHAR
+				//      ]
+				//      type:string
+				// ]
 				listMap, ok := v2.(map[string]interface{})
 				if !ok {
-					fmt.Printf("Error type casting for v2=%v\n", v2)
+					fmt.Printf("Error type casting, value=%v\n", v2)
 					os.Exit(1)
 				}
 				for k4, v4 := range listMap {
-					if k4 != "type" {
-						continue
+					if k4 == "type" {
+						column.Type = v4.(string)
 					}
-					column.Type = v4.(string)
+					if k4 == "connect.parameters" {
+						column.SourceType = getSourceType(v4)
+					}
 				}
 			default:
 				fmt.Printf("Unhandled type for v2=%v\n", v2)
@@ -260,9 +315,18 @@ func (c *debeziumSchemaTransformer) transformSchemaValue(jobSchema string,
 	columns := d.columnsBefore()
 	var redshiftColumns []redshift.ColInfo
 	for _, column := range columns {
+		redshiftDataType, err := redshift.GetRedshiftDataType(
+			d.sqlType(),
+			column.Type,
+			column.SourceType.ColumnLength,
+		)
+		if err != nil {
+			return nil, err
+		}
+
 		redshiftColumns = append(redshiftColumns, redshift.ColInfo{
 			Name:       strings.ToLower(column.Name),
-			Type:       column.Type,
+			Type:       redshiftDataType,
 			DefaultVal: column.Default,
 			NotNull:    column.NotNull,
 			PrimaryKey: column.PrimaryKey,
