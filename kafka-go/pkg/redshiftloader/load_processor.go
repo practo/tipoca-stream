@@ -575,6 +575,8 @@ func (b *loadProcessor) processBatch(
 				}
 				inputTable = resp.(redshift.Table)
 				inputTable.Meta.Schema = b.redshiftSchema
+				// postgres(redshift)
+				inputTable.Name = strings.ToLower(inputTable.Name)
 				b.migrateSchema(schemaId, inputTable)
 				b.createStagingTable(schemaId, inputTable)
 			}
