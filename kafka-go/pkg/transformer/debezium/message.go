@@ -14,7 +14,7 @@ const (
 	OperationDelete = "DELETE"
 
 	OperationColumn     = "operation"
-	OperationColumnType = "string"
+	OperationColumnType = "character varying(15)"
 )
 
 func NewMessageTransformer() transformer.MessageTransformer {

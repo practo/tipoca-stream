@@ -7,7 +7,6 @@ import (
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
 	"github.com/riferrei/srclient"
-	"os"
 	"strings"
 )
 
@@ -97,6 +96,7 @@ func getSourceType(v interface{}) SourceType {
 
 // column extracts the column information from the schema fields
 func column(v map[string]interface{}) ColInfo {
+	//fmt.Printf("v=%+v\n", v)
 	column := ColInfo{}
 	// TODO: Have figured out not null and primary key, TODO is open
 	// because not null is set only when the default==nil
@@ -106,7 +106,12 @@ func column(v map[string]interface{}) ColInfo {
 		case "name":
 			column.Name = v["name"].(string)
 		case "type":
+			//fmt.Printf("name=%v v2=%v\n",v["name"], v2)
 			switch v2.(type) {
+			case string:
+				column.Type = v["type"].(string)
+			case int:
+				column.Type = v["type"].(string)
 			case interface{}:
 				// handles slice
 				// [
@@ -133,6 +138,11 @@ func column(v map[string]interface{}) ColInfo {
 									column.SourceType = getSourceType(v3)
 								}
 							}
+						// handles ["null", "string"]
+						case string:
+							if vx != "null" {
+								column.Type = vx.(string)
+							}
 						}
 					}
 					// handled the case continue case
@@ -149,8 +159,7 @@ func column(v map[string]interface{}) ColInfo {
 				// ]
 				listMap, ok := v2.(map[string]interface{})
 				if !ok {
-					fmt.Printf("Error type casting, value=%v\n", v2)
-					os.Exit(1)
+					klog.Fatalf("Error type casting, value=%+v\n", v2)
 				}
 				for k4, v4 := range listMap {
 					if k4 == "type" {
@@ -161,8 +170,7 @@ func column(v map[string]interface{}) ColInfo {
 					}
 				}
 			default:
-				fmt.Printf("Unhandled type for v2=%v\n", v2)
-				os.Exit(1)
+				klog.Fatalf("Unhandled type for v2=%v\n", v2)
 			}
 		case "default":
 			if v["default"] == nil {

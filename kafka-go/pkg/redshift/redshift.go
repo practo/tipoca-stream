@@ -608,6 +608,21 @@ func ConvertDefaultValue(val string) string {
 	return val
 }
 
+// https://debezium.io/documentation/reference/1.2/connectors/mysql.html
+// https://docs.aws.amazon.com/redshift/latest/dg/c_Supported_data_types.html
+var debeziumToRedshiftTypeMap = map[string]string{
+	"boolean": "boolean",
+	"float":   "real",
+	"float32": "real",
+	"float64": "double precision",
+	"int":     "integer",
+	"int16":   "smallint",
+	"int32":   "integer",
+	"long":    "character varying(65535)",
+	"bigint":  "bigint",
+	"string":  "character varying(256)",
+}
+
 var mysqlToRedshiftTypeMap = map[string]string{
 	"bool":                        "int2",
 	"boolean":                     "int2",
@@ -622,40 +637,41 @@ var mysqlToRedshiftTypeMap = map[string]string{
 	"decimal unsigned":            "numeric",
 	"double [precision]":          "float8",
 	"double [precision] unsigned": "float8",
-	"date":                        "date",
-	"datetime":                    "timestamp",
-	"enum":                        "character varying",
-	"fixed":                       "numeric",
-	"float":                       "float4",
-	"int":                         "int4",
-	"integer":                     "int4",
-	"integer unsigned":            "int8",
-	"longblob":                    "character varying",
-	"longtext":                    "character varying(max)",
-	"mediumblob":                  "character varying",
-	"mediumint":                   "int4",
-	"mediumint unsigned":          "int4",
-	"mediumtext":                  "character varying(max)",
-	"numeric":                     "numeric",
-	"set":                         "character varying",
-	"smallint":                    "int2",
-	"smallint unsigned":           "int4",
-	"text":                        "character varying(max)",
-	"time":                        "timestamp",
-	"timestamp":                   "timestamp",
-	"tinyblob":                    "character varying",
-	"tinyint":                     "int2",
-	"tinyint unsigned":            "int2",
-	"tinytext":                    "character varying(max)",
-	"varbinary":                   "character varying(max)",
-	"varchar":                     "character varying",
-	"year":                        "date",
+	"date":               "date",
+	"datetime":           "timestamp",
+	"enum":               "character varying",
+	"fixed":              "numeric",
+	"float":              "float4",
+	"int":                "int4",
+	"integer":            "int4",
+	"integer unsigned":   "int8",
+	"longblob":           "character varying",
+	"longtext":           "character varying(max)",
+	"mediumblob":         "character varying",
+	"mediumint":          "int4",
+	"mediumint unsigned": "int4",
+	"mediumtext":         "character varying(max)",
+	"numeric":            "numeric",
+	"set":                "character varying",
+	"smallint":           "int2",
+	"smallint unsigned":  "int4",
+	"text":               "character varying(max)",
+	"time":               "timestamp",
+	"timestamp":          "timestamp",
+	"tinyblob":           "character varying",
+	"tinyint":            "int2",
+	"tinyint unsigned":   "int2",
+	"tinytext":           "character varying(max)",
+	"varbinary":          "character varying(max)",
+	"varchar":            "character varying",
+	"year":               "date",
 }
 
 // GetRedshiftDataType returns the mapped type for the sqlType's data type
 func GetRedshiftDataType(sqlType, debeziumType,
 	sourceColType string) (string, error) {
 
+	debeziumType = strings.ToLower(debeziumType)
 	sourceColType = strings.ToLower(sourceColType)
 
 	switch sqlType {
@@ -665,7 +681,15 @@ func GetRedshiftDataType(sqlType, debeziumType,
 			return redshiftType, nil
 		}
 		// default is the debeziumType
-		return debeziumType, nil
+		redshiftType, ok = debeziumToRedshiftTypeMap[debeziumType]
+		if ok {
+			return redshiftType, nil
+		}
+		return "", fmt.Errorf(
+			"Type: %s, SourceType: %s, not handled\n",
+			debeziumType,
+			sourceColType,
+		)
 	}
 
 	return "", fmt.Errorf("Unsupported sqlType:%s\n", sqlType)
