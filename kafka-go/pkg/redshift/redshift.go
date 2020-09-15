@@ -130,11 +130,12 @@ func NewTable(t Table) *Table {
 // about a column in a Redshift database.
 // SortOrdinal and DistKey only make sense for Redshift
 type ColInfo struct {
-	Name       string `json:"dest"`
-	Type       string `json:"type"`
-	DefaultVal string `json:"defaultval"`
-	NotNull    bool   `json:"notnull"`
-	PrimaryKey bool   `json:"primarykey"`
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	DebeziumType string `json:"debeziumType"`
+	DefaultVal   string `json:"defaultval"`
+	NotNull      bool   `json:"notnull"`
+	PrimaryKey   bool   `json:"primarykey"`
 }
 
 func (r *Redshift) SchemaExist(schema string) (bool, error) {
@@ -652,7 +653,7 @@ var mysqlToRedshiftTypeMap = map[string]string{
 }
 
 // GetRedshiftDataType returns the mapped type for the sqlType's data type
-func GetRedshiftDataType(sqlType, defaultType,
+func GetRedshiftDataType(sqlType, debeziumType,
 	sourceColType string) (string, error) {
 
 	sourceColType = strings.ToLower(sourceColType)
@@ -663,8 +664,8 @@ func GetRedshiftDataType(sqlType, defaultType,
 		if ok {
 			return redshiftType, nil
 		}
-		// default is not cause error but use the default type
-		return defaultType, nil
+		// default is the debeziumType
+		return debeziumType, nil
 	}
 
 	return "", fmt.Errorf("Unsupported sqlType:%s\n", sqlType)

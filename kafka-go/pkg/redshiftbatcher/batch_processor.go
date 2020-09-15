@@ -11,6 +11,7 @@ import (
 	"github.com/practo/tipoca-stream/kafka-go/pkg/s3sink"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer/debezium"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer/masker"
 	"github.com/spf13/viper"
 	"path/filepath"
@@ -60,15 +61,15 @@ type batchProcessor struct {
 	// this is helpful to log at the time of shutdown and can help in debugging
 	lastCommittedOffset int64
 
-	// msgTransformer is used to transform debezium events into
+	// messageTransformer is used to transform debezium events into
 	// redshift COPY commands with some annotations
-	msgTransformer transformer.MsgTransformer
+	messageTransformer transformer.MessageTransformer
 
 	// msgMasker is used to mask the message based on the configuration
 	// provided. Default is always to mask everything.
 	// this gets activated only when batcher.mask is set to true
 	// and batcher.maskConfigDir is defined.
-	msgMasker transformer.MsgTransformer
+	msgMasker transformer.MessageTransformer
 
 	// maskMessages stores if the masking is enabled
 	maskMessages bool
@@ -101,7 +102,7 @@ func newBatchProcessor(
 		klog.Fatalf("unable to make signaler client, err:%v\n", err)
 	}
 
-	var msgMasker transformer.MsgTransformer
+	var msgMasker transformer.MessageTransformer
 	maskMessages := viper.GetBool("batcher.mask")
 	if maskMessages {
 		msgMasker, err = masker.NewMsgMasker(
@@ -112,17 +113,17 @@ func newBatchProcessor(
 	}
 
 	return &batchProcessor{
-		topic:          topic,
-		partition:      partition,
-		autoCommit:     viper.GetBool("sarama.autoCommit"),
-		session:        session,
-		s3sink:         sink,
-		s3BucketDir:    viper.GetString("s3sink.bucketDir"),
-		bodyBuf:        bytes.NewBuffer(make([]byte, 0, 4096)),
-		msgTransformer: transformer.NewMsgTransformer(),
-		msgMasker:      msgMasker,
-		maskMessages:   maskMessages,
-		signaler:       signaler,
+		topic:              topic,
+		partition:          partition,
+		autoCommit:         viper.GetBool("sarama.autoCommit"),
+		session:            session,
+		s3sink:             sink,
+		s3BucketDir:        viper.GetString("s3sink.bucketDir"),
+		bodyBuf:            bytes.NewBuffer(make([]byte, 0, 4096)),
+		messageTransformer: debezium.NewMessageTransformer(),
+		msgMasker:          msgMasker,
+		maskMessages:       maskMessages,
+		signaler:           signaler,
 	}
 }
 
@@ -268,7 +269,7 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 		)
 	}
 
-	err := b.msgTransformer.Transform(message)
+	err := b.messageTransformer.Transform(message)
 	if err != nil {
 		klog.Fatalf("Error transforming message:%+v, err:%v\n", message, err)
 	}
