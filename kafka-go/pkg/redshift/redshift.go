@@ -130,11 +130,12 @@ func NewTable(t Table) *Table {
 // about a column in a Redshift database.
 // SortOrdinal and DistKey only make sense for Redshift
 type ColInfo struct {
-	Name       string `json:"dest"`
-	Type       string `json:"type"`
-	DefaultVal string `json:"defaultval"`
-	NotNull    bool   `json:"notnull"`
-	PrimaryKey bool   `json:"primarykey"`
+	Name         string `json:"name"`
+	Type         string `json:"type"`
+	DebeziumType string `json:"debeziumType"`
+	DefaultVal   string `json:"defaultval"`
+	NotNull      bool   `json:"notnull"`
+	PrimaryKey   bool   `json:"primarykey"`
 }
 
 func (r *Redshift) SchemaExist(schema string) (bool, error) {
@@ -182,22 +183,6 @@ func (r *Redshift) TableExist(schema string, table string) (bool, error) {
 	return true, nil
 }
 
-// https://debezium.io/documentation/reference/1.2/connectors/mysql.html
-// https://docs.aws.amazon.com/redshift/latest/dg/c_Supported_data_types.html
-// debeziumToRedshift map
-var typeMapping = map[string]string{
-	"boolean": "boolean",
-	"float":   "real",
-	"float32": "real",
-	"float64": "double precision",
-	"int":     "integer",
-	"int16":   "smallint",
-	"int32":   "integer",
-	"long":    "character varying(65535)",
-	"bigint":  "bigint",
-	"string":  "character varying(256)",
-}
-
 func getColumnSQL(c ColInfo) string {
 	// note that we are relying on redshift
 	// to fail if we have created multiple sort keys
@@ -223,7 +208,7 @@ func getColumnSQL(c ColInfo) string {
 	return fmt.Sprintf(
 		" \"%s\" %s %s %s %s",
 		c.Name,
-		typeMapping[c.Type],
+		c.Type,
 		defaultVal,
 		notNull,
 		primaryKey,
@@ -538,7 +523,7 @@ func checkColumn(schemaName string, tableName string,
 		}
 	}
 
-	if typeMapping[inCol.Type] != targetCol.Type {
+	if inCol.Type != targetCol.Type {
 		alterSQL = append(alterSQL,
 			fmt.Sprintf(
 				`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s %s`,
@@ -546,7 +531,7 @@ func checkColumn(schemaName string, tableName string,
 				tableName,
 				inCol.Name,
 				"TYPE",
-				typeMapping[inCol.Type],
+				inCol.Type,
 			),
 		)
 	}
@@ -621,4 +606,91 @@ func ConvertDefaultValue(val string) string {
 	}
 
 	return val
+}
+
+// https://debezium.io/documentation/reference/1.2/connectors/mysql.html
+// https://docs.aws.amazon.com/redshift/latest/dg/c_Supported_data_types.html
+var debeziumToRedshiftTypeMap = map[string]string{
+	"boolean": "boolean",
+	"float":   "real",
+	"float32": "real",
+	"float64": "double precision",
+	"int":     "integer",
+	"int16":   "smallint",
+	"int32":   "integer",
+	"long":    "character varying(65535)",
+	"bigint":  "bigint",
+	"string":  "character varying(256)",
+}
+
+var mysqlToRedshiftTypeMap = map[string]string{
+	"bool":                        "int2",
+	"boolean":                     "int2",
+	"bigint":                      "int8",
+	"bigint unsigned":             "numeric(20, 0)",
+	"binary":                      "character varying",
+	"bit":                         "int8",
+	"blob":                        "character varying(65535)",
+	"char":                        "character varying",
+	"dec":                         "numeric",
+	"decimal":                     "numeric",
+	"decimal unsigned":            "numeric",
+	"double [precision]":          "float8",
+	"double [precision] unsigned": "float8",
+	"date":               "date",
+	"datetime":           "timestamp",
+	"enum":               "character varying",
+	"fixed":              "numeric",
+	"float":              "float4",
+	"int":                "int4",
+	"integer":            "int4",
+	"integer unsigned":   "int8",
+	"longblob":           "character varying",
+	"longtext":           "character varying(max)",
+	"mediumblob":         "character varying",
+	"mediumint":          "int4",
+	"mediumint unsigned": "int4",
+	"mediumtext":         "character varying(max)",
+	"numeric":            "numeric",
+	"set":                "character varying",
+	"smallint":           "int2",
+	"smallint unsigned":  "int4",
+	"text":               "character varying(max)",
+	"time":               "timestamp",
+	"timestamp":          "timestamp",
+	"tinyblob":           "character varying",
+	"tinyint":            "int2",
+	"tinyint unsigned":   "int2",
+	"tinytext":           "character varying(max)",
+	"varbinary":          "character varying(max)",
+	"varchar":            "character varying",
+	"year":               "date",
+}
+
+// GetRedshiftDataType returns the mapped type for the sqlType's data type
+func GetRedshiftDataType(sqlType, debeziumType,
+	sourceColType string) (string, error) {
+
+	debeziumType = strings.ToLower(debeziumType)
+	sourceColType = strings.ToLower(sourceColType)
+
+	switch sqlType {
+	case "mysql":
+		redshiftType, ok := mysqlToRedshiftTypeMap[sourceColType]
+		if ok {
+			return redshiftType, nil
+		}
+		// default is the debeziumType
+		redshiftType, ok = debeziumToRedshiftTypeMap[debeziumType]
+		if ok {
+			return redshiftType, nil
+		}
+		return "", fmt.Errorf(
+			"Type: %s, SourceType: %s, not handled\n",
+			debeziumType,
+			sourceColType,
+		)
+	}
+
+	return "", fmt.Errorf("Unsupported sqlType:%s\n", sqlType)
 }

@@ -1,35 +1,41 @@
-package transformer
+package debezium
 
 import (
 	"encoding/json"
 	"fmt"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
 	"strings"
 )
 
 const (
+	OperationCreate = "CREATE"
+	OperationUpdate = "UPDATE"
+	OperationDelete = "DELETE"
+
 	OperationColumn     = "operation"
-	OperationColumnType = "string"
-	OperationCreate     = "CREATE"
-	OperationUpdate     = "UPDATE"
-	OperationDelete     = "DELETE"
+	OperationColumnType = "character varying(15)"
 )
 
-type debeziumMsgParser struct {
-	msg interface{}
+func NewMessageTransformer() transformer.MessageTransformer {
+	return &messageTransformer{}
 }
 
-func (d *debeziumMsgParser) extract(key string, msg map[string]interface{},
+type messageParser struct {
+	message interface{}
+}
+
+// extract extracts out the columns name and value from the debezium message
+func (d *messageParser) extract(key string, message map[string]interface{},
 	result map[string]*string) {
 
-	dataKey := msg[key]
+	dataKey := message[key]
 	if dataKey == nil {
 		return
 	}
-
 	data := dataKey.(map[string]interface{})
 
-	// Why such handling? https://github.com/linkedin/goavro/issues/217
+	// why handled liket this ?: https://github.com/linkedin/goavro/issues/217
 	for _, v := range data {
 		for k2, v2 := range v.(map[string]interface{}) {
 			switch v2.(type) {
@@ -48,45 +54,39 @@ func (d *debeziumMsgParser) extract(key string, msg map[string]interface{},
 	}
 }
 
-func (d *debeziumMsgParser) after() map[string]*string {
+// after extracts out the "after" columns in the debezium message
+func (d *messageParser) after() map[string]*string {
 	result := make(map[string]*string)
-	if d.msg == nil {
+	if d.message == nil {
 		return result
 	}
-
-	data := d.msg.(map[string]interface{})
+	data := d.message.(map[string]interface{})
 	if data == nil {
 		return result
 	}
-
 	d.extract("after", data, result)
 
 	return result
 }
 
-func (d *debeziumMsgParser) before() map[string]*string {
+// before extracts out the "before" columns in the debezium message
+func (d *messageParser) before() map[string]*string {
 	result := make(map[string]*string)
-	if d.msg == nil {
+	if d.message == nil {
 		return result
 	}
-
-	data := d.msg.(map[string]interface{})
+	data := d.message.(map[string]interface{})
 	if data == nil {
 		return result
 	}
-
 	d.extract("before", data, result)
 
 	return result
 }
 
-func NewMsgTransformer() MsgTransformer {
-	return &debeziumMsgTransformer{}
-}
+type messageTransformer struct{}
 
-type debeziumMsgTransformer struct{}
-
-func (c *debeziumMsgTransformer) getOperation(message *serializer.Message,
+func (c *messageTransformer) getOperation(message *serializer.Message,
 	beforeLen int, afterLen int) (string, error) {
 
 	r := 0
@@ -113,11 +113,9 @@ func (c *debeziumMsgTransformer) getOperation(message *serializer.Message,
 }
 
 // Transform debezium event into a s3 message annotating extra information
-func (c *debeziumMsgTransformer) Transform(
-	message *serializer.Message) error {
-
-	d := &debeziumMsgParser{
-		msg: message.Value,
+func (c *messageTransformer) Transform(message *serializer.Message) error {
+	d := &messageParser{
+		message: message.Value,
 	}
 
 	before := d.before()
