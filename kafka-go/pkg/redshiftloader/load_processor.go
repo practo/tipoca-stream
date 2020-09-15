@@ -9,6 +9,7 @@ import (
 	"github.com/practo/tipoca-stream/kafka-go/pkg/s3sink"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer/debezium"
 	"github.com/spf13/viper"
 	"path/filepath"
 )
@@ -47,9 +48,9 @@ type loadProcessor struct {
 	// this is helpful to log at the time of shutdown and can help in debugging
 	lastCommittedOffset int64
 
-	// msgTransformer is used to transform debezium events into
+	// messageTransformer is used to transform debezium events into
 	// redshift COPY commands with some annotations
-	msgTransformer transformer.MsgTransformer
+	messageTransformer transformer.MessageTransformer
 
 	// schemaTransfomer is used to transform debezium schema
 	// to redshift table
@@ -104,13 +105,13 @@ func newLoadProcessor(
 	}
 
 	return &loadProcessor{
-		topic:          topic,
-		partition:      partition,
-		autoCommit:     viper.GetBool("sarama.autoCommit"),
-		session:        session,
-		s3sink:         sink,
-		msgTransformer: transformer.NewMsgTransformer(),
-		schemaTransformer: transformer.NewSchemaTransformer(
+		topic:              topic,
+		partition:          partition,
+		autoCommit:         viper.GetBool("sarama.autoCommit"),
+		session:            session,
+		s3sink:             sink,
+		messageTransformer: debezium.NewMessageTransformer(),
+		schemaTransformer: debezium.NewSchemaTransformer(
 			viper.GetString("schemaRegistryURL")),
 		redshifter:     redshifter,
 		redshiftSchema: viper.GetString("redshift.schema"),
@@ -258,8 +259,8 @@ func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
 	err := b.redshifter.DeleteColumn(tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
-		transformer.OperationColumn,
-		transformer.OperationDelete,
+		debezium.OperationColumn,
+		debezium.OperationDelete,
 	)
 	if err != nil {
 		klog.Fatalf("DeleteRowsWithDeleteOp failed, %v\n", err)
@@ -284,7 +285,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 		tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
-		transformer.OperationColumn,
+		debezium.OperationColumn,
 	)
 	if err != nil {
 		klog.Fatal(err)
@@ -384,7 +385,7 @@ func (b *loadProcessor) createStagingTable(
 		if column.Name == stagingTablePrimaryKey {
 			continue
 		}
-		if column.Name == transformer.OperationColumn {
+		if column.Name == debezium.OperationColumn {
 			continue
 		}
 
@@ -420,8 +421,8 @@ func (b *loadProcessor) createStagingTable(
 			PrimaryKey: true,
 		},
 		redshift.ColInfo{
-			Name:       transformer.OperationColumn,
-			Type:       transformer.OperationColumnType,
+			Name:       debezium.OperationColumn,
+			Type:       debezium.OperationColumnType,
 			DefaultVal: "",
 			NotNull:    true,
 			PrimaryKey: false,

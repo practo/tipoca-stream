@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-type MsgTransformer interface {
+type MessageTransformer interface {
 	Transform(message *serializer.Message) error
 }
 
