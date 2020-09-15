@@ -623,57 +623,59 @@ func ConvertDefaultValue(val string) string {
 	return val
 }
 
-var mysqlToRedshiftType = map[string]string{
-	"BOOL":                        "INT2",
-	"BOOLEAN":                     "INT2",
-	"BIGINT":                      "INT8",
-	"BIGINT UNSIGNED":             "NUMERIC(20, 0)",
-	"BINARY":                      "VARCHAR",
-	"BIT":                         "INT8",
-	"BLOB":                        "VARCHAR(65535)",
-	"CHAR":                        "VARCHAR",
-	"DEC":                         "NUMERIC",
-	"DECIMAL":                     "NUMERIC",
-	"DECIMAL UNSIGNED":            "NUMERIC",
-	"DOUBLE [PRECISION]":          "FLOAT8",
-	"DOUBLE [PRECISION] UNSIGNED": "FLOAT8",
-	"DATE":                        "DATE",
-	"DATETIME":                    "TIMESTAMP",
-	"ENUM":                        "VARCHAR",
-	"FIXED":                       "NUMERIC",
-	"FLOAT":                       "FLOAT4",
-	"INT":                         "INT4",
-	"INTEGER":                     "INT4",
-	"INTEGER UNSIGNED":            "INT8",
-	"LONGBLOB":                    "VARCHAR",
-	"LONGTEXT":                    "VARCHAR(MAX)",
-	"MEDIUMBLOB":                  "VARCHAR",
-	"MEDIUMINT":                   "INT4",
-	"MEDIUMINT UNSIGNED":          "INT4",
-	"MEDIUMTEXT":                  "VARCHAR(MAX)",
-	"NUMERIC":                     "NUMERIC",
-	"SET":                         "VARCHAR",
-	"SMALLINT":                    "INT2",
-	"SMALLINT UNSIGNED":           "INT4",
-	"TEXT":                        "VARCHAR(MAX)",
-	"TIME":                        "TIMESTAMP",
-	"TIMESTAMP":                   "TIMESTAMP",
-	"TINYBLOB":                    "VARCHAR",
-	"TINYINT":                     "INT2",
-	"TINYINT UNSIGNED":            "INT2",
-	"TINYTEXT":                    "VARCHAR(MAX)",
-	"VARBINARY":                   "VARCHAR(MAX)",
-	"VARCHAR":                     "VARCHAR",
-	"YEAR":                        "DATE",
+var mysqlToRedshiftTypeMap = map[string]string{
+	"bool":                        "int2",
+	"boolean":                     "int2",
+	"bigint":                      "int8",
+	"bigint unsigned":             "numeric(20, 0)",
+	"binary":                      "character varying",
+	"bit":                         "int8",
+	"blob":                        "character varying(65535)",
+	"char":                        "character varying",
+	"dec":                         "numeric",
+	"decimal":                     "numeric",
+	"decimal unsigned":            "numeric",
+	"double [precision]":          "float8",
+	"double [precision] unsigned": "float8",
+	"date":                        "date",
+	"datetime":                    "timestamp",
+	"enum":                        "character varying",
+	"fixed":                       "numeric",
+	"float":                       "float4",
+	"int":                         "int4",
+	"integer":                     "int4",
+	"integer unsigned":            "int8",
+	"longblob":                    "character varying",
+	"longtext":                    "character varying(max)",
+	"mediumblob":                  "character varying",
+	"mediumint":                   "int4",
+	"mediumint unsigned":          "int4",
+	"mediumtext":                  "character varying(max)",
+	"numeric":                     "numeric",
+	"set":                         "character varying",
+	"smallint":                    "int2",
+	"smallint unsigned":           "int4",
+	"text":                        "character varying(max)",
+	"time":                        "timestamp",
+	"timestamp":                   "timestamp",
+	"tinyblob":                    "character varying",
+	"tinyint":                     "int2",
+	"tinyint unsigned":            "int2",
+	"tinytext":                    "character varying(max)",
+	"varbinary":                   "character varying(max)",
+	"varchar":                     "character varying",
+	"year":                        "date",
 }
 
 // GetRedshiftDataType returns the mapped type for the sqlType's data type
 func GetRedshiftDataType(sqlType, defaultType,
 	sourceColType string) (string, error) {
 
+	sourceColType = strings.ToLower(sourceColType)
+
 	switch sqlType {
 	case "mysql":
-		redshiftType, ok := mysqlToRedshiftType[sourceColType]
+		redshiftType, ok := mysqlToRedshiftTypeMap[sourceColType]
 		if ok {
 			return redshiftType, nil
 		}
