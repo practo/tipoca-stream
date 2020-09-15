@@ -68,7 +68,7 @@ func (c *Manager) updatetopics(allTopics []string) {
 	defer c.mutex.Unlock()
 
 	klog.V(5).Infof(
-		"%d topic(s) with prefixes: %v\n",
+		"%d topic(s) with regexes: %v\n",
 		len(topics),
 		c.topicRegexes,
 	)
