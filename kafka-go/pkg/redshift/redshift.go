@@ -182,22 +182,6 @@ func (r *Redshift) TableExist(schema string, table string) (bool, error) {
 	return true, nil
 }
 
-// https://debezium.io/documentation/reference/1.2/connectors/mysql.html
-// https://docs.aws.amazon.com/redshift/latest/dg/c_Supported_data_types.html
-// debeziumToRedshift map
-var typeMapping = map[string]string{
-	"boolean": "boolean",
-	"float":   "real",
-	"float32": "real",
-	"float64": "double precision",
-	"int":     "integer",
-	"int16":   "smallint",
-	"int32":   "integer",
-	"long":    "character varying(65535)",
-	"bigint":  "bigint",
-	"string":  "character varying(256)",
-}
-
 func getColumnSQL(c ColInfo) string {
 	// note that we are relying on redshift
 	// to fail if we have created multiple sort keys
@@ -223,7 +207,7 @@ func getColumnSQL(c ColInfo) string {
 	return fmt.Sprintf(
 		" \"%s\" %s %s %s %s",
 		c.Name,
-		typeMapping[c.Type],
+		c.Type,
 		defaultVal,
 		notNull,
 		primaryKey,
@@ -538,7 +522,7 @@ func checkColumn(schemaName string, tableName string,
 		}
 	}
 
-	if typeMapping[inCol.Type] != targetCol.Type {
+	if inCol.Type != targetCol.Type {
 		alterSQL = append(alterSQL,
 			fmt.Sprintf(
 				`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s %s`,
@@ -546,7 +530,7 @@ func checkColumn(schemaName string, tableName string,
 				tableName,
 				inCol.Name,
 				"TYPE",
-				typeMapping[inCol.Type],
+				inCol.Type,
 			),
 		)
 	}
