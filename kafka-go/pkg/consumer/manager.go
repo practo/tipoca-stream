@@ -2,6 +2,7 @@ package consumer
 
 import (
 	"context"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -13,8 +14,8 @@ type Manager struct {
 	// consumer client, this is sarama now, can be kafka-go later
 	consumerGroup ConsumerGroup
 
-	// topicPrefixes is the list of topics to monitor
-	topicPrefixes []string
+	// topicRegexes is the list of topics to monitor
+	topicRegexes []*regexp.Regexp
 
 	// ready is used to signal the main thread about the readiness of
 	// the manager
@@ -23,27 +24,35 @@ type Manager struct {
 	// mutex protects the following mutable state
 	mutex sync.Mutex
 
-	// topics is computed based on the topicPrefixes specified
+	// topics is computed based on the topicRegexes specified
 	topics []string
 }
 
-func NewManager(
-	consumerGroup ConsumerGroup, topicPrefixes string) *Manager {
+func NewManager(consumerGroup ConsumerGroup, regexes string) *Manager {
+	var topicRegexes []*regexp.Regexp
+	expressions := strings.Split(strings.TrimSpace(regexes), ",")
+	for _, expression := range expressions {
+		rgx, err := regexp.Compile(expression)
+		if err != nil {
+			klog.Fatalf("Compling regex: %s failed, err:%v\n", expression, err)
+		}
+		topicRegexes = append(topicRegexes, rgx)
+	}
 
 	return &Manager{
 		consumerGroup: consumerGroup,
-		topicPrefixes: strings.Split(topicPrefixes, ","),
+		topicRegexes:  topicRegexes,
 		Ready:         make(chan bool),
 	}
 }
 
 func (c *Manager) updatetopics(allTopics []string) {
-	topicsAppended := make(map[string]bool)
 	topics := []string{}
+	topicsAppended := make(map[string]bool)
 
 	for _, topic := range allTopics {
-		for _, prefix := range c.topicPrefixes {
-			if !strings.HasPrefix(topic, prefix) {
+		for _, regex := range c.topicRegexes {
+			if !regex.MatchString(topic) {
 				continue
 			}
 			_, ok := topicsAppended[topic]
@@ -61,7 +70,7 @@ func (c *Manager) updatetopics(allTopics []string) {
 	klog.V(5).Infof(
 		"%d topic(s) with prefixes: %v\n",
 		len(topics),
-		c.topicPrefixes,
+		c.topicRegexes,
 	)
 	c.topics = topics
 }
