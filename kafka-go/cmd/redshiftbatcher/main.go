@@ -69,7 +69,7 @@ func run(cmd *cobra.Command, args []string) {
 
 	manager := consumer.NewManager(
 		consumerGroup,
-		config.Kafka.TopicPrefixes,
+		config.Kafka.TopicRegexes,
 	)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
