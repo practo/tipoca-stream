@@ -34,7 +34,7 @@ type masker struct {
 }
 
 func NewMsgMasker(dir string, topic string) (
-	transformer.MsgTransformer, error) {
+	transformer.MessageTransformer, error) {
 
 	server, database, table := transformer.ParseTopic(topic)
 	// TODO: document the convention to specify configuration files

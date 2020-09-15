@@ -1,57 +1,103 @@
-package transformer
+package debezium
 
 import (
 	"encoding/json"
-	// "reflect"
 	"fmt"
+	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
 	"github.com/riferrei/srclient"
-	"os"
 	"strings"
 )
 
-type DebeziumSchema struct {
-	Type        string                `yaml:"type"`
-	Name        string                `yaml:"name"`
-	Namespace   string                `yaml:"namespace"`
-	Fields      []DebeziumSchemaField `yaml:"fields"`
-	ConnectName string                `yaml:"connect.name"`
+type Schema struct {
+	Type        string        `yaml:"type"`
+	Name        string        `yaml:"name"`
+	Namespace   string        `yaml:"namespace"`
+	Fields      []SchemaField `yaml:"fields"`
+	ConnectName string        `yaml:"connect.name"`
 }
 
-type DebeziumSchemaField struct {
+type SchemaField struct {
 	Name    string      `yaml:"name"`
 	Type    interface{} `yaml:"type"`
 	Default interface{} `yaml:"default"`
 }
 
-type DebeziumColInfo struct {
-	Name       string `yaml:"name"`
-	Type       string `yaml:"type"`
-	Default    string `yaml:"default"`
-	NotNull    bool   `yaml:"notnull"`
-	PrimaryKey bool   `yaml:"primarykey"`
+type ColInfo struct {
+	Name       string     `yaml:"name"`
+	Type       string     `yaml:"type"`
+	SourceType SourceType `yaml:"debeziumSourceType"`
+	Default    string     `yaml:"default"`
+	NotNull    bool       `yaml:"notnull"`
+	PrimaryKey bool       `yaml:"primarykey"`
 }
 
-type debeziumSchemaParser struct {
+type SourceType struct {
+	ColumnLength string `yaml:"columnLength"`
+	ColumnType   string `yaml:"columnType"`
+}
+
+func NewSchemaTransformer(url string) transformer.SchemaTransformer {
+	return &schemaTransformer{
+		srclient: srclient.CreateSchemaRegistryClient(url),
+	}
+}
+
+type schemaParser struct {
+	schema  Schema
+	columns ColInfo
+
 	tableDelim string
-
-	schema  DebeziumSchema
-	columns DebeziumColInfo
 }
 
-func (d *debeziumSchemaParser) schemaName() string {
+func (d *schemaParser) schemaName() string {
 	namespace := strings.Split(d.schema.Namespace, d.tableDelim)
 	return strings.Join(namespace[0:len(namespace)-1], d.tableDelim)
 }
 
-func (d *debeziumSchemaParser) tableName() string {
+func (d *schemaParser) tableName() string {
 	namespace := strings.Split(d.schema.Namespace, d.tableDelim)
 	return namespace[len(namespace)-1]
 }
 
-func debeziumColumn(v map[string]interface{}) DebeziumColInfo {
-	column := DebeziumColInfo{}
+func (d *schemaParser) sqlType() string {
+	// TODO: parse to send mysql and postgres dependening on the connector
+	// do this when postgres comes
+	return "mysql"
+}
 
+func getSourceType(v interface{}) SourceType {
+	valueMap := v.(map[string]interface{})
+	var columnType string
+	var columnLength string
+	fieldsFound := 0
+
+	for key, value := range valueMap {
+		if key == "__debezium.source.column.length" {
+			columnLength = fmt.Sprintf("%s", value)
+			fieldsFound = fieldsFound + 1
+		}
+
+		if key == "__debezium.source.column.type" {
+			columnType = fmt.Sprintf("%s", value)
+			fieldsFound = fieldsFound + 1
+		}
+	}
+	if fieldsFound == 0 {
+		klog.Warningf("Source info missing in %+v\n", v)
+	}
+
+	return SourceType{
+		ColumnType:   columnType,
+		ColumnLength: columnLength,
+	}
+}
+
+// column extracts the column information from the schema fields
+func column(v map[string]interface{}) ColInfo {
+	//fmt.Printf("v=%+v\n", v)
+	column := ColInfo{}
 	// TODO: Have figured out not null and primary key, TODO is open
 	// because not null is set only when the default==nil
 	// https://stackoverflow.com/questions/63576770/debezium-schema-not-null-and-primary-key-info/
@@ -60,57 +106,71 @@ func debeziumColumn(v map[string]interface{}) DebeziumColInfo {
 		case "name":
 			column.Name = v["name"].(string)
 		case "type":
-			//fmt.Printf("v2=%v\n", v2)
+			//fmt.Printf("name=%v v2=%v\n",v["name"], v2)
 			switch v2.(type) {
 			case string:
 				column.Type = v["type"].(string)
 			case int:
 				column.Type = v["type"].(string)
 			case interface{}:
-				// handles []
+				// handles slice
+				// [
+				//   null,
+				//   map[
+				//       connect.parameters:map[
+				//			__debezium.source.column.length:255
+				//          __debezium.source.column.type:VARCHAR
+				//       ]
+				//       type:string
+				//   ],
+				// ]
 				listSlice, ok := v2.([]interface{})
 				if ok {
-					//fmt.Println("its a list slice")
 					for _, vx := range listSlice {
-						//fmt.Printf("got vx_type=%v\n", reflect.TypeOf(vx))
 						switch vx.(type) {
-						// handles
-						// [map[connect.default:singh type:string], null]
+						// handles if value is map
 						case map[string]interface{}:
 							for k3, v3 := range vx.(map[string]interface{}) {
-								if k3 != "type" {
-									continue
+								if k3 == "type" {
+									column.Type = v3.(string)
 								}
-								column.Type = v3.(string)
+								if k3 == "connect.parameters" {
+									column.SourceType = getSourceType(v3)
+								}
 							}
-						// handles
-						// ["null", "string"]
+						// handles ["null", "string"]
 						case string:
 							if vx != "null" {
 								column.Type = vx.(string)
-								//fmt.Printf("got vx=%v\n", vx)
 							}
 						}
 					}
+					// handled the case continue case
 					continue
 				}
 
-				// handles
-				// map[connect.default:singh type:string]
+				// handles map
+				// map[
+				// 		connect.parameters:map[
+				//          __debezium.source.column.length:255
+				//          __debezium.source.column.type:VARCHAR
+				//      ]
+				//      type:string
+				// ]
 				listMap, ok := v2.(map[string]interface{})
 				if !ok {
-					fmt.Printf("Error type casting for v2=%v\n", v2)
-					os.Exit(1)
+					klog.Fatalf("Error type casting, value=%+v\n", v2)
 				}
 				for k4, v4 := range listMap {
-					if k4 != "type" {
-						continue
+					if k4 == "type" {
+						column.Type = v4.(string)
 					}
-					column.Type = v4.(string)
+					if k4 == "connect.parameters" {
+						column.SourceType = getSourceType(v4)
+					}
 				}
 			default:
-				fmt.Printf("Unhandled type for v2=%v\n", v2)
-				os.Exit(1)
+				klog.Fatalf("Unhandled type for v2=%v\n", v2)
 			}
 		case "default":
 			if v["default"] == nil {
@@ -125,11 +185,11 @@ func debeziumColumn(v map[string]interface{}) DebeziumColInfo {
 	return column
 }
 
-// TOOD: make this better if possible
+// TOOD: make this better and faster if possible
 // https://stackoverflow.com/questions/63564543/
 // decode-a-debeuzium-event-schema-into-a-meaningful-datastructure-in-golang
-func (d *debeziumSchemaParser) columnsBefore() []DebeziumColInfo {
-	columns := []DebeziumColInfo{}
+func (d *schemaParser) columnsBefore() []ColInfo {
+	columns := []ColInfo{}
 
 	for _, field := range d.schema.Fields {
 		if field.Name != "before" {
@@ -146,7 +206,7 @@ func (d *debeziumSchemaParser) columnsBefore() []DebeziumColInfo {
 					}
 					for _, v4 := range v3.([]interface{}) {
 						v5 := v4.(map[string]interface{})
-						columns = append(columns, debeziumColumn(v5))
+						columns = append(columns, column(v5))
 					}
 				}
 
@@ -157,19 +217,11 @@ func (d *debeziumSchemaParser) columnsBefore() []DebeziumColInfo {
 	return columns
 }
 
-func NewSchemaTransformer(schemaRegistryURL string) SchemaTransformer {
-	return &debeziumSchemaTransformer{
-		srclient: srclient.CreateSchemaRegistryClient(schemaRegistryURL),
-	}
-}
-
-type debeziumSchemaTransformer struct {
+type schemaTransformer struct {
 	srclient *srclient.SchemaRegistryClient
 }
 
-func (c *debeziumSchemaTransformer) TransformKey(topic string) (
-	string, string, error) {
-
+func (c *schemaTransformer) TransformKey(topic string) (string, string, error) {
 	s, err := c.srclient.GetLatestSchema(topic, true)
 	if err != nil {
 		return "", "", err
@@ -178,7 +230,7 @@ func (c *debeziumSchemaTransformer) TransformKey(topic string) (
 	return c.transformSchemaKey(s.Schema())
 }
 
-func (c *debeziumSchemaTransformer) transformSchemaKey(
+func (c *schemaTransformer) transformSchemaKey(
 	schema string) (string, string, error) {
 
 	debeziumSchema := make(map[string]interface{})
@@ -214,7 +266,7 @@ func (c *debeziumSchemaTransformer) transformSchemaKey(
 	return "", "", fmt.Errorf("Primary key not found in schema: %s\n", schema)
 }
 
-func (c *debeziumSchemaTransformer) TransformValue(topic string, schemaId int) (
+func (c *schemaTransformer) TransformValue(topic string, schemaId int) (
 	interface{}, error) {
 
 	s, err := c.srclient.GetSchema(schemaId)
@@ -235,24 +287,24 @@ func (c *debeziumSchemaTransformer) TransformValue(topic string, schemaId int) (
 		)
 	}
 
-	return c.transformSchemaValue(s.Schema(), primaryKey, primaryKeyType)
+	return c.transformSchemaValue(s.Schema(), primaryKey)
 }
 
-func (c *debeziumSchemaTransformer) transformSchemaValue(jobSchema string,
-	primaryKey string, primaryKeyType string) (interface{}, error) {
+func (c *schemaTransformer) transformSchemaValue(jobSchema string,
+	primaryKey string) (interface{}, error) {
 
 	// remove nulls
 	// TODO: this might be required, better if not
 	// schema := strings.ReplaceAll(jobSchema, `"null",`, "")
 	schema := jobSchema
 
-	var debeziumSchema DebeziumSchema
+	var debeziumSchema Schema
 	err := json.Unmarshal([]byte(schema), &debeziumSchema)
 	if err != nil {
 		return nil, err
 	}
 
-	d := &debeziumSchemaParser{
+	d := &schemaParser{
 		tableDelim: ".",
 		schema:     debeziumSchema,
 	}
@@ -260,18 +312,28 @@ func (c *debeziumSchemaTransformer) transformSchemaValue(jobSchema string,
 	columns := d.columnsBefore()
 	var redshiftColumns []redshift.ColInfo
 	for _, column := range columns {
+		redshiftDataType, err := redshift.GetRedshiftDataType(
+			d.sqlType(),
+			column.Type,
+			column.SourceType.ColumnLength,
+		)
+		if err != nil {
+			return nil, err
+		}
+
 		redshiftColumns = append(redshiftColumns, redshift.ColInfo{
-			Name:       strings.ToLower(column.Name),
-			Type:       column.Type,
-			DefaultVal: column.Default,
-			NotNull:    column.NotNull,
-			PrimaryKey: column.PrimaryKey,
+			Name:         strings.ToLower(column.Name),
+			Type:         redshiftDataType,
+			DebeziumType: column.Type,
+			DefaultVal:   column.Default,
+			NotNull:      column.NotNull,
+			PrimaryKey:   column.PrimaryKey,
 		})
 	}
 
 	// set primary key
 	for idx, column := range redshiftColumns {
-		if column.Name == primaryKey && column.Type == primaryKeyType {
+		if column.Name == primaryKey {
 			column.PrimaryKey = true
 			redshiftColumns[idx] = column
 		}
