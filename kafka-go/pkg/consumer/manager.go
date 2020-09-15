@@ -67,7 +67,7 @@ func (c *Manager) updatetopics(allTopics []string) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
-	klog.V(5).Infof(
+	klog.V(6).Infof(
 		"%d topic(s) with regexes: %v\n",
 		len(topics),
 		c.topicRegexes,
@@ -84,8 +84,8 @@ func (c *Manager) refreshTopics() {
 	if err != nil {
 		klog.Fatalf("Error getting topics, err=%v\n", err)
 	}
-	klog.V(5).Infof("%d topic(s) in the cluster\n", len(topics))
-	klog.V(5).Infof("Topics in the cluster=%v\n", topics)
+	klog.V(6).Infof("%d topic(s) in the cluster\n", len(topics))
+	klog.V(6).Infof("Topics in the cluster=%v\n", topics)
 	c.updatetopics(topics)
 }
 
