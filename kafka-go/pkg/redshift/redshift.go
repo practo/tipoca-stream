@@ -618,7 +618,7 @@ var debeziumToRedshiftTypeMap = map[string]string{
 	"int":     "integer",
 	"int16":   "smallint",
 	"int32":   "integer",
-	"long":    "character varying(65535)",
+	"long":    "int8",
 	"bigint":  "bigint",
 	"string":  "character varying(256)",
 }
