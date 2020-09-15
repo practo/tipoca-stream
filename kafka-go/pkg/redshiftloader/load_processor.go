@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	stagingTablePrimaryKey = "kafkaoffset"
+	stagingTablePrimaryKey     = "kafkaoffset"
+	stagingTablePrimaryKeyType = "character varying(max)"
 )
 
 type loadProcessor struct {
@@ -404,7 +405,7 @@ func (b *loadProcessor) createStagingTable(
 		klog.Fatalf("Error creating database tx, err: %v\n", err)
 	}
 
-	primaryKey, primaryKeyType, err := b.schemaTransformer.TransformKey(
+	primaryKey, _, err := b.schemaTransformer.TransformKey(
 		b.upstreamTopic)
 	if err != nil {
 		klog.Fatalf("Error getting primarykey for: %s, err: %v\n", b.topic, err)
@@ -415,7 +416,7 @@ func (b *loadProcessor) createStagingTable(
 	extraColumns := []redshift.ColInfo{
 		redshift.ColInfo{
 			Name:       stagingTablePrimaryKey,
-			Type:       primaryKeyType,
+			Type:       stagingTablePrimaryKeyType,
 			DefaultVal: "",
 			NotNull:    true,
 			PrimaryKey: true,
