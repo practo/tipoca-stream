@@ -12,6 +12,7 @@ import (
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer/debezium"
 	"github.com/spf13/viper"
 	"path/filepath"
+	"strings"
 )
 
 const (
