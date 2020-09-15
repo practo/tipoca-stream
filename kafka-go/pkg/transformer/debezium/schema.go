@@ -315,7 +315,7 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 		redshiftDataType, err := redshift.GetRedshiftDataType(
 			d.sqlType(),
 			column.Type,
-			column.SourceType.ColumnLength,
+			column.SourceType.ColumnType,
 		)
 		if err != nil {
 			return nil, err
