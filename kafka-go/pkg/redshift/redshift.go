@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	schemaExist = `select schema_name
+	RedshiftTimeStamp = "timestamp without time zone"
+	schemaExist       = `select schema_name
 from information_schema.schemata where schema_name='%s';`
 	schemaCreate = `create schema "%s";`
 	tableExist   = `select table_name from information_schema.tables where
@@ -725,34 +726,34 @@ var mysqlToRedshiftTypeMap = map[string]string{
 	"decimal unsigned":            "numeric",
 	"double [precision]":          "double precision",
 	"double [precision] unsigned": "double precision",
-	"date":               "date",
-	"datetime":           "timestamp",
-	"enum":               "character varying",
-	"fixed":              "numeric",
-	"float":              "real",
-	"int":                "integer",
-	"integer":            "integer",
-	"integer unsigned":   "bigint",
-	"longblob":           "character varying",
-	"longtext":           "character varying(max)",
-	"mediumblob":         "character varying",
-	"mediumint":          "integer",
-	"mediumint unsigned": "integer",
-	"mediumtext":         "character varying(max)",
-	"numeric":            "numeric(18,0)",
-	"set":                "character varying",
-	"smallint":           "smallint",
-	"smallint unsigned":  "integer",
-	"text":               "character varying(max)",
-	"time":               "timestamp",
-	"timestamp":          "timestamp",
-	"tinyblob":           "character varying",
-	"tinyint":            "smallint",
-	"tinyint unsigned":   "smallint",
-	"tinytext":           "character varying(max)",
-	"varbinary":          "character varying(max)",
-	"varchar":            "character varying",
-	"year":               "date",
+	"date":                        "date",
+	"datetime":                    RedshiftTimeStamp,
+	"enum":                        "character varying",
+	"fixed":                       "numeric",
+	"float":                       "real",
+	"int":                         "integer",
+	"integer":                     "integer",
+	"integer unsigned":            "bigint",
+	"longblob":                    "character varying",
+	"longtext":                    "character varying(max)",
+	"mediumblob":                  "character varying",
+	"mediumint":                   "integer",
+	"mediumint unsigned":          "integer",
+	"mediumtext":                  "character varying(max)",
+	"numeric":                     "numeric(18,0)",
+	"set":                         "character varying",
+	"smallint":                    "smallint",
+	"smallint unsigned":           "integer",
+	"text":                        "character varying(max)",
+	"time":                        RedshiftTimeStamp,
+	"timestamp":                   RedshiftTimeStamp,
+	"tinyblob":                    "character varying",
+	"tinyint":                     "smallint",
+	"tinyint unsigned":            "smallint",
+	"tinytext":                    "character varying(max)",
+	"varbinary":                   "character varying(max)",
+	"varchar":                     "character varying",
+	"year":                        "date",
 }
 
 // GetRedshiftDataType returns the mapped type for the sqlType's data type
