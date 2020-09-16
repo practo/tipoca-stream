@@ -380,7 +380,7 @@ func (b *loadProcessor) createStagingTable(
 	schemaId int, inputTable redshift.Table) {
 
 	b.stagingTable = redshift.NewTable(inputTable)
-	b.stagingTable.Name = "staged-" + b.stagingTable.Name
+	b.stagingTable.Name = b.stagingTable.Name + "_staged"
 
 	// remove existing primary key if any
 	for idx, column := range b.stagingTable.Columns {
@@ -451,6 +451,38 @@ func (b *loadProcessor) createStagingTable(
 		b.stagingTable.Name)
 }
 
+// migrateTable migrates the table since redshift does not support
+// ALTER COLUMN for everything. MoreInfo: #40
+func (b *loadProcessor) migrateTable(
+	inputTable, targetTable redshift.Table) {
+
+	tx, err := b.redshifter.Begin()
+	if err != nil {
+		klog.Fatalf("Error creating database tx, err: %v\n", err)
+	}
+
+	s3CopyDir := filepath.Join(
+		viper.GetString("s3sink.bucketDir"),
+		b.topic,
+		"migrating_unload_",
+	)
+	unLoadS3Key := b.s3sink.GetKeyURI(s3CopyDir)
+	copyS3ManifestKey := b.s3sink.GetKeyURI(s3CopyDir + "manifest")
+
+	err = b.redshifter.ReplaceTable(
+		tx, unLoadS3Key, copyS3ManifestKey,
+		inputTable, targetTable,
+	)
+	if err != nil {
+		klog.Fatalf("Error migrating table, err:%v\n", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		klog.Fatalf("Error committing tx, err:%v\n", err)
+	}
+}
+
 // migrateSchema construct the "inputTable" using schemaId in the message.
 // If the schema and table does not exist it creates and returns.
 // If not then it constructs the "targetTable" by querying the database.
@@ -461,7 +493,7 @@ func (b *loadProcessor) createStagingTable(
 // Following migrations are supported:
 // Supported: add columns
 // Supported: delete columns
-// Supported: alter columns
+// Supported: alter columns (supported via table migration)
 // TODO: NotSupported: row ordering changes and row renames
 func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 	// TODO: add cache here based on schema id and return
@@ -529,7 +561,7 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 
 	// UpdateTable computes the schema migration commands and executes it
 	// if required else does nothing.
-	err = b.redshifter.UpdateTable(tx, inputTable, *targetTable)
+	migrateTable, err := b.redshifter.UpdateTable(tx, inputTable, *targetTable)
 	if err != nil {
 		klog.Fatalf("Error running schema migration, err: %v\n", err)
 	}
@@ -537,6 +569,10 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 	err = tx.Commit()
 	if err != nil {
 		klog.Fatalf("Error committing tx, err:%v\n", err)
+	}
+
+	if migrateTable == true {
+		b.migrateTable(inputTable, *targetTable)
 	}
 }
 
