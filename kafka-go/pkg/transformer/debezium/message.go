@@ -144,14 +144,21 @@ func (c *messageTransformer) Transform(
 				klog.Warningf("column %s not found, skipped\n", column.Name)
 				continue
 			}
+			if mstr == nil {
+				continue
+			}
 
 			m, err := strconv.Atoi(*mstr)
 			if err != nil {
 				return err
 			}
 			ts := FromUnixMilli(int64(m))
-			result := ts.Format("1980-08-20 10:10:10")
-			after[column.Name] = &result
+			fts := fmt.Sprintf(
+				"%d-%02d-%02d %02d:%02d:%02d",
+				ts.Year(), ts.Month(), ts.Day(),
+				ts.Hour(), ts.Minute(), ts.Second(),
+			)
+			after[column.Name] = &fts
 		}
 	}
 
