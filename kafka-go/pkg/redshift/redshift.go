@@ -246,39 +246,101 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 // and completes this action in the transaction provided
 // Supported: add columns
 // Supported: drop columns
-// Supported: alter columns
 // TODO:
 // NotSupported: row ordering changes and row renames
+// NotSupported: alter columns. It is done via table migration, so
+// it returns a boolean specifying table migration is required or not.
 func (r *Redshift) UpdateTable(
-	tx *sql.Tx, inputTable, targetTable Table) error {
+	tx *sql.Tx, inputTable, targetTable Table) (bool, error) {
 	klog.V(5).Infof("inputt Table: \n%+v\n", inputTable)
 	klog.V(5).Infof("target Table: \n%+v\n", targetTable)
 
-	columnOps, err := CheckSchemas(inputTable, targetTable)
+	transactcolumnOps, columnOps, err := CheckSchemas(inputTable, targetTable)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	if len(columnOps) == 0 {
-		klog.V(4).Infof("Schema same for table: %s\n", inputTable.Name)
+	if len(transactcolumnOps) == 0 && len(columnOps) == 0 {
+		klog.V(3).Infof(
+			"Migration not required, schema same: %s\n", inputTable.Name)
 	} else {
 		klog.Infof("Migrating schema for table: %s ...\n", inputTable.Name)
 	}
 
+	// run transcation block commands
 	// postgres only allows adding one column at a time
-	for _, op := range columnOps {
+	for _, op := range transactcolumnOps {
 		klog.V(4).Infof("Preparing: %s", op)
 		alterStmt, err := tx.PrepareContext(r.ctx, op)
 		if err != nil {
-			return err
+			return false, err
 		}
 		klog.Infof("Running: %s", op)
 		_, err = alterStmt.ExecContext(r.ctx)
 		if err != nil {
-			return fmt.Errorf("cmd failed, cmd:%s, err: %s\n", op, err)
+			return false, fmt.Errorf("cmd failed, cmd:%s, err: %s\n", op, err)
 		}
 	}
-	return nil
+
+	// run non transaction block commands
+	// redshift does not support alter columns #40
+	performTableMigration := false
+	if len(columnOps) > 0 {
+		performTableMigration = true
+	}
+
+	return performTableMigration, nil
+}
+
+// Replace Table replaces the current table with a new schema table
+// this is required in Redshift as ALTER COLUMNs are not supported
+// for all column types
+// 1. Rename the table t1_migrating
+// 2. Create table with new schema t1
+// 3. UNLOAD the renamed table data t1_migrating to s3
+// 4. COPY the unloaded data from s3 to the new table t1
+func (r *Redshift) ReplaceTable(
+	tx *sql.Tx, unLoadS3Key string, copyS3ManifestKey string,
+	inputTable, targetTable Table) error {
+
+	targetTableName := fmt.Sprintf(
+		`"%s"."%s"`, targetTable.Meta.Schema, targetTable.Name)
+	migrationTableName := fmt.Sprintf(
+		`"%s"."%s"_migrating`, inputTable.Meta.Schema, inputTable.Name)
+
+	renameSQL := fmt.Sprintf(
+		`ALTER TABLE %s RENAME TO %s`,
+		targetTableName,
+		migrationTableName,
+	)
+	klog.V(5).Infof("Running: %s", renameSQL)
+	_, err := tx.ExecContext(r.ctx, renameSQL)
+	if err != nil {
+		return err
+	}
+
+	err = r.CreateTable(tx, inputTable)
+	if err != nil {
+		return err
+	}
+
+	err = r.Unload(tx,
+		targetTable.Meta.Schema,
+		migrationTableName,
+		unLoadS3Key,
+	)
+	if err != nil {
+		return err
+	}
+
+	err = r.Copy(tx,
+		targetTable.Meta.Schema,
+		targetTable.Name,
+		copyS3ManifestKey,
+		false,
+	)
+
+	return err
 }
 
 func (r *Redshift) prepareAndExecute(tx *sql.Tx, command string) error {
@@ -482,7 +544,7 @@ func (r *Redshift) GetTableMetadata(schema, tableName string) (*Table, error) {
 // to make sure they're compatible. If they have any mismatched columns
 // they are returned in the errors array. Covers most of the schema migration
 // scenarios, and returns the ALTER commands to do it.
-func CheckSchemas(inputTable, targetTable Table) ([]string, error) {
+func CheckSchemas(inputTable, targetTable Table) ([]string, []string, error) {
 	return checkColumnsAndOrdering(inputTable, targetTable)
 }
 
@@ -548,7 +610,12 @@ func checkColumn(schemaName string, tableName string,
 	return alterSQL, errors
 }
 
-func checkColumnsAndOrdering(inputTable, targetTable Table) ([]string, error) {
+// checkColumnsAndOrdering constructs migration commands comparing the tables
+// it returns the transcation to be run in a transaction and without transaction
+func checkColumnsAndOrdering(
+	inputTable, targetTable Table) ([]string, []string, error) {
+
+	var transactColumnOps []string
 	var columnOps []string
 	var errors error
 
@@ -566,7 +633,7 @@ func checkColumnsAndOrdering(inputTable, targetTable Table) ([]string, error) {
 				targetTable.Name,
 				getColumnSQL(inCol),
 			)
-			columnOps = append(columnOps, alterSQL)
+			transactColumnOps = append(transactColumnOps, alterSQL)
 			continue
 		}
 
@@ -592,12 +659,12 @@ func checkColumnsAndOrdering(inputTable, targetTable Table) ([]string, error) {
 				targetTable.Name,
 				taCol.Name,
 			)
-			columnOps = append(columnOps, alterSQL)
+			transactColumnOps = append(transactColumnOps, alterSQL)
 			continue
 		}
 	}
 
-	return columnOps, errors
+	return transactColumnOps, columnOps, errors
 }
 
 func ConvertDefaultValue(val string) string {
