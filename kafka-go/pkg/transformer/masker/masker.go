@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
 	"gopkg.in/yaml.v2"
@@ -125,7 +126,9 @@ func (m *masker) performUnMasking(cName string) bool {
 // 1. unMaskNonPiiKeys()
 // 2. unMaskConditionalNonPiiKeys() TODO://
 // 3. unMaskMobileKeys() TODO://
-func (m *masker) Transform(message *serializer.Message) error {
+func (m *masker) Transform(
+	message *serializer.Message, table redshift.Table) error {
+
 	var columns map[string]*string
 	err := json.Unmarshal(message.Value.([]byte), &columns)
 	if err != nil {

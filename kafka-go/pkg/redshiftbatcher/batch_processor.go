@@ -7,6 +7,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/producer"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	loader "github.com/practo/tipoca-stream/kafka-go/pkg/redshiftloader"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/s3sink"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
@@ -49,6 +50,9 @@ type batchProcessor struct {
 	// all messages in the batch should have same schema id
 	batchSchemaId int
 
+	// batchSchemaTable contains the redshift table made from the schema
+	batchSchemaTable redshift.Table
+
 	// batchStartOffset is the starting offset of the batch
 	// this is useful only for logging and debugging purpose
 	batchStartOffset int64
@@ -64,6 +68,10 @@ type batchProcessor struct {
 	// messageTransformer is used to transform debezium events into
 	// redshift COPY commands with some annotations
 	messageTransformer transformer.MessageTransformer
+
+	// schemaTransfomer is used to transform debezium schema
+	// to redshift table
+	schemaTransformer transformer.SchemaTransformer
 
 	// msgMasker is used to mask the message based on the configuration
 	// provided. Default is always to mask everything.
@@ -121,9 +129,11 @@ func newBatchProcessor(
 		s3BucketDir:        viper.GetString("s3sink.bucketDir"),
 		bodyBuf:            bytes.NewBuffer(make([]byte, 0, 4096)),
 		messageTransformer: debezium.NewMessageTransformer(),
-		msgMasker:          msgMasker,
-		maskMessages:       maskMessages,
-		signaler:           signaler,
+		schemaTransformer: debezium.NewSchemaTransformer(
+			viper.GetString("schemaRegistryURL")),
+		msgMasker:    msgMasker,
+		maskMessages: maskMessages,
+		signaler:     signaler,
 	}
 }
 
@@ -252,6 +262,18 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 	// also the batchSchemaId is set only at the start of the batch
 	if b.s3Key == "" {
 		b.batchSchemaId = message.SchemaId
+		resp, err := b.schemaTransformer.TransformValue(
+			b.topic,
+			b.batchSchemaId,
+		)
+		if err != nil {
+			klog.Fatalf(
+				"Transforming schema:%d => inputTable failed: %v\n",
+				b.batchSchemaId,
+				err)
+		}
+		b.batchSchemaTable = resp.(redshift.Table)
+
 		b.setS3key(message.Topic, message.Partition, message.Offset)
 
 		klog.V(5).Infof("topic:%s, batchId:%d id:%d: s3Key:%s\n",
@@ -269,13 +291,13 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 		)
 	}
 
-	err := b.messageTransformer.Transform(message)
+	err := b.messageTransformer.Transform(message, b.batchSchemaTable)
 	if err != nil {
 		klog.Fatalf("Error transforming message:%+v, err:%v\n", message, err)
 	}
 
 	if b.maskMessages {
-		err := b.msgMasker.Transform(message)
+		err := b.msgMasker.Transform(message, b.batchSchemaTable)
 		if err != nil {
 			klog.Fatalf("Error masking message:%+v, err:%v\n", message, err)
 		}
