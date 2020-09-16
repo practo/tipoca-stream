@@ -1,12 +1,13 @@
 package transformer
 
 import (
+	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"strings"
 )
 
 type MessageTransformer interface {
-	Transform(message *serializer.Message) error
+	Transform(message *serializer.Message, table redshift.Table) error
 }
 
 type SchemaTransformer interface {
