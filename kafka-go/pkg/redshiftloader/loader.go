@@ -87,7 +87,7 @@ func (b *loader) Insert(saramaMessage *sarama.ConsumerMessage) {
 	}
 
 	*b.lastSchemaId = upstreamJobSchemaId
-	klog.V(5).Infof("topic:%s, schemaId: %d\n", b.topic, *b.lastSchemaId)
+	klog.V(6).Infof("topic:%s, schemaId: %d\n", b.topic, *b.lastSchemaId)
 }
 
 type LoaderConfig struct {
