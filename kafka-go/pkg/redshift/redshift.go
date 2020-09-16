@@ -260,7 +260,7 @@ func (r *Redshift) UpdateTable(
 		return false, err
 	}
 
-	if len(transactcolumnOps) == 0 && len(columnOps) == 0 {
+	if len(transactcolumnOps) == 0 {
 		klog.V(3).Infof(
 			"Migration not required, schema same: %s\n", inputTable.Name)
 	} else {
@@ -303,18 +303,30 @@ func (r *Redshift) ReplaceTable(
 	tx *sql.Tx, unLoadS3Key string, copyS3ManifestKey string,
 	inputTable, targetTable Table) error {
 
+	klog.Infof("Migrating table(slow): %s ...\n", inputTable.Name)
 	targetTableName := fmt.Sprintf(
 		`"%s"."%s"`, targetTable.Meta.Schema, targetTable.Name)
 	migrationTableName := fmt.Sprintf(
-		`"%s"."%s"_migrating`, inputTable.Meta.Schema, inputTable.Name)
+		`%s_migrating`, targetTable.Name)
+
+	exist, err := r.TableExist(targetTable.Meta.Schema, migrationTableName)
+	if err != nil {
+		return err
+	}
+	if exist {
+		err := r.DropTable(tx, targetTable.Meta.Schema, migrationTableName)
+		if err != nil {
+			return err
+		}
+	}
 
 	renameSQL := fmt.Sprintf(
-		`ALTER TABLE %s RENAME TO %s`,
+		`ALTER TABLE %s RENAME TO "%s"`,
 		targetTableName,
 		migrationTableName,
 	)
 	klog.V(5).Infof("Running: %s", renameSQL)
-	_, err := tx.ExecContext(r.ctx, renameSQL)
+	_, err = tx.ExecContext(r.ctx, renameSQL)
 	if err != nil {
 		return err
 	}
@@ -339,8 +351,15 @@ func (r *Redshift) ReplaceTable(
 		copyS3ManifestKey,
 		false,
 	)
+	if err != nil {
+		return err
+	}
 
-	return err
+	// Try dropping table and ignore the error if any
+	// as this operation is always performed on start
+	r.DropTable(tx, targetTable.Meta.Schema, migrationTableName)
+
+	return nil
 }
 
 func (r *Redshift) prepareAndExecute(tx *sql.Tx, command string) error {
@@ -611,7 +630,9 @@ func checkColumn(schemaName string, tableName string,
 }
 
 // checkColumnsAndOrdering constructs migration commands comparing the tables
-// it returns the transcation to be run in a transaction and without transaction
+// it returns the operations that can be performed using transaction
+// and the operations which requires table operation, both handled
+// differently.
 func checkColumnsAndOrdering(
 	inputTable, targetTable Table) ([]string, []string, error) {
 
@@ -691,47 +712,47 @@ var debeziumToRedshiftTypeMap = map[string]string{
 }
 
 var mysqlToRedshiftTypeMap = map[string]string{
-	"bool":                        "int2",
-	"boolean":                     "int2",
-	"bigint":                      "int8",
+	"bool":                        "boolean",
+	"boolean":                     "boolean",
+	"bigint":                      "bigint",
 	"bigint unsigned":             "numeric(20, 0)",
 	"binary":                      "character varying",
-	"bit":                         "int8",
+	"bit":                         "bigint",
 	"blob":                        "character varying(65535)",
 	"char":                        "character varying",
 	"dec":                         "numeric",
 	"decimal":                     "numeric",
 	"decimal unsigned":            "numeric",
-	"double [precision]":          "float8",
-	"double [precision] unsigned": "float8",
-	"date":                        "date",
-	"datetime":                    "timestamp",
-	"enum":                        "character varying",
-	"fixed":                       "numeric",
-	"float":                       "float4",
-	"int":                         "int4",
-	"integer":                     "int4",
-	"integer unsigned":            "int8",
-	"longblob":                    "character varying",
-	"longtext":                    "character varying(max)",
-	"mediumblob":                  "character varying",
-	"mediumint":                   "int4",
-	"mediumint unsigned":          "int4",
-	"mediumtext":                  "character varying(max)",
-	"numeric":                     "numeric",
-	"set":                         "character varying",
-	"smallint":                    "int2",
-	"smallint unsigned":           "int4",
-	"text":                        "character varying(max)",
-	"time":                        "timestamp",
-	"timestamp":                   "timestamp",
-	"tinyblob":                    "character varying",
-	"tinyint":                     "int2",
-	"tinyint unsigned":            "int2",
-	"tinytext":                    "character varying(max)",
-	"varbinary":                   "character varying(max)",
-	"varchar":                     "character varying",
-	"year":                        "date",
+	"double [precision]":          "double precision",
+	"double [precision] unsigned": "double precision",
+	"date":               "date",
+	"datetime":           "timestamp",
+	"enum":               "character varying",
+	"fixed":              "numeric",
+	"float":              "real",
+	"int":                "integer",
+	"integer":            "integer",
+	"integer unsigned":   "bigint",
+	"longblob":           "character varying",
+	"longtext":           "character varying(max)",
+	"mediumblob":         "character varying",
+	"mediumint":          "integer",
+	"mediumint unsigned": "integer",
+	"mediumtext":         "character varying(max)",
+	"numeric":            "numeric(18,0)",
+	"set":                "character varying",
+	"smallint":           "smallint",
+	"smallint unsigned":  "integer",
+	"text":               "character varying(max)",
+	"time":               "timestamp",
+	"timestamp":          "timestamp",
+	"tinyblob":           "character varying",
+	"tinyint":            "smallint",
+	"tinyint unsigned":   "smallint",
+	"tinytext":           "character varying(max)",
+	"varbinary":          "character varying(max)",
+	"varchar":            "character varying",
+	"year":               "date",
 }
 
 // GetRedshiftDataType returns the mapped type for the sqlType's data type
