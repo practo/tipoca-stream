@@ -606,7 +606,7 @@ func (b *loadProcessor) processBatch(
 					b.upstreamTopic, schemaId)
 				if err != nil {
 					klog.Fatalf(
-						"Transforming schema:%d => inputTable:%d failed: %v\n",
+						"Transforming schema:%d => inputTable failed: %v\n",
 						schemaId,
 						err)
 				}
