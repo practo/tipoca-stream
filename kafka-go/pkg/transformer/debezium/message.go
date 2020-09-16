@@ -3,19 +3,31 @@ package debezium
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
+	"strconv"
 	"strings"
+	"time"
 )
 
 const (
-	OperationCreate = "CREATE"
-	OperationUpdate = "UPDATE"
-	OperationDelete = "DELETE"
-
+	OperationCreate     = "CREATE"
+	OperationUpdate     = "UPDATE"
+	OperationDelete     = "DELETE"
 	OperationColumn     = "operation"
 	OperationColumnType = "character varying(15)"
+
+	millisInSecond = 1000
+	nsInSecond     = 1000000
 )
+
+// Converts Unix Epoch from milliseconds to time.Time
+// Why? https://github.com/Tigraine/go-timemill
+func FromUnixMilli(ms int64) time.Time {
+	return time.Unix(
+		ms/int64(millisInSecond), (ms%int64(millisInSecond))*int64(nsInSecond))
+}
 
 func NewMessageTransformer() transformer.MessageTransformer {
 	return &messageTransformer{}
@@ -113,13 +125,33 @@ func (c *messageTransformer) getOperation(message *serializer.Message,
 }
 
 // Transform debezium event into a s3 message annotating extra information
-func (c *messageTransformer) Transform(message *serializer.Message) error {
+func (c *messageTransformer) Transform(
+	message *serializer.Message, table redshift.Table) error {
+
 	d := &messageParser{
 		message: message.Value,
 	}
 
 	before := d.before()
 	after := d.after()
+
+	// transform debezium timestamp to redshift loadable value
+	for _, column := range table.Columns {
+		if column.Type == redshift.RedshiftTimeStamp {
+			mstr, ok := after[column.Name]
+			if !ok {
+				continue
+			}
+
+			m, err := strconv.Atoi(*mstr)
+			if err != nil {
+				return err
+			}
+			ts := FromUnixMilli(int64(m))
+			result := ts.Format("1980-08-20 10:10:10")
+			after[column.Name] = &result
+		}
+	}
 
 	operation, err := c.getOperation(message, len(before), len(after))
 	if err != nil {
