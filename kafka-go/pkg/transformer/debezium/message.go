@@ -3,6 +3,7 @@ package debezium
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
@@ -140,6 +141,7 @@ func (c *messageTransformer) Transform(
 		if column.Type == redshift.RedshiftTimeStamp {
 			mstr, ok := after[column.Name]
 			if !ok {
+				klog.Warningf("column %s not found, skipped\n", column.Name)
 				continue
 			}
 
