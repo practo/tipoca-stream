@@ -475,7 +475,7 @@ func (r *Redshift) Unload(tx *sql.Tx,
 		r.conf.S3SecretAccessKey,
 	)
 	unLoadSQL := fmt.Sprintf(
-		`UNLOAD ('select * from "%s"."%s"') TO '%s' %s manifest allowoverwrite FORMAT AS CSV DELIMITER ','`,
+		`UNLOAD ('select * from "%s"."%s"') TO '%s' %s manifest allowoverwrite addquotes escape delimiter ','`,
 		schema,
 		table,
 		s3Key,
@@ -501,7 +501,7 @@ func (r *Redshift) Copy(tx *sql.Tx,
 
 	csv := ""
 	if typeCsv == true {
-		csv = `FORMAT AS CSV QUOTE AS '\"' DELIMITER ','`
+		csv = `removequotes escape delimiter ','`
 	}
 
 	credentials := fmt.Sprintf(
