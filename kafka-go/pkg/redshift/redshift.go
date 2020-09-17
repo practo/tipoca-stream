@@ -475,7 +475,7 @@ func (r *Redshift) Unload(tx *sql.Tx,
 		r.conf.S3SecretAccessKey,
 	)
 	unLoadSQL := fmt.Sprintf(
-		`UNLOAD ('select * from "%s"."%s"') TO '%s' %s manifest allowoverwrite addquotes`,
+		`UNLOAD ('select * from "%s"."%s"') TO '%s' %s manifest allowoverwrite FORMAT AS CSV DELIMITER ','`,
 		schema,
 		table,
 		s3Key,
@@ -492,16 +492,16 @@ func (r *Redshift) Unload(tx *sql.Tx,
 // this is meant to be run in a transaction, so the first arg must be a sql.Tx
 func (r *Redshift) Copy(tx *sql.Tx,
 	schema string, table string, s3ManifestURI string,
-	typeJson bool, removeQuote bool) error {
+	typeJson bool, typeCsv bool) error {
 
 	json := ""
 	if typeJson == true {
 		json = "json 'auto'"
 	}
 
-	rmquote := ""
-	if removeQuote == true {
-		rmquote = "removequotes"
+	csv := ""
+	if typeCsv == true {
+		csv = `FORMAT AS CSV QUOTE AS '\"' DELIMITER ','`
 	}
 
 	credentials := fmt.Sprintf(
@@ -516,7 +516,7 @@ func (r *Redshift) Copy(tx *sql.Tx,
 		s3ManifestURI,
 		credentials,
 		json,
-		rmquote,
+		csv,
 	)
 	klog.V(5).Infof("Running: %s", copySQL)
 	_, err := tx.ExecContext(r.ctx, copySQL)
