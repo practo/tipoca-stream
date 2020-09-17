@@ -9,7 +9,7 @@ import (
 )
 
 func TestNonPiiKeys(t *testing.T) {
-	topic := "dbserver.inventory.customers"
+	topic := "dbserver.database.customers"
 	dir, err := os.Getwd()
 	if err != nil {
 		t.Error(err)
