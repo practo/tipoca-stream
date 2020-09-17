@@ -11,11 +11,11 @@ import (
 )
 
 type Config struct {
-	Batcher           redshiftbatcher.BatcherConfig `yaml: batcher`
-	Kafka             consumer.KafkaConfig          `yaml: kafka`
-	Sarama            consumer.SaramaConfig         `yaml: sarama`
-	S3Sink            s3sink.Config                 `yaml: s3sink`
-	SchemaRegistryURL string                        `yaml: schemaRegistryURL`
+	Batcher           redshiftbatcher.BatcherConfig `yaml:"batcher"`
+	Kafka             consumer.KafkaConfig          `yaml:"kafka"`
+	Sarama            consumer.SaramaConfig         `yaml:"sarama"`
+	S3Sink            s3sink.Config                 `yaml:"s3sink"`
+	SchemaRegistryURL string                        `yaml:"schemaRegistryURL"`
 }
 
 func LoadConfig(cmd *cobra.Command) (Config, error) {

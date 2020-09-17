@@ -72,7 +72,7 @@ func (b *loader) Insert(saramaMessage *sarama.ConsumerMessage) {
 	klog.V(99).Infof("message.Value=%v\n", message.Value)
 
 	job := StringMapToJob(message.Value.(map[string]interface{}))
-	upstreamJobSchemaId := job.SchemaId()
+	upstreamJobSchemaId := job.SchemaId
 
 	//  batch by schema id of upstream topic
 	if b.lastSchemaId == nil {
@@ -93,10 +93,10 @@ func (b *loader) Insert(saramaMessage *sarama.ConsumerMessage) {
 type LoaderConfig struct {
 	// Maximum size of a batch, on exceeding this batch is pushed
 	// regarless of the wait time.
-	MaxSize int `yaml:maxSize,omitempty`
+	MaxSize int `yaml:"maxSize,omitempty"`
 
 	// MaxWaitSeconds after which the bash would be pushed regardless of its size.
-	MaxWaitSeconds int `yaml:maxWaitSeconds,omitempty`
+	MaxWaitSeconds int `yaml:"maxWaitSeconds,omitempty"`
 }
 
 func newMBatch(maxSize int,
