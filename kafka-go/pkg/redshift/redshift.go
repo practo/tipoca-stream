@@ -287,6 +287,7 @@ func (r *Redshift) UpdateTable(
 	// redshift does not support alter columns #40
 	performTableMigration := false
 	if len(columnOps) > 0 {
+		klog.V(5).Infof("columnOps=%v\n", columnOps)
 		performTableMigration = true
 	}
 
@@ -707,7 +708,7 @@ var debeziumToRedshiftTypeMap = map[string]string{
 	"int":     "integer",
 	"int16":   "smallint",
 	"int32":   "integer",
-	"long":    "int8",
+	"long":    "bigint",
 	"bigint":  "bigint",
 	"string":  "character varying(256)",
 }
