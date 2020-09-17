@@ -80,13 +80,13 @@ func (c *Manager) deepCopyTopics() []string {
 }
 
 func (c *Manager) refreshTopics() {
-	topics, err := c.consumerGroup.Topics()
+	allTopics, err := c.consumerGroup.Topics()
 	if err != nil {
 		klog.Fatalf("Error getting topics, err=%v\n", err)
 	}
 	klog.V(6).Infof("%d topic(s) in the cluster\n", len(topics))
 	klog.V(6).Infof("Topics in the cluster=%v\n", topics)
-	c.updatetopics(topics)
+	c.updatetopics(allTopics)
 }
 
 func (c *Manager) SyncTopics(
