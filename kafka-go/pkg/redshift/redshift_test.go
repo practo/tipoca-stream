@@ -22,8 +22,8 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if redshiftType != "int8" {
-		t.Errorf("Expected redshiftType=int8 got=%v\n", redshiftType)
+	if redshiftType != "bigint" {
+		t.Errorf("Expected redshiftType=bigint got=%v\n", redshiftType)
 	}
 
 	_, err = GetRedshiftDataType("mongo", "long", "SOMERANDOM")
