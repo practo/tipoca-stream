@@ -1,4 +1,5 @@
 # tipoca-stream
+[![CI Status](https://api.travis-ci.com/practo/k8s-worker-pod-autoscaler.svg?token=yTs54joHywqVVdshXhPm&branch=master)](https://travis-ci.com/practo/k8s-worker-pod-autoscaler)
 
 <img src="arch.png">
 

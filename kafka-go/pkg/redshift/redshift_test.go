@@ -12,7 +12,7 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if redshiftType != "character varying(max)" {
+	if redshiftType != "character varying(65535)" {
 		t.Errorf(
 			"Expected redshiftType=character varying(max) got=%v\n",
 			redshiftType)
@@ -35,7 +35,7 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if redshiftType != "character varying(max)" {
+	if redshiftType != "character varying(65535)" {
 		t.Errorf(
 			"Expected redshiftType=character varying(max) got=%v\n",
 			redshiftType)
