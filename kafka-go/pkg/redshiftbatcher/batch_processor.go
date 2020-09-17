@@ -155,7 +155,7 @@ func (b *batchProcessor) ctxCancelled() bool {
 
 func (b *batchProcessor) setBatchId() {
 	if b.batchId == maxBatchId {
-		klog.V(5).Infof("topic:%s: Resetting batchId to zero.")
+		klog.V(5).Info("topic:%s: Resetting batchId to zero.")
 		b.batchId = 0
 	}
 

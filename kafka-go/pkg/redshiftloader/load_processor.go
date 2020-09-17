@@ -141,7 +141,7 @@ func (b *loadProcessor) ctxCancelled() bool {
 // setBatchId is used for logging, helps in debugging.
 func (b *loadProcessor) setBatchId() {
 	if b.batchId == maxBatchId {
-		klog.V(5).Infof("topic:%s: Resetting batchId to zero.")
+		klog.V(5).Info("topic:%s: Resetting batchId to zero.")
 		b.batchId = 0
 	}
 
