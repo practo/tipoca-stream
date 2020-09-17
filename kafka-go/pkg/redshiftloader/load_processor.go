@@ -134,8 +134,6 @@ func (b *loadProcessor) ctxCancelled() bool {
 	default:
 		return false
 	}
-
-	return false
 }
 
 // setBatchId is used for logging, helps in debugging.
@@ -596,11 +594,11 @@ func (b *loadProcessor) processBatch(
 		default:
 			message := data.(*serializer.Message)
 			job := StringMapToJob(message.Value.(map[string]interface{}))
-			schemaId := job.SchemaId()
+			schemaId := job.SchemaId
 
 			// this assumes all messages in a batch have same schema id
 			if id == 0 {
-				b.upstreamTopic = job.UpstreamTopic()
+				b.upstreamTopic = job.UpstreamTopic
 				klog.V(3).Infof("Processing schema: %+v\n", schemaId)
 				resp, err := b.schemaTransformer.TransformValue(
 					b.upstreamTopic, schemaId)
@@ -620,7 +618,7 @@ func (b *loadProcessor) processBatch(
 			entries = append(
 				entries,
 				s3sink.S3ManifestEntry{
-					URL:       job.S3Path(),
+					URL:       job.S3Path,
 					Mandatory: true,
 				},
 			)

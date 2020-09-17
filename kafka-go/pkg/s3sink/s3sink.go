@@ -30,10 +30,10 @@ type S3ManifestEntry struct {
 }
 
 type Config struct {
-	Region          string `yaml: region`
-	AccessKeyId     string `yaml: accessKeyId`
-	SecretAccessKey string `yaml: secretAccessKey`
-	Bucket          string `yaml: bucket`
+	Region          string `yaml:"region"`
+	AccessKeyId     string `yaml:"accessKeyId"`
+	SecretAccessKey string `yaml:"secretAccessKey"`
+	Bucket          string `yaml:"bucket"`
 }
 
 // NewS3Sink is the factory method constructing a new S3Sink
