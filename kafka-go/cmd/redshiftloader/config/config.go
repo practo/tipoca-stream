@@ -12,12 +12,12 @@ import (
 )
 
 type Config struct {
-	Loader            redshiftloader.LoaderConfig `yaml: loader`
-	Kafka             consumer.KafkaConfig        `yaml: kafka`
-	Sarama            consumer.SaramaConfig       `yaml: sarama`
-	S3Sink            s3sink.Config               `yaml: s3sink`
-	SchemaRegistryURL string                      `yaml: schemaRegistryURL`
-	Redshift          redshift.RedshiftConfig     `yaml: redshift`
+	Loader            redshiftloader.LoaderConfig `yaml:"loader"`
+	Kafka             consumer.KafkaConfig        `yaml:"kafka"`
+	Sarama            consumer.SaramaConfig       `yaml:"sarama"`
+	S3Sink            s3sink.Config               `yaml:"s3sink"`
+	SchemaRegistryURL string                      `yaml:"schemaRegistryURL"`
+	Redshift          redshift.RedshiftConfig     `yaml:"redshift"`
 }
 
 func LoadConfig(cmd *cobra.Command) (Config, error) {

@@ -1,0 +1,12 @@
+language: go
+services:
+  - docker
+script:
+- cd kafka-go
+- make build
+- test -f bin/linux_amd64/redshiftbatcher
+- test -f bin/linux_amd64/redshiftloader
+- make all-container
+- docker images | grep "^746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftbatcher"
+- docker images | grep "^746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftloader"
+- make test
