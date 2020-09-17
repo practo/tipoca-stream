@@ -1,6 +1,9 @@
 package redshift
 
 import (
+	"fmt"
+	"sort"
+	"strings"
 	"testing"
 )
 
@@ -37,4 +40,37 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 			"Expected redshiftType=character varying(max) got=%v\n",
 			redshiftType)
 	}
+}
+
+func sortStringMap(m map[string]string, sortedMap map[string]string) {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		sortedMap[k] = m[k]
+	}
+}
+
+// TODO: compare createTable output with GetTableMetadata's output
+func TestTableMetadataToMysqlRedshiftMap(t *testing.T) {
+	sortedMap := make(map[string]string)
+	sortStringMap(mysqlToRedshiftTypeMap, sortedMap)
+
+	createTable := `CREATE TABLE "inventory.inventory.typetest" (`
+	count := 0
+	var col string
+	for _, value := range sortedMap {
+		col = fmt.Sprintf(` "col_%d" %s,`, count, value)
+		createTable = createTable + col
+		count += 1
+	}
+
+	createTable = strings.TrimSuffix(createTable, ",")
+	createTable = createTable + " );"
+
+	fmt.Println(createTable)
 }
