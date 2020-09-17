@@ -91,10 +91,10 @@ type BatcherConfig struct {
 
 	// Maximum size of a batch, on exceeding this batch is pushed
 	// regarless of the wait time.
-	MaxSize int `yaml:maxSize,omitempty`
+	MaxSize int `yaml:"maxSize,omitempty"`
 
 	// MaxWaitSeconds after which the bash would be pushed regardless of its size.
-	MaxWaitSeconds int `yaml:maxWaitSeconds,omitempty`
+	MaxWaitSeconds int `yaml:"maxWaitSeconds,omitempty"`
 }
 
 func newMBatch(maxSize int,

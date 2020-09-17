@@ -149,8 +149,6 @@ func (b *batchProcessor) ctxCancelled() bool {
 	default:
 		return false
 	}
-
-	return false
 }
 
 func (b *batchProcessor) setBatchId() {
