@@ -2,6 +2,7 @@ package masker
 
 import (
 	"encoding/json"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
 	"os"
 	"testing"
@@ -48,7 +49,7 @@ func TestNonPiiKeys(t *testing.T) {
 		Value:     value,
 	}
 
-	err = masker.Transform(message)
+	err = masker.Transform(message, redshift.Table{})
 	if err != nil {
 		t.Error(err)
 	}
