@@ -14,12 +14,12 @@ var JobAvroSchema string = `{
 }`
 
 type Job struct {
-	upstreamTopic string `json:upstreamTopic`
-	startOffset   int64  `json:startOffset`
-	endOffset     int64  `json:endOffset`
-	csvDialect    string `json:csvDialect`
-	s3Path        string `json:s3Path`
-	schemaId      int    `json:schemaId` // schema id of debezium event
+	UpstreamTopic string `json:"upstreamTopic"`
+	StartOffset   int64  `json:"startOffset"`
+	EndOffset     int64  `json:"endOffset"`
+	CsvDialect    string `json:"csvDialect"`
+	S3Path        string `json:"s3Path"`
+	SchemaId      int    `json:"schemaId"` // schema id of debezium event
 }
 
 func NewJob(
@@ -27,12 +27,12 @@ func NewJob(
 	csvDialect string, s3Path string, schemaId int) Job {
 
 	return Job{
-		upstreamTopic: upstreamTopic,
-		startOffset:   startOffset,
-		endOffset:     endOffset,
-		csvDialect:    csvDialect,
-		s3Path:        s3Path,
-		schemaId:      schemaId,
+		UpstreamTopic: upstreamTopic,
+		StartOffset:   startOffset,
+		EndOffset:     endOffset,
+		CsvDialect:    csvDialect,
+		S3Path:        s3Path,
+		SchemaId:      schemaId,
 	}
 }
 
@@ -43,27 +43,27 @@ func StringMapToJob(data map[string]interface{}) Job {
 		switch k {
 		case "upstreamTopic":
 			if value, ok := v.(string); ok {
-				job.upstreamTopic = value
+				job.UpstreamTopic = value
 			}
 		case "startOffset":
 			if value, ok := v.(int64); ok {
-				job.startOffset = value
+				job.StartOffset = value
 			}
 		case "endOffset":
 			if value, ok := v.(int64); ok {
-				job.endOffset = value
+				job.EndOffset = value
 			}
 		case "csvDialect":
 			if value, ok := v.(string); ok {
-				job.csvDialect = value
+				job.CsvDialect = value
 			}
 		case "s3Path":
 			if value, ok := v.(string); ok {
-				job.s3Path = value
+				job.S3Path = value
 			}
 		case "schemaId":
 			if value, ok := v.(int32); ok {
-				job.schemaId = int(value)
+				job.SchemaId = int(value)
 			}
 		}
 	}
@@ -74,35 +74,11 @@ func StringMapToJob(data map[string]interface{}) Job {
 // ToStringMap returns a map representation of the Job
 func (c Job) ToStringMap() map[string]interface{} {
 	return map[string]interface{}{
-		"upstreamTopic": c.upstreamTopic,
-		"startOffset":   c.startOffset,
-		"endOffset":     c.endOffset,
-		"csvDialect":    c.csvDialect,
-		"s3Path":        c.s3Path,
-		"schemaId":      c.schemaId,
+		"upstreamTopic": c.UpstreamTopic,
+		"startOffset":   c.StartOffset,
+		"endOffset":     c.EndOffset,
+		"csvDialect":    c.CsvDialect,
+		"s3Path":        c.S3Path,
+		"schemaId":      c.SchemaId,
 	}
-}
-
-func (c Job) UpstreamTopic() string {
-	return c.upstreamTopic
-}
-
-func (c Job) StartOffset() int64 {
-	return c.startOffset
-}
-
-func (c Job) EndOffset() int64 {
-	return c.endOffset
-}
-
-func (c Job) CsvDialect() string {
-	return c.csvDialect
-}
-
-func (c Job) S3Path() string {
-	return c.s3Path
-}
-
-func (c Job) SchemaId() int {
-	return c.schemaId
 }

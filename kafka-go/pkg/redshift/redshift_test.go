@@ -12,7 +12,7 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if redshiftType != "character varying(max)" {
+	if redshiftType != "character varying(65535)" {
 		t.Errorf(
 			"Expected redshiftType=character varying(max) got=%v\n",
 			redshiftType)
@@ -22,8 +22,8 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if redshiftType != "int8" {
-		t.Errorf("Expected redshiftType=int8 got=%v\n", redshiftType)
+	if redshiftType != "bigint" {
+		t.Errorf("Expected redshiftType=bigint got=%v\n", redshiftType)
 	}
 
 	_, err = GetRedshiftDataType("mongo", "long", "SOMERANDOM")
@@ -35,7 +35,7 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	if redshiftType != "character varying(max)" {
+	if redshiftType != "character varying(65535)" {
 		t.Errorf(
 			"Expected redshiftType=character varying(max) got=%v\n",
 			redshiftType)
