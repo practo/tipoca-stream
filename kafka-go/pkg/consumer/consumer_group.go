@@ -19,18 +19,18 @@ type ConsumerGroup interface {
 }
 
 type KafkaConfig struct {
-	Brokers      string `yaml: brokers`
-	Group        string `yaml: group`
-	Version      string `yaml: version`
-	TopicRegexes string `yaml: topicRegexes`
-	KafkaClient  string `yaml: kafkaClient`
+	Brokers      string `yaml:"brokers"`
+	Group        string `yaml:"group"`
+	Version      string `yaml:"version"`
+	TopicRegexes string `yaml:"topicRegexes"`
+	KafkaClient  string `yaml:"kafkaClient"`
 }
 
 type SaramaConfig struct {
-	Assignor   string `yaml: assignor`
-	Oldest     bool   `yaml: oldest`
-	Log        bool   `yaml: log`
-	AutoCommit bool   `yaml: autoCommit`
+	Assignor   string `yaml:"assignor"`
+	Oldest     bool   `yaml:"oldest"`
+	Log        bool   `yaml:"log"`
+	AutoCommit bool   `yaml:"autoCommit"`
 }
 
 func NewConsumerGroup(k KafkaConfig, s SaramaConfig,
