@@ -352,6 +352,7 @@ func (r *Redshift) ReplaceTable(
 		targetTable.Name,
 		copyS3ManifestKey,
 		false,
+		true,
 	)
 	if err != nil {
 		return err
@@ -474,7 +475,7 @@ func (r *Redshift) Unload(tx *sql.Tx,
 		r.conf.S3SecretAccessKey,
 	)
 	unLoadSQL := fmt.Sprintf(
-		`UNLOAD ('select * from "%s"."%s"') TO '%s' %s manifest allowoverwrite`,
+		`UNLOAD ('select * from "%s"."%s"') TO '%s' %s manifest allowoverwrite addquotes`,
 		schema,
 		table,
 		s3Key,
@@ -490,11 +491,17 @@ func (r *Redshift) Unload(tx *sql.Tx,
 // into redshift using manifest file.
 // this is meant to be run in a transaction, so the first arg must be a sql.Tx
 func (r *Redshift) Copy(tx *sql.Tx,
-	schema string, table string, s3ManifestURI string, typeJson bool) error {
+	schema string, table string, s3ManifestURI string,
+	typeJson bool, removeQuote bool) error {
 
 	json := ""
 	if typeJson == true {
 		json = "json 'auto'"
+	}
+
+	rmquote := ""
+	if removeQuote == true {
+		rmquote = "removequotes"
 	}
 
 	credentials := fmt.Sprintf(
@@ -503,12 +510,13 @@ func (r *Redshift) Copy(tx *sql.Tx,
 		r.conf.S3SecretAccessKey,
 	)
 	copySQL := fmt.Sprintf(
-		`COPY "%s"."%s" FROM '%s' %s manifest %s`,
+		`COPY "%s"."%s" FROM '%s' %s manifest %s %s`,
 		schema,
 		table,
 		s3ManifestURI,
 		credentials,
 		json,
+		rmquote,
 	)
 	klog.V(5).Infof("Running: %s", copySQL)
 	_, err := tx.ExecContext(r.ctx, copySQL)
