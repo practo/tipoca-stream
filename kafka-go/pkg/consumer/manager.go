@@ -2,11 +2,9 @@ package consumer
 
 import (
 	"context"
-	"os"
 	"regexp"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/practo/klog/v2"
@@ -19,8 +17,8 @@ type Manager struct {
 	// topicRegexes is the list of topics to monitor
 	topicRegexes []*regexp.Regexp
 
-	// sigterm is for cancellation
-	sigterm chan os.Signal
+	// used for gracefully shutting down
+	cancel context.CancelFunc
 
 	// ready is used to signal the main thread about the readiness of
 	// the manager
@@ -37,7 +35,7 @@ type Manager struct {
 }
 
 func NewManager(consumerGroup ConsumerGroup,
-	regexes string, sigterm chan os.Signal, ready chan bool) *Manager {
+	regexes string, cancel context.CancelFunc) *Manager {
 
 	var topicRegexes []*regexp.Regexp
 	expressions := strings.Split(regexes, ",")
@@ -52,9 +50,9 @@ func NewManager(consumerGroup ConsumerGroup,
 	return &Manager{
 		consumerGroup: consumerGroup,
 		topicRegexes:  topicRegexes,
-		Ready:         ready,
+		Ready:         make(chan bool),
+		cancel:        cancel,
 		activeTopics:  make(map[string]bool),
-		sigterm:       sigterm,
 	}
 }
 
@@ -139,25 +137,17 @@ func (c *Manager) SyncTopics(
 
 		inactiveTopics := c.topicInActive(topics)
 		if len(inactiveTopics) > 0 {
-			klog.Info("New topics are inactive: %v\n", inactiveTopics)
+			klog.Infof("New topics are inactive: %v\n", inactiveTopics)
 			// TODO: assumes there is a proecss above that restarts
 			// when this shutsdown, it is using Kubernetes Deployment like
 			// functionality to reload
 			klog.Info("Reloading.... Gracefully shutdown, container restarts!")
-			c.sigterm <- syscall.SIGINT
+			c.cancel()
+			return
 		}
 
 		select {
 		case <-ctx.Done():
-			return
-		case <-c.sigterm:
-			// check if channel is open, if open close it for main to
-			// move ahead
-			select {
-			case <-c.Ready:
-			default:
-				close(c.Ready)
-			}
 			return
 		case <-ticker.C:
 			continue
@@ -185,6 +175,12 @@ func (c *Manager) printLastOffsets() {
 func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
+		select {
+		case <-ctx.Done():
+			klog.Info("Context cancelled, bye bye!")
+			return
+		}
+
 		// `Consume` should be called inside an infinite loop, when a
 		// server-side rebalance happens, the consumer session will need to be
 		// recreated to get the new claims
