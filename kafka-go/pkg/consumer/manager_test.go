@@ -1,20 +1,17 @@
 package consumer
 
 import (
-	"os"
+    "context"
 	"reflect"
 	"testing"
 )
 
-var (
-	tsigterm = make(chan os.Signal, 1)
-	ready    = make(chan bool)
-)
+var tcancelFunc context.CancelFunc
 
 func testTopicRegex(t *testing.T, regexes string,
 	allTopics []string, expectedTopics []string) {
 
-	c := NewManager(nil, regexes, tsigterm, ready)
+	c := NewManager(nil, regexes, tcancelFunc)
 	c.updatetopics(allTopics)
 
 	topics := c.deepCopyTopics()
@@ -85,7 +82,7 @@ func testSync(t *testing.T, c *Manager, allTopics []string, expected []string) {
 }
 
 func TestTopicSync(t *testing.T) {
-	c := NewManager(nil, "db.*", tsigterm, ready)
+	c := NewManager(nil, "db.*", tcancelFunc)
 
 	// nothing
 	allTopics := []string{}
