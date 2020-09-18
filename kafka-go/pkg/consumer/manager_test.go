@@ -1,17 +1,22 @@
 package consumer
 
 import (
+	"os"
 	"reflect"
 	"testing"
+)
+
+var (
+	tsigterm = make(chan os.Signal, 1)
 )
 
 func testTopicRegex(t *testing.T, regexes string,
 	allTopics []string, expectedTopics []string) {
 
-	c := NewManager(nil, regexes)
+	c := NewManager(nil, regexes, tsigterm)
 	c.updatetopics(allTopics)
 
-    topics := c.deepCopyTopics()
+	topics := c.deepCopyTopics()
 
 	if !reflect.DeepEqual(expectedTopics, topics) {
 		t.Errorf("expectedTopics: %v, got: %v\n", expectedTopics, c.topics)
@@ -79,7 +84,7 @@ func testSync(t *testing.T, c *Manager, allTopics []string, expected []string) {
 }
 
 func TestTopicSync(t *testing.T) {
-	c := NewManager(nil, "db.*")
+	c := NewManager(nil, "db.*", tsigterm)
 
 	// nothing
 	allTopics := []string{}

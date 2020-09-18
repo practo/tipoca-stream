@@ -2,9 +2,11 @@ package consumer
 
 import (
 	"context"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/practo/klog/v2"
@@ -17,6 +19,9 @@ type Manager struct {
 	// topicRegexes is the list of topics to monitor
 	topicRegexes []*regexp.Regexp
 
+	// sigterm is for cancellation
+	sigterm chan os.Signal
+
 	// ready is used to signal the main thread about the readiness of
 	// the manager
 	Ready chan bool
@@ -26,9 +31,14 @@ type Manager struct {
 
 	// topics is computed based on the topicRegexes specified
 	topics []string
+
+	// activeTopics keep track of topics whose consumer loop has stared
+	activeTopics map[string]bool
 }
 
-func NewManager(consumerGroup ConsumerGroup, regexes string) *Manager {
+func NewManager(consumerGroup ConsumerGroup,
+	regexes string, sigterm chan os.Signal) *Manager {
+
 	var topicRegexes []*regexp.Regexp
 	expressions := strings.Split(regexes, ",")
 	for _, expression := range expressions {
@@ -43,6 +53,8 @@ func NewManager(consumerGroup ConsumerGroup, regexes string) *Manager {
 		consumerGroup: consumerGroup,
 		topicRegexes:  topicRegexes,
 		Ready:         make(chan bool),
+		activeTopics:  make(map[string]bool),
+		sigterm:       sigterm,
 	}
 }
 
@@ -89,6 +101,33 @@ func (c *Manager) refreshTopics() {
 	c.updatetopics(allTopics)
 }
 
+func (c *Manager) topicInActive(topics []string) []string {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	inActiveTopics := []string{}
+
+	for _, topic := range topics {
+		_, ok := c.activeTopics[topic]
+		if !ok {
+			inActiveTopics = append(inActiveTopics, topic)
+		}
+	}
+
+	return inActiveTopics
+}
+
+func (c *Manager) setActiveTopics(topics []string) {
+	activeTopics := make(map[string]bool)
+	for _, topic := range topics {
+		activeTopics[topic] = true
+	}
+
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	c.activeTopics = activeTopics
+}
+
 func (c *Manager) SyncTopics(
 	ctx context.Context, seconds int, wg *sync.WaitGroup) {
 
@@ -96,6 +135,17 @@ func (c *Manager) SyncTopics(
 	ticker := time.NewTicker(time.Second * time.Duration(seconds))
 	for {
 		c.refreshTopics()
+		topics := c.deepCopyTopics()
+
+		inactiveTopics := c.topicInActive(topics)
+		if len(inactiveTopics) > 0 {
+			klog.Info("New topics are inactive: %v\n", inactiveTopics)
+			// TODO: assumes there is a proecss above that restarts
+			// when this shutsdown, it is using Kubernetes Deployment like
+			// functionality to reload
+			klog.Info("Reloading.... Gracefully shutdown, container restarts!")
+			c.sigterm <- syscall.SIGINT
+		}
 
 		select {
 		case <-ctx.Done():
@@ -131,13 +181,14 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 		// recreated to get the new claims
 		topics := c.deepCopyTopics()
 		if len(topics) == 0 {
-			klog.Error("No topics found, waiting")
+			klog.Info("No topics found. Waiting, correct topicRegexes?")
 			time.Sleep(time.Second * 5)
 			continue
 		}
 
 		c.printLastOffsets()
 
+		c.setActiveTopics(topics)
 		klog.V(2).Infof("Manager.Consume for %d topic(s)\n", len(topics))
 		err := c.consumerGroup.Consume(ctx, topics)
 		if err != nil {
