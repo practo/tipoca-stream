@@ -11,7 +11,9 @@ func testTopicRegex(t *testing.T, regexes string,
 	c := NewManager(nil, regexes)
 	c.updatetopics(allTopics)
 
-	if !reflect.DeepEqual(expectedTopics, c.topics) {
+    topics := c.deepCopyTopics()
+
+	if !reflect.DeepEqual(expectedTopics, topics) {
 		t.Errorf("expectedTopics: %v, got: %v\n", expectedTopics, c.topics)
 	}
 }
