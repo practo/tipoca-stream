@@ -1,7 +1,7 @@
 package consumer
 
 import (
-    "context"
+	"context"
 	"reflect"
 	"testing"
 )

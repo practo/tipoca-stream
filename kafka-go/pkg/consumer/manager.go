@@ -32,6 +32,9 @@ type Manager struct {
 
 	// activeTopics keep track of topics whose consumer loop has stared
 	activeTopics map[string]bool
+
+	// topicsInitialized tracks if the activeTopics got initiliazed or not
+	topicsInitialized bool
 }
 
 func NewManager(consumerGroup ConsumerGroup,
@@ -48,11 +51,12 @@ func NewManager(consumerGroup ConsumerGroup,
 	}
 
 	return &Manager{
-		consumerGroup: consumerGroup,
-		topicRegexes:  topicRegexes,
-		Ready:         make(chan bool),
-		cancel:        cancel,
-		activeTopics:  make(map[string]bool),
+		consumerGroup:     consumerGroup,
+		topicRegexes:      topicRegexes,
+		Ready:             make(chan bool),
+		cancel:            cancel,
+		activeTopics:      make(map[string]bool),
+		topicsInitialized: false,
 	}
 }
 
@@ -124,6 +128,7 @@ func (c *Manager) setActiveTopics(topics []string) {
 	defer c.mutex.Unlock()
 
 	c.activeTopics = activeTopics
+	c.topicsInitialized = true
 }
 
 func (c *Manager) SyncTopics(
@@ -136,7 +141,7 @@ func (c *Manager) SyncTopics(
 		topics := c.deepCopyTopics()
 
 		inactiveTopics := c.topicInActive(topics)
-		if len(inactiveTopics) > 0 {
+		if len(inactiveTopics) > 0 && c.topicsInitialized {
 			klog.Infof("New topics are inactive: %v\n", inactiveTopics)
 			// TODO: assumes there is a proecss above that restarts
 			// when this shutsdown, it is using Kubernetes Deployment like
@@ -179,6 +184,7 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 		case <-ctx.Done():
 			klog.Info("Context cancelled, bye bye!")
 			return
+		default:
 		}
 
 		// `Consume` should be called inside an infinite loop, when a
