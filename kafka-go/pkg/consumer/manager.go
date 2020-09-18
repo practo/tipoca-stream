@@ -93,14 +93,22 @@ func (c *Manager) deepCopyTopics() []string {
 	return append(make([]string, 0, len(c.topics)), c.topics...)
 }
 
-func (c *Manager) refreshTopics() {
+func (c *Manager) refreshTopics() error {
+	emptyTopics := []string{}
+	// to refresh all topics
+	err := c.consumerGroup.RefreshMetadata(emptyTopics...)
+	if err != nil {
+		return err
+	}
 	allTopics, err := c.consumerGroup.Topics()
 	if err != nil {
-		klog.Fatalf("Error getting topics, err=%v\n", err)
+		return err
 	}
 	klog.V(6).Infof("%d topic(s) in the cluster\n", len(allTopics))
 	klog.V(6).Infof("Topics in the cluster=%v\n", allTopics)
 	c.updatetopics(allTopics)
+
+	return nil
 }
 
 func (c *Manager) topicInActive(topics []string) []string {
@@ -137,12 +145,16 @@ func (c *Manager) SyncTopics(
 	defer wg.Done()
 	ticker := time.NewTicker(time.Second * time.Duration(seconds))
 	for {
-		c.refreshTopics()
+		err := c.refreshTopics()
+		if err != nil {
+			klog.Errorf("error refreshing topic, err:%v\n", err)
+			continue
+		}
 		topics := c.deepCopyTopics()
 
 		inactiveTopics := c.topicInActive(topics)
 		if len(inactiveTopics) > 0 && c.topicsInitialized {
-			klog.Infof("New topics are inactive: %v\n", inactiveTopics)
+			klog.Infof("New topics are inactive: %v. Reload required!\n", inactiveTopics)
 			// TODO: assumes there is a proecss above that restarts
 			// when this shutsdown, it is using Kubernetes Deployment like
 			// functionality to reload
