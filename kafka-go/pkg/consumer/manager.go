@@ -17,6 +17,9 @@ type Manager struct {
 	// topicRegexes is the list of topics to monitor
 	topicRegexes []*regexp.Regexp
 
+	// used for gracefully shutting down
+	cancel context.CancelFunc
+
 	// ready is used to signal the main thread about the readiness of
 	// the manager
 	Ready chan bool
@@ -26,13 +29,21 @@ type Manager struct {
 
 	// topics is computed based on the topicRegexes specified
 	topics []string
+
+	// activeTopics keep track of topics whose consumer loop has stared
+	activeTopics map[string]bool
+
+	// topicsInitialized tracks if the activeTopics got initiliazed or not
+	topicsInitialized bool
 }
 
-func NewManager(consumerGroup ConsumerGroup, regexes string) *Manager {
+func NewManager(consumerGroup ConsumerGroup,
+	regexes string, cancel context.CancelFunc) *Manager {
+
 	var topicRegexes []*regexp.Regexp
-	expressions := strings.Split(strings.TrimSpace(regexes), ",")
+	expressions := strings.Split(regexes, ",")
 	for _, expression := range expressions {
-		rgx, err := regexp.Compile(expression)
+		rgx, err := regexp.Compile(strings.TrimSpace(expression))
 		if err != nil {
 			klog.Fatalf("Compling regex: %s failed, err:%v\n", expression, err)
 		}
@@ -40,9 +51,12 @@ func NewManager(consumerGroup ConsumerGroup, regexes string) *Manager {
 	}
 
 	return &Manager{
-		consumerGroup: consumerGroup,
-		topicRegexes:  topicRegexes,
-		Ready:         make(chan bool),
+		consumerGroup:     consumerGroup,
+		topicRegexes:      topicRegexes,
+		Ready:             make(chan bool),
+		cancel:            cancel,
+		activeTopics:      make(map[string]bool),
+		topicsInitialized: false,
 	}
 }
 
@@ -79,14 +93,50 @@ func (c *Manager) deepCopyTopics() []string {
 	return append(make([]string, 0, len(c.topics)), c.topics...)
 }
 
-func (c *Manager) refreshTopics() {
-	topics, err := c.consumerGroup.Topics()
+func (c *Manager) refreshTopics() error {
+	emptyTopics := []string{}
+	// to refresh all topics
+	err := c.consumerGroup.RefreshMetadata(emptyTopics...)
 	if err != nil {
-		klog.Fatalf("Error getting topics, err=%v\n", err)
+		return err
 	}
-	klog.V(6).Infof("%d topic(s) in the cluster\n", len(topics))
-	klog.V(6).Infof("Topics in the cluster=%v\n", topics)
-	c.updatetopics(topics)
+	allTopics, err := c.consumerGroup.Topics()
+	if err != nil {
+		return err
+	}
+	klog.V(6).Infof("%d topic(s) in the cluster\n", len(allTopics))
+	klog.V(6).Infof("Topics in the cluster=%v\n", allTopics)
+	c.updatetopics(allTopics)
+
+	return nil
+}
+
+func (c *Manager) topicInActive(topics []string) []string {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	inActiveTopics := []string{}
+
+	for _, topic := range topics {
+		_, ok := c.activeTopics[topic]
+		if !ok {
+			inActiveTopics = append(inActiveTopics, topic)
+		}
+	}
+
+	return inActiveTopics
+}
+
+func (c *Manager) setActiveTopics(topics []string) {
+	activeTopics := make(map[string]bool)
+	for _, topic := range topics {
+		activeTopics[topic] = true
+	}
+
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	c.activeTopics = activeTopics
+	c.topicsInitialized = true
 }
 
 func (c *Manager) SyncTopics(
@@ -95,7 +145,23 @@ func (c *Manager) SyncTopics(
 	defer wg.Done()
 	ticker := time.NewTicker(time.Second * time.Duration(seconds))
 	for {
-		c.refreshTopics()
+		err := c.refreshTopics()
+		if err != nil {
+			klog.Errorf("error refreshing topic, err:%v\n", err)
+			continue
+		}
+		topics := c.deepCopyTopics()
+
+		inactiveTopics := c.topicInActive(topics)
+		if len(inactiveTopics) > 0 && c.topicsInitialized {
+			klog.Infof("New topics are inactive: %v. Reload required!\n", inactiveTopics)
+			// TODO: assumes there is a proecss above that restarts
+			// when this shutsdown, it is using Kubernetes Deployment like
+			// functionality to reload
+			klog.Info("Reloading.... Gracefully shutdown, container restarts!")
+			c.cancel()
+			return
+		}
 
 		select {
 		case <-ctx.Done():
@@ -126,18 +192,26 @@ func (c *Manager) printLastOffsets() {
 func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
+		select {
+		case <-ctx.Done():
+			klog.Info("Context cancelled, bye bye!")
+			return
+		default:
+		}
+
 		// `Consume` should be called inside an infinite loop, when a
 		// server-side rebalance happens, the consumer session will need to be
 		// recreated to get the new claims
 		topics := c.deepCopyTopics()
 		if len(topics) == 0 {
-			klog.Error("No topics found, waiting")
+			klog.Info("No topics found. Waiting, correct topicRegexes?")
 			time.Sleep(time.Second * 5)
 			continue
 		}
 
 		c.printLastOffsets()
 
+		c.setActiveTopics(topics)
 		klog.V(2).Infof("Manager.Consume for %d topic(s)\n", len(topics))
 		err := c.consumerGroup.Consume(ctx, topics)
 		if err != nil {

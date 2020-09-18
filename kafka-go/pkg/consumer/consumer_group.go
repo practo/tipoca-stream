@@ -13,6 +13,12 @@ import (
 
 type ConsumerGroup interface {
 	Topics() ([]string, error)
+
+	// RefreshMetadata takes a list of topics and queries the cluster to refresh the
+	// available metadata for those topics. If no topics are provided, it will refresh
+	// metadata for all topics.
+	RefreshMetadata(topics ...string) error
+
 	LastOffset(topic string, partition int32) (int64, error)
 	Consume(ctx context.Context, topics []string) error
 	Close() error
@@ -115,6 +121,10 @@ type saramaConsumerGroup struct {
 
 func (c *saramaConsumerGroup) Topics() ([]string, error) {
 	return c.client.Topics()
+}
+
+func (c *saramaConsumerGroup) RefreshMetadata(topics ...string) error {
+	return c.client.RefreshMetadata(topics...)
 }
 
 func (c *saramaConsumerGroup) LastOffset(
