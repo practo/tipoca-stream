@@ -67,9 +67,13 @@ func run(cmd *cobra.Command, args []string) {
 	ctx, cancel := context.WithCancel(context.Background())
 	klog.Info("Succesfully created kafka client")
 
+	sigterm := make(chan os.Signal, 1)
+	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
+
 	manager := consumer.NewManager(
 		consumerGroup,
 		config.Kafka.TopicRegexes,
+		sigterm,
 	)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
@@ -79,9 +83,6 @@ func run(cmd *cobra.Command, args []string) {
 
 	<-ready
 	klog.Info("Consumer is up and running")
-
-	sigterm := make(chan os.Signal, 1)
-	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
 
 	select {
 	case <-ctx.Done():
