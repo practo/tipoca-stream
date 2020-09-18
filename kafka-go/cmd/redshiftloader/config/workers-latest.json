@@ -8,7 +8,7 @@
     "resources": {
       "requestCpu": "100m",
       "requestMemory": "150Mi",
-      "limitCpu": "200m",
+      "limitCpu": "500m",
       "limitMemory": "150Mi"
     }
   }
