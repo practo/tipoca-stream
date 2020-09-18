@@ -150,6 +150,8 @@ func (c *Manager) SyncTopics(
 		select {
 		case <-ctx.Done():
 			return
+		case <-c.sigterm:
+			return
 		case <-ticker.C:
 			continue
 		}
