@@ -70,15 +70,13 @@ func run(cmd *cobra.Command, args []string) {
 	manager := consumer.NewManager(
 		consumerGroup,
 		config.Kafka.TopicRegexes,
+		cancel,
 	)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	go manager.SyncTopics(ctx, 15, wg)
 	wg.Add(1)
 	go manager.Consume(ctx, wg)
-
-	<-ready
-	klog.Info("Consumer is up and running")
 
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
@@ -88,13 +86,23 @@ func run(cmd *cobra.Command, args []string) {
 		klog.Info("Context cancelled, bye bye!")
 	case <-sigterm:
 		klog.Info("Sigterm signal received")
+		cancel()
+	case <-ready:
+		klog.Info("Consumer is up and running")
 	}
-	cancel()
+
+	select {
+	case <-ctx.Done():
+		klog.Info("Context cancelled, bye bye!")
+	case <-sigterm:
+		klog.Info("Sigterm signal received")
+		cancel()
+	}
 
 	// TODO: the processing batching function should signal back
 	// It does not at present
 	// https://github.com/practo/tipoca-stream/issues/18
-	klog.Info("Waiting the batcher processees to gracefully shutdown")
+	klog.Info("Waiting the batcher goroutines to gracefully shutdown")
 	time.Sleep(5 * time.Second)
 
 	wg.Wait()
