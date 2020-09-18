@@ -64,11 +64,18 @@ func run(cmd *cobra.Command, args []string) {
 	wg.Add(1)
 	go manager.Consume(ctx, wg)
 
-	<-ready
-	klog.Info("Consumer is up and running")
-
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case <-ctx.Done():
+		klog.Info("Context cancelled, bye bye!")
+	case <-sigterm:
+		klog.Info("Sigterm signal received")
+		cancel()
+	case <-ready:
+		klog.Info("Consumer is up and running")
+	}
 
 	select {
 	case <-ctx.Done():
