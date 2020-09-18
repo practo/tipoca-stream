@@ -30,9 +30,9 @@ type Manager struct {
 
 func NewManager(consumerGroup ConsumerGroup, regexes string) *Manager {
 	var topicRegexes []*regexp.Regexp
-	expressions := strings.Split(strings.TrimSpace(regexes), ",")
+	expressions := strings.Split(regexes, ",")
 	for _, expression := range expressions {
-		rgx, err := regexp.Compile(expression)
+		rgx, err := regexp.Compile(strings.TrimSpace(expression))
 		if err != nil {
 			klog.Fatalf("Compling regex: %s failed, err:%v\n", expression, err)
 		}
@@ -84,8 +84,8 @@ func (c *Manager) refreshTopics() {
 	if err != nil {
 		klog.Fatalf("Error getting topics, err=%v\n", err)
 	}
-	klog.V(6).Infof("%d topic(s) in the cluster\n", len(topics))
-	klog.V(6).Infof("Topics in the cluster=%v\n", topics)
+	klog.V(6).Infof("%d topic(s) in the cluster\n", len(allTopics))
+	klog.V(6).Infof("Topics in the cluster=%v\n", allTopics)
 	c.updatetopics(allTopics)
 }
 
