@@ -37,7 +37,7 @@ type Manager struct {
 }
 
 func NewManager(consumerGroup ConsumerGroup,
-	regexes string, sigterm chan os.Signal) *Manager {
+	regexes string, sigterm chan os.Signal, ready chan bool) *Manager {
 
 	var topicRegexes []*regexp.Regexp
 	expressions := strings.Split(regexes, ",")
@@ -52,7 +52,7 @@ func NewManager(consumerGroup ConsumerGroup,
 	return &Manager{
 		consumerGroup: consumerGroup,
 		topicRegexes:  topicRegexes,
-		Ready:         make(chan bool),
+		Ready:         ready,
 		activeTopics:  make(map[string]bool),
 		sigterm:       sigterm,
 	}
@@ -151,6 +151,13 @@ func (c *Manager) SyncTopics(
 		case <-ctx.Done():
 			return
 		case <-c.sigterm:
+			// check if channel is open, if open close it for main to
+			// move ahead
+			select {
+			case <-c.Ready:
+			default:
+				close(c.Ready)
+			}
 			return
 		case <-ticker.C:
 			continue
