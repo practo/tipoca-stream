@@ -41,9 +41,16 @@ func run(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	// shared by all topics in a loader process
+	redshifter, err := redshift.NewRedshift(ctx, config.Redshift)
+	if err != nil {
+		klog.Fatalf("Error creating redshifter: %v\n", err)
+	}
+
 	ready := make(chan bool)
 	consumerGroup, err := consumer.NewConsumerGroup(
-		config.Kafka, config.Sarama, redshiftloader.NewConsumer(ready),
+		config.Kafka, config.Sarama,
+		redshiftloader.NewConsumer(ready, redshifter),
 	)
 	if err != nil {
 		klog.Errorf("Error creating kafka consumer group, exiting: %v\n", err)
