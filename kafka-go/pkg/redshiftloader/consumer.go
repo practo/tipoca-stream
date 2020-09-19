@@ -6,7 +6,7 @@ import (
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 )
 
-func NewConsumer(ready chan bool, redshifter *redshift.Redshif) consumer {
+func NewConsumer(ready chan bool, redshifter *redshift.Redshift) consumer {
 	return consumer{
 		ready: ready,
 
