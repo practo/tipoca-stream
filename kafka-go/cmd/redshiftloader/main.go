@@ -16,6 +16,7 @@ import (
 	"github.com/practo/klog/v2"
 	conf "github.com/practo/tipoca-stream/kafka-go/cmd/redshiftloader/config"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/consumer"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshiftloader"
 )
 
@@ -41,6 +42,8 @@ func run(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	// shared by all topics in a loader process
 	redshifter, err := redshift.NewRedshift(ctx, config.Redshift)
 	if err != nil {
@@ -56,8 +59,6 @@ func run(cmd *cobra.Command, args []string) {
 		klog.Errorf("Error creating kafka consumer group, exiting: %v\n", err)
 		os.Exit(1)
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
 	klog.Info("Succesfully created kafka client")
 
 	manager := consumer.NewManager(
