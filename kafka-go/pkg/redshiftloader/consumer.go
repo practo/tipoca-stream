@@ -3,13 +3,16 @@ package redshiftloader
 import (
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 )
 
-func NewConsumer(ready chan bool) consumer {
+func NewConsumer(ready chan bool, redshifter *redshift.Redshift) consumer {
 	return consumer{
 		ready: ready,
+
 		// loader is initliazed in ConsumeClaim based on the topic it gets
-		loader: nil,
+		loader:     nil,
+		redshifter: redshifter,
 	}
 }
 
@@ -19,6 +22,8 @@ type consumer struct {
 	ready chan bool
 
 	loader *loader
+
+	redshifter *redshift.Redshift
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
@@ -49,7 +54,7 @@ func (c consumer) processMessage(
 
 	if c.loader.processor == nil {
 		c.loader.processor = newLoadProcessor(
-			message.Topic, message.Partition, session)
+			message.Topic, message.Partition, session, c.redshifter)
 	}
 	// TODO: not sure added below for safety, it may not be required
 	c.loader.processor.session = session
