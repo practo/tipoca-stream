@@ -78,7 +78,7 @@ type RedshiftConfig struct {
 	User              string `yaml:"user"`
 	Password          string `yaml:"password"`
 	Timeout           int    `yaml:"timeout"`
-	S3AccessKeyId      string `yaml:"s3AccessKeyId"`
+	S3AccessKeyId     string `yaml:"s3AccessKeyId"`
 	S3SecretAccessKey string `yaml:"s3SecretAccessKey"`
 	Schema            string `yaml:"schema"`
 }
