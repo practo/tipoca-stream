@@ -76,8 +76,8 @@ type loadProcessor struct {
 }
 
 func newLoadProcessor(
-	topic string, partition int32,
-	session sarama.ConsumerGroupSession) *loadProcessor {
+	topic string, partition int32, session sarama.ConsumerGroupSession,
+	redshifter *redshift.Redshift) *loadProcessor {
 
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
@@ -87,23 +87,6 @@ func newLoadProcessor(
 	)
 	if err != nil {
 		klog.Fatalf("Error creating s3 client: %v\n", err)
-	}
-
-	// TODO: check if session context is not a problem here.
-	redshifter, err := redshift.NewRedshift(
-		session.Context(), redshift.RedshiftConfig{
-			Host:              viper.GetString("redshift.host"),
-			Port:              viper.GetString("redshift.port"),
-			Database:          viper.GetString("redshift.database"),
-			User:              viper.GetString("redshift.user"),
-			Password:          viper.GetString("redshift.password"),
-			Timeout:           viper.GetInt("redshift.timeout"),
-			S3AcessKeyId:      viper.GetString("redshift.s3AccessKeyId"),
-			S3SecretAccessKey: viper.GetString("redshift.s3SecretAccessKey"),
-		},
-	)
-	if err != nil {
-		klog.Fatalf("Error creating redshifter: %v\n", err)
 	}
 
 	return &loadProcessor{
