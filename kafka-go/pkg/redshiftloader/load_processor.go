@@ -129,9 +129,7 @@ func (b *loadProcessor) setBatchId() {
 	b.batchId += 1
 }
 
-// commitOffset actually commits the offset and this is an sync operation
-// when a commit happens succesfully that record will never be reconsumed.
-func (b *loadProcessor) commitOffset(datas []interface{}) {
+func (b *loadProcessor) markOffset(datas []interface{}) {
 	for i, data := range datas {
 		message := data.(*serializer.Message)
 
@@ -145,7 +143,9 @@ func (b *loadProcessor) commitOffset(datas []interface{}) {
 		// while doing this But if the system is idempotent we do not
 		// need to worry about this. Since the write to s3 again will
 		// just overwrite the same data.
-		b.session.Commit()
+		if b.autoCommit == false {
+			b.session.Commit()
+		}
 		b.lastCommittedOffset = message.Offset
 		var verbosity klog.Level = 5
 		if len(datas)-1 == i {
@@ -579,6 +579,7 @@ func (b *loadProcessor) processBatch(
 			message := data.(*serializer.Message)
 			job := StringMapToJob(message.Value.(map[string]interface{}))
 			schemaId := job.SchemaId
+			b.batchEndOffset = message.Offset
 
 			// this assumes all messages in a batch have same schema id
 			if id == 0 {
@@ -641,9 +642,7 @@ func (b *loadProcessor) process(workerID int, datas []interface{}) {
 		return
 	}
 
-	if b.autoCommit == false {
-		b.commitOffset(datas)
-	}
+	b.markOffset(datas)
 
 	klog.Infof(
 		"topic:%s, batchId:%d, startOffset:%d, endOffset:%d: Processed",
