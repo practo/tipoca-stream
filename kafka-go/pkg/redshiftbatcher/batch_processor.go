@@ -171,7 +171,7 @@ func (b *batchProcessor) setS3key(topic string, partition int32, offset int64) {
 	)
 }
 
-func (b *batchProcessor) commitOffset(datas []interface{}) {
+func (b *batchProcessor) markOffset(datas []interface{}) {
 	for i, data := range datas {
 		message := data.(*serializer.Message)
 
@@ -181,11 +181,15 @@ func (b *batchProcessor) commitOffset(datas []interface{}) {
 			message.Offset+1,
 			"",
 		)
+
 		// TODO: not sure how to avoid any failure when the process restarts
 		// while doing this But if the system is idempotent we do not
 		// need to worry about this. Since the write to s3 again will
 		// just overwrite the same data.
-		b.session.Commit()
+		// commit only when autoCommit is Off
+		if b.autoCommit == false {
+			b.session.Commit()
+		}
 		b.lastCommittedOffset = message.Offset
 		var verbosity klog.Level = 5
 		if len(datas)-1 == i {
@@ -373,9 +377,7 @@ func (b *batchProcessor) process(workerID int, datas []interface{}) {
 
 	b.signalLoad()
 
-	if b.autoCommit == false {
-		b.commitOffset(datas)
-	}
+	b.markOffset(datas)
 
 	klog.Infof(
 		"topic:%s, batchId:%d, startOffset:%d, endOffset:%d: Processed",
