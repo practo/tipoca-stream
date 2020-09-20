@@ -78,7 +78,7 @@ type RedshiftConfig struct {
 	User              string `yaml:"user"`
 	Password          string `yaml:"password"`
 	Timeout           int    `yaml:"timeout"`
-	S3AcessKeyId      string `yaml:"s3AccessKeyId"`
+	S3AccessKeyId      string `yaml:"s3AccessKeyId"`
 	S3SecretAccessKey string `yaml:"s3SecretAccessKey"`
 	Schema            string `yaml:"schema"`
 }
@@ -471,7 +471,7 @@ func (r *Redshift) Unload(tx *sql.Tx,
 
 	credentials := fmt.Sprintf(
 		`CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s'`,
-		r.conf.S3AcessKeyId,
+		r.conf.S3AccessKeyId,
 		r.conf.S3SecretAccessKey,
 	)
 	unLoadSQL := fmt.Sprintf(
@@ -506,7 +506,7 @@ func (r *Redshift) Copy(tx *sql.Tx,
 
 	credentials := fmt.Sprintf(
 		`CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s'`,
-		r.conf.S3AcessKeyId,
+		r.conf.S3AccessKeyId,
 		r.conf.S3SecretAccessKey,
 	)
 	copySQL := fmt.Sprintf(
