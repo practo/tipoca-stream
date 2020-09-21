@@ -6,6 +6,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 )
 
 var (
@@ -41,6 +42,15 @@ func NewMaskConfig(dir string, topic string) (MaskConfig, error) {
 	err = yaml.Unmarshal(yamlFile, &maskConfig)
 	if err != nil {
 		return maskConfig, err
+	}
+
+	// convert to lower case, redshift works with lowercase
+	for table, columns := range maskConfig.NonPiiKeys {
+		var loweredColumns []string
+		for _, column := range columns {
+			loweredColumns = append(loweredColumns, strings.ToLower(column))
+		}
+		maskConfig.NonPiiKeys[table] = loweredColumns
 	}
 
 	return maskConfig, nil
