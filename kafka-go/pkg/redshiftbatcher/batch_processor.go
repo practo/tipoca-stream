@@ -267,6 +267,7 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 		resp, err := b.schemaTransformer.TransformValue(
 			b.topic,
 			b.batchSchemaId,
+			"", // not required to be passed in batcher, so no viper get here!
 		)
 		if err != nil {
 			klog.Fatalf(

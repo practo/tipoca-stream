@@ -1,6 +1,6 @@
 batcher:
     mask: false
-    maskConfigDir: "/Users/alok87/code/tipoca-stream/kafka-go/pkg/transformer/masker"
+    maskConfigDir: "/maskfiles"
     maxSize: 10
     maxSize: 10
     maxWaitSeconds: 20
