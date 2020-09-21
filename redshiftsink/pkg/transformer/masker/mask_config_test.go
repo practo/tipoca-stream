@@ -36,7 +36,7 @@ func TestMaskConfigs(t *testing.T) {
 		expectedResult bool
 	}{
 		{
-			name:           "test1: test column is masked",
+			name:           "test1: test column is masked with case sensitive",
 			topic:          "dbserver.database.justifications",
 			table:          "justifications",
 			cName:          "createdat",
