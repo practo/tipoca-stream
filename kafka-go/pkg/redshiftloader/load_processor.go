@@ -585,8 +585,15 @@ func (b *loadProcessor) processBatch(
 			if id == 0 {
 				b.upstreamTopic = job.UpstreamTopic
 				klog.V(3).Infof("Processing schema: %+v\n", schemaId)
+				maskConfigDir := ""
+				if viper.GetBool("loader.mask") {
+					maskConfigDir = viper.GetString("loader.maskConfigDir")
+				}
 				resp, err := b.schemaTransformer.TransformValue(
-					b.upstreamTopic, schemaId)
+					b.upstreamTopic,
+					schemaId,
+					maskConfigDir,
+				)
 				if err != nil {
 					klog.Fatalf(
 						"Transforming schema:%d => inputTable failed: %v\n",

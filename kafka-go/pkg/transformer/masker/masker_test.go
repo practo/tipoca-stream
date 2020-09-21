@@ -62,7 +62,7 @@ func TestNonPiiKeys(t *testing.T) {
 	}
 
 	if *maskedColumns["id"] != "1001" {
-		t.Errorf("Expected id=1001, got %v\n", maskedColumns["id"])
+		t.Errorf("Expected id=1001, got %v\n", *maskedColumns["id"])
 	}
 
 	maskedFirstName := "79da9eaa3469eabd7dd1afb249048331b2d64341"

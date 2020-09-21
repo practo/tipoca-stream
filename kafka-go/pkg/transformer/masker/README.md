@@ -3,8 +3,10 @@
 Masking when enabled masks all columns in all tables unless specified not to.
 
 ## Configuration
-Prequisite: Masking needs to be enabled in Redshiftbatcher configuration.
 
+### Prequisite:
+- Masking needs to be enabled in redshiftbatcher configuration. (to mask column values)
+- Masking needs to be enabled in redshiftloader configuration. (to choose correct column types)
 ```
 If,
     mask=true            (in redshiftbatcher config)
