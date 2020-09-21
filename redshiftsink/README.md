@@ -1,6 +1,6 @@
-# kafka-go
+# redshiftsink
 
-kafka-go holds the code for the Kafka consumers and producers written in Go.
+redshiftsink reads the debezium events from Kafka and loads them to Redshift. It holds the code for the Kafka consumers and producers written in Go. It comprises of two processes:
 - Redshift Batcher
 - Redshift Loader
 
