@@ -1,4 +1,4 @@
-package redshiftloader
+package redshiftbatcher
 
 import (
 	"time"
@@ -6,7 +6,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/practo/gobatch"
 	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/spf13/viper"
 )
 
@@ -14,26 +14,26 @@ const (
 	maxBatchId = 99
 )
 
-type loader struct {
+type batcher struct {
 	topic        string
 	lastSchemaId *int
-	config       *LoaderConfig
+	config       *BatcherConfig
 	mbatch       *gobatch.Batch
 
 	// serializer is used to Deserialize the message stored in Kafka
 	serializer serializer.Serializer
 
 	// processeor processes the desrialized message
-	processor *loadProcessor
+	processor *batchProcessor
 }
 
-func newLoader(topic string) *loader {
-	c := &LoaderConfig{
-		MaxSize:        viper.GetInt("loader.maxSize"),
-		MaxWaitSeconds: viper.GetInt("loader.maxWaitSeconds"),
+func newBatcher(topic string) *batcher {
+	c := &BatcherConfig{
+		MaxSize:        viper.GetInt("batcher.maxSize"),
+		MaxWaitSeconds: viper.GetInt("batcher.maxWaitSeconds"),
 	}
 
-	return &loader{
+	return &batcher{
 		topic:        topic,
 		lastSchemaId: nil,
 		config:       c,
@@ -46,7 +46,7 @@ func newLoader(topic string) *loader {
 	}
 }
 
-func (b *loader) Insert(saramaMessage *sarama.ConsumerMessage) {
+func (b *batcher) Insert(saramaMessage *sarama.ConsumerMessage) {
 	if b.mbatch == nil {
 		b.mbatch = newMBatch(
 			b.config.MaxSize,
@@ -65,38 +65,28 @@ func (b *loader) Insert(saramaMessage *sarama.ConsumerMessage) {
 		klog.Fatalf("Error deserializing binary, err: %s\n", err)
 	}
 
-	if message == nil || message.Value == nil {
-		klog.Fatalf("Got message as nil, message: %+v\n", message)
-	}
-
-	klog.V(99).Infof("message.Value=%v\n", message.Value)
-
-	job := StringMapToJob(message.Value.(map[string]interface{}))
-	upstreamJobSchemaId := job.SchemaId
-
-	//  batch by schema id of upstream topic
+	// batch by schema id
 	if b.lastSchemaId == nil {
 		b.mbatch.Insert(message)
 		b.lastSchemaId = new(int)
-	} else if *b.lastSchemaId != upstreamJobSchemaId {
+	} else if *b.lastSchemaId != message.SchemaId {
 		klog.V(3).Infof("topic:%s: Got new schema (new batch): %d => %d\n",
-			b.topic, *b.lastSchemaId, upstreamJobSchemaId)
+			b.topic, *b.lastSchemaId, message.SchemaId)
 		b.mbatch.FlushInsert(message)
 	} else {
 		b.mbatch.Insert(message)
 	}
 
-	*b.lastSchemaId = upstreamJobSchemaId
-	klog.V(6).Infof("topic:%s, schemaId: %d\n", b.topic, *b.lastSchemaId)
+	*b.lastSchemaId = message.SchemaId
+	klog.V(5).Infof("topic:%s, schemaId: %d\n", b.topic, *b.lastSchemaId)
 }
 
-type LoaderConfig struct {
+type BatcherConfig struct {
 	// Mask should be turned on or off
 	Mask string `yaml:"mask"`
 
 	// Mask config dir is the directory where the database.yaml is
-	// is to be searched to get the masked columns info, this is required
-	// to add a chatacter masked type as the datatype for such columns
+	// is to be searched to apply masking to the incoming messages
 	MaskConfigDir string `yaml:"maskConfigDir"`
 
 	// Maximum size of a batch, on exceeding this batch is pushed

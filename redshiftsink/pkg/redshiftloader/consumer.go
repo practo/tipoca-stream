@@ -3,7 +3,7 @@ package redshiftloader
 import (
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 )
 
 func NewConsumer(ready chan bool, redshifter *redshift.Redshift) consumer {

@@ -1,4 +1,4 @@
-module github.com/practo/tipoca-stream/kafka-go
+module github.com/practo/tipoca-stream/redshiftsink
 
 go 1.15
 

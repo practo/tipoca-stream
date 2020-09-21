@@ -1,8 +1,8 @@
 package transformer
 
 import (
-	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"strings"
 )
 

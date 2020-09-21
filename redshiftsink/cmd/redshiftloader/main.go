@@ -14,10 +14,10 @@ import (
 	"syscall"
 
 	"github.com/practo/klog/v2"
-	conf "github.com/practo/tipoca-stream/kafka-go/cmd/redshiftloader/config"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/consumer"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/redshiftloader"
+	conf "github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftloader/config"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftloader"
 )
 
 var rootCmd = &cobra.Command{
