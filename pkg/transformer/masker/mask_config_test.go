@@ -1,42 +1,54 @@
 package masker
 
-// TODO:
 import (
-// "testing"
+	"os"
+	"testing"
 )
 
-// func testMaskConfig(t *testing.T) {
-// }
-//
-// func TestMaskConfigs(t *testing.T) {
-//     dir, err := os.Getwd()
-// 	if err != nil {
-// 		t.Error(err)
-// 	}
-//
-// 	t.Parallel()
-// 	tests := []struct {
-//
-// 	}{
-// 		{
-//
-// 		},
-// 	}
-// 	for _, tc := range tests {
-// 		tc := tc
-// 		t.Run(tc.name, func(t *testing.T) {
-// 			testMaskConfig(t, )
-// 		})
-// 	}
-// }
-//
-// func testSync(t *testing.T, c *Manager, allTopics []string, expected []string) {
-// 	c.updatetopics(allTopics)
-// 	if !reflect.DeepEqual(expected, c.topics) {
-// 		t.Errorf("expectedTopics: %v, got: %v\n", expected, c.topics)
-// 	}
-// }
-//
-// func TestTopicSync(t *testing.T) {
-//
-// }
+func testMasked(t *testing.T, dir, topic, table, cName string, result bool) {
+	m, err := NewMaskConfig(dir, topic)
+	if err != nil {
+		t.Error(err)
+	}
+
+	gotResult := m.Masked(table, cName)
+	if gotResult != result {
+		t.Errorf(
+			"Expected column: %v to have mask=%v in table:%v, got mask=%v\n",
+			cName, result, table, gotResult,
+		)
+	}
+}
+
+func TestMaskConfigs(t *testing.T) {
+	t.Parallel()
+
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Error(err)
+	}
+
+	tests := []struct {
+		name           string
+		topic          string
+		table          string
+		cName          string
+		expectedResult bool
+	}{
+		{
+			name:           "test1: test column is masked",
+			topic:          "dbserver.database.justifications",
+			table:          "justifications",
+			cName:          "createdat",
+			expectedResult: false,
+		},
+	}
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			testMasked(
+				t, dir, tc.topic, tc.table, tc.cName, tc.expectedResult,
+			)
+		})
+	}
+}

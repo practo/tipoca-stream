@@ -138,28 +138,29 @@ func (c *messageTransformer) Transform(
 
 	// transform debezium timestamp to redshift loadable value
 	for _, column := range table.Columns {
-		if column.Type == redshift.RedshiftTimeStampDataType {
-			mstr, ok := after[column.Name]
-			if !ok {
-				klog.Warningf("column %s not found, skipped\n", column.Name)
-				continue
-			}
-			if mstr == nil {
-				continue
-			}
-
-			m, err := strconv.Atoi(*mstr)
-			if err != nil {
-				return err
-			}
-			ts := FromUnixMilli(int64(m))
-			fts := fmt.Sprintf(
-				"%d-%02d-%02d %02d:%02d:%02d",
-				ts.Year(), ts.Month(), ts.Day(),
-				ts.Hour(), ts.Minute(), ts.Second(),
-			)
-			after[column.Name] = &fts
+		if column.Type != redshift.RedshiftTimeStampDataType {
+			continue
 		}
+		mstr, ok := after[column.Name]
+		if !ok {
+			klog.Warningf("column %s not found, skipped\n", column.Name)
+			continue
+		}
+		if mstr == nil {
+			continue
+		}
+
+		m, err := strconv.Atoi(*mstr)
+		if err != nil {
+			return err
+		}
+		ts := FromUnixMilli(int64(m))
+		fts := fmt.Sprintf(
+			"%d-%02d-%02d %02d:%02d:%02d",
+			ts.Year(), ts.Month(), ts.Day(),
+			ts.Hour(), ts.Minute(), ts.Second(),
+		)
+		after[column.Name] = &fts
 	}
 
 	operation, err := c.getOperation(message, len(before), len(after))
