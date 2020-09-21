@@ -5,7 +5,7 @@
 
 ---
 
-Near real time data pipeline. Just another data pipeline.
+Near real time cloud native data pipeline. Just another data pipeline.
 
 ## Thanks
 

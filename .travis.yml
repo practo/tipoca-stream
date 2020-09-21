@@ -2,7 +2,7 @@ language: go
 services:
   - docker
 script:
-- cd kafka-go
+- cd redshiftsink 
 - make build
 - test -f bin/linux_amd64/redshiftbatcher
 - test -f bin/linux_amd64/redshiftloader
