@@ -7,38 +7,96 @@ import (
 	"testing"
 )
 
+func testRedshiftDataTypeGet(t *testing.T, sqlType, debeziumType,
+	sourceColType string, columnMasked bool, expectedResult string) error {
+	redshiftType, err := GetRedshiftDataType(
+		sqlType, debeziumType, sourceColType, columnMasked,
+	)
+	if err != nil {
+		return err
+	}
+	if redshiftType != expectedResult {
+		return fmt.Errorf(
+			"Expected redshiftType=character varying(max) got=%v\n",
+			redshiftType)
+	}
+
+	return nil
+}
+
 func TestRedshiftDataTypeGet(t *testing.T) {
-	redshiftType, err := GetRedshiftDataType("mysql", "long", "LONGTEXT")
-	if err != nil {
-		t.Error(err)
-	}
-	if redshiftType != "character varying(65535)" {
-		t.Errorf(
-			"Expected redshiftType=character varying(max) got=%v\n",
-			redshiftType)
+	t.Parallel()
+	tests := []struct {
+		name           string
+		sqlType        string
+		debeziumType   string
+		sourceColType  string
+		columnMasked   bool
+		expectedResult string
+		expectError    bool
+	}{
+		{
+			name:           "test1: mysql to redshift conversion",
+			sqlType:        "mysql",
+			debeziumType:   "long",
+			sourceColType:  "LONGTEXT",
+			columnMasked:   false,
+			expectedResult: "character varying(65535)",
+			expectError:    false,
+		},
+		{
+			name:           "test2: unknown mysql type",
+			sqlType:        "mysql",
+			debeziumType:   "long",
+			sourceColType:  "UNKNOWN_TYPE",
+			columnMasked:   false,
+			expectedResult: "bigint",
+			expectError:    false,
+		},
+		{
+			name:           "test3: unsupported sqltype",
+			sqlType:        "mongo",
+			debeziumType:   "long",
+			sourceColType:  "VARCHAR",
+			columnMasked:   false,
+			expectedResult: "",
+			expectError:    true,
+		},
+		{
+			name:           "test4: test datatype",
+			sqlType:        "mysql",
+			debeziumType:   "string",
+			sourceColType:  "MEDIUMTEXT",
+			columnMasked:   false,
+			expectedResult: "character varying(65535)",
+			expectError:    false,
+		},
+		{
+			name:           "test5: test masked column datatype",
+			sqlType:        "mysql",
+			debeziumType:   "int",
+			sourceColType:  "INTEGER",
+			columnMasked:   true,
+			expectedResult: RedshiftMaskedDataType,
+			expectError:    false,
+		},
 	}
 
-	redshiftType, err = GetRedshiftDataType("mysql", "long", "SOMERANDOM")
-	if err != nil {
-		t.Error(err)
-	}
-	if redshiftType != "bigint" {
-		t.Errorf("Expected redshiftType=bigint got=%v\n", redshiftType)
-	}
-
-	_, err = GetRedshiftDataType("mongo", "long", "SOMERANDOM")
-	if err == nil {
-		t.Error("Expected error to happen for unspported mongo test")
-	}
-
-	redshiftType, err = GetRedshiftDataType("mysql", "string", "MEDIUMTEXT")
-	if err != nil {
-		t.Error(err)
-	}
-	if redshiftType != "character varying(65535)" {
-		t.Errorf(
-			"Expected redshiftType=character varying(max) got=%v\n",
-			redshiftType)
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			err := testRedshiftDataTypeGet(
+				t,
+				tc.sqlType,
+				tc.debeziumType,
+				tc.sourceColType,
+				tc.columnMasked,
+				tc.expectedResult,
+			)
+			if err != nil && tc.expectError == false {
+				t.Error(err)
+			}
+		})
 	}
 }
 
