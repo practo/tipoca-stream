@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer/masker"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
 	"github.com/riferrei/srclient"
 	"strings"
 )

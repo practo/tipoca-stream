@@ -2,7 +2,7 @@ package debezium
 
 import (
 	"fmt"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"testing"
 )
 

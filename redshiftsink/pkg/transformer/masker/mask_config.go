@@ -2,7 +2,7 @@ package masker
 
 import (
 	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"path/filepath"
