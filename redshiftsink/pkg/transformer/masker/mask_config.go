@@ -68,6 +68,8 @@ func (m MaskConfig) Masked(table, cName string) bool {
 
 func (m MaskConfig) PerformUnMasking(table, cName string) bool {
 	// usecase: kafkaoffset, operation are staged columns that need to unmasked
+	cName = strings.ToLower(cName)
+
 	_, ok := ignoreColumns[cName]
 	if ok {
 		return true
