@@ -138,7 +138,7 @@ func (c *messageTransformer) Transform(
 
 	// transform debezium timestamp to redshift loadable value
 	for _, column := range table.Columns {
-		if column.Type == redshift.RedshiftTimeStamp {
+		if column.Type == redshift.RedshiftTimeStampDataType {
 			mstr, ok := after[column.Name]
 			if !ok {
 				klog.Warningf("column %s not found, skipped\n", column.Name)

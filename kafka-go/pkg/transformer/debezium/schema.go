@@ -6,6 +6,7 @@ import (
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
 	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
+	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer/masker"
 	"github.com/riferrei/srclient"
 	"strings"
 )
@@ -40,7 +41,8 @@ type SourceType struct {
 
 func NewSchemaTransformer(url string) transformer.SchemaTransformer {
 	return &schemaTransformer{
-		srclient: srclient.CreateSchemaRegistryClient(url),
+		maskConfig: make(map[int]masker.MaskConfig),
+		srclient:   srclient.CreateSchemaRegistryClient(url),
 	}
 }
 
@@ -218,7 +220,9 @@ func (d *schemaParser) columnsBefore() []ColInfo {
 }
 
 type schemaTransformer struct {
-	srclient *srclient.SchemaRegistryClient
+	mask       bool
+	maskConfig map[int]masker.MaskConfig
+	srclient   *srclient.SchemaRegistryClient
 }
 
 func (c *schemaTransformer) TransformKey(topic string) (string, string, error) {
@@ -266,8 +270,8 @@ func (c *schemaTransformer) transformSchemaKey(
 	return "", "", fmt.Errorf("Primary key not found in schema: %s\n", schema)
 }
 
-func (c *schemaTransformer) TransformValue(topic string, schemaId int) (
-	interface{}, error) {
+func (c *schemaTransformer) TransformValue(
+	topic string, schemaId int, maskConfDir string) (interface{}, error) {
 
 	s, err := c.srclient.GetSchema(schemaId)
 	if err != nil {
@@ -287,11 +291,28 @@ func (c *schemaTransformer) TransformValue(topic string, schemaId int) (
 		)
 	}
 
-	return c.transformSchemaValue(s.Schema(), primaryKey)
+	if maskConfDir != "" {
+		c.mask = true
+		_, ok := c.maskConfig[schemaId]
+		if !ok {
+			maskConfig, err := masker.NewMaskConfig(maskConfDir, topic)
+			if err != nil {
+				klog.Fatalf("Error making masking config: %v\n", err)
+			}
+			c.maskConfig[schemaId] = maskConfig
+		}
+	}
+
+	return c.transformSchemaValue(
+		schemaId,
+		s.Schema(),
+		primaryKey,
+		c.mask,
+	)
 }
 
-func (c *schemaTransformer) transformSchemaValue(jobSchema string,
-	primaryKey string) (interface{}, error) {
+func (c *schemaTransformer) transformSchemaValue(schemaId int, jobSchema string,
+	primaryKey string, mask bool) (interface{}, error) {
 
 	// remove nulls
 	// TODO: this might be required, better if not
@@ -310,12 +331,19 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 	}
 
 	columns := d.columnsBefore()
+
 	var redshiftColumns []redshift.ColInfo
 	for _, column := range columns {
+		columnMasked := false
+		if mask {
+			maskConfig := c.maskConfig[schemaId]
+			columnMasked = maskConfig.Masked(d.tableName(), column.Name)
+		}
 		redshiftDataType, err := redshift.GetRedshiftDataType(
 			d.sqlType(),
 			column.Type,
 			column.SourceType.ColumnType,
+			columnMasked,
 		)
 		if err != nil {
 			return nil, err
