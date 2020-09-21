@@ -16,8 +16,10 @@ import (
 )
 
 const (
-	RedshiftTimeStamp = "timestamp without time zone"
-	schemaExist       = `select schema_name
+	RedshiftMaskedDataType    = "character varying(50)"
+	RedshiftTimeStampDataType = "timestamp without time zone"
+
+	schemaExist = `select schema_name
 from information_schema.schemata where schema_name='%s';`
 	schemaCreate = `create schema "%s";`
 	tableExist   = `select table_name from information_schema.tables where
@@ -750,9 +752,9 @@ var mysqlToRedshiftTypeMap = map[string]string{
 	"smallint unsigned":           "integer",
 	"double [precision]":          "double precision",
 	"double [precision] unsigned": "double precision",
-	"datetime":                    RedshiftTimeStamp,
-	"time":                        RedshiftTimeStamp,
-	"timestamp":                   RedshiftTimeStamp,
+	"datetime":                    RedshiftTimeStampDataType,
+	"time":                        RedshiftTimeStampDataType,
+	"timestamp":                   RedshiftTimeStampDataType,
 	"smallint":                    "smallint",
 	"tinyint":                     "smallint",
 	"tinyint unsigned":            "smallint",
@@ -767,7 +769,11 @@ var mysqlToRedshiftTypeMap = map[string]string{
 
 // GetRedshiftDataType returns the mapped type for the sqlType's data type
 func GetRedshiftDataType(sqlType, debeziumType,
-	sourceColType string) (string, error) {
+	sourceColType string, columnMasked bool) (string, error) {
+
+	if columnMasked == true {
+		return RedshiftMaskedDataType, nil
+	}
 
 	debeziumType = strings.ToLower(debeziumType)
 	sourceColType = strings.ToLower(sourceColType)
