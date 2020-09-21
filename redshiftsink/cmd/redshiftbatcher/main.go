@@ -15,9 +15,9 @@ import (
 	"syscall"
 
 	"github.com/practo/klog/v2"
-	conf "github.com/practo/tipoca-stream/kafka-go/cmd/redshiftbatcher/config"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/consumer"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/redshiftbatcher"
+	conf "github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftbatcher/config"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftbatcher"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 

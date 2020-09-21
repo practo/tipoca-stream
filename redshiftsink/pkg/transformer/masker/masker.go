@@ -4,9 +4,9 @@ import (
 	"crypto/sha1"
 	"encoding/json"
 	"fmt"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/redshift"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/serializer"
-	"github.com/practo/tipoca-stream/kafka-go/pkg/transformer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 )
 
 type masker struct {
