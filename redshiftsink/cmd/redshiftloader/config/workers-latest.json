@@ -1,15 +1,28 @@
 [
-  {
-    "directory": "/",
-    "command": "/redshiftloader",
-    "args": ["-v=5", "--config=/config.yaml"],
-    "name": "redshiftloader0",
-    "deploymentStrategy": "recreate",
-    "resources": {
-      "requestCpu": "100m",
-      "requestMemory": "150Mi",
-      "limitCpu": "500m",
-      "limitMemory": "150Mi"
+    {
+        "directory": "/",
+        "command": "/redshiftloader",
+        "args": ["-v=5", "--config=/config0.yaml"],
+        "name": "redshiftloader0",
+        "deploymentStrategy": "recreate",
+        "resources": {
+              "requestCpu": "100m",
+              "requestMemory": "150Mi",
+              "limitCpu": "500m",
+              "limitMemory": "150Mi"
+        }
+    },
+    {
+        "directory": "/",
+        "command": "/redshiftloader",
+        "args": ["-v=5", "--config=/config1.yaml"],
+        "name": "redshiftloader1",
+        "deploymentStrategy": "recreate",
+        "resources": {
+              "requestCpu": "100m",
+              "requestMemory": "150Mi",
+              "limitCpu": "500m",
+              "limitMemory": "150Mi"
+        }
     }
-  }
 ]
