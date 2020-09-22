@@ -18,8 +18,7 @@ Then, configuration file should be present at:
 
 ## Features
 
-### Non Pii Masking
-
+### NonPii Keys
 Mask all the columns in all the tables in `inventory` database except the column `id` in `customers` table.
 
 **/usr/inventory.yaml**
@@ -28,3 +27,19 @@ non_pii_keys:
     customers:
     - id
 ```
+
+### Sort Keys
+Specify one or more columns in a table as Redshift Sort Key.
+```yaml
+sort_keys:
+    customers:
+    - created_at
+```
+
+### Dist Keys
+Specify one or more columns in a table as Redshift Disk Key.
+```yaml
+dist_keys:
+    customers:
+    - account_id
+```    
