@@ -17,7 +17,12 @@ var (
 )
 
 type MaskConfig struct {
-	NonPiiKeys map[string][]string `yaml:"non_pii_keys"`
+	// NonPiiKeys specifies the columns that needs be unmasked
+	NonPiiKeys map[string][]string `yaml:"non_pii_keys,omitempty"`
+	// SortKeys sets the Redshift column to use the column as the SortKey
+	SortKeys map[string][]string `yaml:"sort_keys,omitempty"`
+	// DistKeys sets the Redshift column to use the column as the DistKey
+	DistKeys map[string][]string `yaml:"dist_keys,omitempty"`
 }
 
 // TODO: document the convention to specify configuration files
@@ -56,6 +61,36 @@ func NewMaskConfig(dir string, topic string) (MaskConfig, error) {
 	return maskConfig, nil
 }
 
+func (m MaskConfig) SortKey(table, cName string) bool {
+	columns, ok := m.SortKeys[table]
+	if !ok {
+		return false
+	}
+
+	for _, column := range columns {
+		if column == cName {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (m MaskConfig) DistKey(table, cName string) bool {
+	columns, ok := m.DistKeys[table]
+	if !ok {
+		return false
+	}
+
+	for _, column := range columns {
+		if column == cName {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Masked tells if the column is masked or not based on the maskconfig
 // It is used to determine the type of the masked column by the loader
 func (m MaskConfig) Masked(table, cName string) bool {
@@ -75,8 +110,7 @@ func (m MaskConfig) PerformUnMasking(table, cName string) bool {
 		return true
 	}
 
-	if m.unMaskNonPiiKeys(table, cName) || m.unMaskConditionalNonPiiKeys(
-		table, cName) || m.unMaskMobileKeys(table, cName) {
+	if m.unMaskNonPiiKeys(table, cName) {
 
 		return true
 	}
@@ -96,15 +130,5 @@ func (m MaskConfig) unMaskNonPiiKeys(table, cName string) bool {
 		}
 	}
 
-	return false
-}
-
-// TODO:
-func (m MaskConfig) unMaskConditionalNonPiiKeys(table, cName string) bool {
-	return false
-}
-
-// TODO:
-func (m MaskConfig) unMaskMobileKeys(table, cName string) bool {
 	return false
 }
