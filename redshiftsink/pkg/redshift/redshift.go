@@ -312,8 +312,8 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 		table.Meta.Schema,
 		table.Name,
 		strings.Join(columnSQL, ","),
-		sortColumnsSQL,
 		distColumnSQL,
+		sortColumnsSQL,
 	)
 
 	klog.V(5).Infof("Preparing: %s with args: %v\n", createSQL, args)
@@ -633,7 +633,7 @@ func (r *Redshift) GetTableMetadata(schema, tableName string) (*Table, error) {
 	for rows.Next() {
 		var c ColInfo
 		if err := rows.Scan(&c.Name, &c.Type, &c.DefaultVal, &c.NotNull,
-			&c.PrimaryKey, c.DistKey, &c.SortOrdinal,
+			&c.PrimaryKey, &c.DistKey, &c.SortOrdinal,
 		); err != nil {
 			return nil, fmt.Errorf("error scanning column, err: %s", err)
 		}
