@@ -335,9 +335,13 @@ func (c *schemaTransformer) transformSchemaValue(schemaId int, jobSchema string,
 	var redshiftColumns []redshift.ColInfo
 	for _, column := range columns {
 		columnMasked := false
+		sortKey := false
+		distKey := false
 		if mask {
 			maskConfig := c.maskConfig[schemaId]
 			columnMasked = maskConfig.Masked(d.tableName(), column.Name)
+			sortKey = maskConfig.SortKey(d.tableName(), column.Name)
+			distKey = maskConfig.DistKey(d.tableName(), column.Name)
 		}
 		redshiftDataType, err := redshift.GetRedshiftDataType(
 			d.sqlType(),
@@ -349,6 +353,11 @@ func (c *schemaTransformer) transformSchemaValue(schemaId int, jobSchema string,
 			return nil, err
 		}
 
+		sortOrdinal := 0
+		if sortKey {
+			sortOrdinal = 1
+		}
+
 		redshiftColumns = append(redshiftColumns, redshift.ColInfo{
 			Name:         strings.ToLower(column.Name),
 			Type:         redshiftDataType,
@@ -356,6 +365,8 @@ func (c *schemaTransformer) transformSchemaValue(schemaId int, jobSchema string,
 			DefaultVal:   column.Default,
 			NotNull:      column.NotNull,
 			PrimaryKey:   column.PrimaryKey,
+			SortOrdinal:  sortOrdinal,
+			DistKey:      distKey,
 		})
 	}
 
