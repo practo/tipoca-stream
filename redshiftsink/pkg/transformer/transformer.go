@@ -15,8 +15,9 @@ type SchemaTransformer interface {
 	// key and its type.
 	TransformKey(topic string) (string, string, error)
 	// Transform value transforms the schemaId for various use cases.
-	// maskConfigDir is used to do the type chaneg in schema for masked fields
+	// maskConfigDir is used to do the type change in schema for masked fields
 	// only if masking is turned on, else it is passed as empty string ""
+	// SortKey and DistKey are also set reading the mask configs if mask is true
 	TransformValue(
 		topic string, schemaId int, maskConfDir string) (interface{}, error)
 }
