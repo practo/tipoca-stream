@@ -334,8 +334,8 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 // Supported: add columns
 // Supported: drop columns
 // TODO:
-// NotSupported: row ordering changes and row renames
-// NotSupported: alter columns. It is done via table migration, so
+// Supportedvia: row ordering changes and row renames
+// Supportedvia: alter columns. It is done via table migration, so
 // it returns a boolean specifying table migration is required or not.
 func (r *Redshift) UpdateTable(
 	tx *sql.Tx, inputTable, targetTable Table) (bool, error) {
@@ -347,13 +347,20 @@ func (r *Redshift) UpdateTable(
 		return false, err
 	}
 
-	if len(transactcolumnOps) == 0 {
-		klog.V(3).Infof(
-			"Migration not required, schema same: %s\n", inputTable.Name)
-	} else {
-		klog.Infof("Migrating schema for table: %s ...\n", inputTable.Name)
+	if len(transactcolumnOps) == 0 && len(columnOps) == 0 {
+		klog.Infof(
+			"Migration not required, schema same, table: %v\n",
+			inputTable.Name)
+		return false, nil
 	}
 
+	klog.Infof("Schema Migration begins, table: %v\n", inputTable.Name)
+
+	if len(transactcolumnOps) > 0 {
+		klog.Infof(
+			"Schema-Migration1: InTable Schema Migration starts.., table:%v\n",
+			inputTable.Name)
+	}
 	// run transcation block commands
 	// postgres only allows adding one column at a time
 	for _, op := range transactcolumnOps {
@@ -373,6 +380,9 @@ func (r *Redshift) UpdateTable(
 	// redshift does not support alter columns #40
 	performTableMigration := false
 	if len(columnOps) > 0 {
+		klog.Infof(
+			"Schema-Migration2: Table Schema Migration required, table:%v\n",
+			inputTable.Name)
 		klog.V(5).Infof("columnOps=%v\n", columnOps)
 		performTableMigration = true
 	}
@@ -391,7 +401,7 @@ func (r *Redshift) ReplaceTable(
 	tx *sql.Tx, unLoadS3Key string, copyS3ManifestKey string,
 	inputTable, targetTable Table) error {
 
-	klog.Infof("Migrating table(slow): %s ...\n", inputTable.Name)
+	klog.Infof("Schema-Migration2: table(slow): %s ...\n", inputTable.Name)
 	targetTableName := fmt.Sprintf(
 		`"%s"."%s"`, targetTable.Meta.Schema, targetTable.Name)
 	migrationTableName := fmt.Sprintf(
@@ -727,7 +737,7 @@ func checkColumn(schemaName string, tableName string,
 
 // checkColumnsAndOrdering constructs migration commands comparing the tables
 // it returns the operations that can be performed using transaction
-// and the operations which requires table operation, both handled
+// and the operations which requires table migration, both handled
 // differently.
 func checkColumnsAndOrdering(
 	inputTable, targetTable Table) ([]string, []string, error) {
@@ -741,7 +751,7 @@ func checkColumnsAndOrdering(
 	for idx, inCol := range inputTable.Columns {
 		inColMap[inCol.Name] = true
 
-		// add column
+		// add column (runs in a single transcation, single ALTER COMMAND)
 		if len(targetTable.Columns) <= idx {
 			klog.V(5).Info("Missing column, alter table will run.\n")
 			alterSQL := fmt.Sprintf(
@@ -754,7 +764,7 @@ func checkColumnsAndOrdering(
 			continue
 		}
 
-		// alter column
+		// alter column (requires table migration, can't run in transaction)
 		targetCol := targetTable.Columns[idx]
 		alterColumnOps, err := checkColumn(
 			inputTable.Meta.Schema, inputTable.Name, inCol, targetCol)
@@ -764,7 +774,7 @@ func checkColumnsAndOrdering(
 		columnOps = append(columnOps, alterColumnOps...)
 	}
 
-	// drop column
+	// drop column (runs in a single transcation, single ALTER COMMAND)
 	for _, taCol := range targetTable.Columns {
 		if _, ok := inColMap[taCol.Name]; !ok {
 			klog.V(5).Infof(
@@ -781,7 +791,7 @@ func checkColumnsAndOrdering(
 		}
 	}
 
-	// alter sort keys
+	// alter sort keys (runs in a single transcation, single ALTER COMMAND)
 	inputTableSortColumns := getSortColumns(inputTable)
 	targetTableSortColumns := getSortColumns(targetTable)
 	if !checkColumnsExactlySame(inputTableSortColumns, targetTableSortColumns) {
@@ -796,14 +806,14 @@ func checkColumnsAndOrdering(
 			inputTable.Name,
 			strings.Join(inputTableSortColumns, ","),
 		)
-		columnOps = append(columnOps, alterSQL)
+		transactColumnOps = append(transactColumnOps, alterSQL)
 	}
 
-	// alter dist columns by table migration if any changes
+	// alter dist (requires table migration, can't run in transaction)
 	inputTableDistColumns := getDistColumns(inputTable)
 	targetTableDistColumns := getDistColumns(targetTable)
 	if !checkColumnsExactlySame(inputTableDistColumns, targetTableDistColumns) {
-		transactColumnOps = append(transactColumnOps, "")
+		columnOps = append(columnOps, "ALTER DISTKEY using table migration")
 	}
 
 	return transactColumnOps, columnOps, errors
