@@ -111,7 +111,6 @@ func (m MaskConfig) PerformUnMasking(table, cName string) bool {
 	}
 
 	if m.unMaskNonPiiKeys(table, cName) {
-
 		return true
 	}
 
@@ -121,7 +120,7 @@ func (m MaskConfig) PerformUnMasking(table, cName string) bool {
 func (m MaskConfig) unMaskNonPiiKeys(table, cName string) bool {
 	columnsToUnmask, ok := m.NonPiiKeys[table]
 	if !ok {
-		return true
+		return false
 	}
 
 	for _, c := range columnsToUnmask {
