@@ -633,7 +633,7 @@ func (r *Redshift) GetTableMetadata(schema, tableName string) (*Table, error) {
 	for rows.Next() {
 		var c ColInfo
 		if err := rows.Scan(&c.Name, &c.Type, &c.DefaultVal, &c.NotNull,
-			&c.PrimaryKey, &c.SortOrdinal, &c.DistKey,
+			&c.PrimaryKey, c.DistKey, &c.SortOrdinal,
 		); err != nil {
 			return nil, fmt.Errorf("error scanning column, err: %s", err)
 		}
