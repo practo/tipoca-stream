@@ -24,14 +24,15 @@ from information_schema.schemata where schema_name='%s';`
 	schemaCreate = `create schema "%s";`
 	tableExist   = `select table_name from information_schema.tables where
 table_schema='%s' and table_name='%s';`
-	tableCreate = `CREATE TABLE "%s"."%s" (%s);`
+	tableCreate = `CREATE TABLE "%s"."%s" (%s) %s %s;`
 	deDupe      = `delete from %s where %s in (
 select t1.%s from %s t1 join %s t2 on t1.%s=t2.%s where t1.%s < t2.%s);`
 	deleteCommon = `delete from %s where %s in (
 select t1.%s from %s t1 join %s t2 on t1.%s=t2.%s);`
-	deleteColumn = `delete from %s where %s.%s='%s';`
-	dropColumn   = `ALTER TABLE "%s"."%s" DROP COLUMN %s;`
-	dropTable    = `DROP TABLE %s;`
+	deleteColumn    = `delete from %s where %s.%s='%s';`
+	dropColumn      = `ALTER TABLE "%s"."%s" DROP COLUMN %s;`
+	alterSortColumn = `ALTER TABLE "%s"."%s" ALTER SORTKEY(%s);`
+	dropTable       = `DROP TABLE %s;`
 	// returns one row per column with the attributes:
 	// name, type, default_val, not_null, primary_key,
 	// need to pass a schema and table name as the parameters
@@ -43,7 +44,9 @@ select t1.%s from %s t1 join %s t2 on t1.%s=t2.%s);`
       ELSE ''
   END AS default_val,
   f.attnotnull AS not_null,
-  p.contype IS NOT NULL AND p.contype = 'p' AS primary_key
+  p.contype IS NOT NULL AND p.contype = 'p' AS primary_key,
+  f.attisdistkey AS dist_key,
+  f.attsortkeyord AS sort_ord
 FROM pg_attribute f
   JOIN pg_class c ON c.oid = f.attrelid
   LEFT JOIN pg_attrdef d ON d.adrelid = c.oid AND d.adnum = f.attnum
@@ -85,29 +88,6 @@ type RedshiftConfig struct {
 	Schema            string `yaml:"schema"`
 }
 
-func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
-	source := fmt.Sprintf(
-		"host=%s port=%s dbname=%s connect_timeout=%d",
-		conf.Host, conf.Port, conf.Database, conf.Timeout,
-	)
-	// TODO: make ssl configurable
-	source += fmt.Sprintf(
-		" user=%s password=%s sslmode=disable", conf.User, conf.Password)
-	sqldb, err := sql.Open("postgres", source)
-	if err != nil {
-		return nil, err
-	}
-	if err := sqldb.Ping(); err != nil {
-		return nil, err
-	}
-	return &Redshift{sqldb, ctx, conf}, nil
-}
-
-// Begin wraps a new transaction in the databases context
-func (r *Redshift) Begin() (*sql.Tx, error) {
-	return r.dbExecCloser.BeginTx(r.ctx, nil)
-}
-
 // Table is representation of Redshift table
 type Table struct {
 	Name    string    `json:"dest"`
@@ -135,10 +115,35 @@ func NewTable(t Table) *Table {
 type ColInfo struct {
 	Name         string `json:"name"`
 	Type         string `json:"type"`
-	DebeziumType string `json:"debeziumType"`
+	DebeziumType string `json:"debeziumtype"`
 	DefaultVal   string `json:"defaultval"`
 	NotNull      bool   `json:"notnull"`
 	PrimaryKey   bool   `json:"primarykey"`
+	SortOrdinal  int    `json:"sortord"`
+	DistKey      bool   `json:"distkey"`
+}
+
+func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
+	source := fmt.Sprintf(
+		"host=%s port=%s dbname=%s connect_timeout=%d",
+		conf.Host, conf.Port, conf.Database, conf.Timeout,
+	)
+	// TODO: make ssl configurable
+	source += fmt.Sprintf(
+		" user=%s password=%s sslmode=disable", conf.User, conf.Password)
+	sqldb, err := sql.Open("postgres", source)
+	if err != nil {
+		return nil, err
+	}
+	if err := sqldb.Ping(); err != nil {
+		return nil, err
+	}
+	return &Redshift{sqldb, ctx, conf}, nil
+}
+
+// Begin wraps a new transaction in the databases context
+func (r *Redshift) Begin() (*sql.Tx, error) {
+	return r.dbExecCloser.BeginTx(r.ctx, nil)
 }
 
 func (r *Redshift) SchemaExist(schema string) (bool, error) {
@@ -186,6 +191,77 @@ func (r *Redshift) TableExist(schema string, table string) (bool, error) {
 	return true, nil
 }
 
+func checkColumnsExactlySame(iCols, tCols []string) bool {
+	if len(iCols) != len(tCols) {
+		return false
+	}
+
+	for i := range iCols {
+		if iCols[i] != tCols[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+func getSortColumns(table Table) []string {
+	var sortColumns []string
+	for _, column := range table.Columns {
+		if column.SortOrdinal == 1 {
+			sortColumns = append(sortColumns, column.Name)
+		}
+	}
+
+	return sortColumns
+}
+
+func getSortColumnsSQL(columns []ColInfo) string {
+	k := []string{}
+	for _, column := range columns {
+		if column.SortOrdinal == 1 {
+			k = append(k, column.Name)
+		}
+	}
+	if len(k) == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf(
+		"compound sortkey(%s)",
+		strings.Join(k, ","),
+	)
+}
+
+func getDistColumns(table Table) []string {
+	var distColumns []string
+	for _, column := range table.Columns {
+		if column.DistKey {
+			distColumns = append(distColumns, column.Name)
+		}
+	}
+
+	return distColumns
+}
+
+func getDistColumnSQL(columns []ColInfo) (string, error) {
+	k := []string{}
+	for _, column := range columns {
+		if column.DistKey {
+			k = append(k, column.Name)
+		}
+	}
+	if len(k) == 0 {
+		return "", nil
+	}
+	if len(k) > 1 {
+		return "", fmt.Errorf(
+			"dist key cant be > 1, config is list for backward comaptibility!")
+	}
+
+	return fmt.Sprintf("distkey(%s)", k[0]), nil
+}
+
 func getColumnSQL(c ColInfo) string {
 	// note that we are relying on redshift
 	// to fail if we have created multiple sort keys
@@ -224,12 +300,20 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 		columnSQL = append(columnSQL, getColumnSQL(c))
 	}
 
+	sortColumnsSQL := getSortColumnsSQL(table.Columns)
+	distColumnSQL, err := getDistColumnSQL(table.Columns)
+	if err != nil {
+		return err
+	}
+
 	args := []interface{}{strings.Join(columnSQL, ",")}
 	createSQL := fmt.Sprintf(
 		tableCreate,
 		table.Meta.Schema,
 		table.Name,
 		strings.Join(columnSQL, ","),
+		sortColumnsSQL,
+		distColumnSQL,
 	)
 
 	klog.V(5).Infof("Preparing: %s with args: %v\n", createSQL, args)
@@ -549,7 +633,7 @@ func (r *Redshift) GetTableMetadata(schema, tableName string) (*Table, error) {
 	for rows.Next() {
 		var c ColInfo
 		if err := rows.Scan(&c.Name, &c.Type, &c.DefaultVal, &c.NotNull,
-			&c.PrimaryKey,
+			&c.PrimaryKey, c.DistKey, &c.SortOrdinal,
 		); err != nil {
 			return nil, fmt.Errorf("error scanning column, err: %s", err)
 		}
@@ -695,6 +779,31 @@ func checkColumnsAndOrdering(
 			transactColumnOps = append(transactColumnOps, alterSQL)
 			continue
 		}
+	}
+
+	// alter sort keys
+	inputTableSortColumns := getSortColumns(inputTable)
+	targetTableSortColumns := getSortColumns(targetTable)
+	if !checkColumnsExactlySame(inputTableSortColumns, targetTableSortColumns) {
+		klog.V(5).Infof(
+			"SortKeys needs migration: before: %v, now: %v\n",
+			inputTableSortColumns,
+			targetTableSortColumns,
+		)
+		alterSQL := fmt.Sprintf(
+			alterSortColumn,
+			inputTable.Meta.Schema,
+			inputTable.Name,
+			strings.Join(inputTableSortColumns, ","),
+		)
+		columnOps = append(columnOps, alterSQL)
+	}
+
+	// alter dist columns by table migration if any changes
+	inputTableDistColumns := getDistColumns(inputTable)
+	targetTableDistColumns := getDistColumns(targetTable)
+	if !checkColumnsExactlySame(inputTableDistColumns, targetTableDistColumns) {
+		transactColumnOps = append(transactColumnOps, "")
 	}
 
 	return transactColumnOps, columnOps, errors
