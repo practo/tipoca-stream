@@ -19,6 +19,8 @@ var (
 type MaskConfig struct {
 	// NonPiiKeys specifies the columns that needs be unmasked
 	NonPiiKeys map[string][]string `yaml:"non_pii_keys,omitempty"`
+	// LengthKeys creates extra column containing the length of original column
+	LengthKeys map[string][]string `yaml:"length_keys,omitempty"`
 	// SortKeys sets the Redshift column to use the column as the SortKey
 	SortKeys map[string][]string `yaml:"sort_keys,omitempty"`
 	// DistKeys sets the Redshift column to use the column as the DistKey
@@ -59,6 +61,21 @@ func NewMaskConfig(dir string, topic string) (MaskConfig, error) {
 	}
 
 	return maskConfig, nil
+}
+
+func (m MaskConfig) LengthKey(table, cName string) bool {
+	columns, ok := m.LengthKeys[table]
+	if !ok {
+		return false
+	}
+
+	for _, column := range columns {
+		if column == cName {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (m MaskConfig) SortKey(table, cName string) bool {
