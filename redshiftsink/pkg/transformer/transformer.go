@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+const (
+	LengthColumnSuffix = "_length"
+)
+
 type MessageTransformer interface {
 	Transform(message *serializer.Message, table redshift.Table) error
 }
