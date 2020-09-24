@@ -6,6 +6,20 @@ non_pii_keys:
     - type
     - createdAt
     - updatedAt
+conditional_non_pii_keys:
+    customers:
+        email:
+        - '%example.com'
+        - '%exampledev.com'
+dependent_non_pii_keys:
+    customers:
+        # dependentColumnName
+        first_name:
+            # providerColumn
+            last_name:
+            - 'singh'
+            email:
+            - 'customer@example.com'
 length_keys:
     customers:
     - email
