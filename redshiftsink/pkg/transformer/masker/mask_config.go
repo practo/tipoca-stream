@@ -1,6 +1,7 @@
 package masker
 
 import (
+	"regexp"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"gopkg.in/yaml.v2"
@@ -19,12 +20,24 @@ var (
 type MaskConfig struct {
 	// NonPiiKeys specifies the columns that needs be unmasked
 	NonPiiKeys map[string][]string `yaml:"non_pii_keys,omitempty"`
+
+	// ConditionalNonPiiKeys unmasks columns if it matches a list of pattern
+	ConditionalNonPiiKeys map[string][]map[string][]string `yaml:"conditional_non_pii_keys,omitempty"`
+
+	// DependentNonPiiKeys unmasks columns based on the values of other columns
+	DependentNonPiiKeys map[string][]map[string]map[string][]interface{} `yaml:"dependent_non_pii_keys,omitempty"`
+
 	// LengthKeys creates extra column containing the length of original column
 	LengthKeys map[string][]string `yaml:"length_keys,omitempty"`
+
 	// SortKeys sets the Redshift column to use the column as the SortKey
 	SortKeys map[string][]string `yaml:"sort_keys,omitempty"`
+
 	// DistKeys sets the Redshift column to use the column as the DistKey
 	DistKeys map[string][]string `yaml:"dist_keys,omitempty"`
+
+	// regexes cache is used to prevent regex Compile on everytime computations.
+	regexes map[string]*regexp.Regexp
 }
 
 // TODO: document the convention to specify configuration files
@@ -59,6 +72,8 @@ func NewMaskConfig(dir string, topic string) (MaskConfig, error) {
 		}
 		maskConfig.NonPiiKeys[table] = loweredColumns
 	}
+
+	maskConfig.regexes = make(map[string]*regexp.Regexp)
 
 	return maskConfig, nil
 }
@@ -108,26 +123,20 @@ func (m MaskConfig) DistKey(table, cName string) bool {
 	return false
 }
 
-// Masked tells if the column is masked or not based on the maskconfig
-// It is used to determine the type of the masked column by the loader
-func (m MaskConfig) Masked(table, cName string) bool {
-	if m.PerformUnMasking(table, cName) {
-		return false
-	}
+func (m MaskConfig) PerformUnMasking(table, cName string, cValue string,
+	allColumns map[string]*string) bool {
 
-	return true
-}
-
-func (m MaskConfig) PerformUnMasking(table, cName string) bool {
-	// usecase: kafkaoffset, operation are staged columns that need to unmasked
 	cName = strings.ToLower(cName)
-
+	// usecase: kafkaoffset, operation are staged columns that need to unmasked
 	_, ok := ignoreColumns[cName]
 	if ok {
 		return true
 	}
 
-	if m.unMaskNonPiiKeys(table, cName) {
+	if m.unMaskNonPiiKeys(table, cName) ||
+		m.unMaskConditionalNonPiiKeys(table, cName, cValue) ||
+		m.unMaskDependentNonPiiKeys(table, cName, cValue, allColumns) {
+
 		return true
 	}
 
@@ -143,6 +152,70 @@ func (m MaskConfig) unMaskNonPiiKeys(table, cName string) bool {
 	for _, c := range columnsToUnmask {
 		if c == cName {
 			return true
+		}
+	}
+
+	return false
+}
+
+func (m MaskConfig) unMaskConditionalNonPiiKeys(
+	table, cName string, cValue string) bool {
+
+	columnsToCheck, ok := m.ConditionalNonPiiKeys[table]
+	if !ok {
+		return false
+	}
+
+	for _, c := range columnsToCheck {
+		for columnName, patterns := range c {
+			if columnName != cName {
+				continue
+			}
+			for _, pattern := range patterns {
+				// replace sql patterns with regex patterns
+				// TODO: cover all cases :pray
+				pattern = strings.ReplaceAll(pattern, "%", ".*")
+				regex, ok := m.regexes[pattern]
+				if !ok {
+					regex, err := regexp.Compile(pattern)
+					if err != nil {
+						klog.Fatalf(
+							"Regex: %s compile failed, err:%v\n", pattern, err)
+					}
+					m.regexes[pattern] = regex
+				}
+
+				if regex.MatchString(cValue) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+func (m MaskConfig) unMaskDependentNonPiiKeys(
+	table, cName string, cValue string, allColumns map[string]*string) bool {
+
+	// if table not in config, no unmasking required
+	columnsToCheck, ok := m.DependentNonPiiKeys[table]
+	if !ok {
+		return false
+	}
+
+	for _, c := range columnsToCheck {
+		for dependentColumnName, providerColumn := range c {
+			if dependentColumnName != cName {
+				continue
+			}
+
+			for providerColumnName, value := range providerColumn {
+				pcValue, ok := allColumns[providerColumnName]
+				if ok && value == *pcValue {
+					return true
+				}
+			}
 		}
 	}
 
