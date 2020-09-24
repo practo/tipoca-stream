@@ -333,6 +333,7 @@ func (c *schemaTransformer) transformSchemaValue(schemaId int, jobSchema string,
 	columns := d.columnsBefore()
 
 	var redshiftColumns []redshift.ColInfo
+	var extraColumns []redshift.ColInfo
 	for _, column := range columns {
 		columnMasked := false
 		sortKey := false
@@ -342,6 +343,19 @@ func (c *schemaTransformer) transformSchemaValue(schemaId int, jobSchema string,
 			columnMasked = maskConfig.Masked(d.tableName(), column.Name)
 			sortKey = maskConfig.SortKey(d.tableName(), column.Name)
 			distKey = maskConfig.DistKey(d.tableName(), column.Name)
+			if maskConfig.LengthKey(d.tableName(), column.Name) {
+				extraColumns = append(extraColumns, redshift.ColInfo{
+					Name:         strings.ToLower(
+						column.Name)+transformer.LengthColumnSuffix,
+					Type:         redshift.RedshiftInteger,
+					DebeziumType: "", // not required
+					DefaultVal:   "0",
+					NotNull:      false,
+					PrimaryKey:   false,
+					SortOrdinal:  0,
+					DistKey:      false,
+				})
+			}
 		}
 		redshiftDataType, err := redshift.GetRedshiftDataType(
 			d.sqlType(),
@@ -370,12 +384,18 @@ func (c *schemaTransformer) transformSchemaValue(schemaId int, jobSchema string,
 		})
 	}
 
+
 	// set primary key
 	for idx, column := range redshiftColumns {
 		if column.Name == primaryKey {
 			column.PrimaryKey = true
 			redshiftColumns[idx] = column
 		}
+	}
+
+	// add extra columns (length columns)
+	for _, extraColumn := range extraColumns {
+		redshiftColumns = append(redshiftColumns, extraColumn)
 	}
 
 	table := redshift.Table{
