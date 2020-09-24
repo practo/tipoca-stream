@@ -10,6 +10,7 @@ import (
 )
 
 type masker struct {
+	salt     string
 	database string
 	table    string
 	topic    string
@@ -17,7 +18,7 @@ type masker struct {
 	config MaskConfig
 }
 
-func NewMsgMasker(dir string, topic string) (
+func NewMsgMasker(salt string, dir string, topic string) (
 	transformer.MessageTransformer, error) {
 
 	_, database, table := transformer.ParseTopic(topic)
@@ -27,15 +28,16 @@ func NewMsgMasker(dir string, topic string) (
 	}
 
 	return &masker{
+		salt:     salt,
 		database: database,
 		table:    table,
 		config:   maskConfig,
 	}, nil
 }
 
-func (m *masker) mask(data string) *string {
+func mask(data string, salt string) *string {
 	val := fmt.Sprintf("%x", sha1.Sum(
-		[]byte(data),
+		[]byte(data+salt),
 	))
 
 	return &val
@@ -63,7 +65,7 @@ func (m *masker) Transform(
 			columns[cName] = nil
 			continue
 		}
-		columns[cName] = m.mask(*cVal)
+		columns[cName] = mask(*cVal, m.salt)
 		if m.config.PerformUnMasking(m.table, cName) {
 			columns[cName] = cVal
 		}
