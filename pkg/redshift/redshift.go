@@ -18,6 +18,7 @@ import (
 const (
 	RedshiftMaskedDataType = "character varying(50)"
 	RedshiftDate           = "date"
+	RedshiftInteger        = "integer"
 	RedshiftTimeStamp      = "timestamp without time zone"
 
 	schemaExist = `select schema_name
@@ -837,7 +838,7 @@ var debeziumToRedshiftTypeMap = map[string]string{
 	"float64": "double precision",
 	"int":     "integer",
 	"int16":   "smallint",
-	"int32":   "integer",
+	"int32":   RedshiftInteger,
 	"long":    "bigint",
 	"bigint":  "bigint",
 	"string":  "character varying(256)",
@@ -865,11 +866,11 @@ var mysqlToRedshiftTypeMap = map[string]string{
 	"text":                        "character varying(65535)",
 	"tinytext":                    "character varying(65535)",
 	"varbinary":                   "character varying(65535)",
-	"int":                         "integer",
-	"integer":                     "integer",
-	"mediumint":                   "integer",
-	"mediumint unsigned":          "integer",
-	"smallint unsigned":           "integer",
+	"int":                         RedshiftInteger,
+	"integer":                     RedshiftInteger,
+	"mediumint":                   RedshiftInteger,
+	"mediumint unsigned":          RedshiftInteger,
+	"smallint unsigned":           RedshiftInteger,
 	"double [precision]":          "double precision",
 	"double [precision] unsigned": "double precision",
 	"datetime":                    RedshiftTimeStamp,
