@@ -8,10 +8,6 @@ import (
 	"testing"
 )
 
-func stringPtr(s string) *string {
-	return &s
-}
-
 func testMask(t *testing.T, salt, dir, topic, cName string,
 	columns map[string]*string, result *string) {
 
@@ -130,6 +126,20 @@ func TestMaskTransformations(t *testing.T) {
 				"email":       stringPtr("customer@example.com"),
 			},
 			expectedResult: stringPtr("2020-09-20 20:56:45"),
+		},
+		{
+			name:  "test5: length keys test",
+			topic: "dbserver.database.customers",
+			cName: "email_length",
+			columns: map[string]*string{
+				"kafkaoffset": stringPtr("87"),
+				"operation":   stringPtr("create"),
+				"id":          stringPtr("1001"),
+				"first_name":  stringPtr("Batman"),
+				"last_name":   nil,
+				"email":       stringPtr("customer@example.com"),
+			},
+			expectedResult: stringPtr("20"),
 		},
 	}
 

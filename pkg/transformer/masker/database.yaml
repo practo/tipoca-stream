@@ -6,3 +6,6 @@ non_pii_keys:
     - type
     - createdAt
     - updatedAt
+length_keys:
+    customers:
+    - email
