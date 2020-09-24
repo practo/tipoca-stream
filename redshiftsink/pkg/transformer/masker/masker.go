@@ -10,6 +10,11 @@ import (
 	"strconv"
 )
 
+// MaskInfo is shared across packages
+type MaskInfo struct {
+
+}
+
 type masker struct {
 	salt     string
 	database string
@@ -77,7 +82,7 @@ func (m *masker) Transform(
 			extraColumns[cName+transformer.LengthColumnSuffix] = stringPtr(
 				strconv.Itoa(len(*cVal)))
 		}
-		if m.config.PerformUnMasking(m.table, cName) {
+		if m.config.PerformUnMasking(m.table, cName, cVal, rawColumns) {
 			columns[cName] = cVal
 		}
 	}
