@@ -28,8 +28,18 @@ non_pii_keys:
     - id
 ```
 
+### Length Keys
+Creates extra column containing the length or original column. `email_length` gets created containing the lenght of data in `email` column.
+
+```yaml
+length_keys:
+    customers:
+    - email
+```
+
 ### Sort Keys
 Specify one or more columns in a table as Redshift Sort Key.
+
 ```yaml
 sort_keys:
     customers:
@@ -38,6 +48,7 @@ sort_keys:
 
 ### Dist Keys
 Specify one or more columns in a table as Redshift Disk Key.
+
 ```yaml
 dist_keys:
     customers:
