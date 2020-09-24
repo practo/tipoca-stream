@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	RedshiftMaskedDataType    = "character varying(50)"
-	RedshiftTimeStampDataType = "timestamp without time zone"
+	RedshiftMaskedDataType = "character varying(50)"
+	RedshiftDate           = "date"
+	RedshiftTimeStamp      = "timestamp without time zone"
 
 	schemaExist = `select schema_name
 from information_schema.schemata where schema_name='%s';`
@@ -848,8 +849,8 @@ var mysqlToRedshiftTypeMap = map[string]string{
 	"bit":                         "bigint",
 	"bool":                        "boolean",
 	"boolean":                     "boolean",
-	"date":                        "date",
-	"year":                        "date",
+	"date":                        RedshiftDate,
+	"year":                        RedshiftDate,
 	"binary":                      "character varying(256)",
 	"char":                        "character varying(256)",
 	"set":                         "character varying(256)",
@@ -871,9 +872,9 @@ var mysqlToRedshiftTypeMap = map[string]string{
 	"smallint unsigned":           "integer",
 	"double [precision]":          "double precision",
 	"double [precision] unsigned": "double precision",
-	"datetime":                    RedshiftTimeStampDataType,
-	"time":                        RedshiftTimeStampDataType,
-	"timestamp":                   RedshiftTimeStampDataType,
+	"datetime":                    RedshiftTimeStamp,
+	"time":                        RedshiftTimeStamp,
+	"timestamp":                   RedshiftTimeStamp,
 	"smallint":                    "smallint",
 	"tinyint":                     "smallint",
 	"tinyint unsigned":            "smallint",

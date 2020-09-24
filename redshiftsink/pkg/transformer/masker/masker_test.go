@@ -12,10 +12,10 @@ func stringPtr(s string) *string {
 	return &s
 }
 
-func testMask(t *testing.T, dir, topic, cName string,
+func testMask(t *testing.T, salt, dir, topic, cName string,
 	columns map[string]*string, result *string) {
 
-	masker, err := NewMsgMasker(dir, topic)
+	masker, err := NewMsgMasker(salt, dir, topic)
 	if err != nil {
 		t.Errorf("Error making masker, err: %v\n", err)
 	}
@@ -65,6 +65,7 @@ func TestMaskTransformations(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	salt := "testhash"
 
 	tests := []struct {
 		name           string
@@ -100,7 +101,7 @@ func TestMaskTransformations(t *testing.T) {
 				"email":       stringPtr("customer@example.com"),
 			},
 			expectedResult: stringPtr(
-				"32b26a271530f105cbc35cb653110e1a49d019b6"),
+				"9ba53e85b996f6278aa647d8da8f355aafd16149"),
 		},
 		{
 			name:  "test3: mask test for nil columns",
@@ -135,7 +136,42 @@ func TestMaskTransformations(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			testMask(t, dir, tc.topic, tc.cName, tc.columns, tc.expectedResult)
+			testMask(
+				t, salt, dir, tc.topic, tc.cName, tc.columns, tc.expectedResult)
+		})
+	}
+}
+
+func TestSaltMask(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		salt           string
+		data           string
+		expectedResult string
+	}{
+		{
+			name:           "test id",
+			salt:           "testhash",
+			data:           "275402",
+			expectedResult: "95b623a5d57372c26025828015f537ad42104f9c",
+		},
+		{
+			name:           "test string",
+			salt:           "testhash",
+			data:           "Batman",
+			expectedResult: "9ba53e85b996f6278aa647d8da8f355aafd16149",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			r := mask(tc.data, tc.salt)
+			if tc.expectedResult != *r {
+				t.Errorf("expected: %v, got: %v\n", tc.expectedResult, *r)
+			}
 		})
 	}
 }

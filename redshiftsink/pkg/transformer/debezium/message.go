@@ -23,13 +23,6 @@ const (
 	nsInSecond     = 1000000
 )
 
-// Converts Unix Epoch from milliseconds to time.Time
-// Why? https://github.com/Tigraine/go-timemill
-func FromUnixMilli(ms int64) time.Time {
-	return time.Unix(
-		ms/int64(millisInSecond), (ms%int64(millisInSecond))*int64(nsInSecond))
-}
-
 func NewMessageTransformer() transformer.MessageTransformer {
 	return &messageTransformer{}
 }
@@ -125,6 +118,32 @@ func (c *messageTransformer) getOperation(message *serializer.Message,
 	}
 }
 
+// Converts Unix Epoch from milliseconds to time.Time
+// Why? https://github.com/Tigraine/go-timemill
+func FromUnixMilli(ms int64) time.Time {
+	return time.Unix(
+		ms/int64(millisInSecond), (ms%int64(millisInSecond))*int64(nsInSecond))
+}
+
+func convertDebeziumTimeStamp(ms int) string {
+	ts := FromUnixMilli(int64(ms))
+	ts = ts.UTC()
+	return fmt.Sprintf(
+		"%d-%02d-%02d %02d:%02d:%02d",
+		ts.Year(), ts.Month(), ts.Day(),
+		ts.Hour(), ts.Minute(), ts.Second(),
+	)
+}
+
+func convertDebeziumDate(days int) string {
+	ts := FromUnixMilli(int64(days * 86400 * 1000))
+	ts = ts.UTC()
+	return fmt.Sprintf(
+		"%d-%02d-%02d",
+		ts.Year(), ts.Month(), ts.Day(),
+	)
+}
+
 // Transform debezium event into a s3 message annotating extra information
 func (c *messageTransformer) Transform(
 	message *serializer.Message, table redshift.Table) error {
@@ -136,9 +155,12 @@ func (c *messageTransformer) Transform(
 	before := d.before()
 	after := d.after()
 
-	// transform debezium timestamp to redshift loadable value
+	// transform debezium timestamp and date to redshift loadable value
+	// date like 1982-09-24 needs to handled properly so that hashing is
+	// consistent across tables.
 	for _, column := range table.Columns {
-		if column.Type != redshift.RedshiftTimeStampDataType {
+		if column.Type != redshift.RedshiftTimeStamp &&
+			column.Type != redshift.RedshiftDate {
 			continue
 		}
 		mstr, ok := after[column.Name]
@@ -154,13 +176,15 @@ func (c *messageTransformer) Transform(
 		if err != nil {
 			return err
 		}
-		ts := FromUnixMilli(int64(m))
-		fts := fmt.Sprintf(
-			"%d-%02d-%02d %02d:%02d:%02d",
-			ts.Year(), ts.Month(), ts.Day(),
-			ts.Hour(), ts.Minute(), ts.Second(),
-		)
-		after[column.Name] = &fts
+
+		var formattedConsistentTime string
+		switch column.Type {
+		case redshift.RedshiftTimeStamp:
+			formattedConsistentTime = convertDebeziumTimeStamp(m)
+		case redshift.RedshiftDate:
+			formattedConsistentTime = convertDebeziumDate(m)
+		}
+		after[column.Name] = &formattedConsistentTime
 	}
 
 	operation, err := c.getOperation(message, len(before), len(after))
