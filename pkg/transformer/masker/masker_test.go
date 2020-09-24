@@ -2,7 +2,6 @@ package masker
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"os"
