@@ -101,7 +101,7 @@ func TestMaskTransformations(t *testing.T) {
 				"email":       stringPtr("customer@example.com"),
 			},
 			expectedResult: stringPtr(
-				"32b26a271530f105cbc35cb653110e1a49d019b6"),
+				"9ba53e85b996f6278aa647d8da8f355aafd16149"),
 		},
 		{
 			name:  "test3: mask test for nil columns",
@@ -142,13 +142,36 @@ func TestMaskTransformations(t *testing.T) {
 	}
 }
 
-func TestSalthash(t *testing.T) {
-	salt := "testhash"
-	data := "275402"
-	expectedResult := "95b623a5d57372c26025828015f537ad42104f9c"
-	gotResult := mask(data, salt)
+func TestSaltMask(t *testing.T) {
+	t.Parallel()
 
-	if *gotResult != expectedResult {
-		t.Errorf("Expected: %v, Got: %v\n", expectedResult, *gotResult)
+	tests := []struct {
+		name           string
+		salt           string
+		data           string
+		expectedResult string
+	}{
+		{
+			name:           "test id",
+			salt:           "testhash",
+			data:           "275402",
+			expectedResult: "95b623a5d57372c26025828015f537ad42104f9c",
+		},
+		{
+			name:           "test string",
+			salt:           "testhash",
+			data:           "Batman",
+			expectedResult: "9ba53e85b996f6278aa647d8da8f355aafd16149",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			r := mask(tc.data, tc.salt)
+			if tc.expectedResult != *r {
+				t.Errorf("expected: %v, got: %v\n", tc.expectedResult, *r)
+			}
+		})
 	}
 }
