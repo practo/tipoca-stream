@@ -1,5 +1,6 @@
 batcher:
     mask: false
+    maskSalt: "sample-salt"
     maskConfigDir: "/maskfiles"
     maxSize: 10
     maxSize: 10
