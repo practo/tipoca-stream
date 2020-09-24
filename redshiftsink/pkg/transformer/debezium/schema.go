@@ -345,8 +345,8 @@ func (c *schemaTransformer) transformSchemaValue(schemaId int, jobSchema string,
 			distKey = maskConfig.DistKey(d.tableName(), column.Name)
 			if maskConfig.LengthKey(d.tableName(), column.Name) {
 				extraColumns = append(extraColumns, redshift.ColInfo{
-					Name:         strings.ToLower(
-						column.Name)+transformer.LengthColumnSuffix,
+					Name: strings.ToLower(
+						column.Name) + transformer.LengthColumnSuffix,
 					Type:         redshift.RedshiftInteger,
 					DebeziumType: "", // not required
 					DefaultVal:   "0",
@@ -383,7 +383,6 @@ func (c *schemaTransformer) transformSchemaValue(schemaId int, jobSchema string,
 			DistKey:      distKey,
 		})
 	}
-
 
 	// set primary key
 	for idx, column := range redshiftColumns {
