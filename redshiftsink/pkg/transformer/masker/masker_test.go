@@ -2,6 +2,7 @@ package masker
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"os"
@@ -12,10 +13,10 @@ func stringPtr(s string) *string {
 	return &s
 }
 
-func testMask(t *testing.T, dir, topic, cName string,
+func testMask(t *testing.T, salt, dir, topic, cName string,
 	columns map[string]*string, result *string) {
 
-	masker, err := NewMsgMasker(dir, topic)
+	masker, err := NewMsgMasker(salt, dir, topic)
 	if err != nil {
 		t.Errorf("Error making masker, err: %v\n", err)
 	}
@@ -65,6 +66,7 @@ func TestMaskTransformations(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	salt := "testhash"
 
 	tests := []struct {
 		name           string
@@ -135,7 +137,19 @@ func TestMaskTransformations(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			testMask(t, dir, tc.topic, tc.cName, tc.columns, tc.expectedResult)
+			testMask(
+				t, salt, dir, tc.topic, tc.cName, tc.columns, tc.expectedResult)
 		})
+	}
+}
+
+func TestSalthash(t *testing.T) {
+	salt := "testhash"
+	data := "275402"
+	expectedResult := "95b623a5d57372c26025828015f537ad42104f9c"
+	gotResult := mask(data, salt)
+
+	if *gotResult != expectedResult {
+		t.Errorf("Expected: %v, Got: %v\n", expectedResult, *gotResult)
 	}
 }
