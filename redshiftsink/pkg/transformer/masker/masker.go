@@ -10,11 +10,6 @@ import (
 	"strconv"
 )
 
-// MaskInfo is shared across packages
-type MaskInfo struct {
-
-}
-
 type masker struct {
 	salt     string
 	database string
@@ -96,18 +91,27 @@ func (m *masker) Transform(
 		} else {
 			columns[cName] = cVal
 		}
+
+		// Since we do not know what will happen in future and what value
+		// can the column hold, if a row is defined as dependent non pii
+		// then its data in row is masked based on condition ^ but its type
+		// is always a masked type, for its data to be masked type this is done.
+		if m.config.DependentNonPiiKey(m.table, cName) {
+			masked = true
+		}
+
 		maskSchema[cName] = serializer.MaskInfo{
-			Masked: 	masked,
-			SortCol: 	sortKey,
-			DistCol: 	distKey,
-			LengthCol: 	lengthKey,
+			Masked:    masked,
+			SortCol:   sortKey,
+			DistCol:   distKey,
+			LengthCol: lengthKey,
 		}
 	}
 
 	for cName, cVal := range extraColumns {
 		columns[cName] = cVal
 		maskSchema[cName] = serializer.MaskInfo{
-			LengthCol: 	false, // extra length column, don't want one more extra
+			LengthCol: false, // extra length column, don't want one more extra
 		}
 	}
 

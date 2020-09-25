@@ -1,7 +1,7 @@
 package redshiftloader
 
 import (
-    "github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 )
 
 var JobAvroSchema string = `{
@@ -18,19 +18,19 @@ var JobAvroSchema string = `{
 }`
 
 type Job struct {
-	UpstreamTopic string `json:"upstreamTopic"`
-	StartOffset   int64  `json:"startOffset"`
-	EndOffset     int64  `json:"endOffset"`
-	CsvDialect    string `json:"csvDialect"`
-	S3Path        string `json:"s3Path"`
-	SchemaId      int    `json:"schemaId"` // schema id of debezium event
-    MaskSchema    map[string]serializer.MaskInfo `json:"maskSchema"`
+	UpstreamTopic string                         `json:"upstreamTopic"`
+	StartOffset   int64                          `json:"startOffset"`
+	EndOffset     int64                          `json:"endOffset"`
+	CsvDialect    string                         `json:"csvDialect"`
+	S3Path        string                         `json:"s3Path"`
+	SchemaId      int                            `json:"schemaId"` // schema id of debezium event
+	MaskSchema    map[string]serializer.MaskInfo `json:"maskSchema"`
 }
 
 func NewJob(
 	upstreamTopic string, startOffset int64, endOffset int64,
 	csvDialect string, s3Path string, schemaId int,
-    maskSchema map[string]serializer.MaskInfo) Job {
+	maskSchema map[string]serializer.MaskInfo) Job {
 
 	return Job{
 		UpstreamTopic: upstreamTopic,
@@ -39,7 +39,7 @@ func NewJob(
 		CsvDialect:    csvDialect,
 		S3Path:        s3Path,
 		SchemaId:      schemaId,
-        MaskSchema:    maskSchema,
+		MaskSchema:    maskSchema,
 	}
 }
 
@@ -72,10 +72,10 @@ func StringMapToJob(data map[string]interface{}) Job {
 			if value, ok := v.(int32); ok {
 				job.SchemaId = int(value)
 			}
-        case "maskSchema":
-            if value, ok := v.(map[string]serializer.MaskInfo); ok {
-                job.MaskSchema = value
-            }
+		case "maskSchema":
+			if value, ok := v.(map[string]serializer.MaskInfo); ok {
+				job.MaskSchema = value
+			}
 		}
 
 	}
@@ -92,6 +92,6 @@ func (c Job) ToStringMap() map[string]interface{} {
 		"csvDialect":    c.CsvDialect,
 		"s3Path":        c.S3Path,
 		"schemaId":      c.SchemaId,
-        "maskSchema":    c.MaskSchema,
+		"maskSchema":    c.MaskSchema,
 	}
 }
