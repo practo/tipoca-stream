@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
 	"github.com/riferrei/srclient"
@@ -337,9 +337,9 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 					newColName := strings.ToLower(
 						column.Name) + transformer.LengthColumnSuffix
 					extraColumns = append(extraColumns, redshift.ColInfo{
-						Name: 		  newColName,
+						Name:         newColName,
 						Type:         redshift.RedshiftInteger,
-						DebeziumType: "", 						// not required
+						DebeziumType: "", // not required
 						DefaultVal:   "0",
 						NotNull:      false,
 						PrimaryKey:   false,
