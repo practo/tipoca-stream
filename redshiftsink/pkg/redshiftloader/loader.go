@@ -91,14 +91,6 @@ func (b *loader) Insert(saramaMessage *sarama.ConsumerMessage) {
 }
 
 type LoaderConfig struct {
-	// Mask should be turned on or off
-	Mask string `yaml:"mask"`
-
-	// Mask config dir is the directory where the database.yaml is
-	// is to be searched to get the masked columns info, this is required
-	// to add a chatacter masked type as the datatype for such columns
-	MaskConfigDir string `yaml:"maskConfigDir"`
-
 	// Maximum size of a batch, on exceeding this batch is pushed
 	// regarless of the wait time.
 	MaxSize int `yaml:"maxSize,omitempty"`

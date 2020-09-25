@@ -8,12 +8,21 @@ import (
 )
 
 type Message struct {
-	SchemaId  int
-	Topic     string
-	Partition int32
-	Offset    int64
-	Key       string
-	Value     interface{}
+	SchemaId      int
+	Topic         string
+	Partition     int32
+	Offset    	  int64
+	Key       	  string
+	Value     	  interface{}
+
+	MaskSchema    map[string]MaskInfo
+}
+
+type MaskInfo struct {
+	Masked 		bool
+	SortCol 	bool
+	DistCol 	bool
+	LengthCol 	bool
 }
 
 type Serializer interface {
@@ -49,11 +58,12 @@ func (c *avroSerializer) Deserialize(
 	}
 
 	return &Message{
-		SchemaId:  int(schemaId),
-		Topic:     message.Topic,
-		Partition: message.Partition,
-		Offset:    message.Offset,
-		Key:       string(message.Key),
-		Value:     native,
+		SchemaId:  		int(schemaId),
+		Topic:     		message.Topic,
+		Partition: 		message.Partition,
+		Offset:    		message.Offset,
+		Key:       		string(message.Key),
+		Value:     		native,
+		MaskSchema:     make(map[string]MaskInfo),
 	}, nil
 }
