@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
@@ -270,8 +271,8 @@ func (c *schemaTransformer) transformSchemaKey(
 	return "", "", fmt.Errorf("Primary key not found in schema: %s\n", schema)
 }
 
-func (c *schemaTransformer) TransformValue(
-	topic string, schemaId int, maskConfDir string) (interface{}, error) {
+func (c *schemaTransformer) TransformValue(topic string, schemaId int,
+	maskSchema map[string]serializer.MaskInfo) (interface{}, error) {
 
 	s, err := c.srclient.GetSchema(schemaId)
 	if err != nil {
@@ -291,28 +292,16 @@ func (c *schemaTransformer) TransformValue(
 		)
 	}
 
-	if maskConfDir != "" {
-		c.mask = true
-		_, ok := c.maskConfig[schemaId]
-		if !ok {
-			maskConfig, err := masker.NewMaskConfig(maskConfDir, topic)
-			if err != nil {
-				klog.Fatalf("Error making masking config: %v\n", err)
-			}
-			c.maskConfig[schemaId] = maskConfig
-		}
-	}
-
 	return c.transformSchemaValue(
-		schemaId,
 		s.Schema(),
 		primaryKey,
-		c.mask,
+		maskSchema,
 	)
 }
 
-func (c *schemaTransformer) transformSchemaValue(schemaId int, jobSchema string,
-	primaryKey string, mask bool) (interface{}, error) {
+func (c *schemaTransformer) transformSchemaValue(jobSchema string,
+	primaryKey string,
+	maskSchema map[string]serializer.MaskInfo) (interface{}, error) {
 
 	// remove nulls
 	// TODO: this might be required, better if not
@@ -335,26 +324,29 @@ func (c *schemaTransformer) transformSchemaValue(schemaId int, jobSchema string,
 	var redshiftColumns []redshift.ColInfo
 	var extraColumns []redshift.ColInfo
 	for _, column := range columns {
-		columnMasked := false
 		sortKey := false
 		distKey := false
-		if mask {
-			maskConfig := c.maskConfig[schemaId]
-			columnMasked = maskConfig.Masked(d.tableName(), column.Name)
-			sortKey = maskConfig.SortKey(d.tableName(), column.Name)
-			distKey = maskConfig.DistKey(d.tableName(), column.Name)
-			if maskConfig.LengthKey(d.tableName(), column.Name) {
-				extraColumns = append(extraColumns, redshift.ColInfo{
-					Name: strings.ToLower(
-						column.Name) + transformer.LengthColumnSuffix,
-					Type:         redshift.RedshiftInteger,
-					DebeziumType: "", // not required
-					DefaultVal:   "0",
-					NotNull:      false,
-					PrimaryKey:   false,
-					SortOrdinal:  0,
-					DistKey:      false,
-				})
+		columnMasked := false
+		if len(maskSchema) != 0 {
+			mschema, ok := maskSchema[column.Name]
+			if ok {
+				sortKey = mschema.SortCol
+				distKey = mschema.DistCol
+				columnMasked = mschema.Masked
+				if mschema.LengthCol {
+					newColName := strings.ToLower(
+						column.Name) + transformer.LengthColumnSuffix
+					extraColumns = append(extraColumns, redshift.ColInfo{
+						Name: 		  newColName,
+						Type:         redshift.RedshiftInteger,
+						DebeziumType: "", 						// not required
+						DefaultVal:   "0",
+						NotNull:      false,
+						PrimaryKey:   false,
+						SortOrdinal:  0,
+						DistKey:      false,
+					})
+				}
 			}
 		}
 		redshiftDataType, err := redshift.GetRedshiftDataType(

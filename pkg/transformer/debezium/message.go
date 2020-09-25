@@ -201,6 +201,7 @@ func (c *messageTransformer) Transform(
 	if err != nil {
 		return err
 	}
+	message.MaskSchema = make(map[string]serializer.MaskInfo)
 
 	return nil
 }

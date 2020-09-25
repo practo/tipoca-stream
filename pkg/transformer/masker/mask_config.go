@@ -1,6 +1,7 @@
 package masker
 
 import (
+	"fmt"
 	"regexp"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
@@ -123,6 +124,40 @@ func (m MaskConfig) DistKey(table, cName string) bool {
 	return false
 }
 
+func (m MaskConfig) ConditionalNonPiiKey(table, cName string) bool {
+	columns, ok := m.ConditionalNonPiiKeys[table]
+	if !ok {
+		return false
+	}
+
+	for _, column := range columns {
+		for columnName, _ := range column {
+			if columnName == cName {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (m MaskConfig) DependentNonPiiKey(table, cName string) bool {
+	columns, ok := m.DependentNonPiiKeys[table]
+	if !ok {
+		return false
+	}
+
+	for _, column := range columns {
+		for columnName, _ := range column {
+			if columnName == cName {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func (m MaskConfig) PerformUnMasking(table, cName string, cValue string,
 	allColumns map[string]*string) bool {
 
@@ -212,7 +247,7 @@ func (m MaskConfig) unMaskDependentNonPiiKeys(
 
 			for providerColumnName, value := range providerColumn {
 				pcValue, ok := allColumns[providerColumnName]
-				if ok && value == *pcValue {
+				if ok && fmt.Sprintf("%s", value) == *pcValue {
 					return true
 				}
 			}
