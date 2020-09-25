@@ -68,7 +68,7 @@ func TestMaskTransformations(t *testing.T) {
 		topic          string
 		cName          string
 		columns        map[string]*string
-		expectedResult *string
+		maskedVal      *string
 	}{
 		{
 			name:  "test1: unmask test",
@@ -82,7 +82,7 @@ func TestMaskTransformations(t *testing.T) {
 				"last_name":   nil,
 				"email":       stringPtr("customer@example.com"),
 			},
-			expectedResult: stringPtr("1001"),
+			maskedVal: stringPtr("1001"),
 		},
 		{
 			name:  "test2: mask test",
@@ -96,7 +96,7 @@ func TestMaskTransformations(t *testing.T) {
 				"last_name":   nil,
 				"email":       stringPtr("customer@example.com"),
 			},
-			expectedResult: stringPtr(
+			maskedVal: stringPtr(
 				"9ba53e85b996f6278aa647d8da8f355aafd16149"),
 		},
 		{
@@ -111,7 +111,7 @@ func TestMaskTransformations(t *testing.T) {
 				"last_name":   nil,
 				"email":       stringPtr("customer@example.com"),
 			},
-			expectedResult: nil,
+			maskedVal: nil,
 		},
 		{
 			name:  "test4: mask test for case sensitivity",
@@ -125,7 +125,7 @@ func TestMaskTransformations(t *testing.T) {
 				"createdAt":   stringPtr("2020-09-20 20:56:45"),
 				"email":       stringPtr("customer@example.com"),
 			},
-			expectedResult: stringPtr("2020-09-20 20:56:45"),
+			maskedVal: stringPtr("2020-09-20 20:56:45"),
 		},
 		{
 			name:  "test5: length keys test",
@@ -139,7 +139,7 @@ func TestMaskTransformations(t *testing.T) {
 				"last_name":   nil,
 				"email":       stringPtr("customer@example.com"),
 			},
-			expectedResult: stringPtr("20"),
+			maskedVal: stringPtr("20"),
 		},
 	}
 
@@ -147,7 +147,7 @@ func TestMaskTransformations(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			testMask(
-				t, salt, dir, tc.topic, tc.cName, tc.columns, tc.expectedResult)
+				t, salt, dir, tc.topic, tc.cName, tc.columns, tc.maskedVal)
 		})
 	}
 }
@@ -159,19 +159,19 @@ func TestSaltMask(t *testing.T) {
 		name           string
 		salt           string
 		data           string
-		expectedResult string
+		maskedVal      string
 	}{
 		{
-			name:           "test id",
-			salt:           "testhash",
-			data:           "275402",
-			expectedResult: "95b623a5d57372c26025828015f537ad42104f9c",
+			name:       "test id",
+			salt:       "testhash",
+			data:       "275402",
+			maskedVal:	"95b623a5d57372c26025828015f537ad42104f9c",
 		},
 		{
-			name:           "test string",
-			salt:           "testhash",
-			data:           "Batman",
-			expectedResult: "9ba53e85b996f6278aa647d8da8f355aafd16149",
+			name:      "test string",
+			salt:      "testhash",
+			data:      "Batman",
+			maskedVal: "9ba53e85b996f6278aa647d8da8f355aafd16149",
 		},
 	}
 
@@ -179,8 +179,8 @@ func TestSaltMask(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			r := mask(tc.data, tc.salt)
-			if tc.expectedResult != *r {
-				t.Errorf("expected: %v, got: %v\n", tc.expectedResult, *r)
+			if tc.maskedVal != *r {
+				t.Errorf("expected: %v, got: %v\n", tc.maskedVal, *r)
 			}
 		})
 	}
