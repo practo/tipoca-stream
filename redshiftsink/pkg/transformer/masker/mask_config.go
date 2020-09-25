@@ -2,12 +2,12 @@ package masker
 
 import (
 	"fmt"
-	"regexp"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -23,10 +23,10 @@ type MaskConfig struct {
 	NonPiiKeys map[string][]string `yaml:"non_pii_keys,omitempty"`
 
 	// ConditionalNonPiiKeys unmasks columns if it matches a list of pattern
-	ConditionalNonPiiKeys map[string][]map[string][]string `yaml:"conditional_non_pii_keys,omitempty"`
+	ConditionalNonPiiKeys map[string]interface{} `yaml:"conditional_non_pii_keys,omitempty"`
 
 	// DependentNonPiiKeys unmasks columns based on the values of other columns
-	DependentNonPiiKeys map[string][]map[string]map[string][]interface{} `yaml:"dependent_non_pii_keys,omitempty"`
+	DependentNonPiiKeys map[string]interface{} `yaml:"dependent_non_pii_keys,omitempty"`
 
 	// LengthKeys creates extra column containing the length of original column
 	LengthKeys map[string][]string `yaml:"length_keys,omitempty"`
@@ -59,6 +59,8 @@ func NewMaskConfig(dir string, topic string) (MaskConfig, error) {
 	if err != nil {
 		return maskConfig, err
 	}
+
+	fmt.Println("unmarkshaling")
 
 	err = yaml.Unmarshal(yamlFile, &maskConfig)
 	if err != nil {
@@ -158,6 +160,7 @@ func (m MaskConfig) DependentNonPiiKey(table, cName string) bool {
 	return false
 }
 
+// PerformUnMasking checks if unmasking should be done or not
 func (m MaskConfig) PerformUnMasking(table, cName string, cValue string,
 	allColumns map[string]*string) bool {
 
