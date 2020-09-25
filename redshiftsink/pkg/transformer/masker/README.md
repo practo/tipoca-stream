@@ -44,9 +44,13 @@ Dependent NonPiiKeys unmask a column based on the values of other columns.
 ```yaml
 dependent_non_pii_keys:
     customers:
-        email:
-        - '%practo.com'
-        - '%practodev.com'
+        # dependentColumnName
+        first_name:
+            # providerColumn
+            last_name:
+            - 'singh'
+            email:
+            - 'customer@example.com'
 ```
 
 ### Length Keys

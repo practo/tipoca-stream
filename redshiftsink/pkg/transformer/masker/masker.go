@@ -71,29 +71,52 @@ func (m *masker) Transform(
 
 	columns := make(map[string]*string)
 	extraColumns := make(map[string]*string)
+	maskSchema := make(map[string]serializer.MaskInfo)
 
 	for cName, cVal := range rawColumns {
 		if cVal == nil {
 			columns[cName] = nil
+			maskInfo := serializer.MaskInfo{}
+			maskSchema[cName] = maskInfo
 			continue
 		}
-		columns[cName] = mask(*cVal, m.salt)
-		if m.config.LengthKey(m.table, cName) {
+
+		masked := m.config.PerformUnMasking(m.table, cName, *cVal, rawColumns)
+		sortKey := m.config.SortKey(m.table, cName)
+		distKey := m.config.DistKey(m.table, cName)
+		lengthKey := m.config.LengthKey(m.table, cName)
+
+		if lengthKey {
 			extraColumns[cName+transformer.LengthColumnSuffix] = stringPtr(
-				strconv.Itoa(len(*cVal)))
+				strconv.Itoa(len(*cVal)),
+			)
 		}
-		if m.config.PerformUnMasking(m.table, cName, cVal, rawColumns) {
+		if masked {
+			columns[cName] = mask(*cVal, m.salt)
+		} else {
 			columns[cName] = cVal
 		}
+		maskSchema[cName] = serializer.MaskInfo{
+			Masked: 	masked,
+			SortCol: 	sortKey,
+			DistCol: 	distKey,
+			LengthCol: 	lengthKey,
+		}
 	}
+
 	for cName, cVal := range extraColumns {
 		columns[cName] = cVal
+		maskSchema[cName] = serializer.MaskInfo{
+			LengthCol: 	false, // extra length column, don't want one more extra
+		}
 	}
 
 	message.Value, err = json.Marshal(columns)
 	if err != nil {
 		return err
 	}
+
+	message.MaskSchema = maskSchema
 
 	return nil
 }
