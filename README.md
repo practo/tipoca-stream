@@ -7,22 +7,27 @@
 
 Near real time cloud native data pipeline. Just another data pipeline.
 
-## Parts
+## Install
+The pipeline is a combination of multiple services deployment independently.
+- **Producer** Using Strimzi CRDs. [Instructions.](https://github.com/practo/tipoca-stream/blob/master/producer/README.md).
+```
+      kubectl get kafkaconnect
+      kubectl get kafkaconnector
+```
+- **Kafka**
+```
+      kubect get kafka (optional crd)
+```
+- **Schema Registry**
+- **RedshiftSink** [Instructions.](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/README.md)
+```
+      kubectl get redshiftsink (TODO)
+```
 
-The product is a combination of multiple services deployment independently.
+Note: Redshiftsink [supports masking.](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/MASKING.md).
 
-- [Producer](https://github.com/practo/tipoca-stream/blob/master/producer/README.md) Using Strimzi CRD.
-```
-kubectl get kafkaconnect
-kubectl get kafkaconnector
-```
-- Kafka
-- Schema Registry
-- [RedshiftSink](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/README.md)
-```
-kubectl get redshiftsink (TODO)
-```
-Redshiftsink has [masking support.](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/MASKING.md).
+## Contribute
+This repo only holds the code for redshiftsink. Please follow this[https://github.com/practo/tipoca-stream/blob/master/redshiftsink/README.md#contributing].
 
 ## Thanks
 
