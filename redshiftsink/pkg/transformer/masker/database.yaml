@@ -18,8 +18,7 @@ dependent_non_pii_keys:
             # providerColumn
             last_name:
             - 'Jones'
-            email:
-            - 'customer@example.com'
+            - 'Dhoni'
 length_keys:
     customers:
     - email
