@@ -8,7 +8,7 @@
 Near real time cloud native data pipeline. Just another data pipeline.
 
 ## Install
-The pipeline is a combination of multiple services deployment independently.
+The pipeline is a combination of services deployed independently.
 
 - **RedshiftSink** Using the CRD written in this repo. [Instructions.](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/README.md)
 ```
