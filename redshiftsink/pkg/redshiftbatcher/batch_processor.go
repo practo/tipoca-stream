@@ -82,6 +82,9 @@ type batchProcessor struct {
 	// maskMessages stores if the masking is enabled
 	maskMessages bool
 
+	// maskMessages stores if the masking is enabled
+	maskSchema map[string]serializer.MaskInfo
+
 	// signaler is a kafka producer signaling the load the batch uploaded data
 	// TODO: make the producer have interface
 	signaler *producer.AvroProducer
@@ -134,6 +137,7 @@ func newBatchProcessor(
 			viper.GetString("schemaRegistryURL")),
 		msgMasker:    msgMasker,
 		maskMessages: maskMessages,
+		maskSchema:   make(map[string]serializer.MaskInfo),
 		signaler:     signaler,
 	}
 }
@@ -231,6 +235,7 @@ func (b *batchProcessor) signalLoad() {
 		",",
 		b.s3sink.GetKeyURI(b.s3Key),
 		b.batchSchemaId, // schema of upstream topic
+		b.maskSchema,
 	)
 
 	err := b.signaler.Add(
@@ -268,7 +273,7 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 		resp, err := b.schemaTransformer.TransformValue(
 			b.topic,
 			b.batchSchemaId,
-			"", // not required to be passed in batcher, so no viper get here!
+			b.maskSchema,
 		)
 		if err != nil {
 			klog.Fatalf(
@@ -309,6 +314,9 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 
 	b.bodyBuf.Write(message.Value.([]byte))
 	b.bodyBuf.Write([]byte{'\n'})
+	if b.maskSchema == nil {
+		b.maskSchema = message.MaskSchema
+	}
 
 	klog.V(5).Infof(
 		"topic:%s, batchId:%d id:%d: transformed\n",

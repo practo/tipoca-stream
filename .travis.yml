@@ -1,4 +1,6 @@
 language: go
+go:
+- "1.15.1"
 services:
   - docker
 script:
