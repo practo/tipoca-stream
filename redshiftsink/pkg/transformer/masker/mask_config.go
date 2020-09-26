@@ -127,9 +127,15 @@ func (m MaskConfig) DistKey(table, cName string) bool {
 }
 
 func (m MaskConfig) ConditionalNonPiiKey(table, cName string) bool {
-	columns, ok := m.ConditionalNonPiiKeys[table]
+	columnsRaw, ok := m.ConditionalNonPiiKeys[table]
 	if !ok {
 		return false
+	}
+	columns, ok := columnsRaw.([]map[string]interface{})
+	if !ok {
+		klog.Fatalf(
+			"Type assertion error! table: %s, cName: %s\n", table, cName,
+		)
 	}
 
 	for _, column := range columns {
@@ -144,9 +150,15 @@ func (m MaskConfig) ConditionalNonPiiKey(table, cName string) bool {
 }
 
 func (m MaskConfig) DependentNonPiiKey(table, cName string) bool {
-	columns, ok := m.DependentNonPiiKeys[table]
+	columnsRaw, ok := m.DependentNonPiiKeys[table]
 	if !ok {
 		return false
+	}
+	columns, ok := columnsRaw.([]map[string]interface{})
+	if !ok {
+		klog.Fatalf(
+			"Type assertion error! table: %s, cName: %s\n", table, cName,
+		)
 	}
 
 	for _, column := range columns {
@@ -199,15 +211,26 @@ func (m MaskConfig) unMaskNonPiiKeys(table, cName string) bool {
 func (m MaskConfig) unMaskConditionalNonPiiKeys(
 	table, cName string, cValue string) bool {
 
-	columnsToCheck, ok := m.ConditionalNonPiiKeys[table]
+	columnsToCheckRaw, ok := m.ConditionalNonPiiKeys[table]
 	if !ok {
 		return false
 	}
+	columnsToCheck, ok := columnsToCheckRaw.([]map[string]interface{})
+	if !ok {
+		klog.Fatalf(
+			"Type assertion error! table: %s, cName: %s\n", table, cName)
+	}
 
 	for _, c := range columnsToCheck {
-		for columnName, patterns := range c {
+		for columnName, patternsRaw := range c {
 			if columnName != cName {
 				continue
+			}
+			patterns, ok := patternsRaw.([]string)
+			if !ok {
+				klog.Fatalf(
+					"Type assertion error! table: %s, cName: %s\n",
+					table, cName)
 			}
 			for _, pattern := range patterns {
 				// replace sql patterns with regex patterns
@@ -237,15 +260,26 @@ func (m MaskConfig) unMaskDependentNonPiiKeys(
 	table, cName string, cValue string, allColumns map[string]*string) bool {
 
 	// if table not in config, no unmasking required
-	columnsToCheck, ok := m.DependentNonPiiKeys[table]
+	columnsToCheckRaw, ok := m.DependentNonPiiKeys[table]
 	if !ok {
 		return false
 	}
+	columnsToCheck, ok := columnsToCheckRaw.([]map[string]interface{})
+	if !ok {
+		klog.Fatalf(
+			"Type assertion error! table: %s, cName: %s\n", table, cName)
+	}
 
 	for _, c := range columnsToCheck {
-		for dependentColumnName, providerColumn := range c {
+		for dependentColumnName, providerColumnRaw := range c {
 			if dependentColumnName != cName {
 				continue
+			}
+			providerColumn, ok := providerColumnRaw.(map[string]interface{})
+			if !ok {
+				klog.Fatalf(
+					"Type assertion error! table: %s, cName: %s\n",
+					table, cName)
 			}
 
 			for providerColumnName, value := range providerColumn {
