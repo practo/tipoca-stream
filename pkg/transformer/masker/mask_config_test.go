@@ -5,13 +5,15 @@ import (
 	"testing"
 )
 
-func testMasked(t *testing.T, dir, topic, table, cName string, result bool) {
+func testMasked(t *testing.T, dir, topic, table, cName, cValue string,
+	result bool, allColumns map[string]*string) {
+
 	m, err := NewMaskConfig(dir, topic)
 	if err != nil {
 		t.Error(err)
 	}
 
-	gotResult := m.Masked(table, cName)
+	gotResult := m.PerformUnMasking(table, cName, cValue, allColumns)
 	if gotResult != result {
 		t.Errorf(
 			"Expected column: %v to have mask=%v in table:%v, got mask=%v\n",
@@ -20,7 +22,7 @@ func testMasked(t *testing.T, dir, topic, table, cName string, result bool) {
 	}
 }
 
-func TestMaskConfigs(t *testing.T) {
+func TestMaskConfig(t *testing.T) {
 	t.Parallel()
 
 	dir, err := os.Getwd()
@@ -29,32 +31,105 @@ func TestMaskConfigs(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		topic          string
-		table          string
-		cName          string
-		expectedResult bool
+		name       string
+		topic      string
+		table      string
+		cName      string
+		cValue     string
+		unMasked   bool
+		allColumns map[string]*string
 	}{
 		{
-			name:           "test1: test column is not masked(case sensitive)",
-			topic:          "dbserver.database.justifications",
-			table:          "justifications",
-			cName:          "createdat",
-			expectedResult: false,
+			name:     "test1: test column is unmasked(case insensitive)",
+			topic:    "dbserver.database.justifications",
+			table:    "justifications",
+			cName:    "createdat",
+			cValue:   "2020-09-29 06:51:32",
+			unMasked: true,
+			allColumns: map[string]*string{
+				"createdAt": stringPtr("2020-09-29 06:51:32"),
+			},
 		},
 		{
-			name:           "test2: test column is masked",
-			topic:          "dbserver.database.justifications",
-			table:          "justifications",
-			cName:          "source",
-			expectedResult: false,
+			name:     "test2: test column is masked",
+			topic:    "dbserver.database.justifications",
+			table:    "justifications",
+			cName:    "source",
+			cValue:   "android",
+			unMasked: true,
+			allColumns: map[string]*string{
+				"source": stringPtr("android"),
+			},
+		},
+		{
+			name:     "test3: test dependentNonPii with matching value",
+			topic:    "dbserver.database.customers",
+			table:    "customers",
+			cName:    "first_name",
+			cValue:   "Sally",
+			unMasked: true,
+			allColumns: map[string]*string{
+				"first_name": stringPtr("Sally"),
+				"last_name":  stringPtr("Jones"),
+			},
+		},
+		{
+			name:     "test4: test dependentNonPii with unmatching value",
+			topic:    "dbserver.database.customers",
+			table:    "customers",
+			cName:    "first_name",
+			cValue:   "Sally",
+			unMasked: false,
+			allColumns: map[string]*string{
+				"first_name": stringPtr("Sally"),
+				"last_name":  stringPtr("Patel"),
+			},
+		},
+		{
+			name:     "test5: test dependentNonPii with column not defined",
+			topic:    "dbserver.database.customers",
+			table:    "customers",
+			cName:    "first_name",
+			cValue:   "Sally",
+			unMasked: false,
+			allColumns: map[string]*string{
+				"first_name": stringPtr("SallyNotDefined"),
+				"last_name":  stringPtr("Patel"),
+			},
+		},
+		{
+			name:     "test6: test conditonalNonPii with matching value",
+			topic:    "dbserver.database.customers",
+			table:    "customers",
+			cName:    "email",
+			cValue:   "customer@example.com",
+			unMasked: true,
+			allColumns: map[string]*string{
+				"first_name": stringPtr("Customer"),
+				"last_name":  stringPtr("Hawking"),
+				"email":      stringPtr("customer@example.com"),
+			},
+		},
+		{
+			name:     "test7: test conditonalNonPii with unmatching value",
+			topic:    "dbserver.database.customers",
+			table:    "customers",
+			cName:    "email",
+			cValue:   "customer@practo.com",
+			unMasked: false,
+			allColumns: map[string]*string{
+				"first_name": stringPtr("Customer"),
+				"last_name":  stringPtr("Hawking"),
+				"email":      stringPtr("customer@practo.com"),
+			},
 		},
 	}
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			testMasked(
-				t, dir, tc.topic, tc.table, tc.cName, tc.expectedResult,
+				t, dir, tc.topic, tc.table, tc.cName,
+				tc.cValue, tc.unMasked, tc.allColumns,
 			)
 		})
 	}

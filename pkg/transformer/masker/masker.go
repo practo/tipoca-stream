@@ -66,29 +66,63 @@ func (m *masker) Transform(
 
 	columns := make(map[string]*string)
 	extraColumns := make(map[string]*string)
+	maskSchema := make(map[string]serializer.MaskInfo)
 
 	for cName, cVal := range rawColumns {
 		if cVal == nil {
 			columns[cName] = nil
+			maskInfo := serializer.MaskInfo{}
+			maskSchema[cName] = maskInfo
 			continue
 		}
-		columns[cName] = mask(*cVal, m.salt)
-		if m.config.LengthKey(m.table, cName) {
+
+		unmasked := m.config.PerformUnMasking(m.table, cName, *cVal, rawColumns)
+		sortKey := m.config.SortKey(m.table, cName)
+		distKey := m.config.DistKey(m.table, cName)
+		lengthKey := m.config.LengthKey(m.table, cName)
+
+		if lengthKey {
 			extraColumns[cName+transformer.LengthColumnSuffix] = stringPtr(
-				strconv.Itoa(len(*cVal)))
+				strconv.Itoa(len(*cVal)),
+			)
 		}
-		if m.config.PerformUnMasking(m.table, cName) {
+		if unmasked {
 			columns[cName] = cVal
+		} else {
+			columns[cName] = mask(*cVal, m.salt)
+		}
+
+		// Since we do not know what will happen in future and what value
+		// can the column hold, if a row is defined as dependent or conditional
+		//  non pii then value in the row is masked based on the condition ^
+		// but its type is always a masked type(string).
+		// This change is to enable that.
+		if m.config.DependentNonPiiKey(m.table, cName) ||
+			m.config.ConditionalNonPiiKey(m.table, cName) {
+			unmasked = false
+		}
+
+		maskSchema[cName] = serializer.MaskInfo{
+			Masked:    !unmasked,
+			SortCol:   sortKey,
+			DistCol:   distKey,
+			LengthCol: lengthKey,
 		}
 	}
+
 	for cName, cVal := range extraColumns {
 		columns[cName] = cVal
+		maskSchema[cName] = serializer.MaskInfo{
+			LengthCol: false, // extra length column, don't want one more extra
+		}
 	}
 
 	message.Value, err = json.Marshal(columns)
 	if err != nil {
 		return err
 	}
+
+	message.MaskSchema = maskSchema
 
 	return nil
 }

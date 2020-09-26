@@ -1,6 +1,4 @@
 loader:
-    mask: false
-    maskConfigDir: "/maskfiles"
     maxSize: 10
     maxWaitSeconds: 20
 kafka:
