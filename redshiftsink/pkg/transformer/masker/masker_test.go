@@ -10,6 +10,7 @@ import (
 
 func testMask(t *testing.T, salt, dir, topic, cName string,
 	columns map[string]*string, result *string) {
+	// resultMaskSchema map[string]serializer.MaskInfo) {
 
 	masker, err := NewMsgMasker(salt, dir, topic)
 	if err != nil {
@@ -21,12 +22,13 @@ func testMask(t *testing.T, salt, dir, topic, cName string,
 		t.Error(err)
 	}
 	message := &serializer.Message{
-		SchemaId:  int(1),
-		Topic:     topic,
-		Partition: 0,
-		Offset:    0,
-		Key:       "key",
-		Value:     value,
+		SchemaId:   int(1),
+		Topic:      topic,
+		Partition:  0,
+		Offset:     0,
+		Key:        "key",
+		Value:      value,
+		MaskSchema: make(map[string]serializer.MaskInfo),
 	}
 	err = masker.Transform(message, redshift.Table{})
 	if err != nil {
@@ -55,7 +57,7 @@ func testMask(t *testing.T, salt, dir, topic, cName string,
 }
 
 func TestMaskTransformations(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	dir, err := os.Getwd()
 	if err != nil {
@@ -64,11 +66,11 @@ func TestMaskTransformations(t *testing.T) {
 	salt := "testhash"
 
 	tests := []struct {
-		name           string
-		topic          string
-		cName          string
-		columns        map[string]*string
-		maskedVal      *string
+		name      string
+		topic     string
+		cName     string
+		columns   map[string]*string
+		resultVal *string
 	}{
 		{
 			name:  "test1: unmask test",
@@ -82,7 +84,7 @@ func TestMaskTransformations(t *testing.T) {
 				"last_name":   nil,
 				"email":       stringPtr("customer@example.com"),
 			},
-			maskedVal: stringPtr("1001"),
+			resultVal: stringPtr("1001"),
 		},
 		{
 			name:  "test2: mask test",
@@ -96,7 +98,7 @@ func TestMaskTransformations(t *testing.T) {
 				"last_name":   nil,
 				"email":       stringPtr("customer@example.com"),
 			},
-			maskedVal: stringPtr(
+			resultVal: stringPtr(
 				"9ba53e85b996f6278aa647d8da8f355aafd16149"),
 		},
 		{
@@ -111,7 +113,7 @@ func TestMaskTransformations(t *testing.T) {
 				"last_name":   nil,
 				"email":       stringPtr("customer@example.com"),
 			},
-			maskedVal: nil,
+			resultVal: nil,
 		},
 		{
 			name:  "test4: mask test for case sensitivity",
@@ -125,7 +127,7 @@ func TestMaskTransformations(t *testing.T) {
 				"createdAt":   stringPtr("2020-09-20 20:56:45"),
 				"email":       stringPtr("customer@example.com"),
 			},
-			maskedVal: stringPtr("2020-09-20 20:56:45"),
+			resultVal: stringPtr("2020-09-20 20:56:45"),
 		},
 		{
 			name:  "test5: length keys test",
@@ -139,7 +141,7 @@ func TestMaskTransformations(t *testing.T) {
 				"last_name":   nil,
 				"email":       stringPtr("customer@example.com"),
 			},
-			maskedVal: stringPtr("20"),
+			resultVal: stringPtr("20"),
 		},
 	}
 
@@ -147,7 +149,7 @@ func TestMaskTransformations(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			testMask(
-				t, salt, dir, tc.topic, tc.cName, tc.columns, tc.maskedVal)
+				t, salt, dir, tc.topic, tc.cName, tc.columns, tc.resultVal)
 		})
 	}
 }
@@ -156,22 +158,22 @@ func TestSaltMask(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		salt           string
-		data           string
-		maskedVal      string
+		name      string
+		salt      string
+		data      string
+		resultVal string
 	}{
 		{
-			name:       "test id",
-			salt:       "testhash",
-			data:       "275402",
-			maskedVal:	"95b623a5d57372c26025828015f537ad42104f9c",
+			name:      "test id",
+			salt:      "testhash",
+			data:      "275402",
+			resultVal: "95b623a5d57372c26025828015f537ad42104f9c",
 		},
 		{
 			name:      "test string",
 			salt:      "testhash",
 			data:      "Batman",
-			maskedVal: "9ba53e85b996f6278aa647d8da8f355aafd16149",
+			resultVal: "9ba53e85b996f6278aa647d8da8f355aafd16149",
 		},
 	}
 
@@ -179,8 +181,8 @@ func TestSaltMask(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			r := mask(tc.data, tc.salt)
-			if tc.maskedVal != *r {
-				t.Errorf("expected: %v, got: %v\n", tc.maskedVal, *r)
+			if tc.resultVal != *r {
+				t.Errorf("expected: %v, got: %v\n", tc.resultVal, *r)
 			}
 		})
 	}

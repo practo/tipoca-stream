@@ -22,7 +22,7 @@ func testMasked(t *testing.T, dir, topic, table, cName, cValue string,
 	}
 }
 
-func TestMaskConfigs(t *testing.T) {
+func TestMaskConfig(t *testing.T) {
 	t.Parallel()
 
 	dir, err := os.Getwd()
@@ -62,7 +62,7 @@ func TestMaskConfigs(t *testing.T) {
 			},
 		},
 		{
-			name:     "test3: test dependent non pii with matching value",
+			name:     "test3: test dependentNonPii with matching value",
 			topic:    "dbserver.database.customers",
 			table:    "customers",
 			cName:    "first_name",
@@ -74,7 +74,7 @@ func TestMaskConfigs(t *testing.T) {
 			},
 		},
 		{
-			name:     "test4: test dependent non pii with diff value",
+			name:     "test4: test dependentNonPii with unmatching value",
 			topic:    "dbserver.database.customers",
 			table:    "customers",
 			cName:    "first_name",
@@ -83,6 +83,44 @@ func TestMaskConfigs(t *testing.T) {
 			allColumns: map[string]*string{
 				"first_name": stringPtr("Sally"),
 				"last_name":  stringPtr("Patel"),
+			},
+		},
+		{
+			name:     "test5: test dependentNonPii with column not defined",
+			topic:    "dbserver.database.customers",
+			table:    "customers",
+			cName:    "first_name",
+			cValue:   "Sally",
+			unMasked: false,
+			allColumns: map[string]*string{
+				"first_name": stringPtr("SallyNotDefined"),
+				"last_name":  stringPtr("Patel"),
+			},
+		},
+		{
+			name:     "test6: test conditonalNonPii with matching value",
+			topic:    "dbserver.database.customers",
+			table:    "customers",
+			cName:    "email",
+			cValue:   "customer@example.com",
+			unMasked: true,
+			allColumns: map[string]*string{
+				"first_name": stringPtr("Customer"),
+				"last_name":  stringPtr("Hawking"),
+				"email":      stringPtr("customer@example.com"),
+			},
+		},
+		{
+			name:     "test7: test conditonalNonPii with unmatching value",
+			topic:    "dbserver.database.customers",
+			table:    "customers",
+			cName:    "email",
+			cValue:   "customer@practo.com",
+			unMasked: false,
+			allColumns: map[string]*string{
+				"first_name": stringPtr("Customer"),
+				"last_name":  stringPtr("Hawking"),
+				"email":      stringPtr("customer@practo.com"),
 			},
 		},
 	}

@@ -60,8 +60,6 @@ func NewMaskConfig(dir string, topic string) (MaskConfig, error) {
 		return maskConfig, err
 	}
 
-	fmt.Println("unmarkshaling")
-
 	err = yaml.Unmarshal(yamlFile, &maskConfig)
 	if err != nil {
 		return maskConfig, err
@@ -126,47 +124,21 @@ func (m MaskConfig) DistKey(table, cName string) bool {
 	return false
 }
 
-func (m MaskConfig) ConditionalNonPiiKey(table, cName string) bool {
-	columnsRaw, ok := m.ConditionalNonPiiKeys[table]
-	if !ok {
-		return false
-	}
-	columns, ok := columnsRaw.([]map[string]interface{})
-	if !ok {
-		klog.Fatalf(
-			"Type assertion error! table: %s, cName: %s\n", table, cName,
-		)
-	}
-
-	for _, column := range columns {
-		for columnName, _ := range column {
-			if columnName == cName {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
 func (m MaskConfig) DependentNonPiiKey(table, cName string) bool {
 	columnsRaw, ok := m.DependentNonPiiKeys[table]
 	if !ok {
 		return false
 	}
-	columns, ok := columnsRaw.([]map[string]interface{})
+
+	columns, ok := columnsRaw.(map[interface{}]interface{})
 	if !ok {
 		klog.Fatalf(
 			"Type assertion error! table: %s, cName: %s\n", table, cName,
 		)
 	}
-
-	for _, column := range columns {
-		for columnName, _ := range column {
-			if columnName == cName {
-				return true
-			}
-		}
+	_, ok = columns[cName]
+	if ok {
+		return true
 	}
 
 	return false
@@ -215,40 +187,43 @@ func (m MaskConfig) unMaskConditionalNonPiiKeys(
 	if !ok {
 		return false
 	}
-	columnsToCheck, ok := columnsToCheckRaw.([]map[string]interface{})
+	columnsToCheck, ok := columnsToCheckRaw.(map[interface{}]interface{})
 	if !ok {
 		klog.Fatalf(
 			"Type assertion error! table: %s, cName: %s\n", table, cName)
 	}
 
-	for _, c := range columnsToCheck {
-		for columnName, patternsRaw := range c {
-			if columnName != cName {
-				continue
-			}
-			patterns, ok := patternsRaw.([]string)
+	for columnNameRaw, patternsR := range columnsToCheck {
+		columnName := columnNameRaw.(string)
+		if columnName != cName {
+			continue
+		}
+
+		patternsRaw := patternsR.([]interface{})
+
+		var err error
+		for _, patternRaw := range patternsRaw {
+			pattern, ok := patternRaw.(string)
 			if !ok {
 				klog.Fatalf(
-					"Type assertion error! table: %s, cName: %s\n",
-					table, cName)
+					"Type assertion error! table: %s, cName: %s\n", table, cName)
 			}
-			for _, pattern := range patterns {
-				// replace sql patterns with regex patterns
-				// TODO: cover all cases :pray
-				pattern = strings.ReplaceAll(pattern, "%", ".*")
-				regex, ok := m.regexes[pattern]
-				if !ok {
-					regex, err := regexp.Compile(pattern)
-					if err != nil {
-						klog.Fatalf(
-							"Regex: %s compile failed, err:%v\n", pattern, err)
-					}
-					m.regexes[pattern] = regex
-				}
 
-				if regex.MatchString(cValue) {
-					return true
+			// replace sql patterns with regex patterns
+			// TODO: cover all cases :pray
+			pattern = strings.ReplaceAll(pattern, "%", ".*")
+			regex, ok := m.regexes[pattern]
+			if !ok {
+				regex, err = regexp.Compile(pattern)
+				if err != nil {
+					klog.Fatalf(
+						"Regex: %s compile failed, err:%v\n", pattern, err)
 				}
+				m.regexes[pattern] = regex
+			}
+
+			if regex.MatchString(cValue) {
+				return true
 			}
 		}
 	}
@@ -264,26 +239,38 @@ func (m MaskConfig) unMaskDependentNonPiiKeys(
 	if !ok {
 		return false
 	}
-	columnsToCheck, ok := columnsToCheckRaw.([]map[string]interface{})
+	columnsToCheck, ok := columnsToCheckRaw.(map[interface{}]interface{})
 	if !ok {
 		klog.Fatalf(
 			"Type assertion error! table: %s, cName: %s\n", table, cName)
 	}
 
-	for _, c := range columnsToCheck {
-		for dependentColumnName, providerColumnRaw := range c {
-			if dependentColumnName != cName {
-				continue
-			}
-			providerColumn, ok := providerColumnRaw.(map[string]interface{})
-			if !ok {
-				klog.Fatalf(
-					"Type assertion error! table: %s, cName: %s\n",
-					table, cName)
-			}
+	for dependentColumnNameRaw, providerColumnRaw := range columnsToCheck {
+		dependentColumnName := dependentColumnNameRaw.(string)
+		if dependentColumnName != cName {
+			continue
+		}
 
-			for providerColumnName, value := range providerColumn {
+		providerColumn, ok := providerColumnRaw.(map[interface{}]interface{})
+		if !ok {
+			klog.Fatalf(
+				"Type assertion error! table: %s, cName: %s\n",
+				table, cName)
+		}
+
+		for providerColumnNameRaw, valuesRaw := range providerColumn {
+			providerColumnName := providerColumnNameRaw.(string)
+			values := valuesRaw.([]interface{})
+			for _, valueRaw := range values {
+
+				value := valueRaw.(string)
 				pcValue, ok := allColumns[providerColumnName]
+				if !ok {
+					continue
+				}
+				if pcValue == nil {
+					continue
+				}
 				if ok && fmt.Sprintf("%s", value) == *pcValue {
 					return true
 				}
