@@ -124,6 +124,27 @@ func (m MaskConfig) DistKey(table, cName string) bool {
 	return false
 }
 
+func (m MaskConfig) ConditionalNonPiiKey(table, cName string) bool {
+	columnsRaw, ok := m.ConditionalNonPiiKeys[table]
+	if !ok {
+		return false
+	}
+
+	columns, ok := columnsRaw.(map[interface{}]interface{})
+	if !ok {
+		klog.Fatalf(
+			"Type assertion error! table: %s, cName: %s\n", table, cName,
+		)
+	}
+
+	_, ok = columns[cName]
+	if ok {
+		return true
+	}
+
+	return false
+}
+
 func (m MaskConfig) DependentNonPiiKey(table, cName string) bool {
 	columnsRaw, ok := m.DependentNonPiiKeys[table]
 	if !ok {
