@@ -76,7 +76,7 @@ func (m *masker) Transform(
 			continue
 		}
 
-		masked := m.config.PerformUnMasking(m.table, cName, *cVal, rawColumns)
+		unmasked := m.config.PerformUnMasking(m.table, cName, *cVal, rawColumns)
 		sortKey := m.config.SortKey(m.table, cName)
 		distKey := m.config.DistKey(m.table, cName)
 		lengthKey := m.config.LengthKey(m.table, cName)
@@ -86,22 +86,22 @@ func (m *masker) Transform(
 				strconv.Itoa(len(*cVal)),
 			)
 		}
-		if masked {
-			columns[cName] = mask(*cVal, m.salt)
-		} else {
+		if unmasked {
 			columns[cName] = cVal
+		} else {
+			columns[cName] = mask(*cVal, m.salt)
 		}
 
 		// Since we do not know what will happen in future and what value
 		// can the column hold, if a row is defined as dependent non pii
-		// then its data in row is masked based on condition ^ but its type
-		// is always a masked type, for its data to be masked type this is done.
+		// then value in the row is masked based on the condition ^ but its type
+		// is always a masked type(string). This change is to enable that.
 		if m.config.DependentNonPiiKey(m.table, cName) {
-			masked = true
+			unmasked = false
 		}
 
 		maskSchema[cName] = serializer.MaskInfo{
-			Masked:    masked,
+			Masked:    !unmasked,
 			SortCol:   sortKey,
 			DistCol:   distKey,
 			LengthCol: lengthKey,
