@@ -5,6 +5,10 @@ redshiftsink reads the debezium events from Kafka and loads them to Redshift. It
 - Redshift Loader
 
 ## Redshift Batcher
+- Batches the debezium data in Kafka topics and uploads to S3.
+- Signals the Redshift loader to load the batch in Redshift using Kafka Topics.
+- **Batcher supports masking the data**. Please follow [this for enabling masking](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/MASKING.md).
+
 ```bash
 $ bin/darwin_amd64/redshiftbatcher --help
 Consumes the Kafka Topics, trasnform them for redshfit, batches them and uploads to s3. Also signals the load of the batch on successful batch and upload operation..
@@ -18,8 +22,7 @@ Flags:
   -v, --v Level         number for the log level verbosity
 
 ```
-- Batches the debezium data in Kafka topics and uploads to S3.
-- Signals the Redshift loader to load the batch in Redshift using Kafka Topics.
+
 
 ### Configuration
 Create a file config.yaml, refer [config-sample.yaml](./cmd/redshiftbatcher/config/config_sample.yaml).

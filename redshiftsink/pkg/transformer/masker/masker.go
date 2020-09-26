@@ -93,10 +93,12 @@ func (m *masker) Transform(
 		}
 
 		// Since we do not know what will happen in future and what value
-		// can the column hold, if a row is defined as dependent non pii
-		// then value in the row is masked based on the condition ^ but its type
-		// is always a masked type(string). This change is to enable that.
-		if m.config.DependentNonPiiKey(m.table, cName) {
+		// can the column hold, if a row is defined as dependent or conditional
+		//  non pii then value in the row is masked based on the condition ^
+		// but its type is always a masked type(string).
+		// This change is to enable that.
+		if m.config.DependentNonPiiKey(m.table, cName) ||
+			m.config.ConditionalNonPiiKey(m.table, cName) {
 			unmasked = false
 		}
 
