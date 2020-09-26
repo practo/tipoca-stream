@@ -3,9 +3,12 @@
 Masking when enabled masks all columns by default unless specified not to mask.
 
 ## Configuration
-Specification of what to unmask is specified using a configuration file.
-- Masking needs to be enabled in redshiftbatcher configuration. (to mask column values)
-- Masking needs to be enabled in redshiftloader configuration. (to choose correct column types)
+Specification of what to unmask is specified using a configuration file. Masking needs to be enabled in redshiftbatcher configuration:
+```yaml
+mask: true
+maskSalt: sample-salt
+maskConfigDir: "/usr/inventory.yaml"
+```
 
 ### Convention:
 There is a convention for the mask configuration file name:
