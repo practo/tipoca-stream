@@ -3,18 +3,18 @@
 Masking when enabled masks all columns by default unless specified not to mask.
 
 ## Configuration
-Masking is configured using configuration file. There is a convention to be followed for specifying the configuration file name:
+Specification of what to unmask is specified using a configuration file.
 - Masking needs to be enabled in redshiftbatcher configuration. (to mask column values)
 - Masking needs to be enabled in redshiftloader configuration. (to choose correct column types)
 
 ### Convention:
+There is a convention for the mask configuration file name:
 ```
-If,
-    mask=true            (in redshiftbatcher config)
-    maskConfigDir="/usr" (in redshiftbatcher config)
-    topic="datapipe.inventory.customers"
-Then, configuration file should be present at:
-    /usr/inventory.yaml
+If,     mask=true            (in redshiftbatcher config)
+        maskConfigDir="/usr" (in redshiftbatcher config)
+        topic="datapipe.inventory.customers"
+Then,
+        configuration file should be present at: /usr/inventory.yaml
 ```
 
 ## Features
@@ -35,8 +35,8 @@ Conditional NonPiiKeys unmasks columns if it matches any of the pattern in the p
 conditional_non_pii_keys:
     customers:
         email:
-        - '%practo.com'
-        - '%practodev.com'
+        - '%example.com'
+        - '%exampledev.com'
 ```
 
 ### Dependent NonPiiKeys
@@ -48,9 +48,8 @@ dependent_non_pii_keys:
         first_name:
             # providerColumn
             last_name:
-            - 'singh'
-            email:
-            - 'customer@example.com'
+            - 'Jones'
+            - 'Dhoni'
 ```
 
 ### Length Keys

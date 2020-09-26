@@ -8,152 +8,6 @@ import (
 	"testing"
 )
 
-func testMask(t *testing.T, salt, dir, topic, cName string,
-	columns map[string]*string, result *string) {
-	// resultMaskSchema map[string]serializer.MaskInfo) {
-
-	masker, err := NewMsgMasker(salt, dir, topic)
-	if err != nil {
-		t.Errorf("Error making masker, err: %v\n", err)
-	}
-
-	value, err := json.Marshal(columns)
-	if err != nil {
-		t.Error(err)
-	}
-	message := &serializer.Message{
-		SchemaId:   int(1),
-		Topic:      topic,
-		Partition:  0,
-		Offset:     0,
-		Key:        "key",
-		Value:      value,
-		MaskSchema: make(map[string]serializer.MaskInfo),
-	}
-	err = masker.Transform(message, redshift.Table{})
-	if err != nil {
-		t.Error(err)
-	}
-	var maskedColumns map[string]*string
-	err = json.Unmarshal(message.Value.([]byte), &maskedColumns)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if maskedColumns[cName] == nil {
-		if maskedColumns[cName] != result {
-			t.Errorf(
-				"Expected %s=%v, got %v\n", cName, result, maskedColumns[cName],
-			)
-		}
-		return
-	}
-
-	if *maskedColumns[cName] != *result {
-		t.Errorf(
-			"Expected %s=%s, got %v\n", cName, *result, *maskedColumns[cName],
-		)
-	}
-}
-
-func TestMaskTransformations(t *testing.T) {
-	// t.Parallel()
-
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Error(err)
-	}
-	salt := "testhash"
-
-	tests := []struct {
-		name      string
-		topic     string
-		cName     string
-		columns   map[string]*string
-		resultVal *string
-	}{
-		{
-			name:  "test1: unmask test",
-			topic: "dbserver.database.customers",
-			cName: "id",
-			columns: map[string]*string{
-				"kafkaoffset": stringPtr("87"),
-				"operation":   stringPtr("create"),
-				"id":          stringPtr("1001"),
-				"first_name":  stringPtr("Batman"),
-				"last_name":   nil,
-				"email":       stringPtr("customer@example.com"),
-			},
-			resultVal: stringPtr("1001"),
-		},
-		{
-			name:  "test2: mask test",
-			topic: "dbserver.database.customers",
-			cName: "first_name",
-			columns: map[string]*string{
-				"kafkaoffset": stringPtr("87"),
-				"operation":   stringPtr("create"),
-				"id":          stringPtr("1001"),
-				"first_name":  stringPtr("Batman"),
-				"last_name":   nil,
-				"email":       stringPtr("customer@example.com"),
-			},
-			resultVal: stringPtr(
-				"9ba53e85b996f6278aa647d8da8f355aafd16149"),
-		},
-		{
-			name:  "test3: mask test for nil columns",
-			topic: "dbserver.database.customers",
-			cName: "last_name",
-			columns: map[string]*string{
-				"kafkaoffset": stringPtr("87"),
-				"operation":   stringPtr("create"),
-				"id":          stringPtr("1001"),
-				"first_name":  stringPtr("Batman"),
-				"last_name":   nil,
-				"email":       stringPtr("customer@example.com"),
-			},
-			resultVal: nil,
-		},
-		{
-			name:  "test4: mask test for case sensitivity",
-			topic: "dbserver.database.justifications",
-			cName: "createdAt",
-			columns: map[string]*string{
-				"kafkaoffset": stringPtr("87"),
-				"operation":   stringPtr("create"),
-				"source":      stringPtr("chrome"),
-				"type":        stringPtr("CLASS"),
-				"createdAt":   stringPtr("2020-09-20 20:56:45"),
-				"email":       stringPtr("customer@example.com"),
-			},
-			resultVal: stringPtr("2020-09-20 20:56:45"),
-		},
-		{
-			name:  "test5: length keys test",
-			topic: "dbserver.database.customers",
-			cName: "email_length",
-			columns: map[string]*string{
-				"kafkaoffset": stringPtr("87"),
-				"operation":   stringPtr("create"),
-				"id":          stringPtr("1001"),
-				"first_name":  stringPtr("Batman"),
-				"last_name":   nil,
-				"email":       stringPtr("customer@example.com"),
-			},
-			resultVal: stringPtr("20"),
-		},
-	}
-
-	for _, tc := range tests {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			testMask(
-				t, salt, dir, tc.topic, tc.cName, tc.columns, tc.resultVal)
-		})
-	}
-}
-
 func TestSaltMask(t *testing.T) {
 	t.Parallel()
 
@@ -184,6 +38,231 @@ func TestSaltMask(t *testing.T) {
 			if tc.resultVal != *r {
 				t.Errorf("expected: %v, got: %v\n", tc.resultVal, *r)
 			}
+		})
+	}
+}
+
+func testMasker(t *testing.T, salt, dir, topic, cName string,
+	columns map[string]*string, result *string,
+	resultMaskSchema map[string]serializer.MaskInfo) {
+
+	masker, err := NewMsgMasker(salt, dir, topic)
+	if err != nil {
+		t.Fatalf("Error making masker, err: %v\n", err)
+	}
+
+	value, err := json.Marshal(columns)
+	if err != nil {
+		t.Fatal(err)
+	}
+	message := &serializer.Message{
+		SchemaId:   int(1),
+		Topic:      topic,
+		Partition:  0,
+		Offset:     0,
+		Key:        "key",
+		Value:      value,
+		MaskSchema: make(map[string]serializer.MaskInfo),
+	}
+	err = masker.Transform(message, redshift.Table{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var maskedColumns map[string]*string
+	err = json.Unmarshal(message.Value.([]byte), &maskedColumns)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(resultMaskSchema) > 0 {
+		for column, maskInfo := range resultMaskSchema {
+			maskColumn, ok := message.MaskSchema[column]
+			if !ok {
+				t.Errorf("column=%v, maskColumn=%v missing\n", column, maskInfo)
+				continue
+			}
+			if maskColumn.Masked != maskInfo.Masked ||
+				maskColumn.SortCol != maskInfo.SortCol ||
+				maskColumn.DistCol != maskInfo.DistCol ||
+				maskColumn.LengthCol != maskInfo.LengthCol {
+				t.Errorf(
+					"column=%v, maskColumn=%+v does not match %+v\n",
+					column, maskColumn, maskInfo)
+			}
+		}
+	}
+
+	if maskedColumns[cName] == nil {
+		if maskedColumns[cName] != result {
+			t.Errorf(
+				"Expected %s=%v, got %v\n", cName, result, maskedColumns[cName],
+			)
+		}
+		return
+	}
+
+	if *maskedColumns[cName] != *result {
+		t.Errorf(
+			"Expected %s=%s, got %v\n", cName, *result, *maskedColumns[cName],
+		)
+	}
+}
+
+func TestMasker(t *testing.T) {
+	t.Parallel()
+
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Error(err)
+	}
+	salt := "testhash"
+
+	tests := []struct {
+		name             string
+		topic            string
+		cName            string
+		columns          map[string]*string
+		resultVal        *string
+		resultMaskSchema map[string]serializer.MaskInfo
+	}{
+		{
+			name:  "test1: unmask test",
+			topic: "dbserver.database.customers",
+			cName: "id",
+			columns: map[string]*string{
+				"kafkaoffset": stringPtr("87"),
+				"operation":   stringPtr("create"),
+				"id":          stringPtr("1001"),
+				"first_name":  stringPtr("Batman"),
+				"last_name":   nil,
+				"email":       stringPtr("customer@example.com"),
+			},
+			resultVal:        stringPtr("1001"),
+			resultMaskSchema: make(map[string]serializer.MaskInfo),
+		},
+		{
+			name:  "test2: mask test",
+			topic: "dbserver.database.customers",
+			cName: "first_name",
+			columns: map[string]*string{
+				"kafkaoffset": stringPtr("87"),
+				"operation":   stringPtr("create"),
+				"id":          stringPtr("1001"),
+				"first_name":  stringPtr("Batman"),
+				"last_name":   nil,
+				"email":       stringPtr("customer@example.com"),
+			},
+			resultVal: stringPtr(
+				"9ba53e85b996f6278aa647d8da8f355aafd16149"),
+			resultMaskSchema: make(map[string]serializer.MaskInfo),
+		},
+		{
+			name:  "test3: never mask nil columns",
+			topic: "dbserver.database.customers",
+			cName: "last_name",
+			columns: map[string]*string{
+				"kafkaoffset": stringPtr("87"),
+				"operation":   stringPtr("create"),
+				"id":          stringPtr("1001"),
+				"first_name":  stringPtr("Batman"),
+				"last_name":   nil,
+				"email":       stringPtr("customer@example.com"),
+			},
+			resultVal:        nil,
+			resultMaskSchema: make(map[string]serializer.MaskInfo),
+		},
+		{
+			name:  "test4: mask with case insensitivity",
+			topic: "dbserver.database.justifications",
+			cName: "createdAt",
+			columns: map[string]*string{
+				"kafkaoffset": stringPtr("87"),
+				"operation":   stringPtr("create"),
+				"source":      stringPtr("chrome"),
+				"type":        stringPtr("CLASS"),
+				"createdAt":   stringPtr("2020-09-20 20:56:45"),
+				"email":       stringPtr("customer@example.com"),
+			},
+			resultVal:        stringPtr("2020-09-20 20:56:45"),
+			resultMaskSchema: make(map[string]serializer.MaskInfo),
+		},
+		{
+			name:  "test5: length keys",
+			topic: "dbserver.database.customers",
+			cName: "email_length",
+			columns: map[string]*string{
+				"kafkaoffset": stringPtr("87"),
+				"operation":   stringPtr("create"),
+				"id":          stringPtr("1001"),
+				"first_name":  stringPtr("Batman"),
+				"last_name":   nil,
+				"email":       stringPtr("customer@example.com"),
+			},
+			resultVal:        stringPtr("20"),
+			resultMaskSchema: make(map[string]serializer.MaskInfo),
+		},
+		{
+			name:  "test6: conditionalNonPii unmasking(no match)",
+			topic: "dbserver.database.customers",
+			cName: "email",
+			columns: map[string]*string{
+				"kafkaoffset": stringPtr("87"),
+				"operation":   stringPtr("create"),
+				"id":          stringPtr("1001"),
+				"first_name":  stringPtr("Batman"),
+				"last_name":   stringPtr("DhoniUnmatched"),
+				"email":       stringPtr("customer@practo.com"),
+			},
+			resultVal:        stringPtr("d129eef03b45b9679db4d35922786281ee805877"),
+			resultMaskSchema: make(map[string]serializer.MaskInfo),
+		},
+		{
+			name:  "test7: dependentNonPii unmasking(match)",
+			topic: "dbserver.database.customers",
+			cName: "first_name",
+			columns: map[string]*string{
+				"kafkaoffset": stringPtr("87"),
+				"operation":   stringPtr("create"),
+				"id":          stringPtr("1001"),
+				"first_name":  stringPtr("Batman"),
+				"last_name":   stringPtr("Dhoni"),
+				"email":       stringPtr("customer@example.com"),
+			},
+			resultVal:        stringPtr("Batman"),
+			resultMaskSchema: make(map[string]serializer.MaskInfo),
+		},
+		{
+			name:  "test8: dependentNonPii unmasking(no match)",
+			topic: "dbserver.database.customers",
+			cName: "first_name",
+			columns: map[string]*string{
+				"kafkaoffset": stringPtr("87"),
+				"operation":   stringPtr("create"),
+				"id":          stringPtr("1001"),
+				"first_name":  stringPtr("Batman"),
+				"last_name":   stringPtr("DhoniUnmatched"),
+				"email":       stringPtr("customer@example.com"),
+			},
+			resultVal: stringPtr("9ba53e85b996f6278aa647d8da8f355aafd16149"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"kafkaoffset": serializer.MaskInfo{},
+				"operation":   serializer.MaskInfo{},
+				"id": serializer.MaskInfo{
+					Masked: false, SortCol: true},
+				"first_name": serializer.MaskInfo{Masked: true}, // first name may not be masked but masked should always come as true as it is depdenent Non Pii
+				"last_name":  serializer.MaskInfo{Masked: true},
+				"email": serializer.MaskInfo{
+					Masked: true, DistCol: true, LengthCol: true},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			testMasker(
+				t, salt, dir, tc.topic,
+				tc.cName, tc.columns, tc.resultVal, tc.resultMaskSchema)
 		})
 	}
 }
