@@ -26,7 +26,7 @@ The pipeline is a combination of multiple services deployment independently.
 ```
 - **Schema Registry** Deployment using helm charts. (TODO instructions)
 
-Note: Redshiftsink [supports masking.](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/MASKING.md).
+Note: Redshiftsink [supports masking](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/MASKING.md).
 
 ## Contribute
 This repo holds the code for redshiftsink only. Please follow [this](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/README.md#contributing).
