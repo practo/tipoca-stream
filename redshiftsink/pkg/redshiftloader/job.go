@@ -136,15 +136,6 @@ func StringMapToJob(data map[string]interface{}) Job {
 
 // ToStringMap returns a map representation of the Job
 func (c Job) ToStringMap() map[string]interface{} {
-	datumIn := map[string]interface{}{
-		"upstreamTopic": c.UpstreamTopic,
-		"startOffset":   c.StartOffset,
-		"endOffset":     c.EndOffset,
-		"csvDialect":    c.CsvDialect,
-		"s3Path":        c.S3Path,
-		"schemaId":      c.SchemaId,
-	}
-
 	var mschema []maskSchema
 	if len(c.MaskSchema) != 0 {
 		for key, value := range c.MaskSchema {
@@ -156,8 +147,15 @@ func (c Job) ToStringMap() map[string]interface{} {
 				LengthCol: value.LengthCol,
 			})
 		}
-		datumIn["maskSchema"] = mschema
 	}
 
-	return datumIn
+	return map[string]interface{}{
+		"upstreamTopic": c.UpstreamTopic,
+		"startOffset":   c.StartOffset,
+		"endOffset":     c.EndOffset,
+		"csvDialect":    c.CsvDialect,
+		"s3Path":        c.S3Path,
+		"schemaId":      c.SchemaId,
+		"maskSchema":    mschema,
+	}
 }
