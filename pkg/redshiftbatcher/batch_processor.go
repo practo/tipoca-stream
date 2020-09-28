@@ -314,7 +314,7 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 
 	b.bodyBuf.Write(message.Value.([]byte))
 	b.bodyBuf.Write([]byte{'\n'})
-	if b.maskSchema == nil {
+	if b.maskMessages && len(b.maskSchema) == 0 {
 		b.maskSchema = message.MaskSchema
 	}
 
