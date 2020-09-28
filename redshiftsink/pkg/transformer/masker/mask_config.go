@@ -41,6 +41,16 @@ type MaskConfig struct {
 	regexes map[string]*regexp.Regexp
 }
 
+func loweredKeys(keys map[string][]string) {
+	for table, columns := range keys {
+		var loweredColumns []string
+		for _, column := range columns {
+			loweredColumns = append(loweredColumns, strings.ToLower(column))
+		}
+		keys[table] = loweredColumns
+	}
+}
+
 // TODO: document the convention to specify configuration files
 // Convention: Explained with an example:
 // Say topic="datapipe.inventory.customers"
@@ -66,13 +76,10 @@ func NewMaskConfig(dir string, topic string) (MaskConfig, error) {
 	}
 
 	// convert to lower case, redshift works with lowercase
-	for table, columns := range maskConfig.NonPiiKeys {
-		var loweredColumns []string
-		for _, column := range columns {
-			loweredColumns = append(loweredColumns, strings.ToLower(column))
-		}
-		maskConfig.NonPiiKeys[table] = loweredColumns
-	}
+	loweredKeys(maskConfig.NonPiiKeys)
+	loweredKeys(maskConfig.LengthKeys)
+	loweredKeys(maskConfig.SortKeys)
+	loweredKeys(maskConfig.DistKeys)
 
 	maskConfig.regexes = make(map[string]*regexp.Regexp)
 
