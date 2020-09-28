@@ -281,6 +281,24 @@ func TestMasker(t *testing.T) {
 				"dob": serializer.MaskInfo{Masked: true},
 			},
 		},
+		{
+			name:  "test10: mask with case insensitivity (sort keys)",
+			topic: "dbserver.database.justifications",
+			cName: "createdat", // lower case
+			columns: map[string]*string{
+				"source":    stringPtr("chrome"),
+				"type":      stringPtr("CLASS"),
+				"createdat": stringPtr("2020-09-20 20:56:45"), // lower case
+				"email":     stringPtr("customer@example.com"),
+			},
+			resultVal: stringPtr("2020-09-20 20:56:45"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"source":    serializer.MaskInfo{DistCol: true},
+				"type":      serializer.MaskInfo{},
+				"createdat": serializer.MaskInfo{SortCol: true},
+				"email":     serializer.MaskInfo{Masked: true},
+			},
+		},
 	}
 
 	for _, tc := range tests {

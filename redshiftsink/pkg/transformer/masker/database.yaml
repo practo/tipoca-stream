@@ -25,6 +25,10 @@ length_keys:
 sort_keys:
     customers:
     - id
+    justifications:
+    - createdAt
 dist_keys:
     customers:
     - email
+    justifications:
+    - source
