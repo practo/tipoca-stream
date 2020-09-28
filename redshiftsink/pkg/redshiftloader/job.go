@@ -13,8 +13,40 @@ var JobAvroSchema string = `{
         {"name": "endOffset", "type": "long"},
         {"name": "csvDialect", "type": "string"},
         {"name": "s3Path", "type": "string"},
-        {"name": "schemaId", "type": "int"}
-    ]
+        {"name": "schemaId", "type": "int"},
+		{
+			"name": "maskSchema",
+			"type": {
+				"type": "array",
+				"items": {
+					"name": "maskSchema_record",
+					"type": "record",
+					"fields": [
+						{
+							"name": "Name",
+							"type": "string"
+						},
+						{
+							"name": "Masked",
+							"type": "boolean"
+						},
+						{
+							"name": "SortCol",
+							"type": "boolean"
+						},
+						{
+							"name": "DistCol",
+							"type": "boolean"
+						},
+						{
+							"name": "LengthCol",
+							"type": "boolean"
+						}
+					]
+				}
+			}
+		}
+	]
 }`
 
 type Job struct {
@@ -41,6 +73,14 @@ func NewJob(
 		SchemaId:      schemaId,
 		MaskSchema:    maskSchema,
 	}
+}
+
+type maskSchema struct {
+	Name      string
+	Masked    bool
+	SortCol   bool
+	DistCol   bool
+	LengthCol bool
 }
 
 // StringMapToUser returns a User from a map representation of the User.
@@ -71,11 +111,22 @@ func StringMapToJob(data map[string]interface{}) Job {
 		case "schemaId":
 			if value, ok := v.(int32); ok {
 				job.SchemaId = int(value)
+			} else if value, ok := v.(int); ok {
+				job.SchemaId = value
 			}
 		case "maskSchema":
-			if value, ok := v.(map[string]serializer.MaskInfo); ok {
-				job.MaskSchema = value
+			schema := make(map[string]serializer.MaskInfo)
+			if value, ok := v.([]maskSchema); ok {
+				for _, s := range value {
+					schema[s.Name] = serializer.MaskInfo{
+						Masked:    s.Masked,
+						SortCol:   s.SortCol,
+						DistCol:   s.DistCol,
+						LengthCol: s.LengthCol,
+					}
+				}
 			}
+			job.MaskSchema = schema
 		}
 
 	}
@@ -85,13 +136,28 @@ func StringMapToJob(data map[string]interface{}) Job {
 
 // ToStringMap returns a map representation of the Job
 func (c Job) ToStringMap() map[string]interface{} {
-	return map[string]interface{}{
+	datumIn := map[string]interface{}{
 		"upstreamTopic": c.UpstreamTopic,
 		"startOffset":   c.StartOffset,
 		"endOffset":     c.EndOffset,
 		"csvDialect":    c.CsvDialect,
 		"s3Path":        c.S3Path,
 		"schemaId":      c.SchemaId,
-		"maskSchema":    c.MaskSchema,
 	}
+
+	var mschema []maskSchema
+	if len(c.MaskSchema) != 0 {
+		for key, value := range c.MaskSchema {
+			mschema = append(mschema, maskSchema{
+				Name:      key,
+				Masked:    value.Masked,
+				SortCol:   value.SortCol,
+				DistCol:   value.DistCol,
+				LengthCol: value.LengthCol,
+			})
+		}
+		datumIn["maskSchema"] = mschema
+	}
+
+	return datumIn
 }
