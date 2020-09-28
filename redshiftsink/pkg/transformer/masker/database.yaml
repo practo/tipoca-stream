@@ -7,11 +7,23 @@ non_pii_keys:
     - createdAt
     - updatedAt
 conditional_non_pii_keys:
+    justifications:
+        justice:
+        - 'mahatma'
+        # test for case insensitivity
+        Reason:
+        - 'want'
     customers:
         email:
         - '%example.com'
         - '%exampledev.com'
 dependent_non_pii_keys:
+    justifications::
+        # test for case insensitivity
+        Justice:
+            # test for case insensitivity
+            Reason:
+            - 'want'
     customers:
         # dependentColumnName
         first_name:
@@ -25,6 +37,10 @@ length_keys:
 sort_keys:
     customers:
     - id
+    justifications:
+    - createdAt
 dist_keys:
     customers:
     - email
+    justifications:
+    - source
