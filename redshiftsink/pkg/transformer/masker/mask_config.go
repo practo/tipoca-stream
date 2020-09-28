@@ -176,7 +176,7 @@ func (m MaskConfig) DependentNonPiiKey(table, cName string) bool {
 }
 
 // PerformUnMasking checks if unmasking should be done or not
-func (m MaskConfig) PerformUnMasking(table, cName string, cValue string,
+func (m MaskConfig) PerformUnMasking(table, cName string, cValue *string,
 	allColumns map[string]*string) bool {
 
 	cName = strings.ToLower(cName)
@@ -188,7 +188,7 @@ func (m MaskConfig) PerformUnMasking(table, cName string, cValue string,
 
 	if m.unMaskNonPiiKeys(table, cName) ||
 		m.unMaskConditionalNonPiiKeys(table, cName, cValue) ||
-		m.unMaskDependentNonPiiKeys(table, cName, cValue, allColumns) {
+		m.unMaskDependentNonPiiKeys(table, cName, allColumns) {
 
 		return true
 	}
@@ -212,7 +212,10 @@ func (m MaskConfig) unMaskNonPiiKeys(table, cName string) bool {
 }
 
 func (m MaskConfig) unMaskConditionalNonPiiKeys(
-	table, cName string, cValue string) bool {
+	table, cName string, cValue *string) bool {
+	if cValue == nil {
+		return false
+	}
 
 	columnsToCheckRaw, ok := m.ConditionalNonPiiKeys[table]
 	if !ok {
@@ -256,7 +259,7 @@ func (m MaskConfig) unMaskConditionalNonPiiKeys(
 				m.regexes[pattern] = regex
 			}
 
-			if regex.MatchString(cValue) {
+			if regex.MatchString(*cValue) {
 				return true
 			}
 		}
@@ -266,7 +269,7 @@ func (m MaskConfig) unMaskConditionalNonPiiKeys(
 }
 
 func (m MaskConfig) unMaskDependentNonPiiKeys(
-	table, cName string, cValue string, allColumns map[string]*string) bool {
+	table, cName string, allColumns map[string]*string) bool {
 
 	// if table not in config, no unmasking required
 	columnsToCheckRaw, ok := m.DependentNonPiiKeys[table]
