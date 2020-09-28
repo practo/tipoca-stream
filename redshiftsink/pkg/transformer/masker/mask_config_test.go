@@ -13,7 +13,7 @@ func testMasked(t *testing.T, dir, topic, table, cName, cValue string,
 		t.Error(err)
 	}
 
-	gotResult := m.PerformUnMasking(table, cName, cValue, allColumns)
+	gotResult := m.PerformUnMasking(table, cName, &cValue, allColumns)
 	if gotResult != result {
 		t.Errorf(
 			"Expected column: %v to have mask=%v in table:%v, got mask=%v\n",
