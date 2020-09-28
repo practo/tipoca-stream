@@ -69,35 +69,34 @@ func (m *masker) Transform(
 	maskSchema := make(map[string]serializer.MaskInfo)
 
 	for cName, cVal := range rawColumns {
-		if cVal == nil {
-			columns[cName] = nil
-			// nil value is not masked but its schema should have masked type
-			maskInfo := serializer.MaskInfo{Masked: true}
-			maskSchema[cName] = maskInfo
-			continue
-		}
-
-		unmasked := m.config.PerformUnMasking(m.table, cName, *cVal, rawColumns)
+		unmasked := m.config.PerformUnMasking(m.table, cName, cVal, rawColumns)
 		sortKey := m.config.SortKey(m.table, cName)
 		distKey := m.config.DistKey(m.table, cName)
 		lengthKey := m.config.LengthKey(m.table, cName)
 
 		if lengthKey {
+			var length int
+			if cVal != nil {
+				length = len(*cVal)
+			}
 			extraColumns[cName+transformer.LengthColumnSuffix] = stringPtr(
-				strconv.Itoa(len(*cVal)),
+				strconv.Itoa(length),
 			)
 		}
-		if unmasked {
+
+		if cVal == nil {
+			columns[cName] = nil
+		} else if unmasked {
 			columns[cName] = cVal
 		} else {
 			columns[cName] = mask(*cVal, m.salt)
 		}
 
-		// Since we do not know what will happen in future and what value
-		// can the column hold, if a row is defined as dependent or conditional
-		//  non pii then value in the row is masked based on the condition ^
-		// but its type is always a masked type(string).
-		// This change is to enable that.
+		// This determines the type of the mask schema, the value is taken care
+		// above so now we can decide what should be the type of the column
+		// based on whether it is defined as any of the following keys
+		// (overide for these)
+		// 1. DependentNonPii 2. ConditionalNonPii
 		if m.config.DependentNonPiiKey(m.table, cName) ||
 			m.config.ConditionalNonPiiKey(m.table, cName) {
 			unmasked = false
