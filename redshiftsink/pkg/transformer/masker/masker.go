@@ -83,11 +83,18 @@ func (m *masker) Transform(
 		lengthKey := m.config.LengthKey(m.table, cName)
 
 		if lengthKey {
+			var length int
+			if cVal != nil {
+				length = len(*cVal)
+			}
 			extraColumns[cName+transformer.LengthColumnSuffix] = stringPtr(
-				strconv.Itoa(len(*cVal)),
+				strconv.Itoa(length),
 			)
 		}
-		if unmasked {
+
+		if cVal == nil {
+			columns[cName] = nil
+		} else if unmasked {
 			columns[cName] = cVal
 		} else {
 			columns[cName] = mask(*cVal, m.salt)
