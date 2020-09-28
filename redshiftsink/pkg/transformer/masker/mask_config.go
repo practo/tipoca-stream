@@ -132,41 +132,44 @@ func (m MaskConfig) DistKey(table, cName string) bool {
 }
 
 func (m MaskConfig) ConditionalNonPiiKey(table, cName string) bool {
-	columnsRaw, ok := m.ConditionalNonPiiKeys[table]
+	columnsToCheckRaw, ok := m.ConditionalNonPiiKeys[table]
 	if !ok {
 		return false
 	}
-
-	columns, ok := columnsRaw.(map[interface{}]interface{})
+	columnsToCheck, ok := columnsToCheckRaw.(map[interface{}]interface{})
 	if !ok {
 		klog.Fatalf(
-			"Type assertion error! table: %s, cName: %s\n", table, cName,
-		)
+			"Type assertion error! table: %s, cName: %s\n", table, cName)
 	}
 
-	_, ok = columns[cName]
-	if ok {
-		return true
+	for columnNameRaw, _ := range columnsToCheck {
+		columnName := columnNameRaw.(string)
+		columnName = strings.ToLower(columnName)
+		if columnName == cName {
+			return true
+		}
 	}
 
 	return false
 }
 
 func (m MaskConfig) DependentNonPiiKey(table, cName string) bool {
-	columnsRaw, ok := m.DependentNonPiiKeys[table]
+	columnsToCheckRaw, ok := m.DependentNonPiiKeys[table]
 	if !ok {
 		return false
 	}
-
-	columns, ok := columnsRaw.(map[interface{}]interface{})
+	columnsToCheck, ok := columnsToCheckRaw.(map[interface{}]interface{})
 	if !ok {
 		klog.Fatalf(
-			"Type assertion error! table: %s, cName: %s\n", table, cName,
-		)
+			"Type assertion error! table: %s, cName: %s\n", table, cName)
 	}
-	_, ok = columns[cName]
-	if ok {
-		return true
+
+	for dependentColumnNameRaw, _ := range columnsToCheck {
+		dependentColumnName := dependentColumnNameRaw.(string)
+		dependentColumnName = strings.ToLower(dependentColumnName)
+		if dependentColumnName == cName {
+			return true
+		}
 	}
 
 	return false
@@ -215,6 +218,7 @@ func (m MaskConfig) unMaskConditionalNonPiiKeys(
 	if !ok {
 		return false
 	}
+
 	columnsToCheck, ok := columnsToCheckRaw.(map[interface{}]interface{})
 	if !ok {
 		klog.Fatalf(
@@ -223,6 +227,7 @@ func (m MaskConfig) unMaskConditionalNonPiiKeys(
 
 	for columnNameRaw, patternsR := range columnsToCheck {
 		columnName := columnNameRaw.(string)
+		columnName = strings.ToLower(columnName)
 		if columnName != cName {
 			continue
 		}
@@ -240,6 +245,7 @@ func (m MaskConfig) unMaskConditionalNonPiiKeys(
 			// replace sql patterns with regex patterns
 			// TODO: cover all cases :pray
 			pattern = strings.ReplaceAll(pattern, "%", ".*")
+			pattern = "^" + pattern + "$"
 			regex, ok := m.regexes[pattern]
 			if !ok {
 				regex, err = regexp.Compile(pattern)
@@ -267,6 +273,7 @@ func (m MaskConfig) unMaskDependentNonPiiKeys(
 	if !ok {
 		return false
 	}
+
 	columnsToCheck, ok := columnsToCheckRaw.(map[interface{}]interface{})
 	if !ok {
 		klog.Fatalf(
@@ -275,6 +282,7 @@ func (m MaskConfig) unMaskDependentNonPiiKeys(
 
 	for dependentColumnNameRaw, providerColumnRaw := range columnsToCheck {
 		dependentColumnName := dependentColumnNameRaw.(string)
+		dependentColumnName = strings.ToLower(dependentColumnName)
 		if dependentColumnName != cName {
 			continue
 		}
@@ -288,6 +296,7 @@ func (m MaskConfig) unMaskDependentNonPiiKeys(
 
 		for providerColumnNameRaw, valuesRaw := range providerColumn {
 			providerColumnName := providerColumnNameRaw.(string)
+			providerColumnName = strings.ToLower(providerColumnName)
 			values := valuesRaw.([]interface{})
 			for _, valueRaw := range values {
 
