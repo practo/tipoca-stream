@@ -588,7 +588,7 @@ func (b *loadProcessor) processBatch(
 				resp, err := b.schemaTransformer.TransformValue(
 					b.upstreamTopic,
 					schemaId,
-					message.MaskSchema,
+					job.MaskSchema,
 				)
 				if err != nil {
 					klog.Fatalf(

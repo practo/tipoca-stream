@@ -1,7 +1,9 @@
 package redshiftloader
 
 import (
+	"fmt"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
+	"strings"
 )
 
 var JobAvroSchema string = `{
@@ -13,7 +15,8 @@ var JobAvroSchema string = `{
         {"name": "endOffset", "type": "long"},
         {"name": "csvDialect", "type": "string"},
         {"name": "s3Path", "type": "string"},
-        {"name": "schemaId", "type": "int"}
+        {"name": "schemaId", "type": "int"},
+        {"name": "maskSchema", "type": "string"}
     ]
 }`
 
@@ -71,16 +74,82 @@ func StringMapToJob(data map[string]interface{}) Job {
 		case "schemaId":
 			if value, ok := v.(int32); ok {
 				job.SchemaId = int(value)
+			} else if value, ok := v.(int); ok {
+				job.SchemaId = value
 			}
 		case "maskSchema":
-			if value, ok := v.(map[string]serializer.MaskInfo); ok {
-				job.MaskSchema = value
+			schema := make(map[string]serializer.MaskInfo)
+			if value, ok := v.(string); ok {
+				schema = ToSchemaMap(value)
 			}
+			job.MaskSchema = schema
 		}
 
 	}
 
 	return job
+}
+
+// TODO: hack, to release fast, found unwanted complications in
+// using map[string]interface in goavro(will revisit)
+func ToSchemaMap(r string) map[string]serializer.MaskInfo {
+	m := make(map[string]serializer.MaskInfo)
+
+	columns := strings.Split(r, "|")
+	if len(columns) == 0 {
+		return m
+	}
+
+	for _, col := range columns {
+		if col == "" {
+			continue
+		}
+
+		info := strings.Split(col, ",")
+		name := info[0]
+		var masked, sortCol, distCol, lengthCol bool
+		if info[1] == "true" {
+			masked = true
+		}
+		if info[2] == "true" {
+			sortCol = true
+		}
+		if info[3] == "true" {
+			distCol = true
+		}
+		if info[4] == "true" {
+			lengthCol = true
+		}
+
+		m[name] = serializer.MaskInfo{
+			Masked:    masked,
+			SortCol:   sortCol,
+			DistCol:   distCol,
+			LengthCol: lengthCol,
+		}
+	}
+
+	return m
+}
+
+// TODO: hack, to release fast, found unwanted complications in
+// using map[string]interface in goavro (will revisit)
+func ToSchemaString(m map[string]serializer.MaskInfo) string {
+	var r string
+
+	for name, info := range m {
+		col := fmt.Sprintf(
+			"%s,%t,%t,%t,%t",
+			name,
+			info.Masked,
+			info.SortCol,
+			info.DistCol,
+			info.LengthCol,
+		)
+		r = r + col + "|"
+	}
+
+	return r
 }
 
 // ToStringMap returns a map representation of the Job
@@ -92,6 +161,6 @@ func (c Job) ToStringMap() map[string]interface{} {
 		"csvDialect":    c.CsvDialect,
 		"s3Path":        c.S3Path,
 		"schemaId":      c.SchemaId,
-		"maskSchema":    c.MaskSchema,
+		"maskSchema":    ToSchemaString(c.MaskSchema),
 	}
 }

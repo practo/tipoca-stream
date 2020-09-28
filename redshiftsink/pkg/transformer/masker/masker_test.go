@@ -255,6 +255,32 @@ func TestMasker(t *testing.T) {
 					Masked: true, DistCol: true, LengthCol: true},
 			},
 		},
+		{
+			name:  "test9: mask schema test when field is not in config)",
+			topic: "dbserver.database.customers",
+			cName: "dob",
+			columns: map[string]*string{
+				"kafkaoffset": stringPtr("87"),
+				"operation":   stringPtr("create"),
+				"id":          stringPtr("1001"),
+				"first_name":  stringPtr("Batman"),
+				"last_name":   stringPtr("DhoniUnmatched"),
+				"email":       stringPtr("customer@example.com"),
+				"dob":         stringPtr("1998-01-10"),
+			},
+			resultVal: stringPtr("b944b9b788724a0c474c5758e55529ebd44e7d48"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"kafkaoffset": serializer.MaskInfo{},
+				"operation":   serializer.MaskInfo{},
+				"id": serializer.MaskInfo{
+					Masked: false, SortCol: true},
+				"first_name": serializer.MaskInfo{Masked: true}, // first name may not be masked but masked should always come as true as it is depdenent Non Pii
+				"last_name":  serializer.MaskInfo{Masked: true},
+				"email": serializer.MaskInfo{
+					Masked: true, DistCol: true, LengthCol: true},
+				"dob": serializer.MaskInfo{Masked: true},
+			},
+		},
 	}
 
 	for _, tc := range tests {

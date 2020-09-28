@@ -71,7 +71,8 @@ func (m *masker) Transform(
 	for cName, cVal := range rawColumns {
 		if cVal == nil {
 			columns[cName] = nil
-			maskInfo := serializer.MaskInfo{}
+			// nil value is not masked but its schema should have masked type
+			maskInfo := serializer.MaskInfo{Masked: true}
 			maskSchema[cName] = maskInfo
 			continue
 		}
