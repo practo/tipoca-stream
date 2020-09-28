@@ -123,6 +123,20 @@ func TestMaskConfig(t *testing.T) {
 				"email":      stringPtr("customer@practo.com"),
 			},
 		},
+		{
+			name:     "test8: mask test when field is not in config",
+			topic:    "dbserver.database.customers",
+			table:    "customers",
+			cName:    "dob",
+			cValue:   "customer@practo.com",
+			unMasked: false,
+			allColumns: map[string]*string{
+				"first_name": stringPtr("Customer"),
+				"last_name":  stringPtr("Hawking"),
+				"email":      stringPtr("customer@practo.com"),
+				"dob":        stringPtr("1998-01-10"),
+			},
+		},
 	}
 	for _, tc := range tests {
 		tc := tc
