@@ -72,12 +72,12 @@ func (m *masker) Transform(
 		if cVal == nil {
 			columns[cName] = nil
 			// nil value is not masked but its schema should have masked type
-			maskInfo := serializer.MaskInfo{Masked: true}
+			maskInfo := serializer.MaskInfo{Masked: false}
 			maskSchema[cName] = maskInfo
 			continue
 		}
 
-		unmasked := m.config.PerformUnMasking(m.table, cName, *cVal, rawColumns)
+		unmasked := m.config.PerformUnMasking(m.table, cName, cVal, rawColumns)
 		sortKey := m.config.SortKey(m.table, cName)
 		distKey := m.config.DistKey(m.table, cName)
 		lengthKey := m.config.LengthKey(m.table, cName)
