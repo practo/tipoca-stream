@@ -16,8 +16,8 @@ var JobAvroSchema string = `{
         {"name": "csvDialect", "type": "string"},
         {"name": "s3Path", "type": "string"},
         {"name": "schemaId", "type": "int"},
-		{"name": "maskSchema", "type": "string"},
-	]
+        {"name": "maskSchema", "type": "string"}
+    ]
 }`
 
 type Job struct {
