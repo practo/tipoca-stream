@@ -78,7 +78,7 @@ func testMasker(t *testing.T, salt, dir, topic, cName string,
 		for column, maskInfo := range resultMaskSchema {
 			maskColumn, ok := message.MaskSchema[column]
 			if !ok {
-				t.Errorf("column=%v, maskColumn=%v missing\n", column, maskInfo)
+				t.Errorf("column=%+v, maskColumn=%+v missing\n", column, maskInfo)
 				continue
 			}
 			if maskColumn.Masked != maskInfo.Masked ||
@@ -282,7 +282,7 @@ func TestMasker(t *testing.T) {
 			},
 		},
 		{
-			name:  "test10: mask with case insensitivity (sort keys)",
+			name:  "test10: case insensitivity (sort keys, dist keys)",
 			topic: "dbserver.database.justifications",
 			cName: "createdat", // lower case
 			columns: map[string]*string{
@@ -297,6 +297,48 @@ func TestMasker(t *testing.T) {
 				"type":      serializer.MaskInfo{},
 				"createdat": serializer.MaskInfo{SortCol: true},
 				"email":     serializer.MaskInfo{Masked: true},
+			},
+		},
+		{
+			name:  "test11: case insensitivity1 (conditionalNonPii)",
+			topic: "dbserver.database.justifications",
+			cName: "reason",
+			columns: map[string]*string{
+				"justice": stringPtr("mohan"),
+				"reason":  stringPtr("want"),
+			},
+			resultVal: stringPtr("want"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"justice": serializer.MaskInfo{Masked: true},
+				"reason":  serializer.MaskInfo{Masked: true},
+			},
+		},
+		{
+			name:  "test12: case insensitivity2 (conditionalNonPii)",
+			topic: "dbserver.database.justifications",
+			cName: "reason",
+			columns: map[string]*string{
+				"justice": stringPtr("mahatma"),
+				"reason":  stringPtr("wanted"),
+			},
+			resultVal: stringPtr("f08c46950f7d175e58d4dd989f7475f3c8184ff3"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"justice": serializer.MaskInfo{Masked: true},
+				"reason":  serializer.MaskInfo{Masked: true},
+			},
+		},
+		{
+			name:  "test13: case insensitivity (dependentNonPii)",
+			topic: "dbserver.database.justifications",
+			cName: "justice",
+			columns: map[string]*string{
+				"justice": stringPtr("mahatma"),
+				"reason":  stringPtr("want"),
+			},
+			resultVal: stringPtr("mahatma"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"justice": serializer.MaskInfo{Masked: true},
+				"reason":  serializer.MaskInfo{Masked: true},
 			},
 		},
 	}
