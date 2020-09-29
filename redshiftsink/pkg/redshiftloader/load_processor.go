@@ -518,7 +518,9 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 	if !tableExist {
 		err = b.redshifter.CreateTable(tx, inputTable)
 		if err != nil {
-			klog.Fatalf("Error creating table, err: %v\n", err)
+			klog.Fatalf(
+				"Error creating table: %+v, err: %v\n",
+				inputTable, err)
 		}
 		err = tx.Commit()
 		if err != nil {
