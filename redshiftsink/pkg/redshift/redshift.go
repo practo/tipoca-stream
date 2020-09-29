@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	RedshiftString         = "character varying"
 	RedshiftMaskedDataType = "character varying(50)"
 	RedshiftDate           = "date"
 	RedshiftInteger        = "integer"
@@ -270,7 +271,7 @@ func getColumnSQL(c ColInfo) string {
 	// currently we don't support that
 	defaultVal := ""
 	if c.DefaultVal != "" {
-		if strings.Contains(c.Type, "character varying") {
+		if strings.Contains(c.Type, RedshiftString) {
 			defaultVal = fmt.Sprintf("DEFAULT '%s'", c.DefaultVal)
 		} else {
 			defaultVal = fmt.Sprintf("DEFAULT %s", c.DefaultVal)
@@ -822,7 +823,7 @@ func checkColumnsAndOrdering(
 
 func ConvertDefaultValue(val string) string {
 	if val != "" {
-		return "'" + val + "'" + "::character varying"
+		return "'" + val + "'" + "::" + RedshiftString
 	}
 
 	return val
@@ -840,7 +841,7 @@ var debeziumToRedshiftTypeMap = map[string]string{
 	"int32":   RedshiftInteger,
 	"long":    "bigint",
 	"bigint":  "bigint",
-	"string":  "character varying(256)",
+	"string":  RedshiftString,
 }
 
 var mysqlToRedshiftTypeMap = map[string]string{
@@ -851,14 +852,14 @@ var mysqlToRedshiftTypeMap = map[string]string{
 	"boolean":                     "boolean",
 	"date":                        RedshiftDate,
 	"year":                        RedshiftDate,
-	"binary":                      "character varying(256)",
-	"char":                        "character varying(256)",
-	"set":                         "character varying(256)",
-	"enum":                        "character varying(256)",
-	"longblob":                    "character varying(256)",
-	"mediumblob":                  "character varying(256)",
-	"tinyblob":                    "character varying(256)",
-	"varchar":                     "character varying(256)",
+	"binary":                      RedshiftString,
+	"char":                        RedshiftString,
+	"set":                         RedshiftString,
+	"enum":                        RedshiftString,
+	"longblob":                    RedshiftString,
+	"mediumblob":                  RedshiftString,
+	"tinyblob":                    RedshiftString,
+	"varchar":                     RedshiftString,
 	"blob":                        "character varying(65535)",
 	"longtext":                    "character varying(65535)",
 	"mediumtext":                  "character varying(65535)",
@@ -888,9 +889,23 @@ var mysqlToRedshiftTypeMap = map[string]string{
 	"float":                       "real",
 }
 
+// applyLength applies the length passed otherwise adds default
+// TODO: only takes care of string length, numeric and other types pending
+func applyLength(redshiftType string, sourceColLength string) string {
+	switch redshiftType {
+	case RedshiftString:
+		if sourceColLength == "" {
+			sourceColLength = "256" //default
+		}
+		return fmt.Sprintf("%s(%s)", redshiftType, sourceColLength)
+	default:
+		return redshiftType
+	}
+}
+
 // GetRedshiftDataType returns the mapped type for the sqlType's data type
-func GetRedshiftDataType(sqlType, debeziumType,
-	sourceColType string, columnMasked bool) (string, error) {
+func GetRedshiftDataType(sqlType, debeziumType, sourceColType,
+	sourceColLength string, columnMasked bool) (string, error) {
 
 	if columnMasked == true {
 		return RedshiftMaskedDataType, nil
@@ -903,12 +918,12 @@ func GetRedshiftDataType(sqlType, debeziumType,
 	case "mysql":
 		redshiftType, ok := mysqlToRedshiftTypeMap[sourceColType]
 		if ok {
-			return redshiftType, nil
+			return applyLength(redshiftType, sourceColLength), nil
 		}
 		// default is the debeziumType
 		redshiftType, ok = debeziumToRedshiftTypeMap[debeziumType]
 		if ok {
-			return redshiftType, nil
+			return applyLength(redshiftType, sourceColLength), nil
 		}
 		return "", fmt.Errorf(
 			"Type: %s, SourceType: %s, not handled\n",
