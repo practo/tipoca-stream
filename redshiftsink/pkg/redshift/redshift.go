@@ -273,8 +273,6 @@ func getColumnSQL(c ColInfo) string {
 	if c.DefaultVal != "" {
 		if strings.Contains(c.Type, RedshiftString) {
 			defaultVal = fmt.Sprintf("DEFAULT '%s'", c.DefaultVal)
-		} else {
-			defaultVal = fmt.Sprintf("DEFAULT %s", c.DefaultVal)
 		}
 	}
 	notNull := ""
