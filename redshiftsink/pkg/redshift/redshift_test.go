@@ -95,7 +95,7 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 			debeziumType:   "double",
 			sourceColType:  "double",
 			columnMasked:   false,
-			expectedResult: "double",
+			expectedResult: "double precision",
 			expectError:    false,
 		},
 	}
