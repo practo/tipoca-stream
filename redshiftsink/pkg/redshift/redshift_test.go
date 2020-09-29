@@ -89,6 +89,15 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 			expectedResult: RedshiftMaskedDataType,
 			expectError:    false,
 		},
+		{
+			name:           "test6: test type double",
+			sqlType:        "mysql",
+			debeziumType:   "double",
+			sourceColType:  "double",
+			columnMasked:   false,
+			expectedResult: "double",
+			expectError:    false,
+		},
 	}
 
 	for _, tc := range tests {
