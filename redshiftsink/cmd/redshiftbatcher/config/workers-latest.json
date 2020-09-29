@@ -28,7 +28,7 @@
     {
         "directory": "/",
         "command": "/redshiftbatcher",
-        "args": ["-v=2", "--config=/config1.yaml"],
+        "args": ["-v=2", "--config=/config2.yaml"],
         "name": "redshiftbatcher2",
         "deploymentStrategy": "recreate",
         "resources": {
