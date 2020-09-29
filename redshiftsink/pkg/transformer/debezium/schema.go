@@ -353,6 +353,7 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 			d.sqlType(),
 			column.Type,
 			column.SourceType.ColumnType,
+			column.SourceType.ColumnLength,
 			columnMasked,
 		)
 		if err != nil {
