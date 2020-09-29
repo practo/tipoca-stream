@@ -239,12 +239,7 @@ func (m MaskConfig) unMaskConditionalNonPiiKeys(
 
 		var err error
 		for _, patternRaw := range patternsRaw {
-			pattern, ok := patternRaw.(string)
-			if !ok {
-				klog.Fatalf(
-					"Type assertion error! table: %s, cName: %s\n", table, cName)
-			}
-
+			pattern := fmt.Sprintf("%v", patternRaw)
 			// replace sql patterns with regex patterns
 			// TODO: cover all cases :pray
 			pattern = strings.ReplaceAll(pattern, "%", ".*")
@@ -303,7 +298,7 @@ func (m MaskConfig) unMaskDependentNonPiiKeys(
 			values := valuesRaw.([]interface{})
 			for _, valueRaw := range values {
 
-				value := valueRaw.(string)
+				value := fmt.Sprintf("%v", valueRaw)
 				pcValue, ok := allColumns[providerColumnName]
 				if !ok {
 					continue
@@ -311,7 +306,7 @@ func (m MaskConfig) unMaskDependentNonPiiKeys(
 				if pcValue == nil {
 					continue
 				}
-				if ok && fmt.Sprintf("%s", value) == *pcValue {
+				if ok && value == *pcValue {
 					return true
 				}
 			}

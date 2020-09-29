@@ -8,16 +8,18 @@ import (
 )
 
 func testRedshiftDataTypeGet(t *testing.T, sqlType, debeziumType,
-	sourceColType string, columnMasked bool, expectedResult string) error {
+	sourceColType, sourceColLength string,
+	columnMasked bool, expectedResult string) error {
 	redshiftType, err := GetRedshiftDataType(
-		sqlType, debeziumType, sourceColType, columnMasked,
+		sqlType, debeziumType, sourceColType, sourceColLength, columnMasked,
 	)
 	if err != nil {
 		return err
 	}
 	if redshiftType != expectedResult {
 		return fmt.Errorf(
-			"Expected redshiftType=character varying(max) got=%v\n",
+			"expected=%s got=%v\n",
+			expectedResult,
 			redshiftType)
 	}
 
@@ -27,76 +29,104 @@ func testRedshiftDataTypeGet(t *testing.T, sqlType, debeziumType,
 func TestRedshiftDataTypeGet(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name           string
-		sqlType        string
-		debeziumType   string
-		sourceColType  string
-		columnMasked   bool
-		expectedResult string
-		expectError    bool
+		name            string
+		sqlType         string
+		debeziumType    string
+		sourceColType   string
+		sourceColLength string
+		columnMasked    bool
+		expectedResult  string
+		expectError     bool
 	}{
 		{
-			name:           "test1: mysql to redshift conversion",
-			sqlType:        "mysql",
-			debeziumType:   "long",
-			sourceColType:  "LONGTEXT",
-			columnMasked:   false,
-			expectedResult: "character varying(65535)",
-			expectError:    false,
+			name:            "test1: mysql to redshift conversion",
+			sqlType:         "mysql",
+			debeziumType:    "long",
+			sourceColType:   "LONGTEXT",
+			sourceColLength: "",
+			columnMasked:    false,
+			expectedResult:  "character varying(65535)",
+			expectError:     false,
 		},
 		{
-			name:           "test2: unknown mysql type",
-			sqlType:        "mysql",
-			debeziumType:   "long",
-			sourceColType:  "UNKNOWN_TYPE",
-			columnMasked:   false,
-			expectedResult: "bigint",
-			expectError:    false,
+			name:            "test2: unknown mysql type",
+			sqlType:         "mysql",
+			debeziumType:    "long",
+			sourceColType:   "UNKNOWN_TYPE",
+			sourceColLength: "",
+			columnMasked:    false,
+			expectedResult:  "bigint",
+			expectError:     false,
 		},
 		{
-			name:           "test3: unsupported sqltype",
-			sqlType:        "mongo",
-			debeziumType:   "long",
-			sourceColType:  "VARCHAR",
-			columnMasked:   false,
-			expectedResult: "",
-			expectError:    true,
+			name:            "test3: unsupported sqltype",
+			sqlType:         "mongo",
+			debeziumType:    "long",
+			sourceColType:   "VARCHAR",
+			sourceColLength: "",
+			columnMasked:    false,
+			expectedResult:  "",
+			expectError:     true,
 		},
 		{
-			name:           "test4: test datatype",
-			sqlType:        "mysql",
-			debeziumType:   "string",
-			sourceColType:  "MEDIUMTEXT",
-			columnMasked:   false,
-			expectedResult: "character varying(65535)",
-			expectError:    false,
+			name:            "test4: test datatype",
+			sqlType:         "mysql",
+			debeziumType:    "string",
+			sourceColType:   "MEDIUMTEXT",
+			sourceColLength: "",
+			columnMasked:    false,
+			expectedResult:  "character varying(65535)",
+			expectError:     false,
 		},
 		{
-			name:           "test5: test masked column datatype",
-			sqlType:        "mysql",
-			debeziumType:   "int",
-			sourceColType:  "INTEGER",
-			columnMasked:   true,
-			expectedResult: RedshiftMaskedDataType,
-			expectError:    false,
+			name:            "test5: test masked column datatype",
+			sqlType:         "mysql",
+			debeziumType:    "int",
+			sourceColType:   "INTEGER",
+			sourceColLength: "",
+			columnMasked:    true,
+			expectedResult:  RedshiftMaskedDataType,
+			expectError:     false,
 		},
 		{
-			name:           "test5: test datetime masking",
-			sqlType:        "mysql",
-			debeziumType:   "timestamp",
-			sourceColType:  "datetime",
-			columnMasked:   true,
-			expectedResult: RedshiftMaskedDataType,
-			expectError:    false,
+			name:            "test5: test datetime masking",
+			sqlType:         "mysql",
+			debeziumType:    "timestamp",
+			sourceColType:   "datetime",
+			sourceColLength: "",
+			columnMasked:    true,
+			expectedResult:  RedshiftMaskedDataType,
+			expectError:     false,
 		},
 		{
-			name:           "test6: test type double",
-			sqlType:        "mysql",
-			debeziumType:   "double",
-			sourceColType:  "double",
-			columnMasked:   false,
-			expectedResult: "double precision",
-			expectError:    false,
+			name:            "test6: test type double",
+			sqlType:         "mysql",
+			debeziumType:    "double",
+			sourceColType:   "double",
+			sourceColLength: "",
+			columnMasked:    false,
+			expectedResult:  "double precision",
+			expectError:     false,
+		},
+		{
+			name:            "test7: string length passed",
+			sqlType:         "mysql",
+			debeziumType:    "string",
+			sourceColType:   "VARCHAR",
+			sourceColLength: "1100",
+			columnMasked:    false,
+			expectedResult:  "character varying(1100)",
+			expectError:     false,
+		},
+		{
+			name:            "test7: string length defaut check",
+			sqlType:         "mysql",
+			debeziumType:    "string",
+			sourceColType:   "VARCHAR",
+			sourceColLength: "",
+			columnMasked:    false,
+			expectedResult:  "character varying(256)",
+			expectError:     false,
 		},
 	}
 
@@ -108,6 +138,7 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 				tc.sqlType,
 				tc.debeziumType,
 				tc.sourceColType,
+				tc.sourceColLength,
 				tc.columnMasked,
 				tc.expectedResult,
 			)
