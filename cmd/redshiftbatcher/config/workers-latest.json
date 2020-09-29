@@ -6,10 +6,10 @@
         "name": "redshiftbatcher0",
         "deploymentStrategy": "recreate",
         "resources": {
-            "requestCpu": "100m",
-            "requestMemory": "300Mi",
-            "limitCpu": "1048m",
-            "limitMemory": "1048Mi"
+            "requestCpu": "50m",
+            "requestMemory": "40Mi",
+            "limitCpu": "200m",
+            "limitMemory": "300Mi"
         }
     },
     {
@@ -19,7 +19,20 @@
         "name": "redshiftbatcher1",
         "deploymentStrategy": "recreate",
         "resources": {
-            "requestCpu": "300m",
+            "requestCpu": "100m",
+            "requestMemory": "100Mi",
+            "limitCpu": "1048m",
+            "limitMemory": "1548Mi"
+        }
+    },
+    {
+        "directory": "/",
+        "command": "/redshiftbatcher",
+        "args": ["-v=2", "--config=/config1.yaml"],
+        "name": "redshiftbatcher2",
+        "deploymentStrategy": "recreate",
+        "resources": {
+            "requestCpu": "200m",
             "requestMemory": "400Mi",
             "limitCpu": "1048m",
             "limitMemory": "1548Mi"
