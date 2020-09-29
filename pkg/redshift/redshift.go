@@ -270,10 +270,9 @@ func getColumnSQL(c ColInfo) string {
 	// currently we don't support that
 	defaultVal := ""
 	if c.DefaultVal != "" {
-		switch c.Type {
-		case "string":
+		if strings.Contains(c.Type, "character varying") {
 			defaultVal = fmt.Sprintf("DEFAULT '%s'", c.DefaultVal)
-		default:
+		} else {
 			defaultVal = fmt.Sprintf("DEFAULT %s", c.DefaultVal)
 		}
 	}
