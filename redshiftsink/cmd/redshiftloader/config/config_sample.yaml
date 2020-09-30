@@ -21,6 +21,7 @@ s3sink:
     bucketDir: "tipoca-stream-redshiftsink"
 redshift:
     schema: "schema-to-operate-on"
+    stats: false
     tableSuffix: ""
     host: "sample-host"
     port: "sample-port"
