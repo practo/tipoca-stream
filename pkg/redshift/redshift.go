@@ -182,6 +182,7 @@ func (r *Redshift) CreateSchema(tx *sql.Tx, schema string) error {
 	if err != nil {
 		return err
 	}
+	defer createStmt.Close()
 
 	_, err = createStmt.ExecContext(r.ctx)
 	return err
@@ -331,6 +332,7 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 	if err != nil {
 		return fmt.Errorf("error preparing statement: %v\n", err)
 	}
+	defer createStmt.Close()
 
 	klog.V(5).Infof("Running: %s with args: %v\n", createSQL, args)
 	_, err = createStmt.ExecContext(r.ctx)
@@ -384,6 +386,7 @@ func (r *Redshift) UpdateTable(
 		if err != nil {
 			return false, fmt.Errorf("cmd failed, cmd:%s, err: %s\n", op, err)
 		}
+		alterStmt.Close()
 	}
 
 	// run non transaction block commands
@@ -477,6 +480,7 @@ func (r *Redshift) prepareAndExecute(tx *sql.Tx, command string) error {
 	if err != nil {
 		return err
 	}
+	defer statement.Close()
 
 	klog.Infof("Running: %s\n", command)
 	_, err = statement.ExecContext(r.ctx)
