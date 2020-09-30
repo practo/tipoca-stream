@@ -21,7 +21,6 @@ s3sink:
     bucketDir: "tipoca-stream-redshiftsink"
 redshift:
     schema: "schema-to-operate-on"
-    stats: false
     tableSuffix: ""
     host: "sample-host"
     port: "sample-port"
@@ -31,3 +30,6 @@ redshift:
     timeout: 10
     s3AccessKeyId: "sample-s3-access-key"
     s3SecretAccessKey: "sample-secret-key"
+    stats: false
+    maxOpenConns: 0 # i.e. no limit
+    maxIdleConns: 2 # default in go1.1
