@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/practo/klog/v2"
 
