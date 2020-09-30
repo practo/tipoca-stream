@@ -64,6 +64,7 @@ WHERE c.relkind = 'r'::char
 
 type dbExecCloser interface {
 	Close() error
+	Stats() sql.DBStats
 	BeginTx(
 		c context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 	QueryContext(
@@ -93,6 +94,7 @@ type RedshiftConfig struct {
 	S3AccessKeyId     string `yaml:"s3AccessKeyId"`
 	S3SecretAccessKey string `yaml:"s3SecretAccessKey"`
 	Schema            string `yaml:"schema"`
+	Stats             bool   `yaml:"stats"`
 }
 
 // Table is representation of Redshift table
@@ -176,15 +178,25 @@ func (r *Redshift) SchemaExist(schema string) (bool, error) {
 	return true, nil
 }
 
-func (r *Redshift) CreateSchema(tx *sql.Tx, schema string) error {
+func (r *Redshift) CreateSchema(schema string) error {
+	tx, err := r.Begin()
+	if err != nil {
+		return err
+	}
+
 	createSQL := fmt.Sprintf(schemaCreate, schema)
 	createStmt, err := tx.PrepareContext(r.ctx, createSQL)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 	defer createStmt.Close()
 
 	_, err = createStmt.ExecContext(r.ctx)
+	if err != nil {
+		tx.Rollback()
+	}
+
 	return err
 }
 
