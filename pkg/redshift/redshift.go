@@ -155,7 +155,7 @@ func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
 
 	r.SetMaxIdleConns(conf.MaxIdleConns)
 	r.SetMaxOpenConns(conf.MaxOpenConns)
-	klog.V(1).Info(r.Stats())
+	klog.V(1).Infof("dbstats: %+v\n", r.Stats())
 	// TODO: not using this
 	// klog.Info("Setting Redshift ConnMaxLifetime=-1 (keep alive)")
 	// r.SetConnMaxLifetime(1200 * time.Second)
