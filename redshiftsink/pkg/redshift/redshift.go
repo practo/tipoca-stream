@@ -64,6 +64,7 @@ WHERE c.relkind = 'r'::char
 
 type dbExecCloser interface {
 	Close() error
+	Stats() sql.DBStats
 	BeginTx(
 		c context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 	QueryContext(
@@ -93,6 +94,7 @@ type RedshiftConfig struct {
 	S3AccessKeyId     string `yaml:"s3AccessKeyId"`
 	S3SecretAccessKey string `yaml:"s3SecretAccessKey"`
 	Schema            string `yaml:"schema"`
+	Stats             bool   `yaml:"stats"`
 }
 
 // Table is representation of Redshift table
@@ -176,14 +178,25 @@ func (r *Redshift) SchemaExist(schema string) (bool, error) {
 	return true, nil
 }
 
-func (r *Redshift) CreateSchema(tx *sql.Tx, schema string) error {
-	createSQL := fmt.Sprintf(schemaCreate, schema)
-	createStmt, err := tx.PrepareContext(r.ctx, createSQL)
+func (r *Redshift) CreateSchema(schema string) error {
+	tx, err := r.Begin()
 	if err != nil {
 		return err
 	}
 
+	createSQL := fmt.Sprintf(schemaCreate, schema)
+	createStmt, err := tx.PrepareContext(r.ctx, createSQL)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	defer createStmt.Close()
+
 	_, err = createStmt.ExecContext(r.ctx)
+	if err != nil {
+		tx.Rollback()
+	}
+
 	return err
 }
 
@@ -331,6 +344,7 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 	if err != nil {
 		return fmt.Errorf("error preparing statement: %v\n", err)
 	}
+	defer createStmt.Close()
 
 	klog.V(5).Infof("Running: %s with args: %v\n", createSQL, args)
 	_, err = createStmt.ExecContext(r.ctx)
@@ -384,6 +398,7 @@ func (r *Redshift) UpdateTable(
 		if err != nil {
 			return false, fmt.Errorf("cmd failed, cmd:%s, err: %s\n", op, err)
 		}
+		alterStmt.Close()
 	}
 
 	// run non transaction block commands
@@ -477,6 +492,7 @@ func (r *Redshift) prepareAndExecute(tx *sql.Tx, command string) error {
 	if err != nil {
 		return err
 	}
+	defer statement.Close()
 
 	klog.Infof("Running: %s\n", command)
 	_, err = statement.ExecContext(r.ctx)
