@@ -584,6 +584,10 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 func (b *loadProcessor) processBatch(
 	ctx context.Context, datas []interface{}) bool {
 
+	if b.redshiftStats {
+		klog.V(2).Infof("startbatch dbstats: %+v\n", b.redshifter.Stats())
+	}
+
 	var inputTable redshift.Table
 	b.stagingTable = nil
 	b.targetTable = nil
@@ -647,7 +651,7 @@ func (b *loadProcessor) processBatch(
 	b.merge()
 
 	if b.redshiftStats {
-		klog.Infof("redshift dbstats: %+v\n", b.redshifter.Stats())
+		klog.V(2).Infof("endbatch dbstats: %+v\n", b.redshifter.Stats())
 	}
 
 	return true

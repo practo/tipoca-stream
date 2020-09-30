@@ -65,6 +65,8 @@ WHERE c.relkind = 'r'::char
 type dbExecCloser interface {
 	Close() error
 	Stats() sql.DBStats
+	SetMaxIdleConns(n int)
+	SetMaxOpenConns(n int)
 	BeginTx(
 		c context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 	QueryContext(
@@ -95,6 +97,8 @@ type RedshiftConfig struct {
 	S3SecretAccessKey string `yaml:"s3SecretAccessKey"`
 	Schema            string `yaml:"schema"`
 	Stats             bool   `yaml:"stats"`
+	MaxOpenConns      int    `yaml:"maxOpenConns"`
+	MaxIdleConns      int    `yaml:"maxIdleConns"`
 }
 
 // Table is representation of Redshift table
@@ -149,6 +153,9 @@ func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
 	}
 	r := &Redshift{sqldb, ctx, conf}
 
+	r.SetMaxIdleConns(conf.MaxIdleConns)
+	r.SetMaxOpenConns(conf.MaxOpenConns)
+	klog.V(1).Info(r.Stats())
 	// TODO: not using this
 	// klog.Info("Setting Redshift ConnMaxLifetime=-1 (keep alive)")
 	// r.SetConnMaxLifetime(1200 * time.Second)
