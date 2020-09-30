@@ -169,8 +169,6 @@ github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
 github.com/kr/text v0.2.0/go.mod h1:eLer722TekiGuMkidMxC/pM04lWEeraHUUmBw8l2grE=
-github.com/lib/pq v1.8.0 h1:9xohqzkUwzR4Ga4ivdTcawVS89YSDVxXMa3xJX3cGzg=
-github.com/lib/pq v1.8.0/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
 github.com/linkedin/goavro/v2 v2.9.7/go.mod h1:UgQUb2N/pmueQYH9bfqFioWxzYCZXSfF8Jw03O5sjqA=
 github.com/linkedin/goavro/v2 v2.9.8 h1:jN50elxBsGBDGVDEKqUlDuU1cFwJ11K/yrJCBMe/7Wg=
 github.com/linkedin/goavro/v2 v2.9.8/go.mod h1:UgQUb2N/pmueQYH9bfqFioWxzYCZXSfF8Jw03O5sjqA=
@@ -214,6 +212,8 @@ github.com/practo/gobatch v0.0.0-20200822085922-4905d08d9f40 h1:ukO+fKWBM3U9LYZh
 github.com/practo/gobatch v0.0.0-20200822085922-4905d08d9f40/go.mod h1:OR//ozfD9hhQvQ1exBwHezn3VtEV1BjaLWj1LP+gAAk=
 github.com/practo/klog/v2 v2.2.1 h1:yV/SavG73KHSmCVwtDap1RGe+2jd86e1eugT+Mv2/FA=
 github.com/practo/klog/v2 v2.2.1/go.mod h1:WMkpfPwTxLgSLookpI4UUv2zL7tMltKACK/FHB1zLV0=
+github.com/practo/pq v0.0.0-20200930024154-af3ceb106a20 h1:05vUPBE8rE/C036Jb/Rzt4699sv+GzZSxAWVlw0wblk=
+github.com/practo/pq v0.0.0-20200930024154-af3ceb106a20/go.mod h1:C7JAQ0g3vCXYh7S7oWN8aTirSBqT8Xi4bUbGi1jP9Ak=
 github.com/prometheus/client_golang v0.9.1/go.mod h1:7SWBe2y4D6OKWSNQJUaRYU/AaXPKyh/dDVn+NZz0KFw=
 github.com/prometheus/client_golang v0.9.3/go.mod h1:/TN21ttK/J9q6uSwhBd54HahCDft0ttaMvbicHlPoso=
 github.com/prometheus/client_golang v1.0.0/go.mod h1:db9x61etRT2tGnBNRi70OPL5FsnadC4Ky3P0J6CfImo=
