@@ -62,8 +62,11 @@ type loadProcessor struct {
 	// operations
 	redshifter *redshift.Redshift
 
-	// redshift schema to operate on
+	// redshiftSchema schema to operate on
 	redshiftSchema string
+
+	// redshiftStats stats show the db stats info in logs when enabled
+	redshiftStats bool
 
 	// stagingTable is the temp table to merge data into the target table
 	stagingTable *redshift.Table
@@ -102,6 +105,7 @@ func newLoadProcessor(
 		redshiftSchema: viper.GetString("redshift.schema"),
 		stagingTable:   nil,
 		targetTable:    nil,
+		redshiftStats:  viper.GetBool("redshift.stats"),
 	}
 }
 
@@ -190,6 +194,7 @@ func (b *loadProcessor) loadStagingTable(s3ManifestKey string) {
 	err = b.redshifter.Copy(
 		tx, schema, table, b.s3sink.GetKeyURI(s3ManifestKey), true, false)
 	if err != nil {
+		tx.Rollback()
 		klog.Fatalf("Error loading data in staging table, err:%v\n", err)
 	}
 	err = tx.Commit()
@@ -216,6 +221,7 @@ func (b *loadProcessor) deDupeStagingTable(tx *sql.Tx) {
 		stagingTablePrimaryKey,
 	)
 	if err != nil {
+		tx.Rollback()
 		klog.Fatalf("Deduplication failed, %v\n", err)
 	}
 }
@@ -231,6 +237,7 @@ func (b *loadProcessor) deleteCommonRowsInTargetTable(tx *sql.Tx) {
 		b.primaryKey,
 	)
 	if err != nil {
+		tx.Rollback()
 		klog.Fatalf("DeleteCommon failed, %v\n", err)
 	}
 }
@@ -246,6 +253,7 @@ func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
 		debezium.OperationDelete,
 	)
 	if err != nil {
+		tx.Rollback()
 		klog.Fatalf("DeleteRowsWithDeleteOp failed, %v\n", err)
 	}
 }
@@ -261,6 +269,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 		stagingTablePrimaryKey,
 	)
 	if err != nil {
+		tx.Rollback()
 		klog.Fatal(err)
 	}
 
@@ -271,6 +280,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 		debezium.OperationColumn,
 	)
 	if err != nil {
+		tx.Rollback()
 		klog.Fatal(err)
 	}
 
@@ -282,6 +292,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 		b.s3sink.GetKeyURI(s3CopyDir),
 	)
 	if err != nil {
+		tx.Rollback()
 		klog.Fatalf("Unloading staging table to s3 failed, %v\n", err)
 	}
 
@@ -294,6 +305,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 		true,
 	)
 	if err != nil {
+		tx.Rollback()
 		klog.Fatalf("Copying data to target table from s3 failed, %v\n", err)
 	}
 }
@@ -318,6 +330,7 @@ func (b *loadProcessor) dropTable(schema string, table string) error {
 		table,
 	)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
 	err = tx.Commit()
@@ -351,8 +364,12 @@ func (b *loadProcessor) merge() {
 	if err != nil {
 		klog.Fatalf("Error committing tx, err:%v\n", err)
 	}
-	// error is ignored in the below task since we clean on start
-	b.dropTable(b.stagingTable.Meta.Schema, b.stagingTable.Name)
+	// error is warning in the below task since we clean on start
+	err = b.dropTable(b.stagingTable.Meta.Schema, b.stagingTable.Name)
+	if err != nil {
+		klog.Warningf("Dropping the table: %s failed!, err: %v\n",
+			b.stagingTable.Name, err)
+	}
 }
 
 // createStagingTable creates a staging table based on the schema id of the
@@ -383,11 +400,6 @@ func (b *loadProcessor) createStagingTable(
 		klog.Fatalf("Error dropping staging table: %v\n", err)
 	}
 
-	tx, err := b.redshifter.Begin()
-	if err != nil {
-		klog.Fatalf("Error creating database tx, err: %v\n", err)
-	}
-
 	primaryKey, _, err := b.schemaTransformer.TransformKey(
 		b.upstreamTopic)
 	if err != nil {
@@ -414,12 +426,13 @@ func (b *loadProcessor) createStagingTable(
 	}
 	b.stagingTable.Columns = append(extraColumns, b.stagingTable.Columns...)
 
-	tx, err = b.redshifter.Begin()
+	tx, err := b.redshifter.Begin()
 	if err != nil {
 		klog.Fatalf("Error creating database tx, err: %v\n", err)
 	}
 	err = b.redshifter.CreateTable(tx, *b.stagingTable)
 	if err != nil {
+		tx.Rollback()
 		klog.Fatalf("Error creating staging table, err: %v\n", err)
 	}
 	err = tx.Commit()
@@ -456,6 +469,7 @@ func (b *loadProcessor) migrateTable(
 		inputTable, targetTable,
 	)
 	if err != nil {
+		tx.Rollback()
 		klog.Fatalf("Error migrating table, err:%v\n", err)
 	}
 
@@ -480,17 +494,12 @@ func (b *loadProcessor) migrateTable(
 func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 	// TODO: add cache here based on schema id and return
 	// save some database calls.
-	tx, err := b.redshifter.Begin()
-	if err != nil {
-		klog.Fatalf("Error creating database tx, err: %v\n", err)
-	}
-
 	schemaExist, err := b.redshifter.SchemaExist(inputTable.Meta.Schema)
 	if err != nil {
 		klog.Fatalf("Error querying schema exists, err: %v\n", err)
 	}
 	if !schemaExist {
-		err = b.redshifter.CreateSchema(tx, inputTable.Meta.Schema)
+		err = b.redshifter.CreateSchema(inputTable.Meta.Schema)
 		if err != nil {
 			exist, err2 := b.redshifter.SchemaExist(inputTable.Meta.Schema)
 			if err2 != nil {
@@ -516,8 +525,13 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 		klog.Fatalf("Error querying table exist, err: %v\n", err)
 	}
 	if !tableExist {
+		tx, err := b.redshifter.Begin()
+		if err != nil {
+			klog.Fatalf("Error creating database tx, err: %v\n", err)
+		}
 		err = b.redshifter.CreateTable(tx, inputTable)
 		if err != nil {
+			tx.Rollback()
 			klog.Fatalf(
 				"Error creating table: %+v, err: %v\n",
 				inputTable, err)
@@ -545,11 +559,15 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 
 	// UpdateTable computes the schema migration commands and executes it
 	// if required else does nothing.
+	tx, err := b.redshifter.Begin()
+	if err != nil {
+		klog.Fatalf("Error creating database tx, err: %v\n", err)
+	}
 	migrateTable, err := b.redshifter.UpdateTable(tx, inputTable, *targetTable)
 	if err != nil {
+		tx.Rollback()
 		klog.Fatalf("Error running schema migration, err: %v\n", err)
 	}
-
 	err = tx.Commit()
 	if err != nil {
 		klog.Fatalf("Error committing tx, err:%v\n", err)
@@ -627,6 +645,10 @@ func (b *loadProcessor) processBatch(
 
 	b.loadStagingTable(s3ManifestKey)
 	b.merge()
+
+	if b.redshiftStats {
+		klog.Infof("redshift dbstats: %+v\n", b.redshifter.Stats())
+	}
 
 	return true
 }
