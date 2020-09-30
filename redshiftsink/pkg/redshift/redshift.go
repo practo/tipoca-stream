@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/practo/klog/v2"
 
@@ -11,7 +12,8 @@ import (
 	// Use our own version of the postgres library so we get keep-alive support.
 	// See https://github.com/Clever/pq/pull/1
 	// TODO: https://github.com/Clever/s3-to-redshift/issues/163
-	_ "github.com/lib/pq"
+	// TCP keep alive support pending: https://github.com/lib/pq/issues/360
+	_ "github.com/practo/pq"
 	"strings"
 )
 
@@ -68,6 +70,9 @@ type dbExecCloser interface {
 	QueryContext(
 		c context.Context, q string, a ...interface{}) (*sql.Rows, error)
 	QueryRowContext(c context.Context, q string, a ...interface{}) *sql.Row
+	// tcp max conn time
+	// https://github.com/lib/pq/issues/360#issuecomment-565121408
+	// SetConnMaxLifetime(d time.Duration)
 }
 
 // Redshift wraps a dbExecCloser and can be used to perform
@@ -128,7 +133,7 @@ type ColInfo struct {
 
 func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
 	source := fmt.Sprintf(
-		"host=%s port=%s dbname=%s connect_timeout=%d",
+		"host=%s port=%s dbname=%s keepalive=1 connect_timeout=%d",
 		conf.Host, conf.Port, conf.Database, conf.Timeout,
 	)
 	// TODO: make ssl configurable
@@ -141,7 +146,13 @@ func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
 	if err := sqldb.Ping(); err != nil {
 		return nil, err
 	}
-	return &Redshift{sqldb, ctx, conf}, nil
+	r := &Redshift{sqldb, ctx, conf}
+
+	// TODO: not using this
+	// klog.Info("Setting Redshift ConnMaxLifetime=-1 (keep alive)")
+	// r.SetConnMaxLifetime(1200 * time.Second)
+
+	return r, nil
 }
 
 // Begin wraps a new transaction in the databases context
