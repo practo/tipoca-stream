@@ -397,7 +397,7 @@ func (r *Redshift) UpdateTable(
 	klog.Infof("Schema migration is required for: %v\n", inputTable.Name)
 
 	if len(varCharColumnOps) > 0 {
-		klog.Infof("Running migration (ALTER VACHAR): %v\n", inputTable.Name)
+		klog.Infof("Running migration (VARCHAR type): %v\n", inputTable.Name)
 	}
 	for _, op := range varCharColumnOps {
 		klog.V(4).Infof("Preparing (!tx): %s", op)
