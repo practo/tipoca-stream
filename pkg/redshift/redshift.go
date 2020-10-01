@@ -839,14 +839,13 @@ func checkColumnsAndOrdering(
 		// only varchar column operations for type change does not require
 		// table migration
 		targetCol := targetTable.Columns[idx]
-		var alterColumnOps []string
-		var err error
-		varCharColumnOps, alterColumnOps, err = checkColumn(
+		alterVarCharSQL, alterColumnOps, err := checkColumn(
 			inputTable.Meta.Schema, inputTable.Name, inCol, targetCol)
 		if err != nil {
 			errors = multierror.Append(errors, err)
 		}
 		columnOps = append(columnOps, alterColumnOps...)
+		varCharColumnOps = append(varCharColumnOps, alterVarCharSQL...)
 	}
 
 	// drop column (runs in a single transcation, single ALTER COMMAND)
