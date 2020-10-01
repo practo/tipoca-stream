@@ -6,6 +6,7 @@ import (
 	"fmt"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/practo/klog/v2"
+	"strconv"
 
 	// TODO:
 	// Use our own version of the postgres library so we get keep-alive support.
@@ -18,10 +19,15 @@ import (
 
 const (
 	RedshiftString         = "character varying"
+	RedshiftStringMax      = "character varying(65535)"
 	RedshiftMaskedDataType = "character varying(50)"
 	RedshiftDate           = "date"
 	RedshiftInteger        = "integer"
 	RedshiftTimeStamp      = "timestamp without time zone"
+
+	// required to support utf8 characters
+	// https://docs.aws.amazon.com/redshift/latest/dg/r_Character_types.html#r_Character_types-varchar-or-character-varying
+	RedshiftToMysqlCharacterRatio = 4.0
 
 	schemaExist = `select schema_name
 from information_schema.schemata where schema_name='%s';`
@@ -902,12 +908,12 @@ var mysqlToRedshiftTypeMap = map[string]string{
 	"mediumblob":                  RedshiftString,
 	"tinyblob":                    RedshiftString,
 	"varchar":                     RedshiftString,
-	"blob":                        "character varying(65535)",
-	"longtext":                    "character varying(65535)",
-	"mediumtext":                  "character varying(65535)",
-	"text":                        "character varying(65535)",
-	"tinytext":                    "character varying(65535)",
-	"varbinary":                   "character varying(65535)",
+	"blob":                        RedshiftStringMax,
+	"longtext":                    RedshiftStringMax,
+	"mediumtext":                  RedshiftStringMax,
+	"text":                        RedshiftStringMax,
+	"tinytext":                    RedshiftStringMax,
+	"varbinary":                   RedshiftStringMax,
 	"int":                         RedshiftInteger,
 	"integer":                     RedshiftInteger,
 	"mediumint":                   RedshiftInteger,
@@ -933,11 +939,23 @@ var mysqlToRedshiftTypeMap = map[string]string{
 
 // applyLength applies the length passed otherwise adds default
 // TODO: only takes care of string length, numeric and other types pending
-func applyLength(redshiftType string, sourceColLength string) string {
+func applyLength(ratio float32, redshiftType, sourceColLength string) string {
 	switch redshiftType {
 	case RedshiftString:
 		if sourceColLength == "" {
 			sourceColLength = "256" //default
+		} else {
+			// if character length is defined take care of multi byte characters
+			length, err := strconv.Atoi(sourceColLength)
+			if err != nil {
+				klog.Fatalf("Error converting to int, val: %v %v\n",
+					sourceColLength, err)
+			}
+			multiByteSupportedLength := int(float32(length) * ratio)
+			if multiByteSupportedLength > 65535 {
+				return RedshiftStringMax
+			}
+			sourceColLength = strconv.Itoa(multiByteSupportedLength)
 		}
 		return fmt.Sprintf("%s(%s)", redshiftType, sourceColLength)
 	default:
@@ -960,12 +978,18 @@ func GetRedshiftDataType(sqlType, debeziumType, sourceColType,
 	case "mysql":
 		redshiftType, ok := mysqlToRedshiftTypeMap[sourceColType]
 		if ok {
-			return applyLength(redshiftType, sourceColLength), nil
+			return applyLength(
+				RedshiftToMysqlCharacterRatio,
+				redshiftType,
+				sourceColLength), nil
 		}
 		// default is the debeziumType
 		redshiftType, ok = debeziumToRedshiftTypeMap[debeziumType]
 		if ok {
-			return applyLength(redshiftType, sourceColLength), nil
+			return applyLength(
+				RedshiftToMysqlCharacterRatio,
+				redshiftType,
+				sourceColLength), nil
 		}
 		return "", fmt.Errorf(
 			"Type: %s, SourceType: %s, not handled\n",
