@@ -388,7 +388,7 @@ func (r *Redshift) UpdateTable(
 		return false, err
 	}
 
-	if len(transactcolumnOps)+len(columnOps)+len(varCharColumnOps) > 0 {
+	if len(transactcolumnOps)+len(columnOps)+len(varCharColumnOps) == 0 {
 		klog.Infof(
 			"Schema migration is not needed for table: %v\n",
 			inputTable.Name)
