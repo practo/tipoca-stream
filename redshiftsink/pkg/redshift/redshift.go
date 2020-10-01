@@ -70,17 +70,21 @@ WHERE c.relkind = 'r'::char
 
 type dbExecCloser interface {
 	Close() error
+
+	// stats
 	Stats() sql.DBStats
 	SetMaxIdleConns(n int)
 	SetMaxOpenConns(n int)
+
+	// without tx
+	PrepareContext(c context.Context, query string) (*sql.Stmt, error)
+
+	// tx
 	BeginTx(
 		c context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 	QueryContext(
 		c context.Context, q string, a ...interface{}) (*sql.Rows, error)
 	QueryRowContext(c context.Context, q string, a ...interface{}) *sql.Row
-	// tcp max conn time
-	// https://github.com/lib/pq/issues/360#issuecomment-565121408
-	// SetConnMaxLifetime(d time.Duration)
 }
 
 // Redshift wraps a dbExecCloser and can be used to perform
@@ -378,19 +382,37 @@ func (r *Redshift) UpdateTable(
 	klog.V(5).Infof("inputt Table: \n%+v\n", inputTable)
 	klog.V(5).Infof("target Table: \n%+v\n", targetTable)
 
-	transactcolumnOps, columnOps, err := CheckSchemas(inputTable, targetTable)
+	transactcolumnOps, columnOps, varCharColumnOps, err := CheckSchemas(
+		inputTable, targetTable)
 	if err != nil {
 		return false, err
 	}
 
-	if len(transactcolumnOps) == 0 && len(columnOps) == 0 {
+	if len(transactcolumnOps)+len(columnOps)+len(varCharColumnOps) > 0 {
 		klog.Infof(
 			"Schema migration is not needed for table: %v\n",
 			inputTable.Name)
 		return false, nil
 	}
-
 	klog.Infof("Schema migration is required for: %v\n", inputTable.Name)
+
+	if len(varCharColumnOps) > 0 {
+		klog.Infof("Running migration (ALTER VACHAR): %v\n", inputTable.Name)
+	}
+	for _, op := range varCharColumnOps {
+		klog.V(4).Infof("Preparing (!tx): %s", op)
+		alterStmt, err := r.PrepareContext(r.ctx, op)
+		if err != nil {
+			return false, err
+		}
+
+		klog.Infof("Running (!tx): %s", op)
+		_, err = alterStmt.ExecContext(r.ctx)
+		if err != nil {
+			return false, fmt.Errorf("cmd failed, cmd:%s, err: %s\n", op, err)
+		}
+		alterStmt.Close()
+	}
 
 	if len(transactcolumnOps) > 0 {
 		klog.Infof(
@@ -708,7 +730,9 @@ func (r *Redshift) GetTableMetadata(schema, tableName string) (*Table, error) {
 // to make sure they're compatible. If they have any mismatched columns
 // they are returned in the errors array. Covers most of the schema migration
 // scenarios, and returns the ALTER commands to do it.
-func CheckSchemas(inputTable, targetTable Table) ([]string, []string, error) {
+func CheckSchemas(inputTable, targetTable Table) (
+	[]string, []string, []string, error) {
+
 	return checkColumnsAndOrdering(inputTable, targetTable)
 }
 
@@ -783,12 +807,14 @@ func checkColumn(schemaName string, tableName string,
 // checkColumnsAndOrdering constructs migration commands comparing the tables
 // it returns the operations that can be performed using transaction
 // and the operations which requires table migration, both handled
-// differently.
+// differently. Also returns the command that does not needed a table migration
+// but cannot not run as a transaction (varCharColumnOps)
 func checkColumnsAndOrdering(
-	inputTable, targetTable Table) ([]string, []string, error) {
+	inputTable, targetTable Table) ([]string, []string, []string, error) {
 
 	var transactColumnOps []string
 	var columnOps []string
+	var varCharColumnOps []string
 	var errors error
 
 	inColMap := make(map[string]bool)
@@ -813,15 +839,14 @@ func checkColumnsAndOrdering(
 		// only varchar column operations for type change does not require
 		// table migration
 		targetCol := targetTable.Columns[idx]
-		varCharColumnOps, alterColumnOps, err := checkColumn(
+		var alterColumnOps []string
+		var err error
+		varCharColumnOps, alterColumnOps, err = checkColumn(
 			inputTable.Meta.Schema, inputTable.Name, inCol, targetCol)
 		if err != nil {
 			errors = multierror.Append(errors, err)
 		}
 		columnOps = append(columnOps, alterColumnOps...)
-		if len(varCharColumnOps) > 0 {
-			transactColumnOps = append(transactColumnOps, varCharColumnOps...)
-		}
 	}
 
 	// drop column (runs in a single transcation, single ALTER COMMAND)
@@ -866,7 +891,7 @@ func checkColumnsAndOrdering(
 		columnOps = append(columnOps, "ALTER DISTKEY using table migration")
 	}
 
-	return transactColumnOps, columnOps, errors
+	return transactColumnOps, columnOps, varCharColumnOps, errors
 }
 
 func ConvertDefaultValue(val string) string {
