@@ -369,19 +369,17 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 	return err
 }
 
-// UpdateTable migrates the table schema using one of the below 2 strategy:
-// 1. Strategy1: inplace-migration using ALTER COMMANDS
-//               Support: AddCol, DropCol, Change Type of Varchar Col
+// UpdateTable migrates the table schema using below 3 strategy:
+// 1. Strategy1: inplace-migration-varchar-type Change length of VARCHAR col
 //               Executed by this function
-// 2. Strategy2: table-migration using UNLOAD and COPY and a temp table
-// 				 Support: all the other migration scearios
+// 2. Strategy2: inplace-migration using ALTER COMMANDS
+//               Supports: AddCol and DropCol
+// 3. Strategy3: table-migration using UNLOAD and COPY and a temp table
+// 				 Supports: all the other migration scenarios
 //               Exectued by ReplaceTable(), triggered by this function
-// It returns a boolean specifying table migration is required or not.
-func (r *Redshift) UpdateTable(
-	tx *sql.Tx, inputTable, targetTable Table) (bool, error) {
+func (r *Redshift) UpdateTable(inputTable, targetTable Table) (bool, error) {
 	klog.V(5).Infof("inputt Table: \n%+v\n", inputTable)
 	klog.V(5).Infof("target Table: \n%+v\n", targetTable)
-
 	transactcolumnOps, columnOps, varCharColumnOps, err := CheckSchemas(
 		inputTable, targetTable)
 	if err != nil {
@@ -396,8 +394,10 @@ func (r *Redshift) UpdateTable(
 	}
 	klog.Infof("Schema migration is required for: %v\n", inputTable.Name)
 
+	// Strategy1: execute
 	if len(varCharColumnOps) > 0 {
-		klog.Infof("Running migration (VARCHAR type): %v\n", inputTable.Name)
+		klog.Infof("Strategy1: running migration (VARCHAR type): %v\n",
+			inputTable.Name)
 	}
 	for _, op := range varCharColumnOps {
 		klog.V(4).Infof("Preparing (!tx): %s", op)
@@ -414,39 +414,54 @@ func (r *Redshift) UpdateTable(
 		alterStmt.Close()
 	}
 
+	// Strategy2: execute
 	if len(transactcolumnOps) > 0 {
 		klog.Infof(
-			"Strategy1: starting inplace-migration, table:%v\n",
+			"Strategy2: starting inplace-migration, table:%v\n",
 			inputTable.Name)
-	}
-	// run transcation block commands
-	// postgres only allows adding one column at a time
-	for _, op := range transactcolumnOps {
-		klog.V(4).Infof("Preparing: %s", op)
-		alterStmt, err := tx.PrepareContext(r.ctx, op)
+
+		tx, err := r.Begin()
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("Error creating tx, err: %v\n", err)
 		}
-		klog.Infof("Running: %s", op)
-		_, err = alterStmt.ExecContext(r.ctx)
+		// run transcation block commands
+		// postgres only allows adding one column at a time
+		for _, op := range transactcolumnOps {
+			klog.V(4).Infof("Preparing: %s", op)
+			alterStmt, err := tx.PrepareContext(r.ctx, op)
+			if err != nil {
+				tx.Rollback()
+				return false, err
+			}
+			klog.Infof("Running: %s", op)
+			_, err = alterStmt.ExecContext(r.ctx)
+			if err != nil {
+				tx.Rollback()
+				return false, fmt.Errorf(
+					"cmd failed, cmd:%s, err: %s\n", op, err)
+			}
+			alterStmt.Close()
+		}
+		err = tx.Commit()
 		if err != nil {
-			return false, fmt.Errorf("cmd failed, cmd:%s, err: %s\n", op, err)
+			tx.Rollback()
+			return false, fmt.Errorf("Error committing tx, err:%v\n", err)
 		}
-		alterStmt.Close()
 	}
 
+	// Strategy3: trigger the third one and then return
 	// run non transaction block commands
 	// redshift does not support alter columns #40
-	performTableMigration := false
 	if len(columnOps) > 0 {
 		klog.Infof(
-			"Strategy2: table-migration needed, table:%v\n",
+			"Strategy3: table-migration triggering, table:%v\n",
 			inputTable.Name)
 		klog.V(5).Infof("columnOps=%v\n", columnOps)
-		performTableMigration = true
+		// trigger table migration
+		return true, nil
 	}
 
-	return performTableMigration, nil
+	return false, nil
 }
 
 // Replace Table replaces the current table with a new schema table
@@ -460,7 +475,7 @@ func (r *Redshift) ReplaceTable(
 	tx *sql.Tx, unLoadS3Key string, copyS3ManifestKey string,
 	inputTable, targetTable Table) error {
 
-	klog.Infof("Strategy2: table-migration starting(slow), table: %s ...\n",
+	klog.Infof("Strategy3: table-migration starting(slow), table: %s ...\n",
 		inputTable.Name)
 	targetTableName := fmt.Sprintf(
 		`"%s"."%s"`, targetTable.Meta.Schema, targetTable.Name)
