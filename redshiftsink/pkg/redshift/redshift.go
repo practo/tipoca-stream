@@ -359,15 +359,14 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 	return err
 }
 
-// UpdateTable figures out what columns we need to add to the target table
-// based on the input table,
-// and completes this action in the transaction provided
-// Supported: add columns
-// Supported: drop columns
-// TODO:
-// Supportedvia: row ordering changes and row renames
-// Supportedvia: alter columns. It is done via table migration, so
-// it returns a boolean specifying table migration is required or not.
+// UpdateTable migrates the table schema using one of the below 2 strategy:
+// 1. Strategy1: inplace-migration using ALTER COMMANDS
+//               Support: AddCol, DropCol, Change Type of Varchar Col
+//               Executed by this function
+// 2. Strategy2: table-migration using UNLOAD and COPY and a temp table
+// 				 Support: all the other migration scearios
+//               Exectued by ReplaceTable(), triggered by this function
+// It returns a boolean specifying table migration is required or not.
 func (r *Redshift) UpdateTable(
 	tx *sql.Tx, inputTable, targetTable Table) (bool, error) {
 	klog.V(5).Infof("inputt Table: \n%+v\n", inputTable)
@@ -380,16 +379,16 @@ func (r *Redshift) UpdateTable(
 
 	if len(transactcolumnOps) == 0 && len(columnOps) == 0 {
 		klog.Infof(
-			"Migration not required, schema same, table: %v\n",
+			"Schema migration is not needed for table: %v\n",
 			inputTable.Name)
 		return false, nil
 	}
 
-	klog.Infof("Schema Migration begins, table: %v\n", inputTable.Name)
+	klog.Infof("Schema migration is required for: %v\n", inputTable.Name)
 
 	if len(transactcolumnOps) > 0 {
 		klog.Infof(
-			"Schema-Migration1: InTable Schema Migration starts.., table:%v\n",
+			"Strategy1: starting inplace-migration, table:%v\n",
 			inputTable.Name)
 	}
 	// run transcation block commands
@@ -413,7 +412,7 @@ func (r *Redshift) UpdateTable(
 	performTableMigration := false
 	if len(columnOps) > 0 {
 		klog.Infof(
-			"Schema-Migration2: Table Schema Migration required, table:%v\n",
+			"Strategy2: table-migration needed, table:%v\n",
 			inputTable.Name)
 		klog.V(5).Infof("columnOps=%v\n", columnOps)
 		performTableMigration = true
@@ -433,7 +432,8 @@ func (r *Redshift) ReplaceTable(
 	tx *sql.Tx, unLoadS3Key string, copyS3ManifestKey string,
 	inputTable, targetTable Table) error {
 
-	klog.Infof("Schema-Migration2: table(slow): %s ...\n", inputTable.Name)
+	klog.Infof("Strategy2: table-migration starting(slow), table: %s ...\n",
+		inputTable.Name)
 	targetTableName := fmt.Sprintf(
 		`"%s"."%s"`, targetTable.Meta.Schema, targetTable.Name)
 	migrationTableName := fmt.Sprintf(
@@ -707,12 +707,13 @@ func CheckSchemas(inputTable, targetTable Table) ([]string, []string, error) {
 }
 
 func checkColumn(schemaName string, tableName string,
-	inCol ColInfo, targetCol ColInfo) ([]string, error) {
+	inCol ColInfo, targetCol ColInfo) ([]string, []string, error) {
 	// klog.V(5).Infof("inCol: %+v\n,taCol: %+v\n", inCol, targetCol)
 
 	var errors error
 	mismatchedTemplate := "mismatch col: %s, prop: %s, input: %v, target: %v"
 	alterSQL := []string{}
+	alterVarCharSQL := []string{}
 
 	if inCol.Name != targetCol.Name {
 		// TODO: add support for renaming columns
@@ -744,16 +745,21 @@ func checkColumn(schemaName string, tableName string,
 	}
 
 	if inCol.Type != targetCol.Type {
-		alterSQL = append(alterSQL,
-			fmt.Sprintf(
-				`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s %s`,
-				schemaName,
-				tableName,
-				inCol.Name,
-				"TYPE",
-				inCol.Type,
-			),
+		typeChangeSQL := fmt.Sprintf(
+			`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s %s`,
+			schemaName,
+			tableName,
+			inCol.Name,
+			"TYPE",
+			inCol.Type,
 		)
+
+		if strings.Contains(targetCol.Type, RedshiftString) &&
+			strings.Contains(inCol.Type, RedshiftString) {
+			alterVarCharSQL = append(alterVarCharSQL, typeChangeSQL)
+		} else {
+			alterSQL = append(alterSQL, typeChangeSQL)
+		}
 	}
 
 	// TODO: #40 #41 handle changes in null
@@ -765,7 +771,7 @@ func checkColumn(schemaName string, tableName string,
 	// if ConvertDefaultValue(inCol.DefaultVal) != targetCol.DefaultVal {
 	// }
 
-	return alterSQL, errors
+	return alterVarCharSQL, alterSQL, errors
 }
 
 // checkColumnsAndOrdering constructs migration commands comparing the tables
@@ -798,13 +804,18 @@ func checkColumnsAndOrdering(
 		}
 
 		// alter column (requires table migration, can't run in transaction)
+		// only varchar column operations for type change does not require
+		// table migration
 		targetCol := targetTable.Columns[idx]
-		alterColumnOps, err := checkColumn(
+		varCharColumnOps, alterColumnOps, err := checkColumn(
 			inputTable.Meta.Schema, inputTable.Name, inCol, targetCol)
 		if err != nil {
 			errors = multierror.Append(errors, err)
 		}
 		columnOps = append(columnOps, alterColumnOps...)
+		if len(varCharColumnOps) > 0 {
+			transactColumnOps = append(transactColumnOps, varCharColumnOps...)
+		}
 	}
 
 	// drop column (runs in a single transcation, single ALTER COMMAND)
