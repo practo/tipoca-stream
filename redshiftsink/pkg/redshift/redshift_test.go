@@ -115,7 +115,7 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 			sourceColType:   "VARCHAR",
 			sourceColLength: "1100",
 			columnMasked:    false,
-			expectedResult:  "character varying(1100)",
+			expectedResult:  "character varying(4400)",
 			expectError:     false,
 		},
 		{
@@ -126,6 +126,16 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 			sourceColLength: "",
 			columnMasked:    false,
 			expectedResult:  "character varying(256)",
+			expectError:     false,
+		},
+		{
+			name:            "test8: string length should not got past limit",
+			sqlType:         "mysql",
+			debeziumType:    "string",
+			sourceColType:   "VARCHAR",
+			sourceColLength: "50000",
+			columnMasked:    false,
+			expectedResult:  "character varying(65535)",
 			expectError:     false,
 		},
 	}

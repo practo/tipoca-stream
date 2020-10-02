@@ -6,6 +6,7 @@ import (
 	"fmt"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/practo/klog/v2"
+	"strconv"
 
 	// TODO:
 	// Use our own version of the postgres library so we get keep-alive support.
@@ -18,10 +19,15 @@ import (
 
 const (
 	RedshiftString         = "character varying"
+	RedshiftStringMax      = "character varying(65535)"
 	RedshiftMaskedDataType = "character varying(50)"
 	RedshiftDate           = "date"
 	RedshiftInteger        = "integer"
 	RedshiftTimeStamp      = "timestamp without time zone"
+
+	// required to support utf8 characters
+	// https://docs.aws.amazon.com/redshift/latest/dg/r_Character_types.html#r_Character_types-varchar-or-character-varying
+	RedshiftToMysqlCharacterRatio = 4.0
 
 	schemaExist = `select schema_name
 from information_schema.schemata where schema_name='%s';`
@@ -64,17 +70,21 @@ WHERE c.relkind = 'r'::char
 
 type dbExecCloser interface {
 	Close() error
+
+	// stats
 	Stats() sql.DBStats
 	SetMaxIdleConns(n int)
 	SetMaxOpenConns(n int)
+
+	// without tx
+	PrepareContext(c context.Context, query string) (*sql.Stmt, error)
+
+	// tx
 	BeginTx(
 		c context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 	QueryContext(
 		c context.Context, q string, a ...interface{}) (*sql.Rows, error)
 	QueryRowContext(c context.Context, q string, a ...interface{}) *sql.Row
-	// tcp max conn time
-	// https://github.com/lib/pq/issues/360#issuecomment-565121408
-	// SetConnMaxLifetime(d time.Duration)
 }
 
 // Redshift wraps a dbExecCloser and can be used to perform
@@ -336,7 +346,6 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 		return err
 	}
 
-	args := []interface{}{strings.Join(columnSQL, ",")}
 	createSQL := fmt.Sprintf(
 		tableCreate,
 		table.Meta.Schema,
@@ -346,61 +355,57 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 		sortColumnsSQL,
 	)
 
-	klog.V(5).Infof("Preparing: %s with args: %v\n", createSQL, args)
+	klog.V(5).Infof("Preparing: %s\n", createSQL)
 	createStmt, err := tx.PrepareContext(r.ctx, createSQL)
 	if err != nil {
 		return fmt.Errorf("error preparing statement: %v\n", err)
 	}
 	defer createStmt.Close()
 
-	klog.V(5).Infof("Running: %s with args: %v\n", createSQL, args)
+	klog.V(4).Infof("Running: %s\n", createSQL)
 	_, err = createStmt.ExecContext(r.ctx)
 
 	return err
 }
 
-// UpdateTable figures out what columns we need to add to the target table
-// based on the input table,
-// and completes this action in the transaction provided
-// Supported: add columns
-// Supported: drop columns
-// TODO:
-// Supportedvia: row ordering changes and row renames
-// Supportedvia: alter columns. It is done via table migration, so
-// it returns a boolean specifying table migration is required or not.
-func (r *Redshift) UpdateTable(
-	tx *sql.Tx, inputTable, targetTable Table) (bool, error) {
-	klog.V(5).Infof("inputt Table: \n%+v\n", inputTable)
-	klog.V(5).Infof("target Table: \n%+v\n", targetTable)
-
-	transactcolumnOps, columnOps, err := CheckSchemas(inputTable, targetTable)
+// UpdateTable migrates the table schema using below 3 strategy:
+// 1. Strategy1: inplace-migration-varchar-type Change length of VARCHAR col
+//               Executed by this function
+// 2. Strategy2: inplace-migration using ALTER COMMANDS
+//               Supports: AddCol and DropCol
+// 3. Strategy3: table-migration using UNLOAD and COPY and a temp table
+// 				 Supports: all the other migration scenarios
+//               Exectued by ReplaceTable(), triggered by this function
+func (r *Redshift) UpdateTable(inputTable, targetTable Table) (bool, error) {
+	klog.V(4).Infof("inputt Table: \n%+v\n", inputTable)
+	klog.V(4).Infof("target Table: \n%+v\n", targetTable)
+	transactcolumnOps, columnOps, varCharColumnOps, err := CheckSchemas(
+		inputTable, targetTable)
 	if err != nil {
 		return false, err
 	}
 
-	if len(transactcolumnOps) == 0 && len(columnOps) == 0 {
-		klog.Infof(
-			"Migration not required, schema same, table: %v\n",
+	if len(transactcolumnOps)+len(columnOps)+len(varCharColumnOps) == 0 {
+		klog.V(2).Infof(
+			"Schema migration is not needed for table: %v\n",
 			inputTable.Name)
 		return false, nil
 	}
+	klog.V(2).Infof("Schema migration is required for: %v\n", inputTable.Name)
 
-	klog.Infof("Schema Migration begins, table: %v\n", inputTable.Name)
-
-	if len(transactcolumnOps) > 0 {
-		klog.Infof(
-			"Schema-Migration1: InTable Schema Migration starts.., table:%v\n",
+	// Strategy1: execute
+	if len(varCharColumnOps) > 0 {
+		klog.V(2).Infof("Strategy1: running migration (VARCHAR type): %v\n",
 			inputTable.Name)
 	}
-	// run transcation block commands
-	// postgres only allows adding one column at a time
-	for _, op := range transactcolumnOps {
-		klog.V(4).Infof("Preparing: %s", op)
-		alterStmt, err := tx.PrepareContext(r.ctx, op)
+	for _, op := range varCharColumnOps {
+		klog.V(4).Infof("Preparing (!tx): %s", op)
+		alterStmt, err := r.PrepareContext(r.ctx, op)
 		if err != nil {
 			return false, err
 		}
-		klog.Infof("Running: %s", op)
+
+		klog.V(2).Infof("Running (!tx): %s", op)
 		_, err = alterStmt.ExecContext(r.ctx)
 		if err != nil {
 			return false, fmt.Errorf("cmd failed, cmd:%s, err: %s\n", op, err)
@@ -408,18 +413,54 @@ func (r *Redshift) UpdateTable(
 		alterStmt.Close()
 	}
 
-	// run non transaction block commands
-	// redshift does not support alter columns #40
-	performTableMigration := false
-	if len(columnOps) > 0 {
-		klog.Infof(
-			"Schema-Migration2: Table Schema Migration required, table:%v\n",
+	// Strategy2: execute
+	if len(transactcolumnOps) > 0 {
+		klog.V(2).Infof(
+			"Strategy2: starting inplace-migration, table:%v\n",
 			inputTable.Name)
-		klog.V(5).Infof("columnOps=%v\n", columnOps)
-		performTableMigration = true
+
+		tx, err := r.Begin()
+		if err != nil {
+			return false, fmt.Errorf("Error creating tx, err: %v\n", err)
+		}
+		// run transcation block commands
+		// postgres only allows adding one column at a time
+		for _, op := range transactcolumnOps {
+			klog.V(4).Infof("Preparing: %s", op)
+			alterStmt, err := tx.PrepareContext(r.ctx, op)
+			if err != nil {
+				tx.Rollback()
+				return false, err
+			}
+			klog.V(2).Infof("Running: %s", op)
+			_, err = alterStmt.ExecContext(r.ctx)
+			if err != nil {
+				tx.Rollback()
+				return false, fmt.Errorf(
+					"cmd failed, cmd:%s, err: %s\n", op, err)
+			}
+			alterStmt.Close()
+		}
+		err = tx.Commit()
+		if err != nil {
+			tx.Rollback()
+			return false, fmt.Errorf("Error committing tx, err:%v\n", err)
+		}
 	}
 
-	return performTableMigration, nil
+	// Strategy3: trigger the third one and then return
+	// run non transaction block commands
+	// redshift does not support alter columns #40
+	if len(columnOps) > 0 {
+		klog.V(2).Infof(
+			"Strategy3: table-migration triggering, table:%v\n",
+			inputTable.Name)
+		klog.V(5).Infof("columnOps=%v\n", columnOps)
+		// trigger table migration
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // Replace Table replaces the current table with a new schema table
@@ -433,7 +474,8 @@ func (r *Redshift) ReplaceTable(
 	tx *sql.Tx, unLoadS3Key string, copyS3ManifestKey string,
 	inputTable, targetTable Table) error {
 
-	klog.Infof("Schema-Migration2: table(slow): %s ...\n", inputTable.Name)
+	klog.Infof("Strategy3: table-migration starting(slow), table: %s ...\n",
+		inputTable.Name)
 	targetTableName := fmt.Sprintf(
 		`"%s"."%s"`, targetTable.Meta.Schema, targetTable.Name)
 	migrationTableName := fmt.Sprintf(
@@ -455,7 +497,7 @@ func (r *Redshift) ReplaceTable(
 		targetTableName,
 		migrationTableName,
 	)
-	klog.V(5).Infof("Running: %s", renameSQL)
+	klog.V(4).Infof("Running: %s", renameSQL)
 	_, err = tx.ExecContext(r.ctx, renameSQL)
 	if err != nil {
 		return err
@@ -494,14 +536,14 @@ func (r *Redshift) ReplaceTable(
 }
 
 func (r *Redshift) prepareAndExecute(tx *sql.Tx, command string) error {
-	klog.V(4).Infof("Preparing: %s\n", command)
+	klog.V(5).Infof("Preparing: %s\n", command)
 	statement, err := tx.PrepareContext(r.ctx, command)
 	if err != nil {
 		return err
 	}
 	defer statement.Close()
 
-	klog.Infof("Running: %s\n", command)
+	klog.V(4).Infof("Running: %s\n", command)
 	_, err = statement.ExecContext(r.ctx)
 	if err != nil {
 		return fmt.Errorf("cmd failed, cmd:%s, err: %s\n", command, err)
@@ -610,6 +652,7 @@ func (r *Redshift) Unload(tx *sql.Tx,
 		s3Key,
 		credentials,
 	)
+	klog.V(2).Infof("Running: UNLOAD from %s to s3\n", table)
 	klog.V(5).Infof("Running: %s", unLoadSQL)
 	_, err := tx.ExecContext(r.ctx, unLoadSQL)
 
@@ -647,7 +690,8 @@ func (r *Redshift) Copy(tx *sql.Tx,
 		json,
 		csv,
 	)
-	klog.V(5).Infof("Running: %s", copySQL)
+	klog.V(2).Infof("Running: COPY from s3 to: %s\n", table)
+	klog.V(5).Infof("Running: %s\n", copySQL)
 	_, err := tx.ExecContext(r.ctx, copySQL)
 
 	return err
@@ -702,17 +746,20 @@ func (r *Redshift) GetTableMetadata(schema, tableName string) (*Table, error) {
 // to make sure they're compatible. If they have any mismatched columns
 // they are returned in the errors array. Covers most of the schema migration
 // scenarios, and returns the ALTER commands to do it.
-func CheckSchemas(inputTable, targetTable Table) ([]string, []string, error) {
+func CheckSchemas(inputTable, targetTable Table) (
+	[]string, []string, []string, error) {
+
 	return checkColumnsAndOrdering(inputTable, targetTable)
 }
 
 func checkColumn(schemaName string, tableName string,
-	inCol ColInfo, targetCol ColInfo) ([]string, error) {
+	inCol ColInfo, targetCol ColInfo) ([]string, []string, error) {
 	// klog.V(5).Infof("inCol: %+v\n,taCol: %+v\n", inCol, targetCol)
 
 	var errors error
 	mismatchedTemplate := "mismatch col: %s, prop: %s, input: %v, target: %v"
 	alterSQL := []string{}
+	alterVarCharSQL := []string{}
 
 	if inCol.Name != targetCol.Name {
 		// TODO: add support for renaming columns
@@ -744,16 +791,21 @@ func checkColumn(schemaName string, tableName string,
 	}
 
 	if inCol.Type != targetCol.Type {
-		alterSQL = append(alterSQL,
-			fmt.Sprintf(
-				`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s %s`,
-				schemaName,
-				tableName,
-				inCol.Name,
-				"TYPE",
-				inCol.Type,
-			),
+		typeChangeSQL := fmt.Sprintf(
+			`ALTER TABLE "%s"."%s" ALTER COLUMN %s %s %s`,
+			schemaName,
+			tableName,
+			inCol.Name,
+			"TYPE",
+			inCol.Type,
 		)
+
+		if strings.Contains(targetCol.Type, RedshiftString) &&
+			strings.Contains(inCol.Type, RedshiftString) {
+			alterVarCharSQL = append(alterVarCharSQL, typeChangeSQL)
+		} else {
+			alterSQL = append(alterSQL, typeChangeSQL)
+		}
 	}
 
 	// TODO: #40 #41 handle changes in null
@@ -765,18 +817,20 @@ func checkColumn(schemaName string, tableName string,
 	// if ConvertDefaultValue(inCol.DefaultVal) != targetCol.DefaultVal {
 	// }
 
-	return alterSQL, errors
+	return alterVarCharSQL, alterSQL, errors
 }
 
 // checkColumnsAndOrdering constructs migration commands comparing the tables
 // it returns the operations that can be performed using transaction
 // and the operations which requires table migration, both handled
-// differently.
+// differently. Also returns the command that does not needed a table migration
+// but cannot not run as a transaction (varCharColumnOps)
 func checkColumnsAndOrdering(
-	inputTable, targetTable Table) ([]string, []string, error) {
+	inputTable, targetTable Table) ([]string, []string, []string, error) {
 
 	var transactColumnOps []string
 	var columnOps []string
+	var varCharColumnOps []string
 	var errors error
 
 	inColMap := make(map[string]bool)
@@ -798,13 +852,16 @@ func checkColumnsAndOrdering(
 		}
 
 		// alter column (requires table migration, can't run in transaction)
+		// only varchar column operations for type change does not require
+		// table migration
 		targetCol := targetTable.Columns[idx]
-		alterColumnOps, err := checkColumn(
+		alterVarCharSQL, alterColumnOps, err := checkColumn(
 			inputTable.Meta.Schema, inputTable.Name, inCol, targetCol)
 		if err != nil {
 			errors = multierror.Append(errors, err)
 		}
 		columnOps = append(columnOps, alterColumnOps...)
+		varCharColumnOps = append(varCharColumnOps, alterVarCharSQL...)
 	}
 
 	// drop column (runs in a single transcation, single ALTER COMMAND)
@@ -849,7 +906,7 @@ func checkColumnsAndOrdering(
 		columnOps = append(columnOps, "ALTER DISTKEY using table migration")
 	}
 
-	return transactColumnOps, columnOps, errors
+	return transactColumnOps, columnOps, varCharColumnOps, errors
 }
 
 func ConvertDefaultValue(val string) string {
@@ -891,12 +948,12 @@ var mysqlToRedshiftTypeMap = map[string]string{
 	"mediumblob":                  RedshiftString,
 	"tinyblob":                    RedshiftString,
 	"varchar":                     RedshiftString,
-	"blob":                        "character varying(65535)",
-	"longtext":                    "character varying(65535)",
-	"mediumtext":                  "character varying(65535)",
-	"text":                        "character varying(65535)",
-	"tinytext":                    "character varying(65535)",
-	"varbinary":                   "character varying(65535)",
+	"blob":                        RedshiftStringMax,
+	"longtext":                    RedshiftStringMax,
+	"mediumtext":                  RedshiftStringMax,
+	"text":                        RedshiftStringMax,
+	"tinytext":                    RedshiftStringMax,
+	"varbinary":                   RedshiftStringMax,
 	"int":                         RedshiftInteger,
 	"integer":                     RedshiftInteger,
 	"mediumint":                   RedshiftInteger,
@@ -922,11 +979,23 @@ var mysqlToRedshiftTypeMap = map[string]string{
 
 // applyLength applies the length passed otherwise adds default
 // TODO: only takes care of string length, numeric and other types pending
-func applyLength(redshiftType string, sourceColLength string) string {
+func applyLength(ratio float32, redshiftType, sourceColLength string) string {
 	switch redshiftType {
 	case RedshiftString:
 		if sourceColLength == "" {
 			sourceColLength = "256" //default
+		} else {
+			// if character length is defined take care of multi byte characters
+			length, err := strconv.Atoi(sourceColLength)
+			if err != nil {
+				klog.Fatalf("Error converting to int, val: %v %v\n",
+					sourceColLength, err)
+			}
+			multiByteSupportedLength := int(float32(length) * ratio)
+			if multiByteSupportedLength > 65535 {
+				return RedshiftStringMax
+			}
+			sourceColLength = strconv.Itoa(multiByteSupportedLength)
 		}
 		return fmt.Sprintf("%s(%s)", redshiftType, sourceColLength)
 	default:
@@ -949,12 +1018,18 @@ func GetRedshiftDataType(sqlType, debeziumType, sourceColType,
 	case "mysql":
 		redshiftType, ok := mysqlToRedshiftTypeMap[sourceColType]
 		if ok {
-			return applyLength(redshiftType, sourceColLength), nil
+			return applyLength(
+				RedshiftToMysqlCharacterRatio,
+				redshiftType,
+				sourceColLength), nil
 		}
 		// default is the debeziumType
 		redshiftType, ok = debeziumToRedshiftTypeMap[debeziumType]
 		if ok {
-			return applyLength(redshiftType, sourceColLength), nil
+			return applyLength(
+				RedshiftToMysqlCharacterRatio,
+				redshiftType,
+				sourceColLength), nil
 		}
 		return "", fmt.Errorf(
 			"Type: %s, SourceType: %s, not handled\n",
