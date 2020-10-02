@@ -6,6 +6,7 @@ import (
 	"fmt"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/practo/klog/v2"
+	"math"
 	"strconv"
 
 	// TODO:
@@ -18,12 +19,14 @@ import (
 )
 
 const (
-	RedshiftString         = "character varying"
-	RedshiftStringMax      = "character varying(65535)"
-	RedshiftMaskedDataType = "character varying(50)"
-	RedshiftDate           = "date"
-	RedshiftInteger        = "integer"
-	RedshiftTimeStamp      = "timestamp without time zone"
+	RedshiftString               = "character varying"
+	RedshiftStringMax            = "character varying(65535)"
+	RedshiftStringMaxLength      = 65535
+	RedshiftMaskedDataType       = "character varying(50)"
+	RedshiftMaskedDataTypeLength = 50
+	RedshiftDate                 = "date"
+	RedshiftInteger              = "integer"
+	RedshiftTimeStamp            = "timestamp without time zone"
 
 	// required to support utf8 characters
 	// https://docs.aws.amazon.com/redshift/latest/dg/r_Character_types.html#r_Character_types-varchar-or-character-varying
@@ -979,26 +982,41 @@ var mysqlToRedshiftTypeMap = map[string]string{
 
 // applyLength applies the length passed otherwise adds default
 // TODO: only takes care of string length, numeric and other types pending
-func applyLength(ratio float32, redshiftType, sourceColLength string) string {
+func applyLength(ratio float64,
+	redshiftType, sourceColLength string, columnMasked bool) string {
 	switch redshiftType {
 	case RedshiftString:
+		// for string type apply the range of col length
+		// maskedLen <= requiredLen ~ ratio*sourceLen <= maxRedshiftLen
+		var lengthCol int
 		if sourceColLength == "" {
-			sourceColLength = "256" //default
+			if columnMasked {
+				// default for masked column
+				lengthCol = RedshiftMaskedDataTypeLength
+			} else {
+				// default for unmasked column
+				lengthCol = 256
+			}
 		} else {
-			// if character length is defined take care of multi byte characters
-			length, err := strconv.Atoi(sourceColLength)
+			sourceLength, err := strconv.Atoi(sourceColLength)
 			if err != nil {
 				klog.Fatalf("Error converting to int, val: %v %v\n",
 					sourceColLength, err)
 			}
-			multiByteSupportedLength := int(float32(length) * ratio)
-			if multiByteSupportedLength > 65535 {
-				return RedshiftStringMax
-			}
-			sourceColLength = strconv.Itoa(multiByteSupportedLength)
+			// multi byte support
+			lengthCol = int(math.Ceil(float64(sourceLength) * ratio))
 		}
-		return fmt.Sprintf("%s(%s)", redshiftType, sourceColLength)
+		if lengthCol > RedshiftStringMaxLength {
+			lengthCol = RedshiftStringMaxLength
+		} else if lengthCol < RedshiftMaskedDataTypeLength && columnMasked {
+			lengthCol = RedshiftMaskedDataTypeLength
+		}
+		return fmt.Sprintf("%s(%d)", redshiftType, lengthCol)
 	default:
+		// for all the other column types return masked type or the type got
+		if columnMasked {
+			return RedshiftMaskedDataType
+		}
 		return redshiftType
 	}
 }
@@ -1007,35 +1025,34 @@ func applyLength(ratio float32, redshiftType, sourceColLength string) string {
 func GetRedshiftDataType(sqlType, debeziumType, sourceColType,
 	sourceColLength string, columnMasked bool) (string, error) {
 
-	if columnMasked == true {
-		return RedshiftMaskedDataType, nil
-	}
-
 	debeziumType = strings.ToLower(debeziumType)
 	sourceColType = strings.ToLower(sourceColType)
 
 	switch sqlType {
 	case "mysql":
 		redshiftType, ok := mysqlToRedshiftTypeMap[sourceColType]
-		if ok {
-			return applyLength(
-				RedshiftToMysqlCharacterRatio,
-				redshiftType,
-				sourceColLength), nil
+		if !ok {
+			// default is the debeziumType (fallback)
+			redshiftType, ok = debeziumToRedshiftTypeMap[debeziumType]
+			if !ok {
+				// don't fail for masked types
+				if columnMasked == true {
+					return RedshiftMaskedDataType, nil
+				}
+				return "", fmt.Errorf(
+					"DebeziumType: %s, SourceType: %s, not handled\n",
+					debeziumType,
+					sourceColType,
+				)
+			}
 		}
-		// default is the debeziumType
-		redshiftType, ok = debeziumToRedshiftTypeMap[debeziumType]
-		if ok {
-			return applyLength(
-				RedshiftToMysqlCharacterRatio,
-				redshiftType,
-				sourceColLength), nil
-		}
-		return "", fmt.Errorf(
-			"Type: %s, SourceType: %s, not handled\n",
-			debeziumType,
-			sourceColType,
-		)
+
+		return applyLength(
+			RedshiftToMysqlCharacterRatio,
+			redshiftType,
+			sourceColLength,
+			columnMasked,
+		), nil
 	}
 
 	return "", fmt.Errorf("Unsupported sqlType:%s\n", sqlType)
