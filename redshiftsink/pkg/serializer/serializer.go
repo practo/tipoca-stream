@@ -7,6 +7,12 @@ import (
 	"github.com/riferrei/srclient"
 )
 
+const (
+	OperationCreate = "CREATE"
+	OperationUpdate = "UPDATE"
+	OperationDelete = "DELETE"
+)
+
 type Message struct {
 	SchemaId  int
 	Topic     string
@@ -15,6 +21,7 @@ type Message struct {
 	Key       string
 	Value     interface{}
 
+	Operation  string
 	MaskSchema map[string]MaskInfo
 }
 
