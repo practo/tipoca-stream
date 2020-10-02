@@ -92,14 +92,14 @@ func (m *masker) Transform(
 			columns[cName] = mask(*cVal, m.salt)
 		}
 
-		// This determines the type of the mask schema, the value is taken care
-		// above so now we can decide what should be the type of the column
-		// based on whether it is defined as any of the following keys
+		// Since there is a chance these values can be unmasked we treat the
+		// DependentNonPii keys as unmasked always, its type will
+		// be compatible for both masked and unmasked values
 		// (overide for these)
 		// 1. DependentNonPii 2. ConditionalNonPii
 		if m.config.DependentNonPiiKey(m.table, cName) ||
 			m.config.ConditionalNonPiiKey(m.table, cName) {
-			unmasked = false
+			unmasked = true
 		}
 
 		maskSchema[cName] = serializer.MaskInfo{

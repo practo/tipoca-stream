@@ -249,10 +249,9 @@ func TestMasker(t *testing.T) {
 				"operation":   serializer.MaskInfo{},
 				"id": serializer.MaskInfo{
 					Masked: false, SortCol: true},
-				"first_name": serializer.MaskInfo{Masked: true}, // first name may not be masked but masked should always come as true as it is depdenent Non Pii
-				"last_name":  serializer.MaskInfo{Masked: true},
+				"first_name": serializer.MaskInfo{Masked: false}, // always treated as unmask dependentNonPii, conditionalNonPii
 				"email": serializer.MaskInfo{
-					Masked: true, DistCol: true, LengthCol: true},
+					Masked: false, DistCol: true, LengthCol: true}, // always treated as unmask dependentNonPii, conditionalNonPii
 			},
 		},
 		{
@@ -274,10 +273,10 @@ func TestMasker(t *testing.T) {
 				"operation":   serializer.MaskInfo{},
 				"id": serializer.MaskInfo{
 					Masked: false, SortCol: true},
-				"first_name": serializer.MaskInfo{Masked: true}, // first name may not be masked but masked should always come as true as it is depdenent Non Pii
+				"first_name": serializer.MaskInfo{Masked: false}, // always treated as unmask dependentNonPii
 				"last_name":  serializer.MaskInfo{Masked: true},
 				"email": serializer.MaskInfo{
-					Masked: true, DistCol: true, LengthCol: true},
+					Masked: false, DistCol: true, LengthCol: true},
 				"dob": serializer.MaskInfo{Masked: true},
 			},
 		},
@@ -309,8 +308,8 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal: stringPtr("want"),
 			resultMaskSchema: map[string]serializer.MaskInfo{
-				"justice": serializer.MaskInfo{Masked: true},
-				"reason":  serializer.MaskInfo{Masked: true},
+				"justice": serializer.MaskInfo{Masked: false}, // always treated as unmask conditionalNonPii and dependentNonPii
+				"reason":  serializer.MaskInfo{Masked: false}, // always treated as unmask conditionalNonPii and dependentNonPii
 			},
 		},
 		{
@@ -323,8 +322,8 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal: stringPtr("f08c46950f7d175e58d4dd989f7475f3c8184ff3"),
 			resultMaskSchema: map[string]serializer.MaskInfo{
-				"justice": serializer.MaskInfo{Masked: true},
-				"reason":  serializer.MaskInfo{Masked: true},
+				"justice": serializer.MaskInfo{Masked: false}, // always treated as unmask conditionalNonPii and dependentNonPii
+				"reason":  serializer.MaskInfo{Masked: false}, // always treated as unmask conditionalNonPii and dependentNonPii
 			},
 		},
 		{
@@ -337,8 +336,8 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal: stringPtr("mahatma"),
 			resultMaskSchema: map[string]serializer.MaskInfo{
-				"justice": serializer.MaskInfo{Masked: true},
-				"reason":  serializer.MaskInfo{Masked: true},
+				"justice": serializer.MaskInfo{Masked: false}, // always treated as unmask conditionalNonPii and dependentNonPii
+				"reason":  serializer.MaskInfo{Masked: false}, // always treated as unmask conditionalNonPii and dependentNonPii
 			},
 		},
 	}

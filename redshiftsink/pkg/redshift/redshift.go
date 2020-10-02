@@ -6,6 +6,7 @@ import (
 	"fmt"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/practo/klog/v2"
+	"math"
 	"strconv"
 
 	// TODO:
@@ -18,12 +19,15 @@ import (
 )
 
 const (
-	RedshiftString         = "character varying"
-	RedshiftStringMax      = "character varying(65535)"
-	RedshiftMaskedDataType = "character varying(50)"
-	RedshiftDate           = "date"
-	RedshiftInteger        = "integer"
-	RedshiftTimeStamp      = "timestamp without time zone"
+	RedshiftString          = "character varying"
+	RedshiftStringMax       = "character varying(65535)"
+	RedshiftStringMaxLength = 65535
+
+	RedshiftMaskedDataType       = "character varying(50)"
+	RedshiftMaskedDataTypeLength = 50
+	RedshiftDate                 = "date"
+	RedshiftInteger              = "integer"
+	RedshiftTimeStamp            = "timestamp without time zone"
 
 	// required to support utf8 characters
 	// https://docs.aws.amazon.com/redshift/latest/dg/r_Character_types.html#r_Character_types-varchar-or-character-varying
@@ -979,25 +983,38 @@ var mysqlToRedshiftTypeMap = map[string]string{
 
 // applyLength applies the length passed otherwise adds default
 // TODO: only takes care of string length, numeric and other types pending
-func applyLength(ratio float32, redshiftType, sourceColLength string) string {
+func applyLength(ratio float64, redshiftType, sourceColLength string) string {
 	switch redshiftType {
+	// range:
+	// maskedLength <= requiredLength <= sourceLen*ratio <= maxLenRedshift
 	case RedshiftString:
+		var lengthCol int
 		if sourceColLength == "" {
-			sourceColLength = "256" //default
+			lengthCol = 256 //default
 		} else {
 			// if character length is defined take care of multi byte characters
-			length, err := strconv.Atoi(sourceColLength)
+			sourceLength, err := strconv.Atoi(sourceColLength)
 			if err != nil {
 				klog.Fatalf("Error converting to int, val: %v %v\n",
 					sourceColLength, err)
 			}
-			multiByteSupportedLength := int(float32(length) * ratio)
-			if multiByteSupportedLength > 65535 {
-				return RedshiftStringMax
-			}
-			sourceColLength = strconv.Itoa(multiByteSupportedLength)
+			// multi byte support
+			lengthCol = int(math.Ceil(float64(sourceLength) * ratio))
 		}
-		return fmt.Sprintf("%s(%s)", redshiftType, sourceColLength)
+
+		if lengthCol > RedshiftStringMaxLength {
+			return RedshiftStringMax
+		}
+
+		// this is required to support DependentNonPiiKey masking
+		// as the data type is required to be in between the below range
+		// maskedLength <= requiredLength <= sourceLen*ratio <= maxLenRedshift
+		if lengthCol < RedshiftMaskedDataTypeLength {
+			return RedshiftMaskedDataType
+		}
+
+		return fmt.Sprintf(
+			"%s(%d)", redshiftType, lengthCol)
 	default:
 		return redshiftType
 	}
