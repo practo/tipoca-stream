@@ -53,7 +53,7 @@ func LoadConfig(cmd *cobra.Command) (Config, error) {
 	ValidateConfig(c)
 
 	klog.Infof("Using config file: %s\n", configName)
-	klog.V(5).Infof("ConfigFilePath: %s\n", viper.ConfigFileUsed())
+	klog.V(4).Infof("ConfigFilePath: %s\n", viper.ConfigFileUsed())
 	klog.V(5).Infof("Config: %+v\n", c)
 	return c, nil
 }
