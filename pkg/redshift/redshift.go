@@ -346,7 +346,6 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 		return err
 	}
 
-	args := []interface{}{strings.Join(columnSQL, ",")}
 	createSQL := fmt.Sprintf(
 		tableCreate,
 		table.Meta.Schema,
@@ -356,14 +355,14 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 		sortColumnsSQL,
 	)
 
-	klog.V(5).Infof("Preparing: %s with args: %v\n", createSQL, args)
+	klog.V(5).Infof("Preparing: %s\n", createSQL)
 	createStmt, err := tx.PrepareContext(r.ctx, createSQL)
 	if err != nil {
 		return fmt.Errorf("error preparing statement: %v\n", err)
 	}
 	defer createStmt.Close()
 
-	klog.V(4).Infof("Running: %s with args: %v\n", createSQL, args)
+	klog.V(4).Infof("Running: %s\n", createSQL)
 	_, err = createStmt.ExecContext(r.ctx)
 
 	return err
@@ -387,16 +386,16 @@ func (r *Redshift) UpdateTable(inputTable, targetTable Table) (bool, error) {
 	}
 
 	if len(transactcolumnOps)+len(columnOps)+len(varCharColumnOps) == 0 {
-		klog.Infof(
+		klog.V(2).Infof(
 			"Schema migration is not needed for table: %v\n",
 			inputTable.Name)
 		return false, nil
 	}
-	klog.Infof("Schema migration is required for: %v\n", inputTable.Name)
+	klog.V(2).Infof("Schema migration is required for: %v\n", inputTable.Name)
 
 	// Strategy1: execute
 	if len(varCharColumnOps) > 0 {
-		klog.Infof("Strategy1: running migration (VARCHAR type): %v\n",
+		klog.V(2).Infof("Strategy1: running migration (VARCHAR type): %v\n",
 			inputTable.Name)
 	}
 	for _, op := range varCharColumnOps {
@@ -406,7 +405,7 @@ func (r *Redshift) UpdateTable(inputTable, targetTable Table) (bool, error) {
 			return false, err
 		}
 
-		klog.Infof("Running (!tx): %s", op)
+		klog.V(2).Infof("Running (!tx): %s", op)
 		_, err = alterStmt.ExecContext(r.ctx)
 		if err != nil {
 			return false, fmt.Errorf("cmd failed, cmd:%s, err: %s\n", op, err)
@@ -416,7 +415,7 @@ func (r *Redshift) UpdateTable(inputTable, targetTable Table) (bool, error) {
 
 	// Strategy2: execute
 	if len(transactcolumnOps) > 0 {
-		klog.Infof(
+		klog.V(2).Infof(
 			"Strategy2: starting inplace-migration, table:%v\n",
 			inputTable.Name)
 
@@ -433,7 +432,7 @@ func (r *Redshift) UpdateTable(inputTable, targetTable Table) (bool, error) {
 				tx.Rollback()
 				return false, err
 			}
-			klog.Infof("Running: %s", op)
+			klog.V(2).Infof("Running: %s", op)
 			_, err = alterStmt.ExecContext(r.ctx)
 			if err != nil {
 				tx.Rollback()
@@ -453,7 +452,7 @@ func (r *Redshift) UpdateTable(inputTable, targetTable Table) (bool, error) {
 	// run non transaction block commands
 	// redshift does not support alter columns #40
 	if len(columnOps) > 0 {
-		klog.Infof(
+		klog.V(2).Infof(
 			"Strategy3: table-migration triggering, table:%v\n",
 			inputTable.Name)
 		klog.V(5).Infof("columnOps=%v\n", columnOps)
@@ -537,14 +536,14 @@ func (r *Redshift) ReplaceTable(
 }
 
 func (r *Redshift) prepareAndExecute(tx *sql.Tx, command string) error {
-	klog.V(4).Infof("Preparing: %s\n", command)
+	klog.V(5).Infof("Preparing: %s\n", command)
 	statement, err := tx.PrepareContext(r.ctx, command)
 	if err != nil {
 		return err
 	}
 	defer statement.Close()
 
-	klog.Infof("Running: %s\n", command)
+	klog.V(4).Infof("Running: %s\n", command)
 	_, err = statement.ExecContext(r.ctx)
 	if err != nil {
 		return fmt.Errorf("cmd failed, cmd:%s, err: %s\n", command, err)
@@ -653,7 +652,8 @@ func (r *Redshift) Unload(tx *sql.Tx,
 		s3Key,
 		credentials,
 	)
-	klog.V(4).Infof("Running: %s", unLoadSQL)
+	klog.V(2).Infof("Running: UNLOAD from %s to s3\n", table)
+	klog.V(5).Infof("Running: %s", unLoadSQL)
 	_, err := tx.ExecContext(r.ctx, unLoadSQL)
 
 	return err
@@ -690,7 +690,8 @@ func (r *Redshift) Copy(tx *sql.Tx,
 		json,
 		csv,
 	)
-	klog.V(4).Infof("Running: %s", copySQL)
+	klog.V(2).Infof("Running: COPY from s3 to: %s\n", table)
+	klog.V(5).Infof("Running: %s\n", copySQL)
 	_, err := tx.ExecContext(r.ctx, copySQL)
 
 	return err
