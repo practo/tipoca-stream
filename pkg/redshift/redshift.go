@@ -363,7 +363,7 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 	}
 	defer createStmt.Close()
 
-	klog.V(5).Infof("Running: %s with args: %v\n", createSQL, args)
+	klog.V(4).Infof("Running: %s with args: %v\n", createSQL, args)
 	_, err = createStmt.ExecContext(r.ctx)
 
 	return err
@@ -378,8 +378,8 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 // 				 Supports: all the other migration scenarios
 //               Exectued by ReplaceTable(), triggered by this function
 func (r *Redshift) UpdateTable(inputTable, targetTable Table) (bool, error) {
-	klog.V(5).Infof("inputt Table: \n%+v\n", inputTable)
-	klog.V(5).Infof("target Table: \n%+v\n", targetTable)
+	klog.V(4).Infof("inputt Table: \n%+v\n", inputTable)
+	klog.V(4).Infof("target Table: \n%+v\n", targetTable)
 	transactcolumnOps, columnOps, varCharColumnOps, err := CheckSchemas(
 		inputTable, targetTable)
 	if err != nil {
@@ -498,7 +498,7 @@ func (r *Redshift) ReplaceTable(
 		targetTableName,
 		migrationTableName,
 	)
-	klog.V(5).Infof("Running: %s", renameSQL)
+	klog.V(4).Infof("Running: %s", renameSQL)
 	_, err = tx.ExecContext(r.ctx, renameSQL)
 	if err != nil {
 		return err
@@ -653,7 +653,7 @@ func (r *Redshift) Unload(tx *sql.Tx,
 		s3Key,
 		credentials,
 	)
-	klog.V(5).Infof("Running: %s", unLoadSQL)
+	klog.V(4).Infof("Running: %s", unLoadSQL)
 	_, err := tx.ExecContext(r.ctx, unLoadSQL)
 
 	return err
@@ -690,7 +690,7 @@ func (r *Redshift) Copy(tx *sql.Tx,
 		json,
 		csv,
 	)
-	klog.V(5).Infof("Running: %s", copySQL)
+	klog.V(4).Infof("Running: %s", copySQL)
 	_, err := tx.ExecContext(r.ctx, copySQL)
 
 	return err
