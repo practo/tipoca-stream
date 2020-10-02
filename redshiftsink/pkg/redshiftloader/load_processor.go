@@ -558,19 +558,10 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 	}
 
 	// UpdateTable computes the schema migration commands and executes it
-	// if required else does nothing.
-	tx, err := b.redshifter.Begin()
+	// if required else does nothing. (it runs in transaction based on strategy)
+	migrateTable, err := b.redshifter.UpdateTable(inputTable, *targetTable)
 	if err != nil {
-		klog.Fatalf("Error creating database tx, err: %v\n", err)
-	}
-	migrateTable, err := b.redshifter.UpdateTable(tx, inputTable, *targetTable)
-	if err != nil {
-		tx.Rollback()
-		klog.Fatalf("Error running schema migration, err: %v\n", err)
-	}
-	err = tx.Commit()
-	if err != nil {
-		klog.Fatalf("Error committing tx, err:%v\n", err)
+		klog.Fatalf("Schema migration failed, err: %v\n", err)
 	}
 
 	if migrateTable == true {
