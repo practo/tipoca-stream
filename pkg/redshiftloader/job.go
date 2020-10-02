@@ -26,13 +26,14 @@ type Job struct {
 	EndOffset     int64                          `json:"endOffset"`
 	CsvDialect    string                         `json:"csvDialect"`
 	S3Path        string                         `json:"s3Path"`
-	SchemaId      int                            `json:"schemaId"` // schema id of debezium event
+	SchemaId      int                            `json:"schemaId"`  // schema id of debezium event
+	SkipMerge     bool                           `json:"skipMerge"` // to load using merge strategy or directy COPY
 	MaskSchema    map[string]serializer.MaskInfo `json:"maskSchema"`
 }
 
 func NewJob(
 	upstreamTopic string, startOffset int64, endOffset int64,
-	csvDialect string, s3Path string, schemaId int,
+	csvDialect string, s3Path string, schemaId int, skipMerge bool,
 	maskSchema map[string]serializer.MaskInfo) Job {
 
 	return Job{
@@ -42,6 +43,7 @@ func NewJob(
 		CsvDialect:    csvDialect,
 		S3Path:        s3Path,
 		SchemaId:      schemaId,
+		SkipMerge:     skipMerge,
 		MaskSchema:    maskSchema,
 	}
 }
@@ -76,6 +78,10 @@ func StringMapToJob(data map[string]interface{}) Job {
 				job.SchemaId = int(value)
 			} else if value, ok := v.(int); ok {
 				job.SchemaId = value
+			}
+		case "skipMerge":
+			if value, ok := v.(bool); ok {
+				job.SkipMerge = value
 			}
 		case "maskSchema":
 			schema := make(map[string]serializer.MaskInfo)
@@ -161,6 +167,7 @@ func (c Job) ToStringMap() map[string]interface{} {
 		"csvDialect":    c.CsvDialect,
 		"s3Path":        c.S3Path,
 		"schemaId":      c.SchemaId,
+		"skipMerge":     c.SkipMerge,
 		"maskSchema":    ToSchemaString(c.MaskSchema),
 	}
 }
