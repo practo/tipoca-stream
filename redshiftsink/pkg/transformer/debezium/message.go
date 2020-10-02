@@ -13,9 +13,6 @@ import (
 )
 
 const (
-	OperationCreate     = "CREATE"
-	OperationUpdate     = "UPDATE"
-	OperationDelete     = "DELETE"
 	OperationColumn     = "operation"
 	OperationColumnType = "character varying(15)"
 
@@ -107,11 +104,11 @@ func (c *messageTransformer) getOperation(message *serializer.Message,
 		return "", fmt.Errorf(
 			"message: %v has both before and after as nil\n", message)
 	case 1:
-		return OperationDelete, nil
+		return serializer.OperationDelete, nil
 	case 2:
-		return OperationCreate, nil
+		return serializer.OperationCreate, nil
 	case 3:
-		return OperationUpdate, nil
+		return serializer.OperationUpdate, nil
 	default:
 		return "", fmt.Errorf(
 			"message: %v not possible get operation\n", message)
@@ -196,6 +193,7 @@ func (c *messageTransformer) Transform(
 	kafkaOffset := fmt.Sprintf("%v", message.Offset)
 	after["kafkaoffset"] = &kafkaOffset
 	after["operation"] = &operation
+	message.Operation = operation
 
 	message.Value, err = json.Marshal(after)
 	if err != nil {

@@ -180,13 +180,9 @@ func (b *loadProcessor) handleShutdown() {
 	}
 }
 
-// loadStagingTable loads the batch to redhsift table using
-// COPY command. Staging table is a temp table used to merge data and
-// finally insert into target table.
-func (b *loadProcessor) loadStagingTable(s3ManifestKey string) {
-	schema := b.stagingTable.Meta.Schema
-	table := b.stagingTable.Name
-
+// loadTable loads the batch to redhsift table using
+// COPY command.
+func (b *loadProcessor) loadTable(schema, table, s3ManifestKey string) {
 	tx, err := b.redshifter.Begin()
 	if err != nil {
 		klog.Fatalf("Error creating database tx, err: %v\n", err)
@@ -250,7 +246,7 @@ func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
 		debezium.OperationColumn,
-		debezium.OperationDelete,
+		serializer.OperationDelete,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -584,8 +580,9 @@ func (b *loadProcessor) processBatch(
 	b.targetTable = nil
 	b.upstreamTopic = ""
 
+	// name is skipMerge and not merge for backward compatiblity
+	skipMerge := false
 	var entries []s3sink.S3ManifestEntry
-
 	for id, data := range datas {
 		select {
 		case <-ctx.Done():
@@ -595,6 +592,10 @@ func (b *loadProcessor) processBatch(
 			job := StringMapToJob(message.Value.(map[string]interface{}))
 			schemaId := job.SchemaId
 			b.batchEndOffset = message.Offset
+
+			if job.SkipMerge {
+				skipMerge = true
+			}
 
 			// this assumes all messages in a batch have same schema id
 			if id == 0 {
@@ -638,8 +639,20 @@ func (b *loadProcessor) processBatch(
 			s3ManifestKey, err)
 	}
 
-	b.loadStagingTable(s3ManifestKey)
-	b.merge()
+	if skipMerge {
+		b.loadTable(
+			b.targetTable.Meta.Schema,
+			b.targetTable.Name,
+			s3ManifestKey,
+		)
+	} else {
+		b.loadTable(
+			b.stagingTable.Meta.Schema,
+			b.stagingTable.Name,
+			s3ManifestKey,
+		)
+		b.merge()
+	}
 
 	if b.redshiftStats {
 		klog.V(2).Infof("endbatch dbstats: %+v\n", b.redshifter.Stats())
