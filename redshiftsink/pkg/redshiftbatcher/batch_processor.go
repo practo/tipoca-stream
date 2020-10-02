@@ -140,7 +140,7 @@ func newBatchProcessor(
 			viper.GetString("schemaRegistryURL")),
 		msgMasker:    msgMasker,
 		maskMessages: maskMessages,
-		skipMerge:    false,
+		skipMerge:    true,
 		maskSchema:   make(map[string]serializer.MaskInfo),
 		signaler:     signaler,
 	}
@@ -328,7 +328,7 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 			"topic:%s, batchId:%d id:%d: merge true\n",
 			b.topic, b.batchId, id,
 		)
-		b.skipMerge = true
+		b.skipMerge = false
 	} else {
 		klog.V(2).Infof(
 			"topic:%s, batchId:%d id:%d: merge false\n",
