@@ -85,6 +85,9 @@ type batchProcessor struct {
 	// maskMessages stores if the masking is enabled
 	maskSchema map[string]serializer.MaskInfo
 
+	// skipMerge if only create operations are present in batch
+	skipMerge bool
+
 	// signaler is a kafka producer signaling the load the batch uploaded data
 	// TODO: make the producer have interface
 	signaler *producer.AvroProducer
@@ -137,6 +140,7 @@ func newBatchProcessor(
 			viper.GetString("schemaRegistryURL")),
 		msgMasker:    msgMasker,
 		maskMessages: maskMessages,
+		skipMerge:    false,
 		maskSchema:   make(map[string]serializer.MaskInfo),
 		signaler:     signaler,
 	}
@@ -235,6 +239,7 @@ func (b *batchProcessor) signalLoad() {
 		",",
 		b.s3sink.GetKeyURI(b.s3Key),
 		b.batchSchemaId, // schema of upstream topic
+		b.skipMerge,
 		b.maskSchema,
 	)
 
@@ -316,6 +321,19 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 	b.bodyBuf.Write([]byte{'\n'})
 	if b.maskMessages && len(b.maskSchema) == 0 {
 		b.maskSchema = message.MaskSchema
+	}
+
+	if message.Operation != serializer.OperationCreate {
+		klog.V(2).Infof(
+			"topic:%s, batchId:%d id:%d: merge true\n",
+			b.topic, b.batchId, id,
+		)
+		b.skipMerge = true
+	} else {
+		klog.V(2).Infof(
+			"topic:%s, batchId:%d id:%d: merge false\n",
+			b.topic, b.batchId, id,
+		)
 	}
 
 	klog.V(5).Infof(
