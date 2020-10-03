@@ -232,6 +232,8 @@ func (b *batchProcessor) handleShutdown() {
 
 func (b *batchProcessor) signalLoad() {
 	downstreamTopic := "loader-" + b.topic
+        klog.V(2).Infof("topic:%s, batchId: %d, skipMerge: %v\n",
+            b.topic, b.batchId, b.skipMerge)
 	job := loader.NewJob(
 		b.topic,
 		b.batchStartOffset,
@@ -239,8 +241,8 @@ func (b *batchProcessor) signalLoad() {
 		",",
 		b.s3sink.GetKeyURI(b.s3Key),
 		b.batchSchemaId, // schema of upstream topic
-		b.skipMerge,
 		b.maskSchema,
+		b.skipMerge,
 	)
 
 	err := b.signaler.Add(
@@ -324,16 +326,7 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 	}
 
 	if message.Operation != serializer.OperationCreate {
-		klog.V(2).Infof(
-			"topic:%s, batchId:%d id:%d: merge true\n",
-			b.topic, b.batchId, id,
-		)
 		b.skipMerge = false
-	} else {
-		klog.V(2).Infof(
-			"topic:%s, batchId:%d id:%d: merge false\n",
-			b.topic, b.batchId, id,
-		)
 	}
 
 	klog.V(5).Infof(
