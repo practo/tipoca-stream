@@ -11,7 +11,8 @@ func testRedshiftDataTypeGet(t *testing.T, sqlType, debeziumType,
 	sourceColType, sourceColLength, sourceColumnScale string,
 	columnMasked bool, expectedResult string) error {
 	redshiftType, err := GetRedshiftDataType(
-		sqlType, debeziumType, sourceColType, sourceColLength, columnMasked,
+		sqlType, debeziumType,
+		sourceColType, sourceColLength, sourceColumnScale, columnMasked,
 	)
 	if err != nil {
 		return err
@@ -34,6 +35,7 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 		debeziumType    string
 		sourceColType   string
 		sourceColLength string
+		sourceColScale  string
 		columnMasked    bool
 		expectedResult  string
 		expectError     bool
@@ -190,6 +192,103 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 		},
 		{
 			name:            "test15: test length, for integer, code not ready so should return default, masked",
+			sqlType:         "mysql",
+			debeziumType:    "int",
+			sourceColType:   "integer",
+			sourceColLength: "10",
+			columnMasked:    true,
+			expectedResult:  "character varying(50)",
+			expectError:     false,
+		},
+		{
+			name:            "test16: test default length when masked",
+			sqlType:         "mysql",
+			debeziumType:    "string",
+			sourceColType:   "DECIMAL",
+			sourceColLength: "",
+			sourceColScale:  "",
+			columnMasked:    true,
+			expectedResult:  "character varying(50)",
+			expectError:     false,
+		},
+		{
+			name:            "test17: test default length when unmasked",
+			sqlType:         "mysql",
+			debeziumType:    "string",
+			sourceColType:   "NUMERIC",
+			sourceColLength: "",
+			sourceColScale:  "",
+			columnMasked:    false,
+			expectedResult:  "numeric(18,0)",
+			expectError:     false,
+		},
+		{
+			name:            "test18: test length, masked, mid bound",
+			sqlType:         "mysql",
+			debeziumType:    "string",
+			sourceColType:   "DECIMAL",
+			sourceColLength: "100",
+			sourceColScale:  "4",
+			columnMasked:    true,
+			expectedResult:  "character varying(100)",
+			expectError:     false,
+		},
+		{
+			name:            "test19: test length and scale, unmasked, mid bound",
+			sqlType:         "mysql",
+			debeziumType:    "string",
+			sourceColType:   "DECIMAL",
+			sourceColLength: "24",
+			sourceColScale:  "4",
+			columnMasked:    false,
+			expectedResult:  "numeric(24,4)",
+			expectError:     false,
+		},
+		{
+			name:            "test20: test length and scale, unmasked, upper bound",
+			sqlType:         "mysql",
+			debeziumType:    "string",
+			sourceColType:   "DECIMAL",
+			sourceColLength: "39",
+			sourceColScale:  "40",
+			columnMasked:    false,
+			expectedResult:  "numeric(38,37)",
+			expectError:     false,
+		},
+		{
+			name:            "test21: test length, lower bound should apply when masked",
+			sqlType:         "mysql",
+			debeziumType:    "string",
+			sourceColType:   "DECIMAL",
+			sourceColLength: "5",
+			sourceColScale:  "2",
+			columnMasked:    true,
+			expectedResult:  "character varying(50)",
+			expectError:     false,
+		},
+		{
+			name:            "test22: test length, lower bound should apply when masked",
+			sqlType:         "mysql",
+			debeziumType:    "string",
+			sourceColType:   "DECIMAL",
+			sourceColLength: "5",
+			sourceColScale:  "2",
+			columnMasked:    false,
+			expectedResult:  "numeric(5,2)",
+			expectError:     false,
+		},
+		{
+			name:            "test23: test length, for integer (default case)",
+			sqlType:         "mysql",
+			debeziumType:    "int",
+			sourceColType:   "integer",
+			sourceColLength: "10",
+			columnMasked:    false,
+			expectedResult:  "integer",
+			expectError:     false,
+		},
+		{
+			name:            "test24: test length, for integer (default case)",
 			sqlType:         "mysql",
 			debeziumType:    "int",
 			sourceColType:   "integer",
