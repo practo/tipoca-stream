@@ -19,14 +19,23 @@ import (
 )
 
 const (
-	RedshiftString               = "character varying"
-	RedshiftStringMax            = "character varying(65535)"
-	RedshiftStringMaxLength      = 65535
+	RedshiftString              = "character varying"
+	RedshiftStringMax           = "character varying(65535)"
+	RedshiftStringMaxLength     = 65535
+	RedshiftStringDefaultLength = 256
+
 	RedshiftMaskedDataType       = "character varying(50)"
 	RedshiftMaskedDataTypeLength = 50
-	RedshiftDate                 = "date"
-	RedshiftInteger              = "integer"
-	RedshiftTimeStamp            = "timestamp without time zone"
+
+	RedshiftNumeric             = "numeric"
+	RedshiftNumericMaxLength    = 38
+	RedshiftNumericDefautLength = 18
+	RedshiftNumericMaxScale     = 37
+	RedshiftNumericDefaultScale = 0
+
+	RedshiftDate      = "date"
+	RedshiftInteger   = "integer"
+	RedshiftTimeStamp = "timestamp without time zone"
 
 	// required to support utf8 characters
 	// https://docs.aws.amazon.com/redshift/latest/dg/r_Character_types.html#r_Character_types-varchar-or-character-varying
@@ -973,49 +982,106 @@ var mysqlToRedshiftTypeMap = map[string]string{
 	"smallint":                    "smallint",
 	"tinyint":                     "smallint",
 	"tinyint unsigned":            "smallint",
-	"dec":                         "decimal(18,5)",
-	"decimal":                     "decimal(18,5)",
-	"decimal unsigned":            "decimal(18,5)",
-	"fixed":                       "numeric(18,0)",
-	"numeric":                     "numeric(18,0)",
-	"bigint unsigned":             "numeric(20, 0)",
+	"dec":                         RedshiftNumeric,
+	"decimal":                     RedshiftNumeric,
+	"decimal unsigned":            RedshiftNumeric,
+	"fixed":                       RedshiftNumeric,
+	"numeric":                     RedshiftNumeric,
+	"bigint unsigned":             RedshiftNumeric,
 	"float":                       "real",
 }
 
+func applyRange(masked bool, min, max, current int) int {
+	if current > max {
+		return max
+	} else if current < min && masked {
+		return min
+	}
+
+	return current
+}
+
+func computeScale(sourceColScale string) int {
+	if sourceColScale == "" {
+		return RedshiftNumericDefaultScale
+	}
+
+	scale, err := strconv.Atoi(sourceColScale)
+	if err != nil {
+		klog.Fatalf("Error converting to int, val: %v %v\n",
+			sourceColScale, err)
+	}
+
+	if scale < 0 {
+		return 0
+	}
+
+	if scale > RedshiftNumericMaxScale {
+		return RedshiftNumericMaxScale
+	}
+
+	return scale
+}
+
+func computeLength(sourceColLength string, defaultLength int,
+	columnMasked bool, ratio float64) int {
+
+	var lengthCol int
+	if sourceColLength == "" {
+		if columnMasked {
+			// default for masked column
+			lengthCol = RedshiftMaskedDataTypeLength
+		} else {
+			// default for unmasked column
+			lengthCol = defaultLength
+		}
+	} else {
+		sourceLength, err := strconv.Atoi(sourceColLength)
+		if err != nil {
+			klog.Fatalf("Error converting to int, val: %v %v\n",
+				sourceColLength, err)
+		}
+		// multi byte support for strings, numeric always get ratio as 1
+		lengthCol = int(math.Ceil(float64(sourceLength) * ratio))
+	}
+
+	return lengthCol
+}
+
 // applyLength applies the length passed otherwise adds default
-// TODO: only takes care of string length, numeric and other types pending
-func applyLength(ratio float64,
-	redshiftType, sourceColLength string, columnMasked bool) string {
+func applyLength(ratio float64, redshiftType,
+	sourceColLength string, sourceColScale string,
+	columnMasked bool) string {
+
 	switch redshiftType {
 	case RedshiftString:
-		// for string type apply the range of col length
-		// maskedLen <= requiredLen ~ ratio*sourceLen <= maxRedshiftLen
-		var lengthCol int
-		if sourceColLength == "" {
-			if columnMasked {
-				// default for masked column
-				lengthCol = RedshiftMaskedDataTypeLength
-			} else {
-				// default for unmasked column
-				lengthCol = 256
-			}
-		} else {
-			sourceLength, err := strconv.Atoi(sourceColLength)
-			if err != nil {
-				klog.Fatalf("Error converting to int, val: %v %v\n",
-					sourceColLength, err)
-			}
-			// multi byte support
-			lengthCol = int(math.Ceil(float64(sourceLength) * ratio))
-		}
-		if lengthCol > RedshiftStringMaxLength {
-			lengthCol = RedshiftStringMaxLength
-		} else if lengthCol < RedshiftMaskedDataTypeLength && columnMasked {
-			lengthCol = RedshiftMaskedDataTypeLength
-		}
+		lengthCol := computeLength(
+			sourceColLength,
+			RedshiftStringDefaultLength,
+			columnMasked,
+			ratio)
+		lengthCol = applyRange(
+			columnMasked,
+			RedshiftMaskedDataTypeLength,
+			RedshiftStringMaxLength,
+			lengthCol,
+		)
 		return fmt.Sprintf("%s(%d)", redshiftType, lengthCol)
+	case RedshiftNumeric:
+		lengthCol := computeLength(
+			sourceColLength,
+			RedshiftNumericDefautLength,
+			columnMasked,
+			1.0)
+		lengthCol = applyRange(
+			columnMasked,
+			RedshiftMaskedDataTypeLength,
+			RedshiftNumericMaxLength,
+			lengthCol,
+		)
+		return fmt.Sprintf(
+			"%s(%d,%d)", redshiftType, lengthCol, computeScale(sourceColScale))
 	default:
-		// for all the other column types return masked type or the type got
 		if columnMasked {
 			return RedshiftMaskedDataType
 		}
@@ -1025,7 +1091,8 @@ func applyLength(ratio float64,
 
 // GetRedshiftDataType returns the mapped type for the sqlType's data type
 func GetRedshiftDataType(sqlType, debeziumType, sourceColType,
-	sourceColLength string, columnMasked bool) (string, error) {
+	sourceColLength string, sourceColScale string,
+	columnMasked bool) (string, error) {
 
 	debeziumType = strings.ToLower(debeziumType)
 	sourceColType = strings.ToLower(sourceColType)
@@ -1053,6 +1120,7 @@ func GetRedshiftDataType(sqlType, debeziumType, sourceColType,
 			RedshiftToMysqlCharacterRatio,
 			redshiftType,
 			sourceColLength,
+			sourceColScale,
 			columnMasked,
 		), nil
 	}
