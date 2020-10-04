@@ -17,7 +17,7 @@ var JobAvroSchema string = `{
         {"name": "s3Path", "type": "string"},
         {"name": "schemaId", "type": "int"},
         {"name": "maskSchema", "type": "string"},
-        {"name": "skipMerge", "type": "string"}
+        {"name": "skipMerge", "type": "string", "default": ""}
     ]
 }`
 
