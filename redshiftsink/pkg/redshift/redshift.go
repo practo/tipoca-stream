@@ -993,9 +993,9 @@ var mysqlToRedshiftTypeMap = map[string]string{
 
 func applyRange(masked bool, min, max, current int) int {
 	if current > max {
-		return max
+		current = max
 	} else if current < min && masked {
-		return min
+		current = min
 	}
 
 	return current
@@ -1073,12 +1073,18 @@ func applyLength(ratio float64, redshiftType,
 			RedshiftNumericDefautLength,
 			columnMasked,
 			1.0)
-		lengthCol = applyRange(
-			columnMasked,
-			RedshiftMaskedDataTypeLength,
-			RedshiftNumericMaxLength,
-			lengthCol,
-		)
+
+		if columnMasked {
+			if lengthCol < RedshiftMaskedDataTypeLength {
+				lengthCol = RedshiftMaskedDataTypeLength
+			} else if lengthCol > RedshiftStringMaxLength {
+				lengthCol = RedshiftStringMaxLength
+			}
+			return fmt.Sprintf("%s(%d)", RedshiftString, lengthCol)
+		}
+		if lengthCol > RedshiftNumericMaxLength {
+			lengthCol = RedshiftNumericMaxLength
+		}
 		return fmt.Sprintf(
 			"%s(%d,%d)", redshiftType, lengthCol, computeScale(sourceColScale))
 	default:
