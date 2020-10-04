@@ -7,6 +7,7 @@ import (
 	"github.com/linkedin/goavro/v2"
 	"github.com/riferrei/srclient"
 	"time"
+	"strings"
 )
 
 type AvroProducer struct {
@@ -49,8 +50,11 @@ func (c *AvroProducer) CreateSchema(
 
 	created := false
 
+	schemeStr := strings.ReplaceAll(schema, "\n", "")
+	schemeStr = strings.ReplaceAll(schemeStr, " ", "")
+
 	schema, err := c.srclient.GetLatestSchema(topic, false)
-	if schema == nil {
+	if schema == nil || schema.Schema() != schemeStr {
 		schema, err = c.srclient.CreateSchema(
 			topic, scheme, srclient.Avro, false,
 		)
