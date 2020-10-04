@@ -38,6 +38,7 @@ type ColInfo struct {
 type SourceType struct {
 	ColumnLength string `yaml:"columnLength"`
 	ColumnType   string `yaml:"columnType"`
+	ColumnScale  string `yaml:"columnScale"`
 }
 
 func NewSchemaTransformer(url string) transformer.SchemaTransformer {
@@ -74,6 +75,7 @@ func getSourceType(v interface{}) SourceType {
 	valueMap := v.(map[string]interface{})
 	var columnType string
 	var columnLength string
+	var columnScale string
 	fieldsFound := 0
 
 	for key, value := range valueMap {
@@ -86,6 +88,11 @@ func getSourceType(v interface{}) SourceType {
 			columnType = fmt.Sprintf("%s", value)
 			fieldsFound = fieldsFound + 1
 		}
+
+		if key == "__debezium.source.column.scale" {
+			columnScale = fmt.Sprintf("%s", value)
+			fieldsFound = fieldsFound + 1
+		}
 	}
 	if fieldsFound == 0 {
 		klog.Warningf("Source info missing in %+v\n", v)
@@ -94,6 +101,7 @@ func getSourceType(v interface{}) SourceType {
 	return SourceType{
 		ColumnType:   columnType,
 		ColumnLength: columnLength,
+		ColumnScale:  columnScale,
 	}
 }
 
@@ -354,6 +362,7 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 			column.Type,
 			column.SourceType.ColumnType,
 			column.SourceType.ColumnLength,
+			column.SourceType.ColumnScale,
 			columnMasked,
 		)
 		if err != nil {
