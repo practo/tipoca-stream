@@ -576,6 +576,7 @@ func (b *loadProcessor) processBatch(
 	}
 
 	var inputTable redshift.Table
+	var schemaId int
 	b.stagingTable = nil
 	b.targetTable = nil
 	b.upstreamTopic = ""
@@ -590,7 +591,7 @@ func (b *loadProcessor) processBatch(
 		default:
 			message := data.(*serializer.Message)
 			job := StringMapToJob(message.Value.(map[string]interface{}))
-			schemaId := job.SchemaId
+			schemaId = job.SchemaId
 			b.batchEndOffset = message.Offset
 
 			if job.SkipMerge {
@@ -617,7 +618,6 @@ func (b *loadProcessor) processBatch(
 				// postgres(redshift)
 				inputTable.Name = strings.ToLower(inputTable.Name)
 				b.migrateSchema(schemaId, inputTable)
-				b.createStagingTable(schemaId, inputTable)
 			}
 			entries = append(
 				entries,
@@ -640,12 +640,15 @@ func (b *loadProcessor) processBatch(
 	}
 
 	if skipMerge {
+		klog.V(2).Infof("topic: %s, skipping merge strategy\n", b.topic)
 		b.loadTable(
 			b.targetTable.Meta.Schema,
 			b.targetTable.Name,
 			s3ManifestKey,
 		)
 	} else {
+		klog.V(2).Infof("topic: %s, using merge strategy\n", b.topic)
+		b.createStagingTable(schemaId, inputTable)
 		b.loadTable(
 			b.stagingTable.Meta.Schema,
 			b.stagingTable.Name,
