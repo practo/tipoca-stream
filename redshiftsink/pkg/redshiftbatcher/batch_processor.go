@@ -232,8 +232,8 @@ func (b *batchProcessor) handleShutdown() {
 
 func (b *batchProcessor) signalLoad() {
 	downstreamTopic := "loader-" + b.topic
-        klog.V(2).Infof("topic:%s, batchId: %d, skipMerge: %v\n",
-            b.topic, b.batchId, b.skipMerge)
+	klog.V(2).Infof("topic:%s, batchId: %d, skipMerge: %v\n",
+		b.topic, b.batchId, b.skipMerge)
 	job := loader.NewJob(
 		b.topic,
 		b.batchStartOffset,

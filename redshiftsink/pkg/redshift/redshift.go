@@ -395,7 +395,7 @@ func (r *Redshift) UpdateTable(inputTable, targetTable Table) (bool, error) {
 		return false, nil
 	}
 	klog.V(2).Infof("Schema migration is required for: %v\n", inputTable.Name)
-        klog.V(2).Infof("tOps: %v, cOps: %v, vOps: %v\n",
+	klog.V(2).Infof("tOps: %v, cOps: %v, vOps: %v\n",
 		transactcolumnOps, columnOps, varCharColumnOps)
 
 	// Strategy1: execute
