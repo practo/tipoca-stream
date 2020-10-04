@@ -27,7 +27,7 @@ type Job struct {
 	EndOffset     int64                          `json:"endOffset"`
 	CsvDialect    string                         `json:"csvDialect"`
 	S3Path        string                         `json:"s3Path"`
-	SchemaId      int                            `json:"schemaId"`  // schema id of debezium event
+	SchemaId      int                            `json:"schemaId"` // schema id of debezium event
 	MaskSchema    map[string]serializer.MaskInfo `json:"maskSchema"`
 	SkipMerge     bool                           `json:"skipMerge"` // to load using merge strategy or directy COPY
 }
@@ -83,9 +83,9 @@ func StringMapToJob(data map[string]interface{}) Job {
 		case "skipMerge":
 			if value, ok := v.(string); ok {
 				if value == "true" {
-                                    job.SkipMerge = true
+					job.SkipMerge = true
 				} else {
-                                    job.SkipMerge = false
+					job.SkipMerge = false
 				}
 			}
 		case "maskSchema":
@@ -165,10 +165,10 @@ func ToSchemaString(m map[string]serializer.MaskInfo) string {
 
 // ToStringMap returns a map representation of the Job
 func (c Job) ToStringMap() map[string]interface{} {
-        skipMerge := "false"
-        if c.SkipMerge {
-            skipMerge = "true"
-        }
+	skipMerge := "false"
+	if c.SkipMerge {
+		skipMerge = "true"
+	}
 	return map[string]interface{}{
 		"upstreamTopic": c.UpstreamTopic,
 		"startOffset":   c.StartOffset,
