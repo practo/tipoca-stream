@@ -8,7 +8,7 @@ import (
 )
 
 func testRedshiftDataTypeGet(t *testing.T, sqlType, debeziumType,
-	sourceColType, sourceColLength string,
+	sourceColType, sourceColLength, sourceColumnScale string,
 	columnMasked bool, expectedResult string) error {
 	redshiftType, err := GetRedshiftDataType(
 		sqlType, debeziumType, sourceColType, sourceColLength, columnMasked,
@@ -209,6 +209,7 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 				tc.debeziumType,
 				tc.sourceColType,
 				tc.sourceColLength,
+				tc.sourceColScale,
 				tc.columnMasked,
 				tc.expectedResult,
 			)
