@@ -3,6 +3,7 @@ package redshiftbatcher
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
@@ -144,6 +145,22 @@ func newBatchProcessor(
 		maskSchema:   make(map[string]serializer.MaskInfo),
 		signaler:     signaler,
 	}
+}
+
+func removeEmptyNullValues(value map[string]*string) map[string]*string {
+	for cName, cVal := range value {
+		if cVal == nil {
+			delete(value, cName)
+			continue
+		}
+
+		if strings.TrimSpace(*cVal) == "" {
+			delete(value, cName)
+			continue
+		}
+	}
+
+	return value
 }
 
 // TODO: get rid of this https://github.com/herryg91/gobatch/issues/2
@@ -319,7 +336,14 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 		}
 	}
 
-	b.bodyBuf.Write(message.Value.([]byte))
+	message.Value = removeEmptyNullValues(message.Value.(map[string]*string))
+
+	messageValueBytes, err := json.Marshal(message.Value)
+	if err != nil {
+		klog.Fatalf("Error marshalling message.Value, message: %+v\n", message)
+	}
+
+	b.bodyBuf.Write(messageValueBytes)
 	b.bodyBuf.Write([]byte{'\n'})
 	if b.maskMessages && len(b.maskSchema) == 0 {
 		b.maskSchema = message.MaskSchema
