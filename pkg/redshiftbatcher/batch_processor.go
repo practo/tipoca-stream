@@ -362,6 +362,7 @@ func (b *batchProcessor) process(workerID int, datas []interface{}) {
 
 	b.setBatchId()
 	b.batchSchemaId = -1
+	b.skipMerge = true
 
 	if b.ctxCancelled() {
 		return
