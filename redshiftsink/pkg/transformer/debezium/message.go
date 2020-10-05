@@ -152,6 +152,24 @@ func (c *messageTransformer) Transform(
 	before := d.before()
 	after := d.after()
 
+	operation, err := c.getOperation(message, len(before), len(after))
+	if err != nil {
+		return err
+	}
+
+	value := make(map[string]*string)
+
+	switch operation {
+	case serializer.OperationCreate:
+		value = after
+	case serializer.OperationUpdate:
+		value = after
+	case serializer.OperationDelete:
+		value = before
+	default:
+		return fmt.Errorf("Unknown operation: %s\n", operation)
+	}
+
 	// transform debezium timestamp and date to redshift loadable value
 	// date like 1982-09-24 needs to handled properly so that hashing is
 	// consistent across tables.
@@ -160,7 +178,7 @@ func (c *messageTransformer) Transform(
 			column.Type != redshift.RedshiftDate {
 			continue
 		}
-		mstr, ok := after[column.Name]
+		mstr, ok := value[column.Name]
 		if !ok {
 			klog.Warningf("column %s not found, skipped\n", column.Name)
 			continue
@@ -181,21 +199,16 @@ func (c *messageTransformer) Transform(
 		case redshift.RedshiftDate:
 			formattedConsistentTime = convertDebeziumDate(m)
 		}
-		after[column.Name] = &formattedConsistentTime
-	}
-
-	operation, err := c.getOperation(message, len(before), len(after))
-	if err != nil {
-		return err
+		value[column.Name] = &formattedConsistentTime
 	}
 
 	// redshift only has all columns as lower cases
 	kafkaOffset := fmt.Sprintf("%v", message.Offset)
-	after["kafkaoffset"] = &kafkaOffset
-	after["operation"] = &operation
+	value["kafkaoffset"] = &kafkaOffset
+	value["operation"] = &operation
 	message.Operation = operation
 
-	message.Value, err = json.Marshal(after)
+	message.Value, err = json.Marshal(value)
 	if err != nil {
 		return err
 	}
