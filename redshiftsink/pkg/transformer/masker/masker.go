@@ -7,6 +7,7 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"strconv"
+	"strings"
 )
 
 type masker struct {
@@ -83,7 +84,7 @@ func (m *masker) Transform(
 			)
 		}
 
-		if cVal == nil {
+		if cVal == nil || strings.TrimSpace(*cVal) == "" {
 			columns[cName] = nil
 		} else if unmasked {
 			columns[cName] = cVal
