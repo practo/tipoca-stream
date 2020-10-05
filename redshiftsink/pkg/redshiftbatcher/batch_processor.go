@@ -3,6 +3,7 @@ package redshiftbatcher
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
@@ -319,7 +320,12 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 		}
 	}
 
-	b.bodyBuf.Write(message.Value.([]byte))
+	messageValueBytes, err := json.Marshal(message.Value)
+	if err != nil {
+		klog.Fatalf("Error marshalling message.Value, message: %+v\n", message)
+	}
+
+	b.bodyBuf.Write(messageValueBytes)
 	b.bodyBuf.Write([]byte{'\n'})
 	if b.maskMessages && len(b.maskSchema) == 0 {
 		b.maskSchema = message.MaskSchema
