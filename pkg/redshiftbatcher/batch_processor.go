@@ -147,6 +147,20 @@ func newBatchProcessor(
 	}
 }
 
+func removeEmptyNullValues(value map[string]*string) {
+	for cName, cVal := range value {
+		if cVal == nil {
+			delete(value, cName)
+			continue
+		}
+
+		if strings.TrimSpace(*cVal) == "" {
+			delete(value, cName)
+			continue
+		}
+	}
+}
+
 // TODO: get rid of this https://github.com/herryg91/gobatch/issues/2
 func (b *batchProcessor) ctxCancelled() bool {
 	select {
@@ -319,6 +333,8 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 			klog.Fatalf("Error masking message:%+v, err:%v\n", message, err)
 		}
 	}
+
+	removeEmptyNullValues(message.Value)
 
 	messageValueBytes, err := json.Marshal(message.Value)
 	if err != nil {
