@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/linkedin/goavro/v2"
+	"github.com/practo/klog/v2"
 	"github.com/riferrei/srclient"
+	"strings"
 	"time"
 )
 
@@ -49,8 +51,12 @@ func (c *AvroProducer) CreateSchema(
 
 	created := false
 
+	schemeStr := strings.ReplaceAll(scheme, "\n", "")
+	schemeStr = strings.ReplaceAll(schemeStr, " ", "")
+
 	schema, err := c.srclient.GetLatestSchema(topic, false)
-	if schema == nil {
+	if schema == nil || schema.Schema() != schemeStr {
+		klog.V(2).Infof("Creating schema version. topic: %s", topic)
 		schema, err = c.srclient.CreateSchema(
 			topic, scheme, srclient.Avro, false,
 		)
