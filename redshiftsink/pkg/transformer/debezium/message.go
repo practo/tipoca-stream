@@ -1,7 +1,6 @@
 package debezium
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
@@ -208,10 +207,7 @@ func (c *messageTransformer) Transform(
 	value["operation"] = &operation
 	message.Operation = operation
 
-	message.Value, err = json.Marshal(value)
-	if err != nil {
-		return err
-	}
+	message.Value = value
 	message.MaskSchema = make(map[string]serializer.MaskInfo)
 
 	return nil
