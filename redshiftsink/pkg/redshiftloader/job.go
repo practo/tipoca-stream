@@ -16,7 +16,8 @@ var JobAvroSchema string = `{
         {"name": "csvDialect", "type": "string"},
         {"name": "s3Path", "type": "string"},
         {"name": "schemaId", "type": "int"},
-        {"name": "maskSchema", "type": "string"}
+        {"name": "maskSchema", "type": "string"},
+        {"name": "skipMerge", "type": "string", "default": ""}
     ]
 }`
 
@@ -28,12 +29,13 @@ type Job struct {
 	S3Path        string                         `json:"s3Path"`
 	SchemaId      int                            `json:"schemaId"` // schema id of debezium event
 	MaskSchema    map[string]serializer.MaskInfo `json:"maskSchema"`
+	SkipMerge     bool                           `json:"skipMerge"` // to load using merge strategy or directy COPY
 }
 
 func NewJob(
 	upstreamTopic string, startOffset int64, endOffset int64,
 	csvDialect string, s3Path string, schemaId int,
-	maskSchema map[string]serializer.MaskInfo) Job {
+	maskSchema map[string]serializer.MaskInfo, skipMerge bool) Job {
 
 	return Job{
 		UpstreamTopic: upstreamTopic,
@@ -43,6 +45,7 @@ func NewJob(
 		S3Path:        s3Path,
 		SchemaId:      schemaId,
 		MaskSchema:    maskSchema,
+		SkipMerge:     skipMerge,
 	}
 }
 
@@ -76,6 +79,14 @@ func StringMapToJob(data map[string]interface{}) Job {
 				job.SchemaId = int(value)
 			} else if value, ok := v.(int); ok {
 				job.SchemaId = value
+			}
+		case "skipMerge":
+			if value, ok := v.(string); ok {
+				if value == "true" {
+					job.SkipMerge = true
+				} else {
+					job.SkipMerge = false
+				}
 			}
 		case "maskSchema":
 			schema := make(map[string]serializer.MaskInfo)
@@ -154,6 +165,10 @@ func ToSchemaString(m map[string]serializer.MaskInfo) string {
 
 // ToStringMap returns a map representation of the Job
 func (c Job) ToStringMap() map[string]interface{} {
+	skipMerge := "false"
+	if c.SkipMerge {
+		skipMerge = "true"
+	}
 	return map[string]interface{}{
 		"upstreamTopic": c.UpstreamTopic,
 		"startOffset":   c.StartOffset,
@@ -161,6 +176,7 @@ func (c Job) ToStringMap() map[string]interface{} {
 		"csvDialect":    c.CsvDialect,
 		"s3Path":        c.S3Path,
 		"schemaId":      c.SchemaId,
+		"skipMerge":     skipMerge,
 		"maskSchema":    ToSchemaString(c.MaskSchema),
 	}
 }

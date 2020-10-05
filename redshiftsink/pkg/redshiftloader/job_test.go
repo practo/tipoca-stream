@@ -13,7 +13,8 @@ func TestToStringMap(t *testing.T) {
 		"id":          serializer.MaskInfo{Masked: true},
 	}
 
-	job := NewJob("upstreamTopic", 2091, 2100, ",", "s3path", 1, maskSchema)
+	job := NewJob("upstreamTopic", 2091, 2100, ",",
+		"s3path", 1, maskSchema, false)
 	// fmt.Printf("job_now=%+v\n\n", job)
 
 	sMap := job.ToStringMap()
