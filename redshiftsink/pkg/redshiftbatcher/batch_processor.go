@@ -147,7 +147,7 @@ func newBatchProcessor(
 	}
 }
 
-func removeEmptyNullValues(value map[string]*string) {
+func removeEmptyNullValues(value map[string]*string) map[string]*string {
 	for cName, cVal := range value {
 		if cVal == nil {
 			delete(value, cName)
@@ -159,6 +159,8 @@ func removeEmptyNullValues(value map[string]*string) {
 			continue
 		}
 	}
+
+	return value
 }
 
 // TODO: get rid of this https://github.com/herryg91/gobatch/issues/2
@@ -334,7 +336,7 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 		}
 	}
 
-	removeEmptyNullValues(message.Value)
+	message.Value = removeEmptyNullValues(message.Value.(map[string]*string))
 
 	messageValueBytes, err := json.Marshal(message.Value)
 	if err != nil {
