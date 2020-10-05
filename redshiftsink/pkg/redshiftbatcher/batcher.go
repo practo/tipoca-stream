@@ -56,6 +56,13 @@ func (b *batcher) Insert(saramaMessage *sarama.ConsumerMessage) {
 		)
 	}
 
+	if len(saramaMessage.Value) == 0 {
+		klog.Infof(
+			"Skipping message, received a tombstone event, message: %+v\n",
+			saramaMessage)
+		return
+	}
+
 	// TOOD: there could give best performance since desirailizing is being done
 	// at the time of insert. Could not think of better way
 	// as needed to extract schema id from the message
