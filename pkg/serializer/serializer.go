@@ -7,6 +7,12 @@ import (
 	"github.com/riferrei/srclient"
 )
 
+const (
+	OperationCreate = "CREATE"
+	OperationUpdate = "UPDATE"
+	OperationDelete = "DELETE"
+)
+
 type Message struct {
 	SchemaId  int
 	Topic     string
@@ -15,6 +21,7 @@ type Message struct {
 	Key       string
 	Value     interface{}
 
+	Operation  string
 	MaskSchema map[string]MaskInfo
 }
 
@@ -41,6 +48,8 @@ type avroSerializer struct {
 
 func (c *avroSerializer) Deserialize(
 	message *sarama.ConsumerMessage) (*Message, error) {
+
+	fmt.Printf("message.Value=%+v\n", message.Value)
 
 	schemaId := binary.BigEndian.Uint32(message.Value[1:5])
 	schema, err := c.srclient.GetSchema(int(schemaId))
