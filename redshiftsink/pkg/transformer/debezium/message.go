@@ -13,9 +13,6 @@ import (
 )
 
 const (
-	OperationCreate     = "CREATE"
-	OperationUpdate     = "UPDATE"
-	OperationDelete     = "DELETE"
 	OperationColumn     = "operation"
 	OperationColumnType = "character varying(15)"
 
@@ -107,11 +104,11 @@ func (c *messageTransformer) getOperation(message *serializer.Message,
 		return "", fmt.Errorf(
 			"message: %v has both before and after as nil\n", message)
 	case 1:
-		return OperationDelete, nil
+		return serializer.OperationDelete, nil
 	case 2:
-		return OperationCreate, nil
+		return serializer.OperationCreate, nil
 	case 3:
-		return OperationUpdate, nil
+		return serializer.OperationUpdate, nil
 	default:
 		return "", fmt.Errorf(
 			"message: %v not possible get operation\n", message)
@@ -155,6 +152,24 @@ func (c *messageTransformer) Transform(
 	before := d.before()
 	after := d.after()
 
+	operation, err := c.getOperation(message, len(before), len(after))
+	if err != nil {
+		return err
+	}
+
+	value := make(map[string]*string)
+
+	switch operation {
+	case serializer.OperationCreate:
+		value = after
+	case serializer.OperationUpdate:
+		value = after
+	case serializer.OperationDelete:
+		value = before
+	default:
+		return fmt.Errorf("Unknown operation: %s\n", operation)
+	}
+
 	// transform debezium timestamp and date to redshift loadable value
 	// date like 1982-09-24 needs to handled properly so that hashing is
 	// consistent across tables.
@@ -163,7 +178,7 @@ func (c *messageTransformer) Transform(
 			column.Type != redshift.RedshiftDate {
 			continue
 		}
-		mstr, ok := after[column.Name]
+		mstr, ok := value[column.Name]
 		if !ok {
 			klog.Warningf("column %s not found, skipped\n", column.Name)
 			continue
@@ -184,20 +199,16 @@ func (c *messageTransformer) Transform(
 		case redshift.RedshiftDate:
 			formattedConsistentTime = convertDebeziumDate(m)
 		}
-		after[column.Name] = &formattedConsistentTime
-	}
-
-	operation, err := c.getOperation(message, len(before), len(after))
-	if err != nil {
-		return err
+		value[column.Name] = &formattedConsistentTime
 	}
 
 	// redshift only has all columns as lower cases
 	kafkaOffset := fmt.Sprintf("%v", message.Offset)
-	after["kafkaoffset"] = &kafkaOffset
-	after["operation"] = &operation
+	value["kafkaoffset"] = &kafkaOffset
+	value["operation"] = &operation
+	message.Operation = operation
 
-	message.Value, err = json.Marshal(after)
+	message.Value, err = json.Marshal(value)
 	if err != nil {
 		return err
 	}
