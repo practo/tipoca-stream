@@ -1,7 +1,6 @@
 package masker
 
 import (
-	"encoding/json"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"os"
@@ -51,27 +50,23 @@ func testMasker(t *testing.T, salt, dir, topic, cName string,
 		t.Fatalf("Error making masker, err: %v\n", err)
 	}
 
-	value, err := json.Marshal(columns)
-	if err != nil {
-		t.Fatal(err)
-	}
 	message := &serializer.Message{
 		SchemaId:   int(1),
 		Topic:      topic,
 		Partition:  0,
 		Offset:     0,
 		Key:        "key",
-		Value:      value,
+		Value:      columns,
 		MaskSchema: make(map[string]serializer.MaskInfo),
 	}
 	err = masker.Transform(message, redshift.Table{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	var maskedColumns map[string]*string
-	err = json.Unmarshal(message.Value.([]byte), &maskedColumns)
-	if err != nil {
-		t.Fatal(err)
+
+	maskedColumns, ok := message.Value.(map[string]*string)
+	if !ok {
+		t.Fatalf("Error converting message value, message:%+v\n", message)
 	}
 
 	if len(resultMaskSchema) > 0 {
