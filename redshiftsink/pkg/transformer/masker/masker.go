@@ -2,7 +2,6 @@ package masker
 
 import (
 	"crypto/sha1"
-	"encoding/json"
 	"fmt"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
@@ -58,10 +57,10 @@ func stringPtr(s string) *string {
 func (m *masker) Transform(
 	message *serializer.Message, table redshift.Table) error {
 
-	var rawColumns map[string]*string
-	err := json.Unmarshal(message.Value.([]byte), &rawColumns)
-	if err != nil {
-		return err
+	rawColumns, ok := message.Value.(map[string]*string)
+	if !ok {
+		return fmt.Errorf(
+			"Error converting message.Value, message: %+v\n", message)
 	}
 
 	columns := make(map[string]*string)
@@ -117,11 +116,7 @@ func (m *masker) Transform(
 		}
 	}
 
-	message.Value, err = json.Marshal(columns)
-	if err != nil {
-		return err
-	}
-
+	message.Value = columns
 	message.MaskSchema = maskSchema
 
 	return nil
