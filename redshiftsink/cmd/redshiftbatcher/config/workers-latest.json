@@ -35,7 +35,7 @@
             "requestCpu": "200m",
             "requestMemory": "2048Mi",
             "limitCpu": "1048m",
-            "limitMemory": "1800Mi"
+            "limitMemory": "2048Mi"
         }
     },
     {
@@ -48,7 +48,7 @@
             "requestCpu": "200m",
             "requestMemory": "2048Mi",
             "limitCpu": "1048m",
-            "limitMemory": "1800Mi"
+            "limitMemory": "2048Mi"
         }
     }
 ]
