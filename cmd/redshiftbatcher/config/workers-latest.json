@@ -61,7 +61,7 @@
             "requestCpu": "200m",
             "requestMemory": "2048Mi",
             "limitCpu": "1048m",
-            "limitMemory": "1800Mi"
+            "limitMemory": "2048Mi"
         }
     },
     {
@@ -74,7 +74,20 @@
             "requestCpu": "200m",
             "requestMemory": "2048Mi",
             "limitCpu": "1048m",
-            "limitMemory": "1800Mi"
+            "limitMemory": "2048Mi"
+        }
+    },
+    {
+        "directory": "/",
+        "command": "/redshiftbatcher",
+        "args": ["-v=2", "--config=/config6.yaml"],
+        "name": "redshiftbatcher6",
+        "deploymentStrategy": "recreate",
+        "resources": {
+            "requestCpu": "200m",
+            "requestMemory": "2048Mi",
+            "limitCpu": "1048m",
+            "limitMemory": "2048Mi"
         }
     }
 ]
