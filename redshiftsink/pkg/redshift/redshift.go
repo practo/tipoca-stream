@@ -158,6 +158,8 @@ type ColInfo struct {
 	PrimaryKey   bool       `json:"primarykey"`
 	SortOrdinal  int        `json:"sortord"`
 	DistKey      bool       `json:"distkey"`
+	// ExtraCol are not considered on schema comparion
+	ExtraCol bool `json:"extraCol"`
 }
 
 type SourceType struct {
@@ -771,7 +773,20 @@ func (r *Redshift) GetTableMetadata(schema, tableName string) (*Table, error) {
 func CheckSchemas(inputTable, targetTable Table) (
 	[]string, []string, []string, error) {
 
-	return checkColumnsAndOrdering(inputTable, targetTable)
+	// remove extra cols
+	var columns []ColInfo
+	for _, column := range targetTable.Columns {
+		if !column.ExtraCol {
+			columns = append(columns, column)
+		}
+	}
+	extraColRemovedTargetTable := Table{
+		Name:    targetTable.Name,
+		Columns: columns,
+		Meta:    targetTable.Meta,
+	}
+
+	return checkColumnsAndOrdering(inputTable, extraColRemovedTargetTable)
 }
 
 func checkColumn(schemaName string, tableName string,
