@@ -775,13 +775,17 @@ func CheckSchemas(inputTable, targetTable Table) (
 
 	// remove extra cols
 	var inputColumns, targetColumns []ColInfo
+	extraColumnNames := make(map[string]bool)
 	for _, column := range targetTable.Columns {
 		if !column.ExtraCol {
 			targetColumns = append(targetColumns, column)
+		} else {
+			extraColumnNames[column.Name] = true
 		}
 	}
 	for _, column := range inputTable.Columns {
-		if !column.ExtraCol {
+		_, ok := extraColumnNames[column.Name]
+		if !ok {
 			inputColumns = append(inputColumns, column)
 		}
 	}
