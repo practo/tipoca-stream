@@ -30,6 +30,7 @@ type MaskInfo struct {
 	SortCol   bool
 	DistCol   bool
 	LengthCol bool
+	MobileCol bool
 }
 
 type Serializer interface {

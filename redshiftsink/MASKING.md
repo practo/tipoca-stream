@@ -64,6 +64,16 @@ length_keys:
     - email
 ```
 
+### Mobile Keys
+Mobile keys, if specified, the first 4 digits of E164 formatted mobile numbers will be copied into an additional column.
+Eg: If mobile_number is `+919812345678`, `+9198` is stored in mobile_number_init5
+
+```yaml
+mobile_keys:
+    customers:
+    - mobile_number
+```
+
 ### Sort Keys
 Specify one or more columns in a table as Redshift Sort Key.
 
