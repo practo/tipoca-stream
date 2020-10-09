@@ -148,14 +148,21 @@ func NewTable(t Table) *Table {
 // about a column in a Redshift database.
 // SortOrdinal and DistKey only make sense for Redshift
 type ColInfo struct {
-	Name         string `json:"name"`
-	Type         string `json:"type"`
-	DebeziumType string `json:"debeziumtype"`
-	DefaultVal   string `json:"defaultval"`
-	NotNull      bool   `json:"notnull"`
-	PrimaryKey   bool   `json:"primarykey"`
-	SortOrdinal  int    `json:"sortord"`
-	DistKey      bool   `json:"distkey"`
+	Name         string     `json:"name"`
+	Type         string     `json:"type"`
+	DebeziumType string     `json:"debeziumtype"`
+	SourceType   SourceType `yaml:"sourceType"`
+	DefaultVal   string     `json:"defaultval"`
+	NotNull      bool       `json:"notnull"`
+	PrimaryKey   bool       `json:"primarykey"`
+	SortOrdinal  int        `json:"sortord"`
+	DistKey      bool       `json:"distkey"`
+}
+
+type SourceType struct {
+	ColumnLength string `yaml:"columnLength"`
+	ColumnType   string `yaml:"columnType"`
+	ColumnScale  string `yaml:"columnScale"`
 }
 
 func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
