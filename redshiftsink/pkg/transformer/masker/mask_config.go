@@ -31,6 +31,10 @@ type MaskConfig struct {
 	// LengthKeys creates extra column containing the length of original column
 	LengthKeys map[string][]string `yaml:"length_keys,omitempty"`
 
+	// MobileKeys creates extra column containing first
+	// MOBILE_KEYS_EXPOSED_LENGTH characters exposed in the mobile number
+	MobileKeys map[string][]string `yaml:"mobile_keys,omitempty"`
+
 	// SortKeys sets the Redshift column to use the column as the SortKey
 	SortKeys map[string][]string `yaml:"sort_keys,omitempty"`
 
@@ -78,6 +82,7 @@ func NewMaskConfig(dir string, topic string) (MaskConfig, error) {
 	// convert to lower case, redshift works with lowercase
 	loweredKeys(maskConfig.NonPiiKeys)
 	loweredKeys(maskConfig.LengthKeys)
+	loweredKeys(maskConfig.MobileKeys)
 	loweredKeys(maskConfig.SortKeys)
 	loweredKeys(maskConfig.DistKeys)
 
@@ -88,6 +93,21 @@ func NewMaskConfig(dir string, topic string) (MaskConfig, error) {
 
 func (m MaskConfig) LengthKey(table, cName string) bool {
 	columns, ok := m.LengthKeys[table]
+	if !ok {
+		return false
+	}
+
+	for _, column := range columns {
+		if column == cName {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (m MaskConfig) MobileKey(table, cName string) bool {
+	columns, ok := m.MobileKeys[table]
 	if !ok {
 		return false
 	}

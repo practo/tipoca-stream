@@ -10,6 +10,10 @@ import (
 	"strings"
 )
 
+const (
+	MOBILE_KEYS_EXPOSED_LENGTH = 5
+)
+
 type masker struct {
 	salt     string
 	database string
@@ -73,6 +77,7 @@ func (m *masker) Transform(
 		sortKey := m.config.SortKey(m.table, cName)
 		distKey := m.config.DistKey(m.table, cName)
 		lengthKey := m.config.LengthKey(m.table, cName)
+		mobileKey := m.config.MobileKey(m.table, cName)
 
 		if lengthKey {
 			var length int
@@ -81,6 +86,13 @@ func (m *masker) Transform(
 			}
 			extraColumns[cName+transformer.LengthColumnSuffix] = stringPtr(
 				strconv.Itoa(length),
+			)
+		}
+
+		if mobileKey {
+			mobileNumber := *cVal
+			extraColumns[cName+transformer.MobileCoulmnSuffix] = stringPtr(
+				mobileNumber[:MOBILE_KEYS_EXPOSED_LENGTH],
 			)
 		}
 
@@ -107,6 +119,7 @@ func (m *masker) Transform(
 			SortCol:   sortKey,
 			DistCol:   distKey,
 			LengthCol: lengthKey,
+			MobileCol: mobileKey,
 		}
 	}
 
@@ -114,6 +127,7 @@ func (m *masker) Transform(
 		columns[cName] = cVal
 		maskSchema[cName] = serializer.MaskInfo{
 			LengthCol: false, // extra length column, don't want one more extra
+			MobileCol: false, // extra mobile column, don't want one more extra
 		}
 	}
 
