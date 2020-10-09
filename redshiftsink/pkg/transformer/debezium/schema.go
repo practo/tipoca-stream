@@ -29,7 +29,7 @@ type SchemaField struct {
 type ColInfo struct {
 	Name       string     `yaml:"name"`
 	Type       string     `yaml:"type"`
-	SourceType SourceType `yaml:"debeziumSourceType"`
+	SourceType SourceType `yaml:"sourceType"`
 	Default    string     `yaml:"default"`
 	NotNull    bool       `yaml:"notnull"`
 	PrimaryKey bool       `yaml:"primarykey"`
@@ -353,6 +353,7 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 						PrimaryKey:   false,
 						SortOrdinal:  0,
 						DistKey:      false,
+						SourceType:   redshift.SourceType{},
 					})
 				}
 			}
@@ -383,6 +384,11 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 			PrimaryKey:   column.PrimaryKey,
 			SortOrdinal:  sortOrdinal,
 			DistKey:      distKey,
+			SourceType: redshift.SourceType{
+				ColumnLength: column.SourceType.ColumnLength,
+				ColumnType:   column.SourceType.ColumnType,
+				ColumnScale:  column.SourceType.ColumnScale,
+			},
 		})
 	}
 
