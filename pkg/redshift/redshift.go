@@ -25,6 +25,7 @@ const (
 	RedshiftStringDefaultLength = 256
 
 	RedshiftMaskedDataType       = "character varying(50)"
+	RedshiftMobileColType        = "character varying(10)"
 	RedshiftMaskedDataTypeLength = 50
 
 	RedshiftNumeric             = "numeric"

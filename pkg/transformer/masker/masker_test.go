@@ -79,7 +79,8 @@ func testMasker(t *testing.T, salt, dir, topic, cName string,
 			if maskColumn.Masked != maskInfo.Masked ||
 				maskColumn.SortCol != maskInfo.SortCol ||
 				maskColumn.DistCol != maskInfo.DistCol ||
-				maskColumn.LengthCol != maskInfo.LengthCol {
+				maskColumn.LengthCol != maskInfo.LengthCol ||
+				maskColumn.MobileCol != maskInfo.MobileCol {
 				t.Errorf(
 					"column=%v, maskColumn=%+v does not match %+v\n",
 					column, maskColumn, maskInfo)
@@ -335,6 +336,16 @@ func TestMasker(t *testing.T) {
 				"justice": serializer.MaskInfo{Masked: true},
 				"reason":  serializer.MaskInfo{Masked: true},
 			},
+		},
+		{
+			name:  "test14: mobile keys",
+			topic: "dbserver.database.customers",
+			cName: "mobile_number_init5",
+			columns: map[string]*string{
+				"mobile_number": stringPtr("+919812345678"),
+			},
+			resultVal:        stringPtr("+9198"),
+			resultMaskSchema: make(map[string]serializer.MaskInfo),
 		},
 	}
 
