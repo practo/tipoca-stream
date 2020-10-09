@@ -774,19 +774,32 @@ func CheckSchemas(inputTable, targetTable Table) (
 	[]string, []string, []string, error) {
 
 	// remove extra cols
-	var columns []ColInfo
+	var inputColumns, targetColumns []ColInfo
 	for _, column := range targetTable.Columns {
 		if !column.ExtraCol {
-			columns = append(columns, column)
+			targetColumns = append(targetColumns, column)
 		}
 	}
+	for _, column := range inputTable.Columns {
+		if !column.ExtraCol {
+			inputColumns = append(inputColumns, column)
+		}
+	}
+
 	extraColRemovedTargetTable := Table{
 		Name:    targetTable.Name,
-		Columns: columns,
+		Columns: targetColumns,
 		Meta:    targetTable.Meta,
 	}
 
-	return checkColumnsAndOrdering(inputTable, extraColRemovedTargetTable)
+	extraColRemoveInputTable := Table{
+		Name:    inputTable.Name,
+		Columns: inputColumns,
+		Meta:    inputTable.Meta,
+	}
+
+	return checkColumnsAndOrdering(
+		extraColRemoveInputTable, extraColRemovedTargetTable)
 }
 
 func checkColumn(schemaName string, tableName string,
