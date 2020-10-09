@@ -353,7 +353,22 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 						PrimaryKey:   false,
 						SortOrdinal:  0,
 						DistKey:      false,
-						SourceType:   redshift.SourceType{},
+						SourceType:   redshift.SourceType{}, // not required
+					})
+				}
+				if mschema.MobileCol {
+					newColName := strings.ToLower(
+						column.Name) + transformer.MobileCoulmnSuffix
+					extraColumns = append(extraColumns, redshift.ColInfo{
+						Name:         newColName,
+						Type:         redshift.RedshiftMobileColType,
+						DebeziumType: "", // not required
+						DefaultVal:   "",
+						NotNull:      false,
+						PrimaryKey:   false,
+						SortOrdinal:  0,
+						DistKey:      false,
+						SourceType:   redshift.SourceType{}, // not required
 					})
 				}
 			}

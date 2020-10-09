@@ -5,7 +5,7 @@ import (
 )
 
 func TestConvertDebeziumFormattedTime(t *testing.T) {
-	// t.Parallel()
+	t.Parallel()
 
 	tests := []struct {
 		name          string
