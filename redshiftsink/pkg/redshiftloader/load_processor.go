@@ -581,8 +581,6 @@ func (b *loadProcessor) processBatch(
 	b.targetTable = nil
 	b.upstreamTopic = ""
 
-	// name is skipMerge and not merge for backward compatiblity
-	skipMerge := false
 	var entries []s3sink.S3ManifestEntry
 	for id, data := range datas {
 		select {
@@ -593,10 +591,6 @@ func (b *loadProcessor) processBatch(
 			job := StringMapToJob(message.Value.(map[string]interface{}))
 			schemaId = job.SchemaId
 			b.batchEndOffset = message.Offset
-
-			if job.SkipMerge {
-				skipMerge = true
-			}
 
 			// this assumes all messages in a batch have same schema id
 			if id == 0 {
@@ -639,23 +633,14 @@ func (b *loadProcessor) processBatch(
 			s3ManifestKey, err)
 	}
 
-	if skipMerge {
-		klog.V(2).Infof("topic: %s, skipping merge strategy\n", b.topic)
-		b.loadTable(
-			b.targetTable.Meta.Schema,
-			b.targetTable.Name,
-			s3ManifestKey,
-		)
-	} else {
-		klog.V(2).Infof("topic: %s, using merge strategy\n", b.topic)
-		b.createStagingTable(schemaId, inputTable)
-		b.loadTable(
-			b.stagingTable.Meta.Schema,
-			b.stagingTable.Name,
-			s3ManifestKey,
-		)
-		b.merge()
-	}
+	klog.V(2).Infof("topic: %s, using merge strategy\n", b.topic)
+	b.createStagingTable(schemaId, inputTable)
+	b.loadTable(
+		b.stagingTable.Meta.Schema,
+		b.stagingTable.Name,
+		s3ManifestKey,
+	)
+	b.merge()
 
 	if b.redshiftStats {
 		klog.V(2).Infof("endbatch dbstats: %+v\n", b.redshifter.Stats())
