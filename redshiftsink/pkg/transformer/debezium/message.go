@@ -15,8 +15,10 @@ const (
 	OperationColumn     = "operation"
 	OperationColumnType = "character varying(15)"
 
-	millisInSecond = 1000
-	nsInSecond     = 1000000
+	millisInSecond  = 1000
+	microInSecond   = 1000000
+	nsMicroInSecond = 1000
+	nsMilliInSecond = 1000000
 )
 
 func NewMessageTransformer() transformer.MessageTransformer {
@@ -115,19 +117,18 @@ func (c *messageTransformer) getOperation(message *serializer.Message,
 }
 
 // Converts Unix Epoch from milliseconds to time.Time
-// Why? https://github.com/Tigraine/go-timemill
+// It is faster this way, benchmark: https://github.com/Tigraine/go-timemill
 func FromUnixMilli(ms int64) time.Time {
 	return time.Unix(
-		ms/int64(millisInSecond), (ms%int64(millisInSecond))*int64(nsInSecond))
+		ms/int64(millisInSecond),
+		(ms%int64(millisInSecond))*int64(nsMilliInSecond),
+	)
 }
 
-func convertDebeziumTimeStamp(ms int) string {
-	ts := FromUnixMilli(int64(ms))
-	ts = ts.UTC()
-	return fmt.Sprintf(
-		"%d-%02d-%02d %02d:%02d:%02d",
-		ts.Year(), ts.Month(), ts.Day(),
-		ts.Hour(), ts.Minute(), ts.Second(),
+func FromUnixMicro(us int64) time.Time {
+	return time.Unix(
+		us/int64(microInSecond),
+		(us%int64(microInSecond))*int64(nsMicroInSecond),
 	)
 }
 
@@ -138,6 +139,99 @@ func convertDebeziumDate(days int) string {
 		"%d-%02d-%02d",
 		ts.Year(), ts.Month(), ts.Day(),
 	)
+}
+
+func convertDebeziumTimeStamp(timestamp string) string {
+	// strings replace would be faster than formatting time
+	ts := strings.ReplaceAll(timestamp, "T", " ")
+	return strings.ReplaceAll(ts, "Z", "")
+}
+
+func convertDebeziumMilliseconds(ms int, length int) string {
+	ts := FromUnixMilli(int64(ms))
+	ts = ts.UTC()
+
+	result := fmt.Sprintf(
+		"%d-%02d-%02d %02d:%02d:%02d",
+		ts.Year(), ts.Month(), ts.Day(),
+		ts.Hour(), ts.Minute(), ts.Second(),
+	)
+
+	if length == 0 {
+		return result
+	}
+
+	// fraction: 1988-08-21 14:01:02.23
+	ns := ts.Nanosecond()
+	return fmt.Sprintf("%s.%s", result, strconv.Itoa(ns)[:length])
+}
+
+func convertDebeziumMicroseconds(us int, length int) string {
+	ts := FromUnixMicro(int64(us))
+	ts = ts.UTC()
+
+	result := fmt.Sprintf(
+		"%d-%02d-%02d %02d:%02d:%02d",
+		ts.Year(), ts.Month(), ts.Day(),
+		ts.Hour(), ts.Minute(), ts.Second(),
+	)
+
+	if length == 0 {
+		return result
+	}
+
+	// fraction: 1988-08-21 14:01:02.23
+	ns := ts.Nanosecond()
+	return fmt.Sprintf("%s.%s", result, strconv.Itoa(ns)[:length])
+}
+
+// convertDebeziumFormattedTime formats the debezium time into redshift time
+// maitaining the precsion
+// https://debezium.io/documentation/reference/1.2/connectors/mysql.html#_temporal_values
+func convertDebeziumFormattedTime(
+	value string, sourceType string, sourceLength string) (string, error) {
+
+	switch sourceType {
+	case "DATE":
+		ts, err := strconv.Atoi(value)
+		if err != nil {
+			return "", fmt.Errorf(
+				"Error converting date col val to int, err: %v\n", err)
+		}
+		return convertDebeziumDate(ts), nil
+	case "TIMESTAMP":
+		return convertDebeziumTimeStamp(value), nil
+	case "DATETIME":
+		var colLength int
+		if sourceLength == "" {
+			colLength = 0
+		} else {
+			c, err := strconv.Atoi(sourceLength)
+			if err != nil {
+				return "", fmt.Errorf(
+					"Error converting col length to int, err: %v\n", err)
+			}
+			colLength = c
+		}
+
+		ts, err := strconv.Atoi(value)
+		if err != nil {
+			return "", fmt.Errorf(
+				"Error converting datetime col val to int, err: %v\n",
+				err)
+		}
+
+		var redshiftTime string
+		if colLength < 3 {
+			redshiftTime = convertDebeziumMilliseconds(ts, colLength)
+		} else {
+			redshiftTime = convertDebeziumMicroseconds(ts, colLength)
+		}
+
+		return redshiftTime, nil
+	default:
+		return "", fmt.Errorf("Unhandled source type: %v\n", sourceType)
+	}
 }
 
 // Transform debezium event into a s3 message annotating extra information
@@ -169,9 +263,8 @@ func (c *messageTransformer) Transform(
 		return fmt.Errorf("Unknown operation: %s\n", operation)
 	}
 
-	// transform debezium timestamp and date to redshift loadable value
-	// date like 1982-09-24 needs to handled properly so that hashing is
-	// consistent across tables.
+	// Transform DATETIME, TIMESTAMP and DATE from debezium to redshift
+
 	for _, column := range table.Columns {
 		if column.Type != redshift.RedshiftTimeStamp &&
 			column.Type != redshift.RedshiftDate {
@@ -186,19 +279,15 @@ func (c *messageTransformer) Transform(
 			continue
 		}
 
-		m, err := strconv.Atoi(*mstr)
+		formattedTime, err := convertDebeziumFormattedTime(
+			*mstr,
+			column.SourceType.ColumnType,
+			column.SourceType.ColumnLength,
+		)
 		if err != nil {
 			return err
 		}
-
-		var formattedConsistentTime string
-		switch column.Type {
-		case redshift.RedshiftTimeStamp:
-			formattedConsistentTime = convertDebeziumTimeStamp(m)
-		case redshift.RedshiftDate:
-			formattedConsistentTime = convertDebeziumDate(m)
-		}
-		value[column.Name] = &formattedConsistentTime
+		value[column.Name] = &formattedTime
 	}
 
 	// redshift only has all columns as lower cases
