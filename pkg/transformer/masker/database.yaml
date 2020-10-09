@@ -34,6 +34,9 @@ dependent_non_pii_keys:
 length_keys:
     customers:
     - email
+mobile_keys:
+    customers:
+    - mobile_number
 sort_keys:
     customers:
     - id
