@@ -8,6 +8,7 @@ import (
 
 const (
 	LengthColumnSuffix = "_length"
+	MobileCoulmnSuffix = "_init5"
 )
 
 type MessageTransformer interface {
