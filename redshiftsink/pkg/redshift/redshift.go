@@ -534,6 +534,7 @@ func (r *Redshift) ReplaceTable(
 		targetTable.Meta.Schema,
 		migrationTableName,
 		unLoadS3Key,
+		false,
 	)
 	if err != nil {
 		return err
@@ -662,7 +663,12 @@ func (r *Redshift) DropColumn(tx *sql.Tx, schema string, table string,
 // Unload copies data present in the table to s3
 // this loads data to s3 and generates a manifest file at s3key + manifest path
 func (r *Redshift) Unload(tx *sql.Tx,
-	schema string, table string, s3Key string) error {
+	schema string, table string, s3Key string, removeDuplicate bool) error {
+
+	distinct := ""
+	if removeDuplicate {
+		distinct = "DISTINCT"
+	}
 
 	credentials := fmt.Sprintf(
 		`CREDENTIALS 'aws_access_key_id=%s;aws_secret_access_key=%s'`,
@@ -670,7 +676,8 @@ func (r *Redshift) Unload(tx *sql.Tx,
 		r.conf.S3SecretAccessKey,
 	)
 	unLoadSQL := fmt.Sprintf(
-		`UNLOAD ('select * from "%s"."%s"') TO '%s' %s manifest allowoverwrite addquotes escape delimiter ','`,
+		`UNLOAD ('select %s * from "%s"."%s"') TO '%s' %s manifest allowoverwrite addquotes escape delimiter ','`,
+		distinct,
 		schema,
 		table,
 		s3Key,
@@ -730,11 +737,11 @@ func (r *Redshift) Copy(tx *sql.Tx,
 	klog.V(2).Infof("Running: COPY from s3 to: %s\n", table)
 	klog.V(5).Infof("Running: %s\n", copySQL)
 	_, err := tx.ExecContext(r.ctx, copySQL)
-        if err != nil {
+	if err != nil {
 		return fmt.Errorf(
 			"Error running copySQL: %v, err: %v\n",
-                        copySQL,
-                        err)
+			copySQL,
+			err)
 	}
 
 	return nil
