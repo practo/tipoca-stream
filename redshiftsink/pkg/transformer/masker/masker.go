@@ -90,10 +90,16 @@ func (m *masker) Transform(
 		}
 
 		if mobileKey {
-			mobileNumber := *cVal
-			extraColumns[cName+transformer.MobileCoulmnSuffix] = stringPtr(
-				mobileNumber[:MOBILE_KEYS_EXPOSED_LENGTH],
-			)
+			var tMobile *string
+			if cVal == nil {
+				tMobile = nil
+			} else {
+				mobile := *cVal
+				tMobile = stringPtr(
+					mobile[:MOBILE_KEYS_EXPOSED_LENGTH],
+				)
+			}
+			extraColumns[cName+transformer.MobileCoulmnSuffix] = tMobile
 		}
 
 		if cVal == nil || strings.TrimSpace(*cVal) == "" {
