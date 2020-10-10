@@ -162,8 +162,17 @@ func convertDebeziumMilliseconds(ms int, length int) string {
 	}
 
 	// fraction: 1988-08-21 14:01:02.23
-	ns := ts.Nanosecond()
-	return fmt.Sprintf("%s.%s", result, strconv.Itoa(ns)[:length])
+	ns := strconv.Itoa(ts.Nanosecond())
+	if len(ns) == 0 {
+		return result
+	}
+	if len(ns) < length {
+		klog.Warningf(
+			"nano second got: %v is less than length: %v\n", ns, length)
+		length = len(ns)
+	}
+
+	return fmt.Sprintf("%s.%s", result, ns[:length])
 }
 
 func convertDebeziumMicroseconds(us int, length int) string {
@@ -181,8 +190,17 @@ func convertDebeziumMicroseconds(us int, length int) string {
 	}
 
 	// fraction: 1988-08-21 14:01:02.23
-	ns := ts.Nanosecond()
-	return fmt.Sprintf("%s.%s", result, strconv.Itoa(ns)[:length])
+	ns := strconv.Itoa(ts.Nanosecond())
+	if len(ns) == 0 {
+		return result
+	}
+	if len(ns) < length {
+		klog.Warningf(
+			"nano second got: %v is less than length: %v\n", ns, length)
+		length = len(ns)
+	}
+
+	return fmt.Sprintf("%s.%s", result, ns[:length])
 }
 
 // convertDebeziumFormattedTime formats the debezium time into redshift time
