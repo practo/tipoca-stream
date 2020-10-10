@@ -188,7 +188,10 @@ func (b *loadProcessor) loadTable(schema, table, s3ManifestKey string) {
 		klog.Fatalf("Error creating database tx, err: %v\n", err)
 	}
 	err = b.redshifter.Copy(
-		tx, schema, table, b.s3sink.GetKeyURI(s3ManifestKey), true, false)
+		tx, schema, table, b.s3sink.GetKeyURI(s3ManifestKey),
+		true, false,
+		true, true,
+	)
 	if err != nil {
 		tx.Rollback()
 		klog.Fatalf("Error loading data in staging table, err:%v\n", err)
@@ -298,6 +301,8 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 		b.targetTable.Name,
 		b.s3sink.GetKeyURI(s3ManifestKey),
 		false,
+		true,
+		true,
 		true,
 	)
 	if err != nil {

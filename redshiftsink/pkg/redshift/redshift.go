@@ -545,6 +545,8 @@ func (r *Redshift) ReplaceTable(
 		copyS3ManifestKey,
 		false,
 		true,
+		true,
+		true,
 	)
 	if err != nil {
 		return err
@@ -686,7 +688,7 @@ func (r *Redshift) Unload(tx *sql.Tx,
 // this is meant to be run in a transaction, so the first arg must be a sql.Tx
 func (r *Redshift) Copy(tx *sql.Tx,
 	schema string, table string, s3ManifestURI string,
-	typeJson bool, typeCsv bool) error {
+	typeJson bool, typeCsv bool, comupdateOff bool, statupdateOff bool) error {
 
 	json := ""
 	if typeJson == true {
@@ -703,14 +705,27 @@ func (r *Redshift) Copy(tx *sql.Tx,
 		r.conf.S3AccessKeyId,
 		r.conf.S3SecretAccessKey,
 	)
+
+	comupdate := ""
+	if comupdateOff {
+		comupdate = "COMPUPDATE OFF"
+	}
+
+	statupdate := ""
+	if statupdateOff {
+		statupdate = "STATUPDATE OFF"
+	}
+
 	copySQL := fmt.Sprintf(
-		`COPY "%s"."%s" FROM '%s' %s manifest %s %s`,
+		`COPY "%s"."%s" FROM '%s' %s manifest %s %s %s %s`,
 		schema,
 		table,
 		s3ManifestURI,
 		credentials,
 		json,
 		csv,
+		comupdate,
+		statupdate,
 	)
 	klog.V(2).Infof("Running: COPY from s3 to: %s\n", table)
 	klog.V(5).Infof("Running: %s\n", copySQL)
