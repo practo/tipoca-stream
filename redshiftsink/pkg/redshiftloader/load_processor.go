@@ -289,6 +289,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
 		b.s3sink.GetKeyURI(s3CopyDir),
+		true,
 	)
 	if err != nil {
 		tx.Rollback()
