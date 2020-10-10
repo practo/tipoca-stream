@@ -730,8 +730,14 @@ func (r *Redshift) Copy(tx *sql.Tx,
 	klog.V(2).Infof("Running: COPY from s3 to: %s\n", table)
 	klog.V(5).Infof("Running: %s\n", copySQL)
 	_, err := tx.ExecContext(r.ctx, copySQL)
+        if err != nil {
+		return fmt.Errorf(
+			"Error running copySQL: %v, err: %v\n",
+                        copySQL,
+                        err)
+	}
 
-	return err
+	return nil
 }
 
 // GetTableMetadata looks for a table and returns the Table representation
