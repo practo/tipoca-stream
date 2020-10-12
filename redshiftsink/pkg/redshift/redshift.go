@@ -581,7 +581,7 @@ func (r *Redshift) prepareAndExecute(tx *sql.Tx, command string) error {
 // DeDupe deletes the duplicates in the redshift table and keeps only the
 // latest, it accepts a transaction
 // ex: targetTablePrimaryKey = some id, timestamp
-// ex: stagingTablePrimaryKey = kafkaoffset
+// ex: stagingTablePrimaryKey = kafkaoffset // PrimaryColumn
 func (r *Redshift) DeDupe(tx *sql.Tx, schema string, table string,
 	targetTablePrimaryKey string, stagingTablePrimaryKey string) error {
 
