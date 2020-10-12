@@ -7,6 +7,11 @@ import (
 )
 
 const (
+	PrimaryColumn     = "kafkaoffset"
+	PrimaryColumnType = "character varying(max)"
+	OpColumn          = "debeziumop"
+	OpColumnType      = "character varying(15)"
+
 	LengthColumnSuffix = "_length"
 	MobileCoulmnSuffix = "_init5"
 )
