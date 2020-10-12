@@ -9,9 +9,7 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
 	"github.com/riferrei/srclient"
-	"math/rand"
 	"strings"
-	"time"
 )
 
 type Schema struct {
@@ -236,52 +234,8 @@ type schemaTransformer struct {
 	srclient   *srclient.SchemaRegistryClient
 }
 
-// GetLatestSchemaWithRetry gets the latest schema with some retry on failure
-// TODO: move to this library if it works out well
-// https://github.com/avast/retry-go
-func GetLatestSchemaWithRetry(client *srclient.SchemaRegistryClient,
-	topic string, isKey bool, attempts int) (*srclient.Schema, error) {
-	for i := 0; ; i++ {
-		schema, err := client.GetLatestSchema(topic, isKey)
-		if err == nil {
-			return schema, nil
-		}
-		if i >= (attempts - 1) {
-			return nil, fmt.Errorf(
-				"Failed to get latest schema, topic: %s, err:%v\n", topic, err)
-		}
-		klog.Warningf(
-			"Retrying.. Error getting latest schema, topic:%s, err:%v\n",
-			topic, err)
-		sleepFor := rand.Intn(30-2+1) + 2
-		time.Sleep(time.Duration(sleepFor) * time.Second)
-	}
-}
-
-// GetSchemaWithRetry gets the latest schema with some retry on failure
-// TOOD: move to this library if it works out well
-// https://github.com/avast/retry-go
-func GetSchemaWithRetry(client *srclient.SchemaRegistryClient,
-	schemaId int, attempts int) (*srclient.Schema, error) {
-	for i := 0; ; i++ {
-		schema, err := client.GetSchema(schemaId)
-		if err == nil {
-			return schema, nil
-		}
-		if i >= (attempts - 1) {
-			return nil, fmt.Errorf(
-				"Failed to get schema by id: %d, err:%v\n", schemaId, err)
-		}
-		klog.Warningf(
-			"Retrying.. Error fetching schema by id: %d err:%v\n",
-			schemaId, err)
-		sleepFor := rand.Intn(30-2+1) + 2
-		time.Sleep(time.Duration(sleepFor) * time.Second)
-	}
-}
-
 func (c *schemaTransformer) TransformKey(topic string) (string, string, error) {
-	s, err := GetLatestSchemaWithRetry(c.srclient, topic, true, 10)
+	s, err := serializer.GetLatestSchemaWithRetry(c.srclient, topic, true, 10)
 	if err != nil {
 		return "", "", err
 	}
@@ -328,7 +282,7 @@ func (c *schemaTransformer) transformSchemaKey(
 func (c *schemaTransformer) TransformValue(topic string, schemaId int,
 	maskSchema map[string]serializer.MaskInfo) (interface{}, error) {
 
-	s, err := GetSchemaWithRetry(c.srclient, schemaId, 10)
+	s, err := serializer.GetSchemaWithRetry(c.srclient, schemaId, 10)
 	if err != nil {
 		return nil, err
 	}
