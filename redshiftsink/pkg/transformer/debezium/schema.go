@@ -10,6 +10,7 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
 	"github.com/riferrei/srclient"
 	"strings"
+	"time"
 )
 
 type Schema struct {
@@ -234,8 +235,25 @@ type schemaTransformer struct {
 	srclient   *srclient.SchemaRegistryClient
 }
 
+// GetLatestSchemaWithRetry gets the latest schema with some retry on failure
+func GetLatestSchemaWithRetry(client *srclient.SchemaRegistryClient,
+	topic string, isKey bool, attempts int) (*srclient.Schema, error) {
+	for i := 0; ; i++ {
+		schema, err := client.GetLatestSchema(topic, isKey)
+		if err != nil {
+			return schema, nil
+		}
+		if i >= (attempts - 1) {
+			return nil, fmt.Errorf("Failed to get latest schema, err:%v\n", err)
+		}
+		klog.Warningf("Error fetching latest schema, err:%v\n", err)
+		sleepFor := time.Duration((i * 1000) + 1)
+		time.Sleep(sleepFor * time.Millisecond)
+	}
+}
+
 func (c *schemaTransformer) TransformKey(topic string) (string, string, error) {
-	s, err := c.srclient.GetLatestSchema(topic, true)
+	s, err := GetLatestSchemaWithRetry(c.srclient, topic, true, 10)
 	if err != nil {
 		return "", "", err
 	}
