@@ -237,6 +237,8 @@ type schemaTransformer struct {
 }
 
 // GetLatestSchemaWithRetry gets the latest schema with some retry on failure
+// TODO: move to this library if it works out well
+// https://github.com/avast/retry-go
 func GetLatestSchemaWithRetry(client *srclient.SchemaRegistryClient,
 	topic string, isKey bool, attempts int) (*srclient.Schema, error) {
 	for i := 0; ; i++ {
@@ -257,6 +259,8 @@ func GetLatestSchemaWithRetry(client *srclient.SchemaRegistryClient,
 }
 
 // GetSchemaWithRetry gets the latest schema with some retry on failure
+// TOOD: move to this library if it works out well
+// https://github.com/avast/retry-go
 func GetSchemaWithRetry(client *srclient.SchemaRegistryClient,
 	schemaId int, attempts int) (*srclient.Schema, error) {
 	for i := 0; ; i++ {
