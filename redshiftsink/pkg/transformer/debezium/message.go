@@ -203,6 +203,13 @@ func convertDebeziumMicroseconds(us int, length int) string {
 	return fmt.Sprintf("%s.%s", result, ns[:length])
 }
 
+func convertDebeziumMicrosecondsIntoTime(us int) string {
+	ts := FromUnixMicro(int64(us))
+	ts = ts.UTC()
+
+	return fmt.Sprintf("%02d:%02d:%02d", ts.Hour(), ts.Minute(), ts.Second())
+}
+
 // convertDebeziumFormattedTime formats the debezium time into redshift time
 // maitaining the precsion
 // https://debezium.io/documentation/reference/1.2/connectors/mysql.html#_temporal_values
@@ -247,8 +254,17 @@ func convertDebeziumFormattedTime(
 		}
 
 		return redshiftTime, nil
+	case "TIME":
+		ts, err := strconv.Atoi(value)
+		if err != nil {
+			return "", fmt.Errorf(
+				"Error converting time col val to int, err: %v\n",
+				err)
+		}
+		return convertDebeziumMicrosecondsIntoTime(ts), nil
 	default:
-		return "", fmt.Errorf("Unhandled source type: %v\n", sourceType)
+		return "", fmt.Errorf(
+			"Unhandled source type: %v, value: %v\n", sourceType, value)
 	}
 }
 
