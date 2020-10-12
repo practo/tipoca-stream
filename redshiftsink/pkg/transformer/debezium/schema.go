@@ -241,7 +241,7 @@ func GetLatestSchemaWithRetry(client *srclient.SchemaRegistryClient,
 	topic string, isKey bool, attempts int) (*srclient.Schema, error) {
 	for i := 0; ; i++ {
 		schema, err := client.GetLatestSchema(topic, isKey)
-		if err != nil {
+		if err == nil {
 			return schema, nil
 		}
 		if i >= (attempts - 1) {
@@ -261,7 +261,7 @@ func GetSchemaWithRetry(client *srclient.SchemaRegistryClient,
 	schemaId int, attempts int) (*srclient.Schema, error) {
 	for i := 0; ; i++ {
 		schema, err := client.GetSchema(schemaId)
-		if err != nil {
+		if err == nil {
 			return schema, nil
 		}
 		if i >= (attempts - 1) {
