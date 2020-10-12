@@ -9,6 +9,7 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
 	"github.com/riferrei/srclient"
+	"math/rand"
 	"strings"
 	"time"
 )
@@ -244,11 +245,14 @@ func GetLatestSchemaWithRetry(client *srclient.SchemaRegistryClient,
 			return schema, nil
 		}
 		if i >= (attempts - 1) {
-			return nil, fmt.Errorf("Failed to get latest schema, err:%v\n", err)
+			return nil, fmt.Errorf(
+				"Failed to get latest schema, topic: %s, err:%v\n", topic, err)
 		}
-		klog.Warningf("Error fetching latest schema, err:%v\n", err)
-		sleepFor := time.Duration((i * 1000) + 1)
-		time.Sleep(sleepFor * time.Millisecond)
+		klog.Warningf(
+			"Retrying.. Error getting latest schema, topic:%s, err:%v\n",
+			topic, err)
+		sleepFor := rand.Intn(30-2+1) + 2
+		time.Sleep(time.Duration(sleepFor) * time.Second)
 	}
 }
 
@@ -261,11 +265,14 @@ func GetSchemaWithRetry(client *srclient.SchemaRegistryClient,
 			return schema, nil
 		}
 		if i >= (attempts - 1) {
-			return nil, fmt.Errorf("Failed to get schema by id, err:%v\n", err)
+			return nil, fmt.Errorf(
+				"Failed to get schema by id: %d, err:%v\n", schemaId, err)
 		}
-		klog.Warningf("Error fetching schema by id, err:%v\n", err)
-		sleepFor := time.Duration((i * 1000) + 1)
-		time.Sleep(sleepFor * time.Millisecond)
+		klog.Warningf(
+			"Retrying.. Error fetching schema by id: %d err:%v\n",
+			schemaId, err)
+		sleepFor := rand.Intn(30-2+1) + 2
+		time.Sleep(time.Duration(sleepFor) * time.Second)
 	}
 }
 
