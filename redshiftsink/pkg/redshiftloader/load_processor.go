@@ -15,7 +15,10 @@ import (
 	"strings"
 )
 
-const ()
+const (
+	stagingTablePrimaryKey     = "kafkaoffset"
+	stagingTablePrimaryKeyType = "character varying(max)"
+)
 
 type loadProcessor struct {
 	topic         string
@@ -214,7 +217,7 @@ func (b *loadProcessor) deDupeStagingTable(tx *sql.Tx) {
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
 		b.primaryKey,
-		transformer.PrimaryColumn,
+		stagingTablePrimaryKey,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -245,7 +248,7 @@ func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
 	err := b.redshifter.DeleteColumn(tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
-		transformer.OpColumn,
+		debezium.OperationColumn,
 		serializer.OperationDelete,
 	)
 	if err != nil {
@@ -262,7 +265,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 		tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
-		transformer.PrimaryColumn,
+		stagingTablePrimaryKey,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -273,7 +276,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 		tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
-		transformer.OpColumn,
+		debezium.OperationColumn,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -382,10 +385,10 @@ func (b *loadProcessor) createStagingTable(
 
 	// remove existing primary key if any
 	for idx, column := range b.stagingTable.Columns {
-		if column.Name == transformer.PrimaryColumn {
+		if column.Name == stagingTablePrimaryKey {
 			continue
 		}
-		if column.Name == transformer.OpColumn {
+		if column.Name == debezium.OperationColumn {
 			continue
 		}
 
@@ -409,15 +412,15 @@ func (b *loadProcessor) createStagingTable(
 	// add columns: kafkaOffset and operation in the staging table
 	extraColumns := []redshift.ColInfo{
 		redshift.ColInfo{
-			Name:       transformer.PrimaryColumn,
-			Type:       transformer.PrimaryColumnType,
+			Name:       stagingTablePrimaryKey,
+			Type:       stagingTablePrimaryKeyType,
 			DefaultVal: "",
 			NotNull:    true,
 			PrimaryKey: true,
 		},
 		redshift.ColInfo{
-			Name:       transformer.OpColumn,
-			Type:       transformer.OpColumnType,
+			Name:       debezium.OperationColumn,
+			Type:       debezium.OperationColumnType,
 			DefaultVal: "",
 			NotNull:    true,
 			PrimaryKey: false,
