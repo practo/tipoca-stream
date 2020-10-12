@@ -63,10 +63,8 @@ func (b *batcher) Insert(saramaMessage *sarama.ConsumerMessage) {
 		return
 	}
 
-	// TOOD: there could give best performance since desirailizing is being done
-	// at the time of insert. Could not think of better way
-	// as needed to extract schema id from the message
-	// to batch by schema id. Revisit this later.
+	// TODO: performance optimization
+	// to batch byschema id needed to extract schema id
 	message, err := b.serializer.Deserialize(saramaMessage)
 	if err != nil {
 		klog.Fatalf("Error deserializing binary, err: %s\n", err)
