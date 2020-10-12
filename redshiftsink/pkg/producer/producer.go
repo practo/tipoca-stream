@@ -6,8 +6,8 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/linkedin/goavro/v2"
 	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/riferrei/srclient"
-	"math/rand"
 	"strings"
 	"time"
 )
@@ -46,28 +46,6 @@ func NewAvroProducer(brokers []string,
 	}, nil
 }
 
-// GetLatestSchemaWithRetry gets the latest schema with some retry on failure
-// TODO: move to this library if it works out well
-// https://github.com/avast/retry-go
-func GetLatestSchemaWithRetry(client *srclient.SchemaRegistryClient,
-	topic string, isKey bool, attempts int) (*srclient.Schema, error) {
-	for i := 0; ; i++ {
-		schema, err := client.GetLatestSchema(topic, isKey)
-		if err == nil {
-			return schema, nil
-		}
-		if i >= (attempts - 1) {
-			return nil, fmt.Errorf(
-				"Failed to get latest schema, topic: %s, err:%v\n", topic, err)
-		}
-		klog.Warningf(
-			"Retrying.. Error getting latest schema, topic:%s, err:%v\n",
-			topic, err)
-		sleepFor := rand.Intn(30-2+1) + 2
-		time.Sleep(time.Duration(sleepFor) * time.Second)
-	}
-}
-
 // CreateSchema creates schema if it does not exist
 func (c *AvroProducer) CreateSchema(
 	topic string, scheme string) (int, bool, error) {
@@ -77,7 +55,8 @@ func (c *AvroProducer) CreateSchema(
 	schemeStr := strings.ReplaceAll(scheme, "\n", "")
 	schemeStr = strings.ReplaceAll(schemeStr, " ", "")
 
-	schema, err := GetLatestSchemaWithRetry(c.srclient, topic, false, 10)
+	schema, err := serializer.GetLatestSchemaWithRetry(
+		c.srclient, topic, false, 10)
 	if schema == nil || schema.Schema() != schemeStr {
 		klog.V(2).Infof("Creating schema version. topic: %s", topic)
 		schema, err = c.srclient.CreateSchema(

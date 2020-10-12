@@ -51,7 +51,7 @@ func (c *avroSerializer) Deserialize(
 	message *sarama.ConsumerMessage) (*Message, error) {
 
 	schemaId := binary.BigEndian.Uint32(message.Value[1:5])
-	schema, err := c.srclient.GetSchema(int(schemaId))
+	schema, err := GetSchemaWithRetry(c.srclient, int(schemaId), 10)
 	if err != nil {
 		return nil, err
 	}
