@@ -7,6 +7,7 @@ import (
 	"flag"
 	"github.com/spf13/cobra"
 	pflag "github.com/spf13/pflag"
+	"math/rand"
 	"net/http"
 
 	"os"
@@ -118,5 +119,7 @@ func run(cmd *cobra.Command, args []string) {
 // => consumer/manager.Consume() => consumer/consumer_group.Consume()
 // => sarama/consumer_group.Consume() => redshfitbatcher/consumer.ConsumeClaim()
 func main() {
+	rand.Seed(time.Now().UnixNano())
+
 	rootCmd.Execute()
 }
