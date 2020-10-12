@@ -36,6 +36,7 @@ const (
 
 	RedshiftDate      = "date"
 	RedshiftInteger   = "integer"
+	RedshiftTime      = "character varying(32)"
 	RedshiftTimeStamp = "timestamp without time zone"
 
 	// required to support utf8 characters
@@ -1012,8 +1013,8 @@ var mysqlToRedshiftTypeMap = map[string]string{
 	"double":                      "double precision",
 	"double [precision]":          "double precision",
 	"double [precision] unsigned": "double precision",
+	"time":                        RedshiftTime,
 	"datetime":                    RedshiftTimeStamp,
-	"time":                        RedshiftTimeStamp,
 	"timestamp":                   RedshiftTimeStamp,
 	"smallint":                    "smallint",
 	"tinyint":                     "smallint",
