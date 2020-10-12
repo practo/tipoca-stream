@@ -127,7 +127,7 @@ func TestMasker(t *testing.T) {
 			cName: "id",
 			columns: map[string]*string{
 				"kafkaoffset": stringPtr("87"),
-				"debeziumop":  stringPtr("create"),
+				"operation":   stringPtr("create"),
 				"id":          stringPtr("1001"),
 				"first_name":  stringPtr("Batman"),
 				"last_name":   nil,
@@ -142,7 +142,7 @@ func TestMasker(t *testing.T) {
 			cName: "first_name",
 			columns: map[string]*string{
 				"kafkaoffset": stringPtr("87"),
-				"debeziumop":  stringPtr("create"),
+				"operation":   stringPtr("create"),
 				"id":          stringPtr("1001"),
 				"first_name":  stringPtr("Batman"),
 				"last_name":   nil,
@@ -158,7 +158,7 @@ func TestMasker(t *testing.T) {
 			cName: "last_name",
 			columns: map[string]*string{
 				"kafkaoffset": stringPtr("87"),
-				"debeziumop":  stringPtr("create"),
+				"operation":   stringPtr("create"),
 				"id":          stringPtr("1001"),
 				"first_name":  stringPtr("Batman"),
 				"last_name":   nil,
@@ -173,7 +173,7 @@ func TestMasker(t *testing.T) {
 			cName: "createdAt",
 			columns: map[string]*string{
 				"kafkaoffset": stringPtr("87"),
-				"debeziumop":  stringPtr("create"),
+				"operation":   stringPtr("create"),
 				"source":      stringPtr("chrome"),
 				"type":        stringPtr("CLASS"),
 				"createdAt":   stringPtr("2020-09-20 20:56:45"),
@@ -188,7 +188,7 @@ func TestMasker(t *testing.T) {
 			cName: "email_length",
 			columns: map[string]*string{
 				"kafkaoffset": stringPtr("87"),
-				"debeziumop":  stringPtr("create"),
+				"operation":   stringPtr("create"),
 				"id":          stringPtr("1001"),
 				"first_name":  stringPtr("Batman"),
 				"last_name":   nil,
@@ -203,7 +203,7 @@ func TestMasker(t *testing.T) {
 			cName: "email",
 			columns: map[string]*string{
 				"kafkaoffset": stringPtr("87"),
-				"debeziumop":  stringPtr("create"),
+				"operation":   stringPtr("create"),
 				"id":          stringPtr("1001"),
 				"first_name":  stringPtr("Batman"),
 				"last_name":   stringPtr("DhoniUnmatched"),
@@ -218,7 +218,7 @@ func TestMasker(t *testing.T) {
 			cName: "first_name",
 			columns: map[string]*string{
 				"kafkaoffset": stringPtr("87"),
-				"debeziumop":  stringPtr("create"),
+				"operation":   stringPtr("create"),
 				"id":          stringPtr("1001"),
 				"first_name":  stringPtr("Batman"),
 				"last_name":   stringPtr("Dhoni"),
@@ -233,7 +233,7 @@ func TestMasker(t *testing.T) {
 			cName: "first_name",
 			columns: map[string]*string{
 				"kafkaoffset": stringPtr("87"),
-				"debeziumop":  stringPtr("create"),
+				"operation":   stringPtr("create"),
 				"id":          stringPtr("1001"),
 				"first_name":  stringPtr("Batman"),
 				"last_name":   stringPtr("DhoniUnmatched"),
@@ -242,7 +242,7 @@ func TestMasker(t *testing.T) {
 			resultVal: stringPtr("9ba53e85b996f6278aa647d8da8f355aafd16149"),
 			resultMaskSchema: map[string]serializer.MaskInfo{
 				"kafkaoffset": serializer.MaskInfo{},
-				"debeziumop":  serializer.MaskInfo{},
+				"operation":   serializer.MaskInfo{},
 				"id": serializer.MaskInfo{
 					Masked: false, SortCol: true},
 				"first_name": serializer.MaskInfo{Masked: true}, // first name may not be masked but masked should always come as true as it is depdenent Non Pii
@@ -257,7 +257,7 @@ func TestMasker(t *testing.T) {
 			cName: "dob",
 			columns: map[string]*string{
 				"kafkaoffset": stringPtr("87"),
-				"debeziumop":  stringPtr("create"),
+				"operation":   stringPtr("create"),
 				"id":          stringPtr("1001"),
 				"first_name":  stringPtr("Batman"),
 				"last_name":   stringPtr("DhoniUnmatched"),
@@ -267,7 +267,7 @@ func TestMasker(t *testing.T) {
 			resultVal: stringPtr("b944b9b788724a0c474c5758e55529ebd44e7d48"),
 			resultMaskSchema: map[string]serializer.MaskInfo{
 				"kafkaoffset": serializer.MaskInfo{},
-				"debeziumop":  serializer.MaskInfo{},
+				"operation":   serializer.MaskInfo{},
 				"id": serializer.MaskInfo{
 					Masked: false, SortCol: true},
 				"first_name": serializer.MaskInfo{Masked: true}, // first name may not be masked but masked should always come as true as it is depdenent Non Pii
