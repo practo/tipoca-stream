@@ -12,6 +12,9 @@ import (
 )
 
 const (
+	OperationColumn     = "operation"
+	OperationColumnType = "character varying(15)"
+
 	millisInSecond  = 1000
 	microInSecond   = 1000000
 	nsMicroInSecond = 1000
@@ -323,8 +326,8 @@ func (c *messageTransformer) Transform(
 
 	// redshift only has all columns as lower cases
 	kafkaOffset := fmt.Sprintf("%v", message.Offset)
-	value[transformer.PrimaryColumn] = &kafkaOffset
-	value[transformer.OpColumn] = &operation
+	value["kafkaoffset"] = &kafkaOffset
+	value["operation"] = &operation
 	message.Operation = operation
 
 	message.Value = value
