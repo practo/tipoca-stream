@@ -22,7 +22,7 @@ type MessageTransformer interface {
 type SchemaTransformer interface {
 	// TransformKey transforms the topic schema into name of the primary
 	// key and its type.
-	TransformKey(topic string) (string, string, error)
+	TransformKey(topic string) ([]string, error)
 	// Transform value transforms the schemaId for various use cases.
 	// it uses maskSchema to change the type of the schema datatypes if required
 	TransformValue(topic string, schemaId int,

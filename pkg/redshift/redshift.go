@@ -646,7 +646,7 @@ func (r *Redshift) DeleteCommon(tx *sql.Tx, schema string, stagingTable string,
 	sTable := fmt.Sprintf(`"%s"."%s"`, schema, stagingTable)
 	tTable := fmt.Sprintf(`"%s"."%s"`, schema, targetTable)
 
-	deleteCommon = `delete from %s where %s in (
+	deleteCommon := `delete from %s where %s in (
 select %s from %s t1 join %s t2 on %s);`
 
 	command := fmt.Sprintf(
@@ -677,7 +677,7 @@ func (r *Redshift) DeleteColumn(tx *sql.Tx, schema string, table string,
 
 	sTable := fmt.Sprintf(`"%s"."%s"`, schema, table)
 
-	deleteColumn = `delete from %s where %s.%s='%s';`
+	deleteColumn := `delete from %s where %s.%s='%s';`
 
 	command := fmt.Sprintf(
 		deleteColumn,
