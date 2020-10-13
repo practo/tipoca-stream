@@ -56,7 +56,8 @@ func TestSchemaMysqlDataType(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			c := &schemaTransformer{srclient: nil}
 
-			resp, err := c.transformSchemaValue(tc.jobSchema, "id", tc.maskSchema)
+			resp, err := c.transformSchemaValue(
+				tc.jobSchema, []string{"id"}, tc.maskSchema)
 			table := resp.(redshift.Table)
 			if err != nil {
 				t.Error(err)

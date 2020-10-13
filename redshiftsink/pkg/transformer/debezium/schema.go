@@ -234,49 +234,58 @@ type schemaTransformer struct {
 	srclient   *srclient.SchemaRegistryClient
 }
 
-func (c *schemaTransformer) TransformKey(topic string) (string, string, error) {
+func (c *schemaTransformer) TransformKey(topic string) ([]string, error) {
 	s, err := serializer.GetLatestSchemaWithRetry(c.srclient, topic, true, 10)
 	if err != nil {
-		return "", "", err
+		return []string{}, err
 	}
 
 	return c.transformSchemaKey(s.Schema())
 }
 
 func (c *schemaTransformer) transformSchemaKey(
-	schema string) (string, string, error) {
+	schema string) ([]string, error) {
 
+	var primaryKeys []string
 	debeziumSchema := make(map[string]interface{})
 	err := json.Unmarshal([]byte(schema), &debeziumSchema)
 	if err != nil {
-		return "", "", err
+		return primaryKeys, err
 	}
 
 	fields, ok := debeziumSchema["fields"].([]interface{})
 	if !ok {
-		return "", "", fmt.Errorf("Error parsing schema: %s\n", schema)
+		return primaryKeys, fmt.Errorf("Error parsing schema: %s\n", schema)
 	}
 
 	for _, field := range fields {
 		switch field.(type) {
 		case map[string]interface{}:
-			primaryKey := ""
-			primaryKeyType := ""
 			for fieldKey, fieldValue := range field.(map[string]interface{}) {
 				switch fieldKey {
 				case "name":
-					primaryKey = fmt.Sprintf("%v", fieldValue)
-				case "type":
-					primaryKeyType = fmt.Sprintf("%v", fieldValue)
+					primaryKeys = append(
+						primaryKeys, fmt.Sprintf("%v", fieldValue),
+					)
 				}
 			}
-			if primaryKey != "" && primaryKeyType != "" {
-				return primaryKey, primaryKeyType, nil
+			if len(primaryKeys) != 0 {
+				return primaryKeys, nil
 			}
 		}
 	}
 
-	return "", "", fmt.Errorf("Primary key not found in schema: %s\n", schema)
+	return primaryKeys, fmt.Errorf("Primarykey not found, schema: %s\n", schema)
+}
+
+func isPrimaryKey(columnName string, primaryKeys []string) bool {
+	for _, pk := range primaryKeys {
+		if pk == columnName {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (c *schemaTransformer) TransformValue(topic string, schemaId int,
@@ -287,28 +296,20 @@ func (c *schemaTransformer) TransformValue(topic string, schemaId int,
 		return nil, err
 	}
 
-	primaryKey, primaryKeyType, err := c.TransformKey(topic)
+	primaryKeys, err := c.TransformKey(topic)
 	if err != nil {
 		return nil, err
 	}
 
-	if primaryKey == "" || primaryKeyType == "" {
-		return nil, fmt.Errorf(
-			"primary key not found for topic:%s, schemaId:%d\n",
-			topic,
-			schemaId,
-		)
-	}
-
 	return c.transformSchemaValue(
 		s.Schema(),
-		primaryKey,
+		primaryKeys,
 		maskSchema,
 	)
 }
 
 func (c *schemaTransformer) transformSchemaValue(jobSchema string,
-	primaryKey string,
+	primaryKeys []string,
 	maskSchema map[string]serializer.MaskInfo) (interface{}, error) {
 
 	// remove nulls
@@ -409,7 +410,7 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 
 	// set primary key
 	for idx, column := range redshiftColumns {
-		if column.Name == primaryKey {
+		if isPrimaryKey(column.Name, primaryKeys) {
 			column.PrimaryKey = true
 			redshiftColumns[idx] = column
 		}
