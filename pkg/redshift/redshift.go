@@ -48,12 +48,7 @@ from information_schema.schemata where schema_name='%s';`
 	schemaCreate = `create schema "%s";`
 	tableExist   = `select table_name from information_schema.tables where
 table_schema='%s' and table_name='%s';`
-	tableCreate = `CREATE TABLE "%s"."%s" (%s) %s %s;`
-	deDupe      = `delete from %s where %s in (
-select t1.%s from %s t1 join %s t2 on t1.%s=t2.%s where t1.%s < t2.%s);`
-	deleteCommon = `delete from %s where %s in (
-select t1.%s from %s t1 join %s t2 on t1.%s=t2.%s);`
-	deleteColumn    = `delete from %s where %s.%s='%s';`
+	tableCreate     = `CREATE TABLE "%s"."%s" (%s) %s %s;`
 	dropColumn      = `ALTER TABLE "%s"."%s" DROP COLUMN %s;`
 	alterSortColumn = `ALTER TABLE "%s"."%s" ALTER SORTKEY(%s);`
 	dropTable       = `DROP TABLE %s;`
@@ -580,10 +575,21 @@ func (r *Redshift) prepareAndExecute(tx *sql.Tx, command string) error {
 
 // DeDupe deletes the duplicates in the redshift table and keeps only the
 // latest, it accepts a transaction
-// ex: targetTablePrimaryKey = some id, timestamp
-// ex: stagingTablePrimaryKey = kafkaoffset // transformer.TempTablePrimary
 func (r *Redshift) DeDupe(tx *sql.Tx, schema string, table string,
-	targetTablePrimaryKey string, stagingTablePrimaryKey string) error {
+	targetTablePrimaryKeys []string, stagingTablePrimaryKey string) error {
+
+	var joinOn string
+	for i, targetPk := range targetTablePrimaryKeys {
+		if i == 0 {
+			joinOn = fmt.Sprintf(`t1.%s=t2.%s`, targetPk, targetPk)
+		} else {
+			joinOn = fmt.Sprintf(
+				`%s AND t1.%s=t2.%s`, joinOn, targetPk, targetPk)
+		}
+	}
+
+	deDupe := `delete from %s where %s in (
+	select t1.%s from %s t1 join %s t2 on %s where t1.%s < t2.%s);`
 
 	sTable := fmt.Sprintf(`"%s"."%s"`, schema, table)
 	command := fmt.Sprintf(
@@ -593,8 +599,7 @@ func (r *Redshift) DeDupe(tx *sql.Tx, schema string, table string,
 		stagingTablePrimaryKey,
 		sTable,
 		sTable,
-		targetTablePrimaryKey,
-		targetTablePrimaryKey,
+		joinOn,
 		stagingTablePrimaryKey,
 		stagingTablePrimaryKey,
 	)
@@ -604,20 +609,54 @@ func (r *Redshift) DeDupe(tx *sql.Tx, schema string, table string,
 
 // DeleteCommon deletes the common based on commonColumn from targetTable.
 func (r *Redshift) DeleteCommon(tx *sql.Tx, schema string, stagingTable string,
-	targetTable string, commonColumn string) error {
+	targetTable string, commonColumns []string) error {
+
+	var whereColumn string
+	for i, commonColumn := range commonColumns {
+		if i == 0 {
+			whereColumn = commonColumn
+		} else {
+			whereColumn = fmt.Sprintf(`%s, %s`, whereColumn, commonColumn)
+		}
+	}
+	if len(commonColumns) > 1 {
+		whereColumn = fmt.Sprintf(`(%s)`, whereColumn)
+	}
+
+	var joinOn string
+	for i, commonColumn := range commonColumns {
+		if i == 0 {
+			joinOn = fmt.Sprintf(`t1.%s=t2.%s`, commonColumn, commonColumn)
+		} else {
+			joinOn = fmt.Sprintf(
+				`%s AND t1.%s=t2.%s`, joinOn, commonColumn, commonColumn)
+		}
+	}
+
+	var selectColumn string
+	for i, commonColumn := range commonColumns {
+		if i == 0 {
+			selectColumn = fmt.Sprintf(`t1.%s`, commonColumn)
+		} else {
+			selectColumn = fmt.Sprintf(
+				`%s, t1.%s`, selectColumn, commonColumn)
+		}
+	}
 
 	sTable := fmt.Sprintf(`"%s"."%s"`, schema, stagingTable)
 	tTable := fmt.Sprintf(`"%s"."%s"`, schema, targetTable)
 
+	deleteCommon = `delete from %s where %s in (
+select %s from %s t1 join %s t2 on %s);`
+
 	command := fmt.Sprintf(
 		deleteCommon,
 		tTable,
-		commonColumn,
-		commonColumn,
+		whereColumn,
+		selectColumn,
 		sTable,
 		tTable,
-		commonColumn,
-		commonColumn,
+		joinOn,
 	)
 
 	return r.prepareAndExecute(tx, command)
@@ -637,6 +676,9 @@ func (r *Redshift) DeleteColumn(tx *sql.Tx, schema string, table string,
 	columnName string, columnValue string) error {
 
 	sTable := fmt.Sprintf(`"%s"."%s"`, schema, table)
+
+	deleteColumn = `delete from %s where %s.%s='%s';`
+
 	command := fmt.Sprintf(
 		deleteColumn,
 		sTable,
