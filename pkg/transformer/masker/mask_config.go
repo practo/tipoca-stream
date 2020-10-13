@@ -13,8 +13,8 @@ import (
 
 var (
 	ignoreColumns = map[string]bool{
-		"kafkaoffset": true,
-		"operation":   true,
+		transformer.TempTablePrimary: true,
+		transformer.TempTableOp:      true,
 	}
 )
 
@@ -200,7 +200,7 @@ func (m MaskConfig) PerformUnMasking(table, cName string, cValue *string,
 	allColumns map[string]*string) bool {
 
 	cName = strings.ToLower(cName)
-	// usecase: kafkaoffset, operation are staged columns that need to unmasked
+	// usecase: temp columns does not need to be masked
 	_, ok := ignoreColumns[cName]
 	if ok {
 		return true
