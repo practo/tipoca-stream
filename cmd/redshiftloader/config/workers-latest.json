@@ -45,10 +45,10 @@
         "name": "redshiftloader3",
         "deploymentStrategy": "recreate",
         "resources": {
-              "requestCpu": "10m",
-              "requestMemory": "50Mi",
-              "limitCpu": "100m",
-              "limitMemory": "200Mi"
+              "requestCpu": "100m",
+              "requestMemory": "300Mi",
+              "limitCpu": "1024m",
+              "limitMemory": "1200Mi"
         }
     }
 ]
