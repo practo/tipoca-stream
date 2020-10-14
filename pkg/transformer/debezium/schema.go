@@ -269,10 +269,11 @@ func (c *schemaTransformer) transformSchemaKey(
 					)
 				}
 			}
-			if len(primaryKeys) != 0 {
-				return primaryKeys, nil
-			}
 		}
+	}
+
+	if len(primaryKeys) != 0 {
+		return primaryKeys, nil
 	}
 
 	return primaryKeys, fmt.Errorf("Primarykey not found, schema: %s\n", schema)
