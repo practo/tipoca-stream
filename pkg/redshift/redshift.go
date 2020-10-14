@@ -369,7 +369,7 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 	primaryKeySQL := ""
 	if len(primaryKeys) > 0 {
 		primaryKeySQL = fmt.Sprintf(
-			`primary key(%s)`, strings.Join(primaryKeys, ","))
+			`, primary key(%s)`, strings.Join(primaryKeys, ", "))
 	}
 
 	sortColumnsSQL := getSortColumnsSQL(table.Columns)
