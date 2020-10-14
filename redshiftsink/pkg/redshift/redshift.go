@@ -378,16 +378,16 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 		return err
 	}
 
-	tableCreate := `CREATE TABLE "%s"."%s" (%s) %s %s %s;`
+	tableCreate := `CREATE TABLE "%s"."%s" (%s %s) %s %s;`
 
 	createSQL := fmt.Sprintf(
 		tableCreate,
 		table.Meta.Schema,
 		table.Name,
 		strings.Join(columnSQL, ","),
+		primaryKeySQL,
 		distColumnSQL,
 		sortColumnsSQL,
-		primaryKeySQL,
 	)
 
 	klog.V(5).Infof("Preparing: %s\n", createSQL)
