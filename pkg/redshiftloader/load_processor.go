@@ -69,8 +69,8 @@ type loadProcessor struct {
 	// targetTable is actual table in redshift
 	targetTable *redshift.Table
 
-	// primaryKey is the primary key column for the topic corresponding table
-	primaryKey string
+	// primaryKeys is the primary key columns for the topics corresponding table
+	primaryKeys []string
 }
 
 func newLoadProcessor(
@@ -211,7 +211,7 @@ func (b *loadProcessor) deDupeStagingTable(tx *sql.Tx) {
 	err := b.redshifter.DeDupe(tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
-		b.primaryKey,
+		b.primaryKeys,
 		transformer.TempTablePrimary,
 	)
 	if err != nil {
@@ -228,7 +228,7 @@ func (b *loadProcessor) deleteCommonRowsInTargetTable(tx *sql.Tx) {
 		b.targetTable.Meta.Schema,
 		b.stagingTable.Name,
 		b.targetTable.Name,
-		b.primaryKey,
+		b.primaryKeys,
 	)
 	if err != nil {
 		tx.Rollback()
@@ -397,12 +397,12 @@ func (b *loadProcessor) createStagingTable(
 		klog.Fatalf("Error dropping staging table: %v\n", err)
 	}
 
-	primaryKey, _, err := b.schemaTransformer.TransformKey(
+	primaryKeys, err := b.schemaTransformer.TransformKey(
 		b.upstreamTopic)
 	if err != nil {
 		klog.Fatalf("Error getting primarykey for: %s, err: %v\n", b.topic, err)
 	}
-	b.primaryKey = primaryKey
+	b.primaryKeys = primaryKeys
 
 	// add columns: kafkaOffset and operation in the staging table
 	extraColumns := []redshift.ColInfo{
