@@ -48,7 +48,6 @@ from information_schema.schemata where schema_name='%s';`
 	schemaCreate = `create schema "%s";`
 	tableExist   = `select table_name from information_schema.tables where
 table_schema='%s' and table_name='%s';`
-	tableCreate     = `CREATE TABLE "%s"."%s" (%s) %s %s;`
 	dropColumn      = `ALTER TABLE "%s"."%s" DROP COLUMN %s;`
 	alterSortColumn = `ALTER TABLE "%s"."%s" ALTER SORTKEY(%s);`
 	dropTable       = `DROP TABLE %s;`
@@ -351,9 +350,26 @@ func getColumnSQL(c ColInfo) string {
 }
 
 func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
+	var primaryKeys []string
+	for _, c := range table.Columns {
+		if c.PrimaryKey {
+			primaryKeys = append(primaryKeys, c.Name)
+		}
+	}
+
 	var columnSQL []string
 	for _, c := range table.Columns {
-		columnSQL = append(columnSQL, getColumnSQL(c))
+		sql := getColumnSQL(c)
+		if len(primaryKeys) > 0 {
+			sql = strings.ReplaceAll(sql, "PRIMARY KEY", "")
+		}
+		columnSQL = append(columnSQL, sql)
+	}
+
+	primaryKeySQL := ""
+	if len(primaryKeys) > 0 {
+		primaryKeySQL = fmt.Sprintf(
+			`primary key(%s)`, strings.Join(primaryKeys, ","))
 	}
 
 	sortColumnsSQL := getSortColumnsSQL(table.Columns)
@@ -362,6 +378,8 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 		return err
 	}
 
+	tableCreate := `CREATE TABLE "%s"."%s" (%s) %s %s %s;`
+
 	createSQL := fmt.Sprintf(
 		tableCreate,
 		table.Meta.Schema,
@@ -369,6 +387,7 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 		strings.Join(columnSQL, ","),
 		distColumnSQL,
 		sortColumnsSQL,
+		primaryKeySQL,
 	)
 
 	klog.V(5).Infof("Preparing: %s\n", createSQL)
