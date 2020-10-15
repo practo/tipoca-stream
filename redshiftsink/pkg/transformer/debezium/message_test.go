@@ -84,6 +84,13 @@ func TestConvertDebeziumFormattedTime(t *testing.T) {
 			sourceLength:  "",
 			formattedTime: "11:20:10",
 		},
+		{
+			name:          "test10: DATETIME(3)",
+			value:         "1602736317708",
+			sourceType:    "DATETIME",
+			sourceLength:  "3",
+			formattedTime: "2020-10-15 04:31:57.708",
+		},
 	}
 
 	for _, tc := range tests {
