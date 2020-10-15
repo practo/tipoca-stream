@@ -766,7 +766,7 @@ func (r *Redshift) Copy(tx *sql.Tx,
 
 	csv := ""
 	if typeCsv == true {
-		csv = `removequotes escape delimiter ','`
+		csv = `removequotes escape delimiter ',' EMPTYASNULL`
 	}
 
 	credentials := fmt.Sprintf(
