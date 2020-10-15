@@ -244,7 +244,7 @@ func convertDebeziumFormattedTime(
 		}
 
 		var redshiftTime string
-		if colLength < 3 {
+		if colLength <= 3 {
 			redshiftTime = convertDebeziumMilliseconds(ts, colLength)
 		} else {
 			redshiftTime = convertDebeziumMicroseconds(ts, colLength)
