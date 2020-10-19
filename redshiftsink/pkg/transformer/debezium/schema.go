@@ -373,6 +373,22 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 						SourceType:   redshift.SourceType{}, // not required
 					})
 				}
+				if mschema.MappingPii {
+					newColName := strings.ToLower(
+						transformer.MappingPIIColumnPrefix + column.Name,
+					)
+					extraColumns = append(extraColumns, redshift.ColInfo{
+						Name:         newColName,
+						Type:         redshift.RedshiftMaskedDataType,
+						DebeziumType: "", // not required
+						DefaultVal:   "",
+						NotNull:      false,
+						PrimaryKey:   false,
+						SortOrdinal:  0,
+						DistKey:      false,
+						SourceType:   redshift.SourceType{}, // not required
+					})
+				}
 			}
 		}
 		redshiftDataType, err := redshift.GetRedshiftDataType(

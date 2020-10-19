@@ -26,11 +26,12 @@ type Message struct {
 }
 
 type MaskInfo struct {
-	Masked    bool
-	SortCol   bool
-	DistCol   bool
-	LengthCol bool
-	MobileCol bool
+	Masked        bool
+	SortCol       bool
+	DistCol       bool
+	LengthCol     bool
+	MobileCol     bool
+	MappingPIICol bool
 }
 
 type Serializer interface {
