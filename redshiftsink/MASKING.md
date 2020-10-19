@@ -74,6 +74,16 @@ mobile_keys:
     - mobile_number
 ```
 
+### Mapping PII Keys
+Mapping PII Keys, if specified adds new columns with the masked values.
+Eg: `id` will be as it is and `hashed_id` would be added with masked values.
+
+```yaml
+mapping_pii_keys:
+    establishments:
+    - id
+```
+
 ### Sort Keys
 Specify one or more columns in a table as Redshift Sort Key.
 
