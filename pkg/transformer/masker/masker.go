@@ -71,6 +71,7 @@ func (m *masker) Transform(
 	columns := make(map[string]*string)
 	extraColumns := make(map[string]*string)
 	maskSchema := make(map[string]serializer.MaskInfo)
+	mappingPIIColumns := make(map[string]bool)
 
 	for cName, cVal := range rawColumns {
 		unmasked := m.config.PerformUnMasking(m.table, cName, cVal, rawColumns)
@@ -112,6 +113,7 @@ func (m *masker) Transform(
 			}
 
 			extraColumns[transformer.MappingPIIColumnPrefix+cName] = hashedValue
+			mappingPIIColumns[transformer.MappingPIIColumnPrefix+cName] = true
 		}
 
 		if cVal == nil || strings.TrimSpace(*cVal) == "" {
@@ -147,10 +149,13 @@ func (m *masker) Transform(
 		if cVal != nil {
 			columns[cName] = cVal
 		}
+
 		var maskedExtraColumn bool
-		if mappingPIIKey {
+		_, ok := mappingPIIColumns[cName]
+		if ok {
 			maskedExtraColumn = true
 		}
+
 		maskSchema[cName] = serializer.MaskInfo{
 			Masked: maskedExtraColumn,
 			// extra length column, don't need more extras so below 3

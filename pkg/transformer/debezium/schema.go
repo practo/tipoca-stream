@@ -373,7 +373,7 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 						SourceType:   redshift.SourceType{}, // not required
 					})
 				}
-				if mschema.MappingPii {
+				if mschema.MappingPIICol {
 					newColName := strings.ToLower(
 						transformer.MappingPIIColumnPrefix + column.Name,
 					)
