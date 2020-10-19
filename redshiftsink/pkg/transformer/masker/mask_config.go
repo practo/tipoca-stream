@@ -35,6 +35,9 @@ type MaskConfig struct {
 	// MOBILE_KEYS_EXPOSED_LENGTH characters exposed in the mobile number
 	MobileKeys map[string][]string `yaml:"mobile_keys,omitempty"`
 
+	// MappingPIIKey creates extra column containing hashed values
+	MappingPIIKeys map[string][]string `yaml:"mapping_pii_keys"`
+
 	// SortKeys sets the Redshift column to use the column as the SortKey
 	SortKeys map[string][]string `yaml:"sort_keys,omitempty"`
 
@@ -83,6 +86,7 @@ func NewMaskConfig(dir string, topic string) (MaskConfig, error) {
 	loweredKeys(maskConfig.NonPiiKeys)
 	loweredKeys(maskConfig.LengthKeys)
 	loweredKeys(maskConfig.MobileKeys)
+	loweredKeys(maskConfig.MappingPIIKeys)
 	loweredKeys(maskConfig.SortKeys)
 	loweredKeys(maskConfig.DistKeys)
 
@@ -108,6 +112,21 @@ func (m MaskConfig) LengthKey(table, cName string) bool {
 
 func (m MaskConfig) MobileKey(table, cName string) bool {
 	columns, ok := m.MobileKeys[table]
+	if !ok {
+		return false
+	}
+
+	for _, column := range columns {
+		if column == cName {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (m MaskConfig) MappingPIIKey(table, cName string) bool {
+	columns, ok := m.MappingPIIKeys[table]
 	if !ok {
 		return false
 	}

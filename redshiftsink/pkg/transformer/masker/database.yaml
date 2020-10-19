@@ -37,6 +37,10 @@ length_keys:
 mobile_keys:
     customers:
     - mobile_number
+mapping_pii_keys:
+    establishments:
+    - id
+    - cert
 sort_keys:
     customers:
     - id

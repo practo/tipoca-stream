@@ -7,12 +7,13 @@ import (
 )
 
 const (
-	TempTablePrimary     = "kafkaoffset"
-	TempTablePrimaryType = "character varying(max)"
-	TempTableOp          = "debeziumop"
-	TempTableOpType      = "character varying(6)"
-	LengthColumnSuffix   = "_length"
-	MobileCoulmnSuffix   = "_init5"
+	TempTablePrimary       = "kafkaoffset"
+	TempTablePrimaryType   = "character varying(max)"
+	TempTableOp            = "debeziumop"
+	TempTableOpType        = "character varying(6)"
+	LengthColumnSuffix     = "_length"
+	MobileCoulmnSuffix     = "_init5"
+	MappingPIIColumnPrefix = "hashed_"
 )
 
 type MessageTransformer interface {
