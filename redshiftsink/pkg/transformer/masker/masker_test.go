@@ -347,6 +347,19 @@ func TestMasker(t *testing.T) {
 			resultVal:        stringPtr("+9198"),
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
 		},
+		{
+			name:  "test14: mapping pii keys",
+			topic: "dbserver.database.establishments",
+			cName: "hashed_id",
+			columns: map[string]*string{
+				"id": stringPtr("2011"),
+			},
+			resultVal: stringPtr("9b8297b23539abcda0344522bca05a99feecba10"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"id":        serializer.MaskInfo{Masked: false},
+				"hashed_id": serializer.MaskInfo{Masked: true},
+			},
+		},
 	}
 
 	for _, tc := range tests {

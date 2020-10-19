@@ -6,6 +6,8 @@ non_pii_keys:
     - type
     - createdAt
     - updatedAt
+    establishments:
+    - id
 conditional_non_pii_keys:
     justifications:
         justice:
@@ -40,7 +42,6 @@ mobile_keys:
 mapping_pii_keys:
     establishments:
     - id
-    - cert
 sort_keys:
     customers:
     - id
