@@ -118,7 +118,7 @@ func ToSchemaMap(r string) map[string]serializer.MaskInfo {
 
 		info := strings.Split(col, ",")
 		name := info[0]
-		var masked, sortCol, distCol, lengthCol, mobileCol bool
+		var masked, sortCol, distCol, lengthCol, mobileCol, mappingPIICol bool
 		if info[1] == "true" {
 			masked = true
 		}
@@ -134,13 +134,17 @@ func ToSchemaMap(r string) map[string]serializer.MaskInfo {
 		if info[5] == "true" {
 			mobileCol = true
 		}
+		if info[6] == "true" {
+			mappingPIICol = true
+		}
 
 		m[name] = serializer.MaskInfo{
-			Masked:    masked,
-			SortCol:   sortCol,
-			DistCol:   distCol,
-			LengthCol: lengthCol,
-			MobileCol: mobileCol,
+			Masked:        masked,
+			SortCol:       sortCol,
+			DistCol:       distCol,
+			LengthCol:     lengthCol,
+			MobileCol:     mobileCol,
+			MappingPIICol: mappingPIICol,
 		}
 	}
 
@@ -154,13 +158,14 @@ func ToSchemaString(m map[string]serializer.MaskInfo) string {
 
 	for name, info := range m {
 		col := fmt.Sprintf(
-			"%s,%t,%t,%t,%t,%t",
+			"%s,%t,%t,%t,%t,%t,%t",
 			name,
 			info.Masked,
 			info.SortCol,
 			info.DistCol,
 			info.LengthCol,
 			info.MobileCol,
+			info.MappingPIICol,
 		)
 		r = r + col + "|"
 	}
