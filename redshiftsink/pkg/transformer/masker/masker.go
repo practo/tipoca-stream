@@ -71,6 +71,7 @@ func (m *masker) Transform(
 	columns := make(map[string]*string)
 	extraColumns := make(map[string]*string)
 	maskSchema := make(map[string]serializer.MaskInfo)
+	mappingPIIColumns := make(map[string]bool)
 
 	for cName, cVal := range rawColumns {
 		unmasked := m.config.PerformUnMasking(m.table, cName, cVal, rawColumns)
@@ -78,6 +79,7 @@ func (m *masker) Transform(
 		distKey := m.config.DistKey(m.table, cName)
 		lengthKey := m.config.LengthKey(m.table, cName)
 		mobileKey := m.config.MobileKey(m.table, cName)
+		mappingPIIKey := m.config.MappingPIIKey(m.table, cName)
 
 		if lengthKey {
 			var length int
@@ -102,6 +104,18 @@ func (m *masker) Transform(
 			extraColumns[cName+transformer.MobileCoulmnSuffix] = tMobile
 		}
 
+		if mappingPIIKey {
+			var hashedValue *string
+			if cVal == nil || strings.TrimSpace(*cVal) == "" {
+				hashedValue = nil
+			} else {
+				hashedValue = mask(*cVal, m.salt)
+			}
+
+			extraColumns[transformer.MappingPIIColumnPrefix+cName] = hashedValue
+			mappingPIIColumns[transformer.MappingPIIColumnPrefix+cName] = true
+		}
+
 		if cVal == nil || strings.TrimSpace(*cVal) == "" {
 			columns[cName] = nil
 		} else if unmasked {
@@ -121,19 +135,33 @@ func (m *masker) Transform(
 		}
 
 		maskSchema[cName] = serializer.MaskInfo{
-			Masked:    !unmasked,
-			SortCol:   sortKey,
-			DistCol:   distKey,
-			LengthCol: lengthKey,
-			MobileCol: mobileKey,
+			Masked:        !unmasked,
+			SortCol:       sortKey,
+			DistCol:       distKey,
+			LengthCol:     lengthKey,
+			MobileCol:     mobileKey,
+			MappingPIICol: mappingPIIKey,
 		}
 	}
 
 	for cName, cVal := range extraColumns {
-		columns[cName] = cVal
+		// send value in json only when it is not nil, so that NULL takes effect
+		if cVal != nil {
+			columns[cName] = cVal
+		}
+
+		var maskedExtraColumn bool
+		_, ok := mappingPIIColumns[cName]
+		if ok {
+			maskedExtraColumn = true
+		}
+
 		maskSchema[cName] = serializer.MaskInfo{
-			LengthCol: false, // extra length column, don't want one more extra
-			MobileCol: false, // extra mobile column, don't want one more extra
+			Masked: maskedExtraColumn,
+			// extra length column, don't need more extras so below 3
+			LengthCol:     false,
+			MobileCol:     false,
+			MappingPIICol: false,
 		}
 	}
 
