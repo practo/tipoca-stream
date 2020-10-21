@@ -50,5 +50,18 @@
               "limitCpu": "1024m",
               "limitMemory": "1200Mi"
         }
+    },
+    {
+        "directory": "/",
+        "command": "/redshiftloader",
+        "args": ["-v=4", "--config=/config4.yaml"],
+        "name": "redshiftloader4",
+        "deploymentStrategy": "recreate",
+        "resources": {
+              "requestCpu": "100m",
+              "requestMemory": "300Mi",
+              "limitCpu": "1024m",
+              "limitMemory": "1200Mi"
+        }
     }
 ]
