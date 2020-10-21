@@ -2,6 +2,7 @@ batcher:
     mask: false
     maskSalt: "sample-salt"
     maskConfigDir: "/maskfiles"
+    maskConfigFileName: ""
     maxSize: 10
     maxSize: 10
     maxWaitSeconds: 20
