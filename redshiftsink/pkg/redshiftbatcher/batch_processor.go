@@ -22,7 +22,9 @@ import (
 )
 
 type batchProcessor struct {
-	topic     string
+	topic             string
+	loaderTopicPrefix string
+
 	partition int32
 
 	// autoCommit to Kafka
@@ -107,6 +109,10 @@ func newBatchProcessor(
 	if err != nil {
 		klog.Fatalf("Error creating s3 client: %v\n", err)
 	}
+	loaderTopicPrefix := viper.GetString("kafka.loaderTopicPrefix")
+	if loaderTopicPrefix == "" {
+		loaderTopicPrefix = "loader-"
+	}
 
 	signaler, err := producer.NewAvroProducer(
 		strings.Split(viper.GetString("kafka.brokers"), ","),
@@ -133,6 +139,7 @@ func newBatchProcessor(
 
 	return &batchProcessor{
 		topic:              topic,
+		loaderTopicPrefix:  loaderTopicPrefix,
 		partition:          partition,
 		autoCommit:         viper.GetBool("sarama.autoCommit"),
 		session:            session,
@@ -251,7 +258,7 @@ func (b *batchProcessor) handleShutdown() {
 }
 
 func (b *batchProcessor) signalLoad() {
-	downstreamTopic := "loader-" + b.topic
+	downstreamTopic := loaderTopicPrefix + b.topic
 	klog.V(2).Infof("topic:%s, batchId: %d, skipMerge: %v\n",
 		b.topic, b.batchId, b.skipMerge)
 	job := loader.NewJob(
