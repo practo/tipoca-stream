@@ -25,12 +25,11 @@ type ConsumerGroup interface {
 }
 
 type KafkaConfig struct {
-	Brokers           string `yaml:"brokers"`
-	Group             string `yaml:"group"`
-	Version           string `yaml:"version"`
-	TopicRegexes      string `yaml:"topicRegexes"`
-	LoaderTopicPrefix string `yaml:"loaderTopicPrefix"` // defaults to loader-
-	KafkaClient       string `yaml:"kafkaClient"`
+	Brokers      string `yaml:"brokers"`
+	Group        string `yaml:"group"`
+	Version      string `yaml:"version"`
+	TopicRegexes string `yaml:"topicRegexes"`
+	KafkaClient  string `yaml:"kafkaClient"`
 }
 
 type SaramaConfig struct {
