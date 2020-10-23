@@ -8,20 +8,17 @@ Specification of what to unmask is specified using a configuration file. Masking
 mask: true
 maskSalt: sample-salt
 maskConfigDir: "/usr/inventory.yaml"
-maskConfigFileName: ""               // default is "database.yaml"
 ```
 
-### Example config:
-Default works like:
+### Convention:
+There is a convention for the mask configuration file name:
 ```
 If,     mask=true            (in redshiftbatcher config)
         maskConfigDir="/usr" (in redshiftbatcher config)
-        maskConfigFilePath="" (i.e. not defined)
         topic="datapipe.inventory.customers"
 Then,
         configuration file should be present at: /usr/inventory.yaml
 ```
-To not use default file name, specify: `maskConfigFileName`
 
 ## Features
 
