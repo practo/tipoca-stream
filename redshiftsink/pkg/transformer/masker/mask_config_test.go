@@ -8,7 +8,7 @@ import (
 func testMasked(t *testing.T, dir, topic, table, cName, cValue string,
 	result bool, allColumns map[string]*string) {
 
-	m, err := NewMaskConfig(dir, topic, "")
+	m, err := NewMaskConfig(dir, topic)
 	if err != nil {
 		t.Error(err)
 	}
