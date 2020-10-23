@@ -65,18 +65,14 @@ func loweredKeys(keys map[string][]string) {
 //     mask=true         (in redshiftbatcher config)
 // 	   then the configuration file should be present at below location:
 //     /usr/inventory.yaml
-func NewMaskConfig(
-	dir string, topic string, fileName string) (MaskConfig, error) {
-
-	if fileName == "" {
-		_, database, _ := transformer.ParseTopic(topic)
-		fileName = database + ".yaml"
-	}
-	configFilePath := filepath.Join(dir, fileName)
-	klog.V(2).Infof("Using mask config file: %s\n", configFilePath)
-
+func NewMaskConfig(dir string, topic string) (MaskConfig, error) {
 	var maskConfig MaskConfig
-	yamlFile, err := ioutil.ReadFile(configFilePath)
+	_, database, _ := transformer.ParseTopic(topic)
+
+	configFile := filepath.Join(dir, database+".yaml")
+	klog.V(2).Infof("Using mask config file: %s\n", configFile)
+
+	yamlFile, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return maskConfig, err
 	}
