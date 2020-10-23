@@ -93,14 +93,11 @@ type BatcherConfig struct {
 	// MaskSalt specifies the salt to be used for masking
 	MaskSalt string `yaml:"maskSalt,omitempty"`
 
-	// MaskConfigDir is the directory where the database.yaml is
+	// Mask config dir is the directory where the database.yaml is
 	// is to be searched to apply masking to the incoming messages
 	MaskConfigDir string `yaml:"maskConfigDir,omitempty"`
 
-	// MaskConfigFileName defaults to database name
-	MaskConfigFileName string `yaml:"maskConfigFileName"`
-
-	// MaxSize is the maximum size of a batch, on exceeding this batch is pushed
+	// Maximum size of a batch, on exceeding this batch is pushed
 	// regarless of the wait time.
 	MaxSize int `yaml:"maxSize,omitempty"`
 
