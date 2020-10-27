@@ -144,6 +144,15 @@ func (m MaskConfig) MappingPIIKey(table, cName string) bool {
 	return false
 }
 
+func (m MaskConfig) hasMappingPIIKey(table string) bool {
+	_, ok := m.MappingPIIKeys[table]
+	if ok {
+		return true
+	}
+
+	return false
+}
+
 func (m MaskConfig) SortKey(table, cName string) bool {
 	columns, ok := m.SortKeys[table]
 	if !ok {
