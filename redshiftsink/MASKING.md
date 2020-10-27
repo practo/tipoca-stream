@@ -78,8 +78,8 @@ mobile_keys:
 ```
 
 ### Mapping PII Keys
-Mapping PII Keys, if specified adds new columns with the masked values.
-Eg: `id` will be as it is and `hashed_id` would be added with masked values.
+Mapping PII Keys, if specified adds new columns with the masked values and when this key is specified it overrides all the keys and unmasks all the other columns
+Eg: `id` will be as it is(unmasked) and `hashed_id` would be added with masked values.
 
 ```yaml
 mapping_pii_keys:
