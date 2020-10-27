@@ -45,7 +45,7 @@ func testMasker(t *testing.T, salt, dir, topic, cName string,
 	columns map[string]*string, result *string,
 	resultMaskSchema map[string]serializer.MaskInfo) {
 
-	masker, err := NewMsgMasker(salt, dir, topic)
+	masker, err := NewMsgMasker(salt, dir, topic, "")
 	if err != nil {
 		t.Fatalf("Error making masker, err: %v\n", err)
 	}
