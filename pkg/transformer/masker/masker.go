@@ -72,6 +72,7 @@ func (m *masker) Transform(
 	extraColumns := make(map[string]*string)
 	maskSchema := make(map[string]serializer.MaskInfo)
 	mappingPIIColumns := make(map[string]bool)
+	mappingPIIKeyTable := m.config.hasMappingPIIKey(m.table)
 
 	for cName, cVal := range rawColumns {
 		unmasked := m.config.PerformUnMasking(m.table, cName, cVal, rawColumns)
@@ -114,6 +115,11 @@ func (m *masker) Transform(
 
 			extraColumns[transformer.MappingPIIColumnPrefix+cName] = hashedValue
 			mappingPIIColumns[transformer.MappingPIIColumnPrefix+cName] = true
+		}
+
+		// special case for mapping PII keys
+		if mappingPIIKeyTable {
+			unmasked = true
 		}
 
 		if cVal == nil || strings.TrimSpace(*cVal) == "" {
