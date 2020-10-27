@@ -360,6 +360,19 @@ func TestMasker(t *testing.T) {
 				"hashed_id": serializer.MaskInfo{Masked: true},
 			},
 		},
+		{
+			name:  "test15: mapping pii keys other values as unmasked",
+			topic: "dbserver.database.establishments",
+			cName: "id",
+			columns: map[string]*string{
+				"id": stringPtr("2011"),
+			},
+			resultVal: stringPtr("2011"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"id":        serializer.MaskInfo{Masked: false},
+				"hashed_id": serializer.MaskInfo{Masked: true},
+			},
+		},
 	}
 
 	for _, tc := range tests {
