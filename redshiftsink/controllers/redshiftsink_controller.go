@@ -24,7 +24,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
+	redshiftsinksv1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 )
 
 // RedshiftSinkReconciler reconciles a RedshiftSink object
@@ -34,8 +34,8 @@ type RedshiftSinkReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=tipoca,resources=redshiftsinks,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=tipoca,resources=redshiftsinks/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=redshiftsinks,resources=redshiftsinks,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=redshiftsinks,resources=redshiftsinks/status,verbs=get;update;patch
 
 func (r *RedshiftSinkReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	_ = context.Background()
@@ -48,6 +48,6 @@ func (r *RedshiftSinkReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 
 func (r *RedshiftSinkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&tipocav1.RedshiftSink{}).
+		For(&redshiftsinksv1.RedshiftSink{}).
 		Complete(r)
 }

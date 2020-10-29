@@ -5,7 +5,7 @@ metadata:
   name: redshiftsink-editor-role
 rules:
 - apiGroups:
-  - tipoca
+  - redshiftsinks
   resources:
   - redshiftsinks
   verbs:
@@ -17,7 +17,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - tipoca
+  - redshiftsinks
   resources:
   - redshiftsinks/status
   verbs:

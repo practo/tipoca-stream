@@ -1,4 +1,4 @@
-apiVersion: tipoca/v1
+apiVersion: redshiftsinks/v1
 kind: RedshiftSink
 metadata:
   name: redshiftsink-sample
