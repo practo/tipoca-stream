@@ -1,4 +1,4 @@
-BINS := redshiftbatcher redshiftloader
+BINS := redshiftbatcher redshiftloader redshiftsink
 
 # Where to push the docker image.
 REGISTRY ?= 746161288457.dkr.ecr.ap-south-1.amazonaws.com

@@ -19,11 +19,12 @@ import (
 // definition of the operations that
 // this Schema Registry client provides.
 type ISchemaRegistryClient interface {
+	GetSubjects() ([]string, error)
 	GetSchema(schemaID int) (*Schema, error)
 	GetLatestSchema(subject string, isKey bool) (*Schema, error)
 	GetSchemaVersions(subject string, isKey bool) ([]int, error)
 	GetSchemaByVersion(subject string, version int, isKey bool) (*Schema, error)
-	CreateSchema(subject string, schema string, schemaType SchemaType, isKey bool) (*Schema, error)
+	CreateSchema(subject string, schema string, schemaType SchemaType, isKey bool, references ...Reference) (*Schema, error)
 	SetCredentials(username string, password string)
 	SetTimeout(timeout time.Duration)
 	CachingEnabled(value bool)
@@ -59,6 +60,15 @@ func (s SchemaType) String() string {
 	return string(s)
 }
 
+// Schema references use the import statement of Protobuf and
+// the $ref field of JSON Schema. They are defined by the name
+// of the import or $ref and the associated subject in the registry.
+type Reference struct {
+	Name    string `json:"name"`
+	Subject string `json:"subject"`
+	Version int    `json:"version"`
+}
+
 // Schema is a data structure that holds all
 // the relevant information about schemas.
 type Schema struct {
@@ -74,7 +84,9 @@ type credentials struct {
 }
 
 type schemaRequest struct {
-	Schema     string `json:"schema"`
+	Schema     string      `json:"schema"`
+	SchemaType string      `json:"schemaType"`
+	References []Reference `json:"references"`
 }
 
 type schemaResponse struct {
@@ -88,6 +100,7 @@ const (
 	schemaByID       = "/schemas/ids/%d"
 	subjectVersions  = "/subjects/%s/versions"
 	subjectByVersion = "/subjects/%s/versions/%s"
+	subjects         = "/subjects"
 	contentType      = "application/vnd.schemaregistry.v1+json"
 )
 
@@ -181,6 +194,20 @@ func (client *SchemaRegistryClient) GetSchemaVersions(subject string, isKey bool
 	return versions, nil
 }
 
+// GetSubjects returns a list of all subjects in the registry
+func (client *SchemaRegistryClient) GetSubjects() ([]string, error) {
+	resp, err := client.httpRequest("GET", subjects, nil)
+	if err != nil {
+		return nil, err
+	}
+	var allSubjects = []string{}
+	err = json.Unmarshal(resp, &allSubjects)
+	if err != nil {
+		return nil, err
+	}
+	return allSubjects, nil
+}
+
 // GetSchemaByVersion gets the schema associated with the given subject.
 // The schema returned contains the version specified as a parameter.
 func (client *SchemaRegistryClient) GetSchemaByVersion(subject string, version int, isKey bool) (*Schema, error) {
@@ -191,7 +218,7 @@ func (client *SchemaRegistryClient) GetSchemaByVersion(subject string, version i
 // with the subject provided. It returns the newly created schema with
 // all its associated information.
 func (client *SchemaRegistryClient) CreateSchema(subject string, schema string,
-	schemaType SchemaType, isKey bool) (*Schema, error) {
+	schemaType SchemaType, isKey bool, references ...Reference) (*Schema, error) {
 
 	concreteSubject := getConcreteSubject(subject, isKey)
 
@@ -204,7 +231,12 @@ func (client *SchemaRegistryClient) CreateSchema(subject string, schema string,
 	default:
 		return nil, fmt.Errorf("invalid schema type. valid values are Avro, Json, or Protobuf")
 	}
-	schemaReq := schemaRequest{Schema: schema}
+
+	if references == nil {
+		references = make([]Reference, 0)
+	}
+
+	schemaReq := schemaRequest{Schema: schema, SchemaType: schemaType.String(), References: references}
 	schemaBytes, err := json.Marshal(schemaReq)
 	if err != nil {
 		return nil, err
