@@ -1,4 +1,4 @@
-apiVersion: redshiftsinks/v1
+apiVersion: tipoca.k8s.practo.dev/v1
 kind: RedshiftSink
 metadata:
   name: redshiftsink-sample
