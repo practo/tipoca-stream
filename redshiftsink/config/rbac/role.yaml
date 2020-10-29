@@ -1,8 +1,10 @@
-# permissions for end users to edit redshiftsinks.
+
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: redshiftsink-editor-role
+  creationTimestamp: null
+  name: manager-role
 rules:
 - apiGroups:
   - tipoca.k8s.practo.dev
@@ -22,3 +24,5 @@ rules:
   - redshiftsinks/status
   verbs:
   - get
+  - patch
+  - update
