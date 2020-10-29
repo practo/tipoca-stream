@@ -9,6 +9,9 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
+	"github.com/practo/tipoca-stream/redshiftsink/controllers"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -20,6 +23,7 @@ var (
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
+	_ = tipocav1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -42,15 +46,23 @@ func main() {
 		LeaderElectionID:   "854ae6e3.",
 	})
 	if err != nil {
-		setupLog.Error(err, "Unable to start manager")
+		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
+	if err = (&controllers.RedshiftSinkReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "RedshiftSink")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
-	setupLog.Info("Starting manager")
+	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "Problem running manager")
+		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
 }
