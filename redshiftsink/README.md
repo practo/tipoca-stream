@@ -4,6 +4,12 @@ redshiftsink reads the debezium events from Kafka and loads them to Redshift. It
 - Redshift Batcher
 - Redshift Loader
 
+## Install
+This installs the redshiftsink CRD in the cluster. Prerequisite: Install `kustomize` before running `make`, other option is to directly use this [manifest](./config/crd/bases/tipoca.k8s.practo.dev_redshiftsinks.yaml).
+```bash
+make install
+```
+
 ## Redshift Batcher
 - Batches the debezium data in Kafka topics and uploads to S3.
 - Signals the Redshift loader to load the batch in Redshift using Kafka Topics.
