@@ -1,0 +1,20 @@
+# permissions for end users to view redshiftsinks.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: redshiftsink-viewer-role
+rules:
+- apiGroups:
+  - tipoca
+  resources:
+  - redshiftsinks
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - tipoca
+  resources:
+  - redshiftsinks/status
+  verbs:
+  - get
