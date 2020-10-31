@@ -1,0 +1,7 @@
+apiVersion: tipoca.k8s.practo.dev/v1
+kind: RedshiftSink
+metadata:
+  name: redshiftsink-sample
+spec:
+  # Add fields here
+  foo: bar
