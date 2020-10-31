@@ -316,3 +316,15 @@ manifests: controller-gen
 # Install CRDs into a cluster
 install: manifests
 	kustomize build config/crd | kubectl apply -f -
+
+# Generate code
+generate: controller-gen
+	$(CONTROLLER_GEN) object:headerFile="build/boilerplate.go.txt" paths="./..."
+
+# Run go vet against code
+vet:
+	go vet ./...
+
+# Run against the configured Kubernetes cluster in ~/.kube/config
+run: generate fmt vet manifests
+	go run ./cmd/redshiftsink/main.go
