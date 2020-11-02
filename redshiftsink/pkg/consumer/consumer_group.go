@@ -43,6 +43,14 @@ type SaramaConfig struct {
 func NewConsumerGroup(k KafkaConfig, s SaramaConfig,
 	consumer sarama.ConsumerGroupHandler) (ConsumerGroup, error) {
 
+	// set defaults
+	if k.KafkaClient == "" {
+		k.KafkaClient = "sarama"
+	}
+	if k.Version == "" {
+		k.Version = "2.5.0"
+	}
+
 	switch k.KafkaClient {
 	case "sarama":
 		return NewSaramaConsumerGroup(k, s, consumer)
