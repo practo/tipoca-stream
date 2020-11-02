@@ -1,27 +1,27 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: redshiftsink
+  name: redshiftsink-controller-manager
   namespace: kube-system
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
- name: redshiftsink
+ name: redshiftsink-controller-manager
  namespace: kube-system
  labels:
-   app: redshiftsink
+   app: redshiftsink-controller-manager
 spec:
  replicas: 1
  selector:
    matchLabels:
-     app: redshiftsink
+     app: redshiftsink-controller-manager
  template:
    metadata:
      labels:
-       app: redshiftsink
+       app: redshiftsink-controller-manager
    spec:
-     serviceAccountName: redshiftsink
+     serviceAccountName: redshiftsink-controller-manager
      tolerations:
      - effect: NoExecute
        operator: Exists
@@ -32,7 +32,7 @@ spec:
        secret:
          secretName: redshiftsink-secret
      containers:
-     - name: rsk
+     - name: manager
        image: practodev/redshiftsink:latest
        imagePullPolicy: Always
        volumeMounts:
