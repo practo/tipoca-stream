@@ -34,10 +34,54 @@ spec:
         spec:
           description: RedshiftSinkSpec defines the desired state of RedshiftSink
           properties:
-            foo:
-              description: Foo is an example field of RedshiftSink. Edit RedshiftSink_types.go
-                to remove/update
-              type: string
+            batcher:
+              description: 'INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+                Important: Run "make" to regenerate code after modifying this file'
+              properties:
+                kafkaBrokers:
+                  description: Kafka configurations like consumer group and topics
+                    to watch
+                  type: string
+                kafkaGroup:
+                  type: string
+                kafkaLoaderTopicPrefix:
+                  type: string
+                kafkaTopicRegexes:
+                  type: string
+                mask:
+                  description: 'Mask when turned on enables masking of the data Default:
+                    false'
+                  type: string
+                maskConfigDir:
+                  type: string
+                maskConfigFileName:
+                  type: string
+                maxSize:
+                  description: Max configurations for the batcher to batch
+                  type: integer
+                maxWaitSeconds:
+                  type: integer
+                secretRefName:
+                  description: 'Secrets to be used by the batcher pod Default: the
+                    secret name and namespace provided in the controller flags'
+                  type: string
+                secretRefNamespace:
+                  type: string
+                suspend:
+                  description: 'Supsend when turned makes sure no batcher pods are
+                    running for this CRD object. Default: false'
+                  type: boolean
+              required:
+              - kafkaBrokers
+              - kafkaGroup
+              - kafkaTopicRegexes
+              - maxSize
+              - maxWaitSeconds
+              - secretRefName
+              - secretRefNamespace
+              type: object
+          required:
+          - batcher
           type: object
         status:
           description: RedshiftSinkStatus defines the observed state of RedshiftSink
