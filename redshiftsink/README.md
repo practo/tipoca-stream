@@ -2,26 +2,50 @@
 
 redshiftsink reads the debezium events from Kafka and loads them to Redshift. It supports [masking](../MASKING.MD).
 
-## Install
+----
+
+# Install Redshiftsink
 
 ### Install CRD
 This installs the redshiftsink CRD in the cluster.
 ```bash
-make install-crd
+make install
 ```
 
-### Install controller
-* Create secrets:
+### Verify Installation
+Check the redshiftsink resource is accessible using kubectl
 ```bash
-cp config/secret_sample.txt
-vim config/secret.txt
-```
-* Install the controller (this will create serviceaccount, secret and deployment):
-```bash
-make install-controller
+kubectl get redshiftsink
 ```
 
-## Redshift Batcher
+### Deploy Controller Manager
+* Create secret(s):
+```bash
+cp config/manager/secret_sample.txt
+vim config/manager/secret.txt
+```
+* Install the controller. This creates service-account, secret and the controller manager deployment:
+```bash
+make deploy
+```
+
+### Configuration
+
+## Redshiftsink Resource
+```yaml
+
+
+```
+
+### Redshiftsink Spec Documentation:
+| Spec          | Description   | Mandatory |
+| :------------ | :----------- |:------------|
+
+
+## RedshiftSink Managed Pods
+Redshiftsink performs the sink by creating two pods. Creating a RedshiftSink CRD installs the batcher and loader pods. Batcher and loader pods details are below:
+
+### Redshift Batcher
 - Batches the debezium data in Kafka topics and uploads to S3.
 - Signals the Redshift loader to load the batch in Redshift using Kafka Topics.
 - **Batcher supports masking the data**. Please follow [this for enabling masking](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/MASKING.md).
