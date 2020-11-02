@@ -21,7 +21,7 @@ kubectl get redshiftsink
 ### Deploy Controller Manager
 * Create secret(s):
 ```bash
-cp config/manager/secret_sample.txt
+cp config/manager/secret_sample config/manager/secret.txt
 vim config/manager/secret.txt
 ```
 * Install the controller. This creates service-account, secret and the controller manager deployment:
