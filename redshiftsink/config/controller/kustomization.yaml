@@ -1,0 +1,6 @@
+resources:
+- controller.yaml
+secretGenerator:
+- name: redshiftsink-secret
+  files:
+  - secret.txt

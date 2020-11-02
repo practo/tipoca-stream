@@ -17,19 +17,43 @@ limitations under the License.
 package v1
 
 import (
+	consumer "github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
+// RedshiftBatcher defines the desired state of RedshiftBatcher
+type RedshiftBatcherSpec struct {
+	// Supsend when turned makes sure no batcher pods
+	// are running for this CRD object. Default: false
+	Suspend bool `json:"suspend,omitempty"`
+
+	// Secrets to be used by the batcher pod
+	// Default: the secret name and namespace provided in the controller flags
+	SecretRefName      string `json:"secretRefName"`
+	SecretRefNamespace string `json:"secretRefNamespace"`
+
+	// Max configurations for the batcher to batch
+	MaxSize        int `json:"maxSize"`
+	MaxWaitSeconds int `json:"maxWaitSeconds"`
+
+	// Mask when turned on enables masking of the data
+	// Default: false
+	Mask               string `json:"mask"`
+	MaskConfigDir      string `json:"maskConfigDir"`
+	MaskConfigFileName string `json:"maskConfigFileName"`
+
+	// Kafka configurations like consumer group and topics to watch
+	Kafka consumer.KafkaConfig `json:"kafka"`
+}
+
 // RedshiftSinkSpec defines the desired state of RedshiftSink
 type RedshiftSinkSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of RedshiftSink. Edit RedshiftSink_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	Batcher RedshiftBatcherSpec `json:"batcher"`
 }
 
 // RedshiftSinkStatus defines the observed state of RedshiftSink
