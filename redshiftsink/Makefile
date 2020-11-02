@@ -245,6 +245,10 @@ help:
 # kubebuilder targets
 ###
 
+# TODO: to make it work with kubectl kustomize edit
+# Image URL to use all building/pushing image targets
+# CONTROLLER_MANAGER_IMAGE ?= practodev/redshiftsink:latest
+
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 
@@ -280,9 +284,10 @@ manifests: controller-gen
 install: manifests
 	kubectl kustomize config/crd | kubectl apply -f -
 
-# Instal the Controller Manager as a deployment in the cluster
-deploy:
-	kubectl kustomize config/manager
+# Deploy controller in the configured Kubernetes cluster in ~/.kube/config
+deploy: manifests
+	cd config/manager #&& kustomize edit set image controller=${CONTROLLER_MANAGER_IMAGE}
+	kustomize build config/default | kubectl apply -f -
 
 # Generate code
 generate: controller-gen
