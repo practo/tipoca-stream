@@ -1,13 +1,24 @@
 # redshiftsink
 
-redshiftsink reads the debezium events from Kafka and loads them to Redshift. It holds the code for the Kafka consumers and producers written in Go. It comprises of two processes:
-- Redshift Batcher
-- Redshift Loader
+redshiftsink reads the debezium events from Kafka and loads them to Redshift. It supports [masking](../MASKING.MD).
 
 ## Install
-This installs the redshiftsink CRD in the cluster. Prerequisite: Install `kustomize` before running `make`, other option is to directly use this [manifest](./config/crd/bases/tipoca.k8s.practo.dev_redshiftsinks.yaml).
+
+### Install CRD
+This installs the redshiftsink CRD in the cluster.
 ```bash
-make install
+make install-crd
+```
+
+### Install controller
+* Create secrets:
+```bash
+cp config/secret_sample.txt
+vim config/secret.txt
+```
+* Install the controller (this will create serviceaccount, secret and deployment):
+```bash
+make install-controller
 ```
 
 ## Redshift Batcher
