@@ -17,7 +17,6 @@ limitations under the License.
 package v1
 
 import (
-	consumer "github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -41,12 +40,19 @@ type RedshiftBatcherSpec struct {
 
 	// Mask when turned on enables masking of the data
 	// Default: false
-	Mask               string `json:"mask"`
-	MaskConfigDir      string `json:"maskConfigDir"`
+	// +optional
+	Mask string `json:"mask"`
+	// +optional
+	MaskConfigDir string `json:"maskConfigDir"`
+	// +optional
 	MaskConfigFileName string `json:"maskConfigFileName"`
 
 	// Kafka configurations like consumer group and topics to watch
-	Kafka consumer.KafkaConfig `json:"kafka"`
+	KafkaBrokers      string `json:"kafkaBrokers"`
+	KafkaGroup        string `json:"kafkaGroup"`
+	KafkaTopicRegexes string `json:"kafkaTopicRegexes"`
+	// +optional
+	KafkaLoaderTopicPrefix string `json:"kafkaLoaderTopicPrefix,omitempty"`
 }
 
 // RedshiftSinkSpec defines the desired state of RedshiftSink
