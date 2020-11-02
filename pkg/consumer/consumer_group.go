@@ -27,14 +27,14 @@ type ConsumerGroup interface {
 type KafkaConfig struct {
 	Brokers           string `yaml:"brokers"`
 	Group             string `yaml:"group"`
-	Version           string `yaml:"version"`
+	Version           string `yaml:"version"` // default is there
 	TopicRegexes      string `yaml:"topicRegexes"`
-	LoaderTopicPrefix string `yaml:"loaderTopicPrefix"` // defaults to loader-
-	KafkaClient       string `yaml:"kafkaClient"`
+	LoaderTopicPrefix string `yaml:"loaderTopicPrefix"` // defaults is there
+	KafkaClient       string `yaml:"kafkaClient"`       // default is there
 }
 
 type SaramaConfig struct {
-	Assignor   string `yaml:"assignor"`
+	Assignor   string `yaml:"assignor"` // default is there
 	Oldest     bool   `yaml:"oldest"`
 	Log        bool   `yaml:"log"`
 	AutoCommit bool   `yaml:"autoCommit"`
@@ -44,11 +44,17 @@ func NewConsumerGroup(k KafkaConfig, s SaramaConfig,
 	consumer sarama.ConsumerGroupHandler) (ConsumerGroup, error) {
 
 	// set defaults
+	if k.Version == "" {
+		k.Version = "2.5.0"
+	}
 	if k.KafkaClient == "" {
 		k.KafkaClient = "sarama"
 	}
-	if k.Version == "" {
-		k.Version = "2.5.0"
+	if k.LoaderTopicPrefix == "" {
+		k.LoaderTopicPrefix = "loader-"
+	}
+	if s.Assignor == "" {
+		s.Assignor = "range"
 	}
 
 	switch k.KafkaClient {
