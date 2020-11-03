@@ -100,6 +100,7 @@ cp config.sample.yaml config.yaml
 $ make build
 binary: bin/darwin_amd64/redshiftbatcher
 binary: bin/darwin_amd64/redshiftloader
+binary: bin/darwin_amd64/redshiftsink
 ```
 
 ###### Note (not required, all are internal now, FYI):
