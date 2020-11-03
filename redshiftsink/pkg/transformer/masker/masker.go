@@ -52,6 +52,18 @@ func stringPtr(s string) *string {
 	return &s
 }
 
+// addMissingCol as messages may not have all the columns but table schema has
+// if this is not done maskSchema goes empty for such columns and cause problems
+func addMissingColumn(rawColumns map[string]*string, cols []redshift.ColInfo) {
+	for _, col := range cols {
+		columnName := strings.ToLower(col.Name)
+		_, ok := rawColumns[columnName]
+		if !ok {
+			rawColumns[columnName] = nil
+		}
+	}
+}
+
 // Transform masks the message based on the masking rules specified in the
 // configuration file at: maskConfigDir + database.yaml
 // Default: mask everything, unless specified not to in the configuraton
@@ -67,6 +79,8 @@ func (m *masker) Transform(
 		return fmt.Errorf(
 			"Error converting message.Value, message: %+v\n", message)
 	}
+
+	addMissingColumn(rawColumns, table.Columns)
 
 	columns := make(map[string]*string)
 	extraColumns := make(map[string]*string)

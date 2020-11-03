@@ -8,6 +8,8 @@ non_pii_keys:
     - updatedAt
     establishments:
     - id
+    settings:
+    - id
 conditional_non_pii_keys:
     justifications:
         justice:

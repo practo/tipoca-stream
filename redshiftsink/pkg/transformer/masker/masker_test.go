@@ -43,7 +43,8 @@ func TestSaltMask(t *testing.T) {
 
 func testMasker(t *testing.T, salt, dir, topic, cName string,
 	columns map[string]*string, result *string,
-	resultMaskSchema map[string]serializer.MaskInfo) {
+	resultMaskSchema map[string]serializer.MaskInfo,
+	redshiftTable redshift.Table) {
 
 	masker, err := NewMsgMasker(salt, dir, topic, "")
 	if err != nil {
@@ -59,7 +60,7 @@ func testMasker(t *testing.T, salt, dir, topic, cName string,
 		Value:      columns,
 		MaskSchema: make(map[string]serializer.MaskInfo),
 	}
-	err = masker.Transform(message, redshift.Table{})
+	err = masker.Transform(message, redshiftTable)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,6 +121,7 @@ func TestMasker(t *testing.T) {
 		columns          map[string]*string
 		resultVal        *string
 		resultMaskSchema map[string]serializer.MaskInfo
+		redshiftTable    redshift.Table
 	}{
 		{
 			name:  "test1: unmask test",
@@ -135,6 +137,7 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal:        stringPtr("1001"),
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			redshiftTable:    redshift.Table{},
 		},
 		{
 			name:  "test2: mask test",
@@ -151,6 +154,7 @@ func TestMasker(t *testing.T) {
 			resultVal: stringPtr(
 				"9ba53e85b996f6278aa647d8da8f355aafd16149"),
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			redshiftTable:    redshift.Table{},
 		},
 		{
 			name:  "test3: never mask nil columns",
@@ -166,6 +170,7 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal:        nil,
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			redshiftTable:    redshift.Table{},
 		},
 		{
 			name:  "test4: mask with case insensitivity",
@@ -181,6 +186,7 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal:        stringPtr("2020-09-20 20:56:45"),
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			redshiftTable:    redshift.Table{},
 		},
 		{
 			name:  "test5: length keys",
@@ -196,6 +202,7 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal:        stringPtr("20"),
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			redshiftTable:    redshift.Table{},
 		},
 		{
 			name:  "test6: conditionalNonPii unmasking(no match)",
@@ -211,6 +218,7 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal:        stringPtr("d129eef03b45b9679db4d35922786281ee805877"),
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			redshiftTable:    redshift.Table{},
 		},
 		{
 			name:  "test7: dependentNonPii unmasking(match)",
@@ -226,6 +234,7 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal:        stringPtr("Batman"),
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			redshiftTable:    redshift.Table{},
 		},
 		{
 			name:  "test8: dependentNonPii unmasking(no match)",
@@ -250,6 +259,7 @@ func TestMasker(t *testing.T) {
 				"email": serializer.MaskInfo{
 					Masked: true, DistCol: true, LengthCol: true},
 			},
+			redshiftTable: redshift.Table{},
 		},
 		{
 			name:  "test9: mask schema test when field is not in config)",
@@ -276,6 +286,7 @@ func TestMasker(t *testing.T) {
 					Masked: true, DistCol: true, LengthCol: true},
 				"dob": serializer.MaskInfo{Masked: true},
 			},
+			redshiftTable: redshift.Table{},
 		},
 		{
 			name:  "test10: case insensitivity (sort keys, dist keys)",
@@ -294,6 +305,7 @@ func TestMasker(t *testing.T) {
 				"createdat": serializer.MaskInfo{SortCol: true},
 				"email":     serializer.MaskInfo{Masked: true},
 			},
+			redshiftTable: redshift.Table{},
 		},
 		{
 			name:  "test11: case insensitivity1 (conditionalNonPii)",
@@ -308,6 +320,7 @@ func TestMasker(t *testing.T) {
 				"justice": serializer.MaskInfo{Masked: true},
 				"reason":  serializer.MaskInfo{Masked: true},
 			},
+			redshiftTable: redshift.Table{},
 		},
 		{
 			name:  "test12: case insensitivity2 (conditionalNonPii)",
@@ -322,6 +335,7 @@ func TestMasker(t *testing.T) {
 				"justice": serializer.MaskInfo{Masked: true},
 				"reason":  serializer.MaskInfo{Masked: true},
 			},
+			redshiftTable: redshift.Table{},
 		},
 		{
 			name:  "test13: case insensitivity (dependentNonPii)",
@@ -336,6 +350,7 @@ func TestMasker(t *testing.T) {
 				"justice": serializer.MaskInfo{Masked: true},
 				"reason":  serializer.MaskInfo{Masked: true},
 			},
+			redshiftTable: redshift.Table{},
 		},
 		{
 			name:  "test14: mobile keys",
@@ -346,6 +361,7 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal:        stringPtr("+9198"),
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			redshiftTable:    redshift.Table{},
 		},
 		{
 			name:  "test14: mapping pii keys",
@@ -359,6 +375,7 @@ func TestMasker(t *testing.T) {
 				"id":        serializer.MaskInfo{Masked: false},
 				"hashed_id": serializer.MaskInfo{Masked: true},
 			},
+			redshiftTable: redshift.Table{},
 		},
 		{
 			name:  "test15: mapping pii keys other values as unmasked",
@@ -372,6 +389,29 @@ func TestMasker(t *testing.T) {
 				"id":        serializer.MaskInfo{Masked: false},
 				"hashed_id": serializer.MaskInfo{Masked: true},
 			},
+			redshiftTable: redshift.Table{},
+		},
+		{
+			name:  "test16: test missing column in message",
+			topic: "dbserver.database.settings",
+			cName: "plan_enabled",
+			columns: map[string]*string{
+				"id": stringPtr("2011"),
+			},
+			resultVal: nil,
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"plan_enabled": serializer.MaskInfo{Masked: true},
+			},
+			redshiftTable: redshift.Table{
+				Columns: []redshift.ColInfo{
+					redshift.ColInfo{
+						Name: "id",
+					},
+					redshift.ColInfo{
+						Name: "plan_enabled",
+					},
+				},
+			},
 		},
 	}
 
@@ -380,7 +420,10 @@ func TestMasker(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			testMasker(
 				t, salt, dir, tc.topic,
-				tc.cName, tc.columns, tc.resultVal, tc.resultMaskSchema)
+				tc.cName, tc.columns,
+				tc.resultVal, tc.resultMaskSchema,
+				tc.redshiftTable,
+			)
 		})
 	}
 }
