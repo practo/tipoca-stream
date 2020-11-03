@@ -294,8 +294,6 @@ func (c *messageTransformer) Transform(
 		return fmt.Errorf("Unknown operation: %s\n", operation)
 	}
 
-	// Transform DATETIME, TIMESTAMP and DATE from debezium to redshift
-
 	for _, column := range table.Columns {
 		if column.Type != redshift.RedshiftTimeStamp &&
 			column.Type != redshift.RedshiftDate {
