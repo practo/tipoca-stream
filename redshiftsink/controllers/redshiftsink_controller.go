@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	controller "sigs.k8s.io/controller-runtime/pkg/controller"
 
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -57,6 +58,7 @@ func (r *RedshiftSinkReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 func (r *RedshiftSinkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&tipocav1.RedshiftSink{}).
+		WithOptions(controller.Options{MaxConcurrentReconciles: 1}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
