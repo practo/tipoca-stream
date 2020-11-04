@@ -13,6 +13,9 @@ spec:
     kind: RedshiftSink
     listKind: RedshiftSinkList
     plural: redshiftsinks
+    shortNames:
+    - rsk
+    - rsks
     singular: redshiftsink
   scope: Namespaced
   subresources:
