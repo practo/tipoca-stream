@@ -56,7 +56,7 @@ spec:
                 mask:
                   description: 'Mask when turned on enables masking of the data Default:
                     false'
-                  type: string
+                  type: boolean
                 maskConfigDir:
                   type: string
                 maskConfigFileName:
