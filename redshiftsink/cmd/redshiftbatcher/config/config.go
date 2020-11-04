@@ -3,6 +3,7 @@ package config
 import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"strings"
 
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
@@ -29,6 +30,8 @@ func LoadConfig(cmd *cobra.Command) (Config, error) {
 	configName := "config.yaml"
 	relativePath := "./cmd/redshiftbatcher/config"
 
+	viper.SetEnvPrefix("batcher")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 	viper.SetDefault("kafka.version", "2.5.0")
 
@@ -44,6 +47,7 @@ func LoadConfig(cmd *cobra.Command) (Config, error) {
 	if err := viper.ReadInConfig(); err != nil {
 		return c, err
 	}
+
 	if err := viper.Unmarshal(&c); err != nil {
 		return c, err
 	}
