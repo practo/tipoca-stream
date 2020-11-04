@@ -25,6 +25,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // RedshiftSinkReconciler reconciles a RedshiftSink object
@@ -44,7 +46,10 @@ func (r *RedshiftSinkReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 	_ = context.Background()
 	_ = r.Log.WithValues("redshiftsink", req.NamespacedName)
 
-	// your logic here
+	// 1. Create the ConfigMap for the batcher.
+	// 2. Create the Deployment Batcher if it doesn’t exist.
+	// 3. Ensure that the Deployment spec.replica=1 or 0 based on Suspend spec.
+	// 4. Update the CRD status using status writer.
 
 	return ctrl.Result{}, nil
 }
@@ -52,5 +57,8 @@ func (r *RedshiftSinkReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error
 func (r *RedshiftSinkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&tipocav1.RedshiftSink{}).
+		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Secret{}).
 		Complete(r)
 }
