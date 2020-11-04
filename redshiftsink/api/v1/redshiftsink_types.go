@@ -70,6 +70,7 @@ type RedshiftSinkStatus struct {
 
 // +kubebuilder:object:root=true
 
+// +kubebuilder:subresource:status
 // RedshiftSink is the Schema for the redshiftsinks API
 type RedshiftSink struct {
 	metav1.TypeMeta   `json:",inline"`
