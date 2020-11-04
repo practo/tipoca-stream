@@ -41,7 +41,7 @@ type RedshiftBatcherSpec struct {
 	// Mask when turned on enables masking of the data
 	// Default: false
 	// +optional
-	Mask string `json:"mask"`
+	Mask bool `json:"mask"`
 	// +optional
 	MaskConfigDir string `json:"maskConfigDir"`
 	// +optional
