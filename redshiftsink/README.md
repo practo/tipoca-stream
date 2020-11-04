@@ -19,25 +19,51 @@ kubectl get redshiftsink
 ```
 
 ### Deploy Controller Manager
-* Create secret(s):
+* Create redshiftsink secret containing aws secrets, redshift secrets and mask salt:
 ```bash
 cp config/manager/secret_sample config/manager/secret.txt
 vim config/manager/secret.txt
+NAME=redshfitsink-secret SECRETFILE=./config/manager/secret.txt make create-secret (TODO)
 ```
+
 * Install the controller. This creates service-account, secret and the controller manager deployment:
 ```bash
 make deploy
 ```
 
-### Configuration
+# Example
 
-## Redshiftsink Resource
+* Create the `Redshiftsink` custom resource.
 ```yaml
-
-
+apiVersion: tipoca.k8s.practo.dev/v1
+kind: RedshiftSink
+metadata:
+  name: inventory
+spec:
+  batcher:
+      suspend: false
+      secretRefName: redshiftsink-secret
+      secretRefNamespace: kube-system
+      maxSize: 10
+      maxWaitSeconds: 30
+      mask: true
+      maskConfigDir: "/"
+      maskConfigFileName: "mask_config.yaml"
+      kafkaBrokers: "kafka1.example.com,kafka2.example.com"
+      kafkaGroup: "inventory-batcher"
+      kafkaTopicRegexes: "^ts.inventory*"
+      kafkaLoaderTopicPrefix: "loader-"
 ```
 
-### Redshiftsink Spec Documentation:
+```bash
+kubectl create -f config/samples/tipoca_v1_redshiftsink.yaml
+```
+
+This will start syncing all the Kakfa topics matching regex `"^ts.inventory*"` from Kafka to Redshift via S3. If masking is turned on it will also mask the data. More on masking [here](./MASKING.MD)
+
+### Configuration
+
+### Redshiftsink Spec Documentation (TODO):
 | Spec          | Description   | Mandatory |
 | :------------ | :----------- |:------------|
 
