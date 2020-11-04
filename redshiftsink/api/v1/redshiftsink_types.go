@@ -68,6 +68,7 @@ type RedshiftSinkStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 }
 
+// +kubebuilder:resource:path=redshiftsinks,shortName=rsk;rsks
 // +kubebuilder:object:root=true
 
 // +kubebuilder:subresource:status
