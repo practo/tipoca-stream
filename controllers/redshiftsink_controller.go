@@ -20,7 +20,10 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	"github.com/practo/klog/v2"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	controller "sigs.k8s.io/controller-runtime/pkg/controller"
@@ -28,6 +31,11 @@ import (
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+const (
+	BatcherSuffix = "-batcher"
 )
 
 // RedshiftSinkReconciler reconciles a RedshiftSink object
@@ -44,15 +52,125 @@ type RedshiftSinkReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
 func (r *RedshiftSinkReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	_ = context.Background()
+	ctx := context.Background()
 	_ = r.Log.WithValues("redshiftsink", req.NamespacedName)
 
-	// 1. Create the ConfigMap for the batcher.
-	// 2. Create the Deployment Batcher if it doesn’t exist.
+	// Fetch the RedshiftSink instance
+	redshiftsink := &tipocav1.RedshiftSink{}
+	err := r.Get(ctx, req.NamespacedName, redshiftsink)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// Request object not found, could have been deleted after reconcile
+			// request. Owned objects are automatically garbage collected.
+			// For additional cleanup logic use finalizers.
+			// Return and don't requeue
+			klog.Infof("Redshiftsink: %s not found\n", req)
+			klog.Infof("Ignoring since object: %s must be deleted\n", req)
+			return ctrl.Result{}, nil
+		}
+		// Error reading the object - requeue the request.
+		klog.Errorf("Failed to get Redshiftsink, err: %v\n", err)
+		return ctrl.Result{}, err
+	}
+
+	klog.Infof("Reconciling: %+v", req)
+
+	// 2. Create the Batcher Deployment if it doesn’t exist.
+	batcherDeployment := &appsv1.Deployment{}
+	err = r.Get(
+		ctx,
+		types.NamespacedName{
+			Name:      redshiftsink.Name + BatcherSuffix,
+			Namespace: redshiftsink.Namespace,
+		},
+		batcherDeployment,
+	)
+	if err != nil && errors.IsNotFound(err) {
+		dep := r.deploymentForBatcher(redshiftsink)
+		klog.Infof("Creating Deployment: %s/%s\n", dep.Namespace, dep.Name)
+		err = r.Create(ctx, dep)
+		if err != nil {
+			klog.Errorf("Failed to create Deployment: %s/%s, err: %v\n",
+				dep.Namespace, dep.Name, err)
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{Requeue: true}, nil
+	} else if err != nil {
+		klog.Errorf("Failed to get Deployment, err: %v\n", err)
+		return ctrl.Result{}, err
+	}
+
+	_ = batcherDeployment
+
 	// 3. Ensure that the Deployment spec.replica=1 or 0 based on Suspend spec.
 	// 4. Update the CRD status using status writer.
 
 	return ctrl.Result{}, nil
+}
+
+func (r *RedshiftSinkReconciler) getSecret(
+	name, namespace string, labels map[string]string) *corev1.Secret {
+
+	return &corev1.Secret{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Secret",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels:    labels,
+		},
+	}
+}
+
+func (r *RedshiftSinkReconciler) deploymentForBatcher(
+	redshiftsink *tipocav1.RedshiftSink) *appsv1.Deployment {
+
+	var replicas int32
+	if redshiftsink.Spec.Batcher.Suspend {
+		replicas = 0
+	} else {
+		replicas = 1
+	}
+
+	labels := map[string]string{
+		"app":                          "redshiftsink-batcher",
+		"app.kubernetes.io/instance":   redshiftsink.Name,
+		"app.kubernetes.io/managed-by": "redshiftsink-operator",
+		"practo.dev/kind":              "RedshiftSink",
+		"practo.dev/name":              redshiftsink.Name,
+	}
+
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      redshiftsink.Name + BatcherSuffix,
+			Namespace: redshiftsink.Namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Strategy: appsv1.DeploymentStrategy{
+				Type: appsv1.RecreateDeploymentStrategyType,
+			},
+			Selector: &metav1.LabelSelector{
+				MatchLabels: labels,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: labels,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Image: "practodev/redshiftbatcher:latest",
+						Name:  redshiftsink.Name + BatcherSuffix,
+					}},
+				},
+			},
+		},
+	}
+
+	ctrl.SetControllerReference(redshiftsink, dep, r.Scheme)
+	return dep
 }
 
 func (r *RedshiftSinkReconciler) SetupWithManager(mgr ctrl.Manager) error {
