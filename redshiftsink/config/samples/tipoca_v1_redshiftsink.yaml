@@ -3,10 +3,10 @@ kind: RedshiftSink
 metadata:
   name: inventory
 spec:
+  secretRefName: redshiftsink-secret
+  secretRefNamespace: kube-system
   batcher:
       suspend: false
-      secretRefName: redshiftsink-secret
-      secretRefNamespace: kube-system
       maxSize: 10
       maxWaitSeconds: 30
       mask: true
@@ -16,3 +16,11 @@ spec:
       kafkaGroup: "inventory-batcher"
       kafkaTopicRegexes: "^ts.inventory*"
       kafkaLoaderTopicPrefix: "loader-"
+      podTemplate:
+          spec:
+              containers:
+              -
+                resources:
+                  requests:
+                      cpu: 100m
+                      memory: 200Mi

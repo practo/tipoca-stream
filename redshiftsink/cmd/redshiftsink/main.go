@@ -18,6 +18,7 @@ import (
 	"flag"
 	"os"
 
+	k8s "github.com/practo/tipoca-stream/redshiftsink/pkg/k8s"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -65,9 +66,10 @@ func main() {
 	}
 
 	if err = (&controllers.RedshiftSinkReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
-		Scheme: mgr.GetScheme(),
+		Client:          mgr.GetClient(),
+		Log:             ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
+		Scheme:          mgr.GetScheme(),
+		ResourceManager: k8s.NewResourceManager(mgr.GetClient()),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RedshiftSink")
 		os.Exit(1)

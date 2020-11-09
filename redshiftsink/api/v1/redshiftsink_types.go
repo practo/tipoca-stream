@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,11 +29,6 @@ type RedshiftBatcherSpec struct {
 	// Supsend when turned makes sure no batcher pods
 	// are running for this CRD object. Default: false
 	Suspend bool `json:"suspend,omitempty"`
-
-	// Secrets to be used by the batcher pod
-	// Default: the secret name and namespace provided in the controller flags
-	SecretRefName      string `json:"secretRefName"`
-	SecretRefNamespace string `json:"secretRefNamespace"`
 
 	// Max configurations for the batcher to batch
 	MaxSize        int `json:"maxSize"`
@@ -53,10 +49,20 @@ type RedshiftBatcherSpec struct {
 	KafkaTopicRegexes string `json:"kafkaTopicRegexes"`
 	// +optional
 	KafkaLoaderTopicPrefix string `json:"kafkaLoaderTopicPrefix,omitempty"`
+
+	// Template describes the pods that will be created.
+	// if this is not specifed, a default pod template is created
+	// +optional
+	PodTemplate corev1.PodTemplateSpec `json:"podTemplate,omitempty"`
 }
 
 // RedshiftSinkSpec defines the desired state of RedshiftSink
 type RedshiftSinkSpec struct {
+	// Secrets to be used by the batcher pod
+	// Default: the secret name and namespace provided in the controller flags
+	SecretRefName      string `json:"secretRefName"`
+	SecretRefNamespace string `json:"secretRefNamespace"`
+
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	Batcher RedshiftBatcherSpec `json:"batcher"`
