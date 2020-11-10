@@ -24,7 +24,7 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// RedshiftBatcher defines the desired state of RedshiftBatcher
+// RedshiftBatcherSpec defines the desired state of RedshiftBatcher
 type RedshiftBatcherSpec struct {
 	// Supsend when turned makes sure no batcher pods
 	// are running for this CRD object. Default: false
@@ -56,16 +56,39 @@ type RedshiftBatcherSpec struct {
 	PodTemplate corev1.PodTemplateSpec `json:"podTemplate,omitempty"`
 }
 
+// RedshiftLoaderSpec defines the desired state of RedshifLoader
+type RedshiftLoaderSpec struct {
+	// Supsend when turned makes sure no batcher pods
+	// are running for this CRD object. Default: false
+	Suspend bool `json:"suspend,omitempty"`
+
+	// Max configurations for the loader to batch and load
+	MaxSize        int `json:"maxSize"`
+	MaxWaitSeconds int `json:"maxWaitSeconds"`
+
+	// Kafka configurations like consumer group and topics to watch
+	KafkaBrokers      string `json:"kafkaBrokers"`
+	KafkaGroup        string `json:"kafkaGroup"`
+	KafkaTopicRegexes string `json:"kafkaTopicRegexes"`
+
+	// Template describes the pods that will be created.
+	// if this is not specifed, a default pod template is created
+	// +optional
+	PodTemplate corev1.PodTemplateSpec `json:"podTemplate,omitempty"`
+}
+
 // RedshiftSinkSpec defines the desired state of RedshiftSink
 type RedshiftSinkSpec struct {
+	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+	// Important: Run "make" to regenerate code after modifying this file
+
 	// Secrets to be used by the batcher pod
 	// Default: the secret name and namespace provided in the controller flags
 	SecretRefName      string `json:"secretRefName"`
 	SecretRefNamespace string `json:"secretRefNamespace"`
 
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 	Batcher RedshiftBatcherSpec `json:"batcher"`
+	Loader  RedshiftLoaderSpec  `json:"loader"`
 }
 
 // RedshiftSinkStatus defines the observed state of RedshiftSink
