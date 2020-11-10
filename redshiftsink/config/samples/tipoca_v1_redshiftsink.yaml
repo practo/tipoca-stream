@@ -24,3 +24,18 @@ spec:
                   requests:
                       cpu: 100m
                       memory: 200Mi
+    loader:
+        suspend: false
+        maxSize: 10
+        maxWaitSeconds: 30
+        kafkaBrokers: "kafka1.example.com,kafka2.example.com"
+        kafkaGroup: "inventory-batcher"
+        kafkaTopicRegexes: "^ts.inventory*"
+        podTemplate:
+            spec:
+                containers:
+                -
+                  resources:
+                    requests:
+                        cpu: 100m
+                        memory: 200Mi
