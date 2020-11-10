@@ -18,7 +18,7 @@ package controllers
 
 import (
 	"context"
-	"os"
+	"fmt"
 	"strings"
 
 	"github.com/go-logr/logr"
@@ -135,6 +135,14 @@ func applyDefaultsToPodTemplateSpec(
 	defaultSpec defaultContainerSpec,
 	envVars []corev1.EnvVar) corev1.PodTemplateSpec {
 
+	if podTemplateSpec.Name == "" {
+		podTemplateSpec.Name = defaultSpec.podName
+	}
+
+	if podTemplateSpec.Namespace == "" {
+		podTemplateSpec.Namespace = defaultSpec.namespace
+	}
+
 	podTemplateSpec.Labels = addDefaultLabels(
 		defaultSpec.podName,
 		podTemplateSpec.Labels,
@@ -149,6 +157,12 @@ func applyDefaultsToPodTemplateSpec(
 			},
 		}
 	} else {
+		if podTemplateSpec.Spec.Containers[0].Image == "" {
+			podTemplateSpec.Spec.Containers[0].Image = defaultSpec.image
+		}
+		if podTemplateSpec.Spec.Containers[0].Name == "" {
+			podTemplateSpec.Spec.Containers[0].Name = defaultSpec.podName
+		}
 		podTemplateSpec.Spec.Containers[0].Env = addSpecifiedEnvVars(
 			podTemplateSpec.Spec.Containers[0].Env,
 			envVars,
@@ -161,6 +175,7 @@ func applyDefaultsToPodTemplateSpec(
 type defaultContainerSpec struct {
 	podName        string
 	deploymentName string
+	namespace      string
 	image          string
 	replicas       *int32
 	labels         map[string]string
@@ -174,16 +189,18 @@ func (r *RedshiftSinkReconciler) getBatcherDeployment(
 	defaultSpec := defaultContainerSpec{
 		podName:        redshiftsink.Name + BatcherSuffix,
 		deploymentName: redshiftsink.Name + BatcherSuffix,
+		namespace:      redshiftsink.Namespace,
 		image:          "practodev/redshiftbatcher:latest",
 		replicas:       getReplicas(redshiftsink.Spec.Batcher.Suspend),
-		labels:         redshiftsink.Spec.Batcher.PodTemplate.Labels,
+		labels:         nil,
 	}
 
-	applyDefaultsToPodTemplateSpec(
+	redshiftsink.Spec.Batcher.PodTemplate = applyDefaultsToPodTemplateSpec(
 		redshiftsink.Spec.Batcher.PodTemplate,
 		defaultSpec,
 		envVars,
 	)
+	defaultSpec.labels = redshiftsink.Spec.Batcher.PodTemplate.Labels
 
 	dep := getDeployment(
 		redshiftsink,
@@ -195,28 +212,63 @@ func (r *RedshiftSinkReconciler) getBatcherDeployment(
 	return dep
 }
 
-// getEnvVars makes EnvVars by picking environment variables by prefix
-// and also adds secret referrences to the EnvVars
-func getEnvVars(prefix string, secretRefName string,
-	secretKeys []string) []corev1.EnvVar {
+func addBatcherConfigToEnv(
+	envVars []corev1.EnvVar,
+	redshiftsink *tipocav1.RedshiftSink) []corev1.EnvVar {
 
-	var envVars []corev1.EnvVar
-
-	for _, keyValue := range os.Environ() {
-		if !strings.HasPrefix(prefix, keyValue) {
-			continue
-		}
-
-		v := strings.Split(keyValue, "=")
-		if len(v) < 2 {
-			klog.Warningf("Expected both key value for %v\n", keyValue)
-			continue
-		}
-		envVars = append(envVars, corev1.EnvVar{
-			Name:  v[0],
-			Value: v[1],
-		})
+	// TODO: any better way to do this?
+	batcherEnvs := []corev1.EnvVar{
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "MAXSIZE",
+			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.MaxSize),
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "MAXWAITSECONDS",
+			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.MaxWaitSeconds),
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "MASK",
+			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.Mask),
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "MASKCONFIGDIR",
+			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.MaskConfigDir),
+		},
+		corev1.EnvVar{
+			Name: BatcherEnvPrefix + "MASKCONFIGFILENAME",
+			Value: fmt.Sprintf(
+				"%v", redshiftsink.Spec.Batcher.MaskConfigFileName),
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "KAFKABROKERS",
+			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.KafkaBrokers),
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "KAFKAGROUP",
+			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.KafkaGroup),
+		},
+		corev1.EnvVar{
+			Name: BatcherEnvPrefix + "KAFKATOPICREGEXES",
+			Value: fmt.Sprintf(
+				"%v", redshiftsink.Spec.Batcher.KafkaTopicRegexes),
+		},
+		corev1.EnvVar{
+			Name: BatcherEnvPrefix + "KAFKALOADERTOPICPREFIX",
+			Value: fmt.Sprintf(
+				"%v", redshiftsink.Spec.Batcher.KafkaLoaderTopicPrefix),
+		},
 	}
+	envVars = append(envVars, batcherEnvs...)
+
+	return envVars
+}
+
+// addSecretsToEnv adds secret referrences to the environment
+func addSecretsToEnv(
+	envVars []corev1.EnvVar,
+	secretRefName string,
+	secretKeys []string,
+	prefix string) []corev1.EnvVar {
 
 	for _, secretKey := range secretKeys {
 		optional := false
@@ -237,7 +289,7 @@ func getEnvVars(prefix string, secretRefName string,
 	return envVars
 }
 
-// getSecretKeys gets the of all secret keys
+// getSecretKeys gives back the secret keys after reading the secret
 func (r *RedshiftSinkReconciler) getSecretKeys(
 	seretRefName, secretRefNamespace string) ([]string, error) {
 
@@ -253,8 +305,17 @@ func (r *RedshiftSinkReconciler) getSecretKeys(
 	}
 
 	secretKeys := make([]string, 0, len(secret.Data))
-	for k, _ := range secret.Data {
-		secretKeys = append(secretKeys, k)
+	for _, bytes := range secret.Data {
+		if len(bytes) == 0 {
+			continue
+		}
+		for _, key := range strings.Split(string(bytes), "\n") {
+			secretKey := strings.Split(key, "=")
+			if len(secretKey) != 2 {
+				continue
+			}
+			secretKeys = append(secretKeys, secretKey[0])
+		}
 	}
 
 	return secretKeys, nil
@@ -295,10 +356,17 @@ func (r *RedshiftSinkReconciler) Reconcile(
 		return ctrl.Result{}, err
 	}
 
-	batcherEnvVars := getEnvVars(
-		BatcherEnvPrefix,
+	// Construct batcher environment variables
+	batcherEnvVars := []corev1.EnvVar{}
+	batcherEnvVars = addSecretsToEnv(
+		batcherEnvVars,
 		redshiftsink.Spec.SecretRefName,
 		secretKeys,
+		BatcherEnvPrefix,
+	)
+	batcherEnvVars = addBatcherConfigToEnv(
+		batcherEnvVars,
+		redshiftsink,
 	)
 
 	// Create the Batcher Deployment if it doesn’t exist.
