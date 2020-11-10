@@ -9,3 +9,7 @@
   value:
   - containerPort
   - protocol
+
+- op: remove
+  path: /spec/validation/openAPIV3Schema/properties/spec/properties/batcher/properties/podTemplate/properties/spec/properties/containers/items/required
+ 
