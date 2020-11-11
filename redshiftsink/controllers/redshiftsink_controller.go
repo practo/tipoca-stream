@@ -19,18 +19,21 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
-	k8s "github.com/practo/tipoca-stream/redshiftsink/pkg/k8s"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	kerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	controller "sigs.k8s.io/controller-runtime/pkg/controller"
@@ -38,19 +41,18 @@ import (
 
 const (
 	BatcherSuffix    = "-batcher"
+	LoaderSuffix     = "-loader"
 	BatcherEnvPrefix = "BATCHER_"
-
-	LoaderSuffix    = "-loader"
-	LoaderEnvPrefix = "LOADER_"
+	LoaderEnvPrefix  = "LOADER_"
 )
 
 // RedshiftSinkReconciler reconciles a RedshiftSink object
 type RedshiftSinkReconciler struct {
 	client.Client
 
-	Log             logr.Logger
-	Scheme          *runtime.Scheme
-	ResourceManager *k8s.ResourceManager
+	Log      logr.Logger
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=tipoca.k8s.practo.dev,resources=redshiftsinks,verbs=get;list;watch;create;update;patch;delete
@@ -58,6 +60,13 @@ type RedshiftSinkReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
+
+func serviceName(name, namespace string) types.NamespacedName {
+	return types.NamespacedName{
+		Name:      name,
+		Namespace: namespace,
+	}
+}
 
 // addSpecifiedEnvVars gets the specified envs and adds the existing envs
 // over it. Passed labels should override the default labels.
@@ -108,7 +117,7 @@ func getReplicas(suspend bool) *int32 {
 }
 
 // getDeployment gives back a deployment object for a redshiftink crd object
-func getDeployment(
+func deploymentForRedshiftSink(
 	redshiftsink *tipocav1.RedshiftSink,
 	podTemplate corev1.PodTemplateSpec,
 	defaultSpec defaultContainerSpec) *appsv1.Deployment {
@@ -184,8 +193,9 @@ type defaultContainerSpec struct {
 	labels         map[string]string
 }
 
-// getLoaderDeployment constructs the deployment spec based on the crd spec
-func (r *RedshiftSinkReconciler) getLoaderDeployment(
+// loaderDeploymentForRedshiftSink constructs the deployment
+// spec based on the crd spec
+func (r *RedshiftSinkReconciler) loaderDeploymentForRedshiftSink(
 	redshiftsink *tipocav1.RedshiftSink,
 	envVars []corev1.EnvVar) *appsv1.Deployment {
 
@@ -205,7 +215,7 @@ func (r *RedshiftSinkReconciler) getLoaderDeployment(
 	)
 	defaultSpec.labels = redshiftsink.Spec.Batcher.PodTemplate.Labels
 
-	dep := getDeployment(
+	dep := deploymentForRedshiftSink(
 		redshiftsink,
 		redshiftsink.Spec.Batcher.PodTemplate,
 		defaultSpec,
@@ -215,8 +225,9 @@ func (r *RedshiftSinkReconciler) getLoaderDeployment(
 	return dep
 }
 
-// getBatcherDeployment constructs the deployment spec based on the crd spec
-func (r *RedshiftSinkReconciler) getBatcherDeployment(
+// batcherDeploymentForRedshiftSink constructs the deployment
+// spec based on the crd spec
+func (r *RedshiftSinkReconciler) batcherDeploymentForRedshiftSink(
 	redshiftsink *tipocav1.RedshiftSink,
 	envVars []corev1.EnvVar) *appsv1.Deployment {
 
@@ -236,7 +247,7 @@ func (r *RedshiftSinkReconciler) getBatcherDeployment(
 	)
 	defaultSpec.labels = redshiftsink.Spec.Batcher.PodTemplate.Labels
 
-	dep := getDeployment(
+	dep := deploymentForRedshiftSink(
 		redshiftsink,
 		redshiftsink.Spec.Batcher.PodTemplate,
 		defaultSpec,
@@ -449,95 +460,181 @@ func addLoaderSecretsToEnv(
 	return envVars
 }
 
-// Reconcile is the main reconciliation logic perform on every crd object
-func (r *RedshiftSinkReconciler) Reconcile(
-	req ctrl.Request) (ctrl.Result, error) {
+func (r *RedshiftSinkReconciler) createDeployment(
+	ctx context.Context,
+	deployment *appsv1.Deployment,
+	redshiftsink *tipocav1.RedshiftSink) (*DeploymentCreatedEvent, error) {
 
-	ctx := context.Background()
-	_ = r.Log.WithValues("redshiftsink", req.NamespacedName)
-
-	// Fetch the RedshiftSink instance
-	redshiftsink := &tipocav1.RedshiftSink{}
-	err := r.Get(ctx, req.NamespacedName, redshiftsink)
+	err := r.Create(ctx, deployment)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			klog.Infof("Ignoring since object: %s must be deleted\n", req)
-			return ctrl.Result{}, nil
-		}
-		// Error reading the object - requeue the request.
-		klog.Errorf("Failed to get Redshiftsink, err: %v\n", err)
-		return ctrl.Result{}, err
+		klog.Errorf("Failed to create Deployment: %s/%s, err: %v\n",
+			deployment.Namespace, deployment.Name, err)
+		return nil, err
 	}
 
-	// Construct batcher environment variables
-	batcherEnvVars := []corev1.EnvVar{}
-	batcherEnvVars = addBatcherConfigToEnv(
-		batcherEnvVars,
-		redshiftsink)
-	batcherEnvVars = addBatcherSecretsToEnv(
-		batcherEnvVars, redshiftsink.Spec.SecretRefName)
+	return &DeploymentCreatedEvent{
+		Object: redshiftsink,
+		Name:   deployment.Name,
+	}, nil
 
-	// Create the Batcher Deployment if it doesn’t exist.
-	batcherDeployment := &appsv1.Deployment{}
-	err = r.Get(ctx,
-		types.NamespacedName{
-			Name:      redshiftsink.Name + BatcherSuffix,
-			Namespace: redshiftsink.Namespace,
-		}, batcherDeployment,
+}
+
+func (r *RedshiftSinkReconciler) createLoader(
+	ctx context.Context,
+	redshiftsink *tipocav1.RedshiftSink) (*DeploymentCreatedEvent, error) {
+
+	envs := []corev1.EnvVar{}
+	envs = addLoaderConfigToEnv(envs, redshiftsink)
+	envs = addLoaderSecretsToEnv(envs, redshiftsink.Spec.SecretRefName)
+	deployment := r.batcherDeploymentForRedshiftSink(redshiftsink, envs)
+
+	return r.createDeployment(ctx, deployment, redshiftsink)
+}
+
+func (r *RedshiftSinkReconciler) createBatcher(
+	ctx context.Context,
+	redshiftsink *tipocav1.RedshiftSink) (*DeploymentCreatedEvent, error) {
+
+	envs := []corev1.EnvVar{}
+	envs = addBatcherConfigToEnv(envs, redshiftsink)
+	envs = addBatcherSecretsToEnv(envs, redshiftsink.Spec.SecretRefName)
+	deployment := r.loaderDeploymentForRedshiftSink(redshiftsink, envs)
+
+	return r.createDeployment(ctx, deployment, redshiftsink)
+}
+
+func (r *RedshiftSinkReconciler) hasDeployment(
+	ctx context.Context, nameNamespace types.NamespacedName) (bool, error) {
+
+	deployment := &appsv1.Deployment{}
+	err := r.Get(ctx, nameNamespace, deployment)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+func (r *RedshiftSinkReconciler) hasLoader(
+	ctx context.Context, redshiftsink *tipocav1.RedshiftSink) (bool, error) {
+
+	return r.hasDeployment(
+		ctx,
+		serviceName(
+			redshiftsink.Name+LoaderSuffix,
+			redshiftsink.Namespace,
+		),
 	)
-	if err != nil && errors.IsNotFound(err) {
-		dep := r.getBatcherDeployment(redshiftsink, batcherEnvVars)
-		klog.Infof("Creating Deployment: %s/%s\n", dep.Namespace, dep.Name)
-		err = r.Create(ctx, dep)
-		if err != nil {
-			klog.Errorf("Failed to create Deployment: %s/%s, err: %v\n",
-				dep.Namespace, dep.Name, err)
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{Requeue: true}, nil
-	} else if err != nil {
-		klog.Errorf("Failed to get Deployment, err: %v\n", err)
-		return ctrl.Result{}, err
-	}
-	_ = batcherDeployment
+}
 
-	// Construct loader environment variables
-	loaderEnvVars := []corev1.EnvVar{}
-	loaderEnvVars = addLoaderConfigToEnv(
-		loaderEnvVars,
-		redshiftsink)
-	loaderEnvVars = addLoaderSecretsToEnv(
-		loaderEnvVars, redshiftsink.Spec.SecretRefName)
+func (r *RedshiftSinkReconciler) hasBatcher(
+	ctx context.Context, redshiftsink *tipocav1.RedshiftSink) (bool, error) {
 
-	// Create the Loader Deployment if it doesn’t exist.
-	loaderDeployment := &appsv1.Deployment{}
-	err = r.Get(ctx,
-		types.NamespacedName{
-			Name:      redshiftsink.Name + LoaderSuffix,
-			Namespace: redshiftsink.Namespace,
-		}, loaderDeployment,
+	return r.hasDeployment(
+		ctx,
+		serviceName(
+			redshiftsink.Name+BatcherSuffix,
+			redshiftsink.Namespace,
+		),
 	)
-	if err != nil && errors.IsNotFound(err) {
-		dep := r.getLoaderDeployment(redshiftsink, loaderEnvVars)
-		klog.Infof("Creating Deployment: %s/%s\n", dep.Namespace, dep.Name)
-		err = r.Create(ctx, dep)
-		if err != nil {
-			klog.Errorf("Failed to create Deployment: %s/%s, err: %v\n",
-				dep.Namespace, dep.Name, err)
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{Requeue: true}, nil
-	} else if err != nil {
-		klog.Errorf("Failed to get Deployment, err: %v\n", err)
-		return ctrl.Result{}, err
+}
+
+func (r *RedshiftSinkReconciler) reconcile(
+	ctx context.Context,
+	redshiftsink *tipocav1.RedshiftSink,
+) (
+	ctrl.Result,
+	[]ReconcilerEvent,
+	error,
+) {
+	var events []ReconcilerEvent
+
+	// batcher deployment
+	batcherExists, err := r.hasBatcher(ctx, redshiftsink)
+	if err != nil {
+		return ctrl.Result{Requeue: true}, events, fmt.Errorf(
+			"unable to fetch deployment from Kubernetes API: %w", err)
 	}
-	_ = loaderDeployment
+	if !batcherExists {
+		event, err := r.createBatcher(ctx, redshiftsink)
+		if err != nil {
+			return ctrl.Result{Requeue: true}, events,
+				fmt.Errorf("unable to create batcher: %w", err)
+		}
+		klog.V(1).Info("Created Batcher: ", event.Name)
+		events = append(events, event)
+	}
 
-	// TODO:
-	// Ensure that the Deployment spec.replica=1 or 0 based on Suspend spec.
-	// Update the CRD status using status writer.
+	// loader deployment
+	loaderExists, err := r.hasLoader(ctx, redshiftsink)
+	if err != nil {
+		return ctrl.Result{Requeue: true}, events, fmt.Errorf(
+			"unable to fetch deployment from Kubernetes API: %w", err)
+	}
+	if !loaderExists {
+		event, err := r.createLoader(ctx, redshiftsink)
+		if err != nil {
+			return ctrl.Result{Requeue: true}, events,
+				fmt.Errorf("unable to create loader: %w", err)
+		}
+		klog.V(1).Info("Created Loader: ", event.Name)
+		events = append(events, event)
+	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, events, nil
+}
+
+func (r *RedshiftSinkReconciler) Reconcile(
+	req ctrl.Request) (_ ctrl.Result, reterr error) {
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var redshiftsink tipocav1.RedshiftSink
+	if err := r.Get(ctx, req.NamespacedName, &redshiftsink); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	original := redshiftsink.DeepCopy()
+
+	// Always attempt to patch the status after each reconciliation.
+	defer func() {
+		if reflect.DeepEqual(original.Status, redshiftsink.Status) {
+			return
+		}
+		err := r.Client.Status().Patch(
+			ctx,
+			&redshiftsink,
+			client.MergeFrom(original),
+		)
+		if err != nil {
+			reterr = kerrors.NewAggregate(
+				[]error{
+					reterr,
+					fmt.Errorf(
+						"error while patching EtcdCluster.Status: %s ", err),
+				},
+			)
+		}
+	}()
+
+	// Perform a reconcile, getting back the desired result, any utilerrors
+	result, events, err := r.reconcile(ctx, &redshiftsink)
+	if err != nil {
+		err = fmt.Errorf("Failed to reconcile: %s", err)
+	}
+
+	// Finally, the event is used to generate a Kubernetes event by
+	// calling `Record` and passing in the recorder.
+	for _, event := range events {
+		if event != nil {
+			event.Record(r.Recorder)
+		}
+	}
+
+	return result, err
 }
 
 // SetupWithManager sets up the controller and applies all controller configs
