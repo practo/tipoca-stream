@@ -71,6 +71,9 @@ type RedshiftLoaderSpec struct {
 	KafkaGroup        string `json:"kafkaGroup"`
 	KafkaTopicRegexes string `json:"kafkaTopicRegexes"`
 
+	// RedshiftSchema to sink the data in
+	RedshiftSchema string `json:"redshiftSchema"`
+
 	// Template describes the pods that will be created.
 	// if this is not specifed, a default pod template is created
 	// +optional
