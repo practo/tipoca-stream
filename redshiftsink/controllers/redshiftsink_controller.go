@@ -68,16 +68,49 @@ func serviceName(name, namespace string) types.NamespacedName {
 	}
 }
 
-// addSpecifiedEnvVars gets the specified envs and adds the existing envs
-// over it. Passed labels should override the default labels.
-func addSpecifiedEnvVars(s []corev1.EnvVar, e []corev1.EnvVar) []corev1.EnvVar {
-	if len(s) == 0 {
-		return e
+// getDeployment gives back a deployment object for a deploySpec
+// deploySpec is constructed using redshiftsink crd
+func deploymentForRedshiftSink(deploySpec deploymentSpec) *appsv1.Deployment {
+	d := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      deploySpec.deploymentName,
+			Namespace: deploySpec.namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: deploySpec.replicas,
+			Strategy: appsv1.DeploymentStrategy{
+				Type: appsv1.RecreateDeploymentStrategyType,
+			},
+			Selector: &metav1.LabelSelector{
+				MatchLabels: deploySpec.labels,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      deploySpec.name,
+					Namespace: deploySpec.namespace,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						corev1.Container{
+							Name:  deploySpec.name,
+							Image: deploySpec.image,
+							Env:   deploySpec.envs,
+						},
+					},
+				},
+			},
+		},
 	}
-	for _, v := range s {
-		e = append(e, v)
+
+	if deploySpec.resources != nil {
+		d.Spec.Template.Spec.Containers[0].Resources = *deploySpec.resources
 	}
-	return e
+
+	if deploySpec.tolerations != nil {
+		d.Spec.Template.Spec.Tolerations = *deploySpec.tolerations
+	}
+
+	return d
 }
 
 // getDefaultLabels gives back the default labels for the crd resources
@@ -89,19 +122,6 @@ func getDefaultLabels(app string) map[string]string {
 		"practo.dev/kind":              "RedshiftSink",
 		"practo.dev/name":              app,
 	}
-}
-
-// addDefaultLabels gets the default labels and apply the existing labels
-// over it. Passed labels should override the default labels.
-func addDefaultLabels(app string, labels map[string]string) map[string]string {
-	if labels == nil {
-		labels = map[string]string{}
-	}
-	outLabels := getDefaultLabels(app)
-	for k, v := range labels {
-		outLabels[k] = v
-	}
-	return outLabels
 }
 
 // replicas for the crd resources batcher and loader are boolean, either 1 or 0
@@ -116,145 +136,62 @@ func getReplicas(suspend bool) *int32 {
 	return &replicas
 }
 
-// getDeployment gives back a deployment object for a redshiftink crd object
-func deploymentForRedshiftSink(
-	redshiftsink *tipocav1.RedshiftSink,
-	podTemplate corev1.PodTemplateSpec,
-	defaultSpec defaultContainerSpec) *appsv1.Deployment {
-
-	return &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      defaultSpec.deploymentName,
-			Namespace: redshiftsink.Namespace,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: defaultSpec.replicas,
-			Strategy: appsv1.DeploymentStrategy{
-				Type: appsv1.RecreateDeploymentStrategyType,
-			},
-			Selector: &metav1.LabelSelector{
-				MatchLabels: defaultSpec.labels,
-			},
-			Template: podTemplate,
-		},
-	}
-}
-
-// applyDefaultsToPodTemplateSpec takes the current pod template spec and applies
-// the default field to the specified pod template spec
-func applyDefaultsToPodTemplateSpec(
-	podTemplateSpec corev1.PodTemplateSpec,
-	defaultSpec defaultContainerSpec,
-	envVars []corev1.EnvVar) corev1.PodTemplateSpec {
-
-	if podTemplateSpec.Name == "" {
-		podTemplateSpec.Name = defaultSpec.podName
-	}
-
-	if podTemplateSpec.Namespace == "" {
-		podTemplateSpec.Namespace = defaultSpec.namespace
-	}
-
-	podTemplateSpec.Labels = addDefaultLabels(
-		defaultSpec.podName,
-		podTemplateSpec.Labels,
-	)
-
-	if len(podTemplateSpec.Spec.Containers) == 0 {
-		podTemplateSpec.Spec.Containers = []corev1.Container{
-			corev1.Container{
-				Image: defaultSpec.image,
-				Name:  defaultSpec.podName,
-				Env:   envVars,
-			},
-		}
-	} else {
-		if podTemplateSpec.Spec.Containers[0].Image == "" {
-			podTemplateSpec.Spec.Containers[0].Image = defaultSpec.image
-		}
-		if podTemplateSpec.Spec.Containers[0].Name == "" {
-			podTemplateSpec.Spec.Containers[0].Name = defaultSpec.podName
-		}
-		podTemplateSpec.Spec.Containers[0].Env = addSpecifiedEnvVars(
-			podTemplateSpec.Spec.Containers[0].Env,
-			envVars,
-		)
-	}
-
-	return podTemplateSpec
-}
-
-type defaultContainerSpec struct {
-	podName        string
-	deploymentName string
+type deploymentSpec struct {
+	name           string
 	namespace      string
+	labels         map[string]string
 	image          string
 	replicas       *int32
-	labels         map[string]string
+	deploymentName string
+	envs           []corev1.EnvVar
+	resources      *corev1.ResourceRequirements
+	tolerations    *[]corev1.Toleration
 }
 
 // loaderDeploymentForRedshiftSink constructs the deployment
 // spec based on the crd spec
 func (r *RedshiftSinkReconciler) loaderDeploymentForRedshiftSink(
 	redshiftsink *tipocav1.RedshiftSink,
-	envVars []corev1.EnvVar) *appsv1.Deployment {
+	envs []corev1.EnvVar) *appsv1.Deployment {
 
-	defaultSpec := defaultContainerSpec{
-		podName:        redshiftsink.Name + BatcherSuffix,
-		deploymentName: redshiftsink.Name + BatcherSuffix,
+	deploySpec := deploymentSpec{
+		name:           redshiftsink.Name + LoaderSuffix,
 		namespace:      redshiftsink.Namespace,
-		image:          "practodev/redshiftbatcher:latest",
-		replicas:       getReplicas(redshiftsink.Spec.Batcher.Suspend),
-		labels:         nil,
+		labels:         getDefaultLabels("redshiftloader"),
+		image:          "practodev/redshiftloader:latest",
+		replicas:       getReplicas(redshiftsink.Spec.Loader.Suspend),
+		deploymentName: redshiftsink.Name + LoaderSuffix,
+		envs:           envs,
+		resources:      redshiftsink.Spec.Loader.PodTemplate.Resources,
+		tolerations:    redshiftsink.Spec.Loader.PodTemplate.Tolerations,
 	}
+	deployment := deploymentForRedshiftSink(deploySpec)
+	ctrl.SetControllerReference(redshiftsink, deployment, r.Scheme)
 
-	redshiftsink.Spec.Batcher.PodTemplate = applyDefaultsToPodTemplateSpec(
-		redshiftsink.Spec.Batcher.PodTemplate,
-		defaultSpec,
-		envVars,
-	)
-	defaultSpec.labels = redshiftsink.Spec.Batcher.PodTemplate.Labels
-
-	dep := deploymentForRedshiftSink(
-		redshiftsink,
-		redshiftsink.Spec.Batcher.PodTemplate,
-		defaultSpec,
-	)
-
-	ctrl.SetControllerReference(redshiftsink, dep, r.Scheme)
-	return dep
+	return deployment
 }
 
 // batcherDeploymentForRedshiftSink constructs the deployment
 // spec based on the crd spec
 func (r *RedshiftSinkReconciler) batcherDeploymentForRedshiftSink(
 	redshiftsink *tipocav1.RedshiftSink,
-	envVars []corev1.EnvVar) *appsv1.Deployment {
+	envs []corev1.EnvVar) *appsv1.Deployment {
 
-	defaultSpec := defaultContainerSpec{
-		podName:        redshiftsink.Name + BatcherSuffix,
-		deploymentName: redshiftsink.Name + BatcherSuffix,
+	deploySpec := deploymentSpec{
+		name:           redshiftsink.Name + BatcherSuffix,
 		namespace:      redshiftsink.Namespace,
+		labels:         getDefaultLabels("redshiftbatcher"),
 		image:          "practodev/redshiftbatcher:latest",
 		replicas:       getReplicas(redshiftsink.Spec.Batcher.Suspend),
-		labels:         nil,
+		deploymentName: redshiftsink.Name + BatcherSuffix,
+		envs:           envs,
+		resources:      redshiftsink.Spec.Batcher.PodTemplate.Resources,
+		tolerations:    redshiftsink.Spec.Batcher.PodTemplate.Tolerations,
 	}
+	deployment := deploymentForRedshiftSink(deploySpec)
+	ctrl.SetControllerReference(redshiftsink, deployment, r.Scheme)
 
-	redshiftsink.Spec.Batcher.PodTemplate = applyDefaultsToPodTemplateSpec(
-		redshiftsink.Spec.Batcher.PodTemplate,
-		defaultSpec,
-		envVars,
-	)
-	defaultSpec.labels = redshiftsink.Spec.Batcher.PodTemplate.Labels
-
-	dep := deploymentForRedshiftSink(
-		redshiftsink,
-		redshiftsink.Spec.Batcher.PodTemplate,
-		defaultSpec,
-	)
-
-	ctrl.SetControllerReference(redshiftsink, dep, r.Scheme)
-	return dep
+	return deployment
 }
 
 // addBatcherConfigToEnv adds the batcher envs to the list
