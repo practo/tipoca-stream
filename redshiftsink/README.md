@@ -40,10 +40,10 @@ kind: RedshiftSink
 metadata:
   name: inventory
 spec:
+  secretRefName: redshiftsink-secret-585g5m8t9h
+  secretRefNamespace: kube-system
   batcher:
       suspend: false
-      secretRefName: redshiftsink-secret
-      secretRefNamespace: kube-system
       maxSize: 10
       maxWaitSeconds: 30
       mask: true
@@ -53,6 +53,31 @@ spec:
       kafkaGroup: "inventory-batcher"
       kafkaTopicRegexes: "^ts.inventory*"
       kafkaLoaderTopicPrefix: "loader-"
+      podTemplate:
+          spec:
+              containers:
+              -
+                resources:
+                  requests:
+                      cpu: 100m
+                      memory: 200Mi
+    loader:
+        suspend: false
+        maxSize: 10
+        maxWaitSeconds: 30
+        kafkaBrokers: "kafka1.example.com,kafka2.example.com"
+        kafkaGroup: "inventory-batcher"
+        kafkaTopicRegexes: "^ts.inventory*"
+        redshiftSchema: "inventory"
+        podTemplate:
+            spec:
+                containers:
+                -
+                  resources:
+                    requests:
+                        cpu: 100m
+                        memory: 200Mi
+
 ```
 
 ```bash
@@ -122,13 +147,21 @@ cp config.sample.yaml config.yaml
 ```
 
 ## Contributing
+
+* Generate CRD code
 ```bash
-$ make build
+make generate
+```
+
+* Make changes and build code
+```bash
+make build
 binary: bin/darwin_amd64/redshiftbatcher
 binary: bin/darwin_amd64/redshiftloader
 binary: bin/darwin_amd64/redshiftsink
 ```
 
-###### Note (not required, all are internal now, FYI):
-- `export GOPRIVATE="github.com/practo"`. [More.](https://medium.com/mabar/today-i-learned-fix-go-get-private-repository-return-error-reading-sum-golang-org-lookup-93058a058dd8)
-- `~/.netrc` should be configured to download from private github repo. [More.](https://golang.org/doc/faq#git_https)
+* Run the controller locally
+```bash
+make run
+```
