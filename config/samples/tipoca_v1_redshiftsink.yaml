@@ -31,6 +31,7 @@ spec:
         kafkaBrokers: "kafka1.example.com,kafka2.example.com"
         kafkaGroup: "inventory-batcher"
         kafkaTopicRegexes: "^ts.inventory*"
+        redshiftSchema: "inventory"
         podTemplate:
             spec:
                 containers:

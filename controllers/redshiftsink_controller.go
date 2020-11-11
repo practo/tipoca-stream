@@ -39,6 +39,9 @@ import (
 const (
 	BatcherSuffix    = "-batcher"
 	BatcherEnvPrefix = "BATCHER_"
+
+	LoaderSuffix    = "-loader"
+	LoaderEnvPrefix = "LOADER_"
 )
 
 // RedshiftSinkReconciler reconciles a RedshiftSink object
@@ -181,6 +184,37 @@ type defaultContainerSpec struct {
 	labels         map[string]string
 }
 
+// getLoaderDeployment constructs the deployment spec based on the crd spec
+func (r *RedshiftSinkReconciler) getLoaderDeployment(
+	redshiftsink *tipocav1.RedshiftSink,
+	envVars []corev1.EnvVar) *appsv1.Deployment {
+
+	defaultSpec := defaultContainerSpec{
+		podName:        redshiftsink.Name + BatcherSuffix,
+		deploymentName: redshiftsink.Name + BatcherSuffix,
+		namespace:      redshiftsink.Namespace,
+		image:          "practodev/redshiftbatcher:latest",
+		replicas:       getReplicas(redshiftsink.Spec.Batcher.Suspend),
+		labels:         nil,
+	}
+
+	redshiftsink.Spec.Batcher.PodTemplate = applyDefaultsToPodTemplateSpec(
+		redshiftsink.Spec.Batcher.PodTemplate,
+		defaultSpec,
+		envVars,
+	)
+	defaultSpec.labels = redshiftsink.Spec.Batcher.PodTemplate.Labels
+
+	dep := getDeployment(
+		redshiftsink,
+		redshiftsink.Spec.Batcher.PodTemplate,
+		defaultSpec,
+	)
+
+	ctrl.SetControllerReference(redshiftsink, dep, r.Scheme)
+	return dep
+}
+
 // getBatcherDeployment constructs the deployment spec based on the crd spec
 func (r *RedshiftSinkReconciler) getBatcherDeployment(
 	redshiftsink *tipocav1.RedshiftSink,
@@ -212,113 +246,207 @@ func (r *RedshiftSinkReconciler) getBatcherDeployment(
 	return dep
 }
 
+// addBatcherConfigToEnv adds the batcher envs to the list
 func addBatcherConfigToEnv(
 	envVars []corev1.EnvVar,
 	redshiftsink *tipocav1.RedshiftSink) []corev1.EnvVar {
 
 	// TODO: any better way to do this?
-	batcherEnvs := []corev1.EnvVar{
+	envs := []corev1.EnvVar{
 		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "MAXSIZE",
-			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.MaxSize),
-		},
-		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "MAXWAITSECONDS",
-			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.MaxWaitSeconds),
-		},
-		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "MASK",
+			Name:  BatcherEnvPrefix + "BATCHER_MASK",
 			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.Mask),
 		},
 		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "MASKCONFIGDIR",
+			Name:  BatcherEnvPrefix + "BATCHER_MASKCONFIGDIR",
 			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.MaskConfigDir),
 		},
 		corev1.EnvVar{
-			Name: BatcherEnvPrefix + "MASKCONFIGFILENAME",
+			Name: BatcherEnvPrefix + "BATCHER_MASKCONFIGFILENAME",
 			Value: fmt.Sprintf(
 				"%v", redshiftsink.Spec.Batcher.MaskConfigFileName),
 		},
 		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "KAFKABROKERS",
+			Name:  BatcherEnvPrefix + "BATCHER_MAXSIZE",
+			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.MaxSize),
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "BATCHER_MAXWAITSECONDS",
+			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.MaxWaitSeconds),
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "KAFKA_BROKERS",
 			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.KafkaBrokers),
 		},
 		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "KAFKAGROUP",
+			Name:  BatcherEnvPrefix + "KAFKA_GROUP",
 			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.KafkaGroup),
 		},
 		corev1.EnvVar{
-			Name: BatcherEnvPrefix + "KAFKATOPICREGEXES",
+			Name: BatcherEnvPrefix + "KAFKA_TOPICREGEXES",
 			Value: fmt.Sprintf(
 				"%v", redshiftsink.Spec.Batcher.KafkaTopicRegexes),
 		},
 		corev1.EnvVar{
-			Name: BatcherEnvPrefix + "KAFKALOADERTOPICPREFIX",
+			Name: BatcherEnvPrefix + "KAFKA_LOADERTOPICPREFIX",
 			Value: fmt.Sprintf(
 				"%v", redshiftsink.Spec.Batcher.KafkaLoaderTopicPrefix),
 		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "SARAMA_OLDEST",
+			Value: "true",
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "SARAMA_LOG",
+			Value: "false",
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "SARAMA_AUTOCOMMIT",
+			Value: "true",
+		},
 	}
-	envVars = append(envVars, batcherEnvs...)
+	envVars = append(envVars, envs...)
 
 	return envVars
 }
 
-// addSecretsToEnv adds secret referrences to the environment
-func addSecretsToEnv(
+// addLoaderConfigToEnv adds the loader envs to the list
+func addLoaderConfigToEnv(
 	envVars []corev1.EnvVar,
-	secretRefName string,
-	secretKeys []string,
-	prefix string) []corev1.EnvVar {
+	redshiftsink *tipocav1.RedshiftSink) []corev1.EnvVar {
 
-	for _, secretKey := range secretKeys {
-		optional := false
-		envVars = append(envVars, corev1.EnvVar{
-			Name: prefix + strings.ToUpper(secretKey),
-			ValueFrom: &corev1.EnvVarSource{
-				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: secretRefName,
-					},
-					Key:      secretKey,
-					Optional: &optional,
-				},
-			},
-		})
+	// TODO: any better way to do this?
+	envs := []corev1.EnvVar{
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "LOADER_MAXSIZE",
+			Value: fmt.Sprintf("%v", redshiftsink.Spec.Loader.MaxSize),
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "LOADER_MAXWAITSECONDS",
+			Value: fmt.Sprintf("%v", redshiftsink.Spec.Loader.MaxWaitSeconds),
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "KAFKA_BROKERS",
+			Value: fmt.Sprintf("%v", redshiftsink.Spec.Loader.KafkaBrokers),
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "KAFKA_GROUP",
+			Value: fmt.Sprintf("%v", redshiftsink.Spec.Loader.KafkaGroup),
+		},
+		corev1.EnvVar{
+			Name: BatcherEnvPrefix + "KAFKA_TOPICREGEXES",
+			Value: fmt.Sprintf(
+				"%v", redshiftsink.Spec.Loader.KafkaTopicRegexes),
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "SARAMA_OLDEST",
+			Value: "true",
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "SARAMA_LOG",
+			Value: "false",
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "SARAMA_AUTOCOMMIT",
+			Value: "false",
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "REDSHIFT_SCHEMA",
+			Value: redshiftsink.Spec.Loader.RedshiftSchema,
+		},
 	}
+	envVars = append(envVars, envs...)
 
 	return envVars
 }
 
-// getSecretKeys gives back the secret keys after reading the secret
-func (r *RedshiftSinkReconciler) getSecretKeys(
-	seretRefName, secretRefNamespace string) ([]string, error) {
+// secretEnvVar constructs the secret envvar
+func secretEnvVar(name, secretKey, secretRefName string) corev1.EnvVar {
+	optional := false
 
-	secret, err := r.ResourceManager.Secret(
-		seretRefName,
-		secretRefNamespace,
-		nil,
-		corev1.SecretTypeOpaque,
-		nil,
-	).Get()
-	if err != nil {
-		return []string{}, err
+	return corev1.EnvVar{
+		Name: strings.ToUpper(name),
+		ValueFrom: &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: secretRefName,
+				},
+				Key:      secretKey,
+				Optional: &optional,
+			},
+		},
 	}
+}
 
-	secretKeys := make([]string, 0, len(secret.Data))
-	for _, bytes := range secret.Data {
-		if len(bytes) == 0 {
-			continue
-		}
-		for _, key := range strings.Split(string(bytes), "\n") {
-			secretKey := strings.Split(key, "=")
-			if len(secretKey) != 2 {
-				continue
-			}
-			secretKeys = append(secretKeys, secretKey[0])
-		}
-	}
+// addBatcherSecretsToEnv to the environment
+func addBatcherSecretsToEnv(
+	envVars []corev1.EnvVar,
+	secretRefName string) []corev1.EnvVar {
 
-	return secretKeys, nil
+	envVars = append(envVars,
+		secretEnvVar(
+			BatcherEnvPrefix+"BATCHER_MASKSALT", "maskSalt", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"S3SINK_REGION", "s3Region", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"S3SINK_BUCKET", "s3Bucket", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"S3SINK_BUCKETDIR",
+			"s3BatcherBucketDir", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"S3SINK_ACCESSKEYID",
+			"s3AccessKeyId", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"S3SINK_SECRETACCESSKEY",
+			"s3SecretAccessKey", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"SCHEMAREGISTRYURL",
+			"schemaRegistryURL", secretRefName),
+	)
+
+	return envVars
+}
+
+// addLoaderSecretsToEnv to the environment
+func addLoaderSecretsToEnv(
+	envVars []corev1.EnvVar,
+	secretRefName string) []corev1.EnvVar {
+
+	envVars = append(envVars,
+		secretEnvVar(
+			BatcherEnvPrefix+"S3SINK_REGION", "s3Region", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"S3SINK_BUCKET", "s3Bucket", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"S3SINK_BUCKETDIR",
+			"s3LoaderBucketDir", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"S3SINK_ACCESSKEYID",
+			"s3AccessKeyId", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"S3SINK_SECRETACCESSKEY",
+			"s3SecretAccessKey", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"SCHEMAREGISTRYURL",
+			"schemaRegistryURL", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"REDSHIFT_HOST",
+			"redshiftHost", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"REDSHIFT_PORT",
+			"redshiftPort", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"REDSHIFT_DATABASE",
+			"redshiftDatabase", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"REDSHIFT_USER",
+			"redshiftUser", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"REDSHIFT_PASSWORD",
+			"redshiftPassword", secretRefName),
+	)
+
+	return envVars
 }
 
 // Reconcile is the main reconciliation logic perform on every crd object
@@ -333,11 +461,6 @@ func (r *RedshiftSinkReconciler) Reconcile(
 	err := r.Get(ctx, req.NamespacedName, redshiftsink)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// Request object not found, could have been deleted after reconcile
-			// request. Owned objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers.
-			// Return and don't requeue
-			klog.Infof("Redshiftsink: %s not found\n", req)
 			klog.Infof("Ignoring since object: %s must be deleted\n", req)
 			return ctrl.Result{}, nil
 		}
@@ -346,28 +469,13 @@ func (r *RedshiftSinkReconciler) Reconcile(
 		return ctrl.Result{}, err
 	}
 
-	// Fetch the secret keys from the secret
-	secretKeys, err := r.getSecretKeys(
-		redshiftsink.Spec.SecretRefName,
-		redshiftsink.Spec.SecretRefNamespace,
-	)
-	if err != nil {
-		klog.Error(err)
-		return ctrl.Result{}, err
-	}
-
 	// Construct batcher environment variables
 	batcherEnvVars := []corev1.EnvVar{}
-	batcherEnvVars = addSecretsToEnv(
-		batcherEnvVars,
-		redshiftsink.Spec.SecretRefName,
-		secretKeys,
-		BatcherEnvPrefix,
-	)
 	batcherEnvVars = addBatcherConfigToEnv(
 		batcherEnvVars,
-		redshiftsink,
-	)
+		redshiftsink)
+	batcherEnvVars = addBatcherSecretsToEnv(
+		batcherEnvVars, redshiftsink.Spec.SecretRefName)
 
 	// Create the Batcher Deployment if it doesn’t exist.
 	batcherDeployment := &appsv1.Deployment{}
@@ -391,8 +499,39 @@ func (r *RedshiftSinkReconciler) Reconcile(
 		klog.Errorf("Failed to get Deployment, err: %v\n", err)
 		return ctrl.Result{}, err
 	}
-
 	_ = batcherDeployment
+
+	// Construct loader environment variables
+	loaderEnvVars := []corev1.EnvVar{}
+	loaderEnvVars = addLoaderConfigToEnv(
+		loaderEnvVars,
+		redshiftsink)
+	loaderEnvVars = addLoaderSecretsToEnv(
+		loaderEnvVars, redshiftsink.Spec.SecretRefName)
+
+	// Create the Loader Deployment if it doesn’t exist.
+	loaderDeployment := &appsv1.Deployment{}
+	err = r.Get(ctx,
+		types.NamespacedName{
+			Name:      redshiftsink.Name + LoaderSuffix,
+			Namespace: redshiftsink.Namespace,
+		}, loaderDeployment,
+	)
+	if err != nil && errors.IsNotFound(err) {
+		dep := r.getLoaderDeployment(redshiftsink, loaderEnvVars)
+		klog.Infof("Creating Deployment: %s/%s\n", dep.Namespace, dep.Name)
+		err = r.Create(ctx, dep)
+		if err != nil {
+			klog.Errorf("Failed to create Deployment: %s/%s, err: %v\n",
+				dep.Namespace, dep.Name, err)
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{Requeue: true}, nil
+	} else if err != nil {
+		klog.Errorf("Failed to get Deployment, err: %v\n", err)
+		return ctrl.Result{}, err
+	}
+	_ = loaderDeployment
 
 	// TODO:
 	// Ensure that the Deployment spec.replica=1 or 0 based on Suspend spec.
