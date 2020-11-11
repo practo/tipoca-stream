@@ -22,7 +22,21 @@ import (
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// NOTE: json tags are required.
+// Any new fields you add must have json tags for the fields to be serialized.
+
+// RedshiftPodTemplateSpec supports a subset of `v1/PodTemplateSpec`
+// that the operator explicitly permits. We don't
+// want to allow a user to set arbitrary features on our underlying pods.
+type RedshiftPodTemplateSpec struct {
+	// Resources is for configuring the compute resources required
+	// +optional
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// Toleartions the underlying pods should have
+	// +optional
+	Tolerations *[]corev1.Toleration `json:"tolerations,omitempty"`
+}
 
 // RedshiftBatcherSpec defines the desired state of RedshiftBatcher
 type RedshiftBatcherSpec struct {
@@ -53,7 +67,7 @@ type RedshiftBatcherSpec struct {
 	// Template describes the pods that will be created.
 	// if this is not specifed, a default pod template is created
 	// +optional
-	PodTemplate corev1.PodTemplateSpec `json:"podTemplate,omitempty"`
+	PodTemplate *RedshiftPodTemplateSpec `json:"podTemplate,omitempty"`
 }
 
 // RedshiftLoaderSpec defines the desired state of RedshifLoader
@@ -77,7 +91,7 @@ type RedshiftLoaderSpec struct {
 	// Template describes the pods that will be created.
 	// if this is not specifed, a default pod template is created
 	// +optional
-	PodTemplate corev1.PodTemplateSpec `json:"podTemplate,omitempty"`
+	PodTemplate *RedshiftPodTemplateSpec `json:"podTemplate,omitempty"`
 }
 
 // RedshiftSinkSpec defines the desired state of RedshiftSink

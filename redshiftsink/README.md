@@ -33,7 +33,8 @@ make deploy
 
 # Example
 
-* Create the `Redshiftsink` custom resource.
+* Create the `Redshiftsink` custom resource. On creating it, the batcher and loader pods would be created which will start batching, masking and loading data to Redshift from Kafka topics.
+
 ```yaml
 apiVersion: tipoca.k8s.practo.dev/v1
 kind: RedshiftSink
@@ -54,13 +55,10 @@ spec:
       kafkaTopicRegexes: "^ts.inventory*"
       kafkaLoaderTopicPrefix: "loader-"
       podTemplate:
-          spec:
-              containers:
-              -
-                resources:
-                  requests:
-                      cpu: 100m
-                      memory: 200Mi
+        resources:
+          requests:
+              cpu: 100m
+              memory: 200Mi
     loader:
         suspend: false
         maxSize: 10
@@ -70,14 +68,10 @@ spec:
         kafkaTopicRegexes: "^ts.inventory*"
         redshiftSchema: "inventory"
         podTemplate:
-            spec:
-                containers:
-                -
-                  resources:
-                    requests:
-                        cpu: 100m
-                        memory: 200Mi
-
+          resources:
+            requests:
+                cpu: 100m
+                memory: 200Mi
 ```
 
 ```bash
@@ -148,12 +142,13 @@ cp config.sample.yaml config.yaml
 
 ## Contributing
 
-* Generate CRD code
+* Generate CRD code and manifests.
 ```bash
 make generate
+make manifests
 ```
 
-* Make changes and build code
+* Make changes and build code.
 ```bash
 make build
 binary: bin/darwin_amd64/redshiftbatcher
@@ -161,7 +156,7 @@ binary: bin/darwin_amd64/redshiftloader
 binary: bin/darwin_amd64/redshiftsink
 ```
 
-* Run the controller locally
+* Run the controller locally.
 ```bash
 make run
 ```

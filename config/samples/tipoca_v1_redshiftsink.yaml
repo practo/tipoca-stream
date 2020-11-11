@@ -17,13 +17,10 @@ spec:
       kafkaTopicRegexes: "^ts.inventory*"
       kafkaLoaderTopicPrefix: "loader-"
       podTemplate:
-          spec:
-              containers:
-              -
-                resources:
-                  requests:
-                      cpu: 100m
-                      memory: 200Mi
+        resources:
+          requests:
+              cpu: 100m
+              memory: 200Mi
     loader:
         suspend: false
         maxSize: 10
@@ -33,10 +30,7 @@ spec:
         kafkaTopicRegexes: "^ts.inventory*"
         redshiftSchema: "inventory"
         podTemplate:
-            spec:
-                containers:
-                -
-                  resources:
-                    requests:
-                        cpu: 100m
-                        memory: 200Mi
+          resources:
+            requests:
+                cpu: 100m
+                memory: 200Mi
