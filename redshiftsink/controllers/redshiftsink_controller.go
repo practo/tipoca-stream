@@ -440,87 +440,130 @@ func (r *RedshiftSinkReconciler) createBatcher(
 	return r.createDeployment(ctx, deployment, redshiftsink)
 }
 
-func (r *RedshiftSinkReconciler) hasDeployment(
-	ctx context.Context, nameNamespace types.NamespacedName) (bool, error) {
+func (r *RedshiftSinkReconciler) getDeployment(
+	ctx context.Context,
+	nameNamespace types.NamespacedName) (*appsv1.Deployment, bool, error) {
 
 	deployment := &appsv1.Deployment{}
 	err := r.Get(ctx, nameNamespace, deployment)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return false, nil
+			return nil, false, nil
 		}
-		return false, err
+		return nil, false, err
 	}
-	return true, nil
+	return deployment, true, nil
 }
 
-func (r *RedshiftSinkReconciler) hasLoader(
-	ctx context.Context, redshiftsink *tipocav1.RedshiftSink) (bool, error) {
+// loader gets the deplyoment if it already exists or create and returns that
+func (r *RedshiftSinkReconciler) loader(
+	ctx context.Context,
+	redshiftsink *tipocav1.RedshiftSink) (*appsv1.Deployment, error) {
 
-	return r.hasDeployment(
+	deployment, found, err := r.getDeployment(
 		ctx,
 		serviceName(
 			redshiftsink.Name+LoaderSuffix,
 			redshiftsink.Namespace,
 		),
 	)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		return deployment, nil
+	}
+
+	// create
+	event, err := r.createLoader(ctx, redshiftsink)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create loader: %w", err)
+	}
+	klog.V(1).Info("Created Loader: ", event.Name)
+	event.Record(r.Recorder)
+
+	// get
+	deployment, found, err = r.getDeployment(
+		ctx,
+		serviceName(
+			redshiftsink.Name+LoaderSuffix,
+			redshiftsink.Namespace,
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		return deployment, nil
+	}
+
+	return nil, fmt.Errorf("Could not get loader deployment")
 }
 
-func (r *RedshiftSinkReconciler) hasBatcher(
-	ctx context.Context, redshiftsink *tipocav1.RedshiftSink) (bool, error) {
+// batcher gets the deplyoment if it already exists or create and returns that
+func (r *RedshiftSinkReconciler) batcher(
+	ctx context.Context,
+	redshiftsink *tipocav1.RedshiftSink) (*appsv1.Deployment, error) {
 
-	return r.hasDeployment(
+	// get
+	deployment, found, err := r.getDeployment(
 		ctx,
 		serviceName(
 			redshiftsink.Name+BatcherSuffix,
 			redshiftsink.Namespace,
 		),
 	)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		return deployment, nil
+	}
+
+	// create
+	event, err := r.createBatcher(ctx, redshiftsink)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create batcher: %w", err)
+	}
+	klog.V(1).Info("Created Batcher: ", event.Name)
+	event.Record(r.Recorder)
+
+	// get
+	deployment, found, err = r.getDeployment(
+		ctx,
+		serviceName(
+			redshiftsink.Name+BatcherSuffix,
+			redshiftsink.Namespace,
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		return deployment, nil
+	}
+
+	return nil, fmt.Errorf("Could not get batcher deployment")
 }
 
 func (r *RedshiftSinkReconciler) reconcile(
 	ctx context.Context,
-	redshiftsink *tipocav1.RedshiftSink,
-) (
-	ctrl.Result,
-	[]ReconcilerEvent,
-	error,
-) {
-	var events []ReconcilerEvent
+	redshiftsink *tipocav1.RedshiftSink) (ctrl.Result, error) {
 
-	// batcher deployment
-	batcherExists, err := r.hasBatcher(ctx, redshiftsink)
+	batcher, err := r.batcher(ctx, redshiftsink)
 	if err != nil {
-		return ctrl.Result{Requeue: true}, events, fmt.Errorf(
-			"unable to fetch deployment from Kubernetes API: %w", err)
-	}
-	if !batcherExists {
-		event, err := r.createBatcher(ctx, redshiftsink)
-		if err != nil {
-			return ctrl.Result{Requeue: true}, events,
-				fmt.Errorf("unable to create batcher: %w", err)
-		}
-		klog.V(1).Info("Created Batcher: ", event.Name)
-		events = append(events, event)
+		return ctrl.Result{Requeue: true}, err
 	}
 
-	// loader deployment
-	loaderExists, err := r.hasLoader(ctx, redshiftsink)
+	loader, err := r.loader(ctx, redshiftsink)
 	if err != nil {
-		return ctrl.Result{Requeue: true}, events, fmt.Errorf(
-			"unable to fetch deployment from Kubernetes API: %w", err)
-	}
-	if !loaderExists {
-		event, err := r.createLoader(ctx, redshiftsink)
-		if err != nil {
-			return ctrl.Result{Requeue: true}, events,
-				fmt.Errorf("unable to create loader: %w", err)
-		}
-		klog.V(1).Info("Created Loader: ", event.Name)
-		events = append(events, event)
+		return ctrl.Result{Requeue: true}, err
 	}
 
-	return ctrl.Result{}, events, nil
+	_ = batcher
+	_ = loader
+
+	return ctrl.Result{}, nil
 }
 
 func (r *RedshiftSinkReconciler) Reconcile(
@@ -558,17 +601,9 @@ func (r *RedshiftSinkReconciler) Reconcile(
 	}()
 
 	// Perform a reconcile, getting back the desired result, any utilerrors
-	result, events, err := r.reconcile(ctx, &redshiftsink)
+	result, err := r.reconcile(ctx, &redshiftsink)
 	if err != nil {
 		err = fmt.Errorf("Failed to reconcile: %s", err)
-	}
-
-	// Finally, the event is used to generate a Kubernetes event by
-	// calling `Record` and passing in the recorder.
-	for _, event := range events {
-		if event != nil {
-			event.Record(r.Recorder)
-		}
 	}
 
 	return result, err
