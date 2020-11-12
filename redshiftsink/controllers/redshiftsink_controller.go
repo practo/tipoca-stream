@@ -423,17 +423,17 @@ func isSpecSubsetEqual(
 	tolerations *[]corev1.Toleration) (bool, string) {
 
 	if deployment == nil {
-		return true, "deployment was nil"
+		return false, "deployment was nil"
 	}
 
 	specReplicas := getReplicas(suspend)
 	if *specReplicas != *deployment.Spec.Replicas {
-		return true, "replicas mismatch"
+		return false, "replicas mismatch"
 	}
 
 	if image != nil {
 		if *image != deployment.Spec.Template.Spec.Containers[0].Image {
-			return true, "image mismatch"
+			return false, "image mismatch"
 		}
 	}
 
@@ -441,7 +441,7 @@ func isSpecSubsetEqual(
 		if !reflect.DeepEqual(
 			*resources, deployment.Spec.Template.Spec.Containers[0].Resources) {
 
-			return true, "resources mismatch"
+			return false, "resources mismatch"
 		}
 	}
 
@@ -449,11 +449,11 @@ func isSpecSubsetEqual(
 		if !reflect.DeepEqual(
 			*tolerations, deployment.Spec.Template.Spec.Tolerations) {
 
-			return true, "tolerations mismatch"
+			return false, "tolerations mismatch"
 		}
 	}
 
-	return false, ""
+	return true, ""
 }
 
 // updateBatcher compares the state and returns if the update is required
@@ -565,7 +565,7 @@ func (r *RedshiftSinkReconciler) createLoader(
 	envs := []corev1.EnvVar{}
 	envs = addLoaderConfigToEnv(envs, redshiftsink)
 	envs = addLoaderSecretsToEnv(envs, redshiftsink.Spec.SecretRefName)
-	deployment := r.batcherDeploymentForRedshiftSink(redshiftsink, envs)
+	deployment := r.loaderDeploymentForRedshiftSink(redshiftsink, envs)
 
 	return r.createDeployment(ctx, deployment, redshiftsink)
 }
@@ -577,7 +577,7 @@ func (r *RedshiftSinkReconciler) createBatcher(
 	envs := []corev1.EnvVar{}
 	envs = addBatcherConfigToEnv(envs, redshiftsink)
 	envs = addBatcherSecretsToEnv(envs, redshiftsink.Spec.SecretRefName)
-	deployment := r.loaderDeploymentForRedshiftSink(redshiftsink, envs)
+	deployment := r.batcherDeploymentForRedshiftSink(redshiftsink, envs)
 
 	return r.createDeployment(ctx, deployment, redshiftsink)
 }
@@ -633,6 +633,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 	ReconcilerEvent,
 	error,
 ) {
+
+	klog.Infof("%v: Reconciling", redshiftsink.Name)
 	// always requeue after 10 seconds as we are going with the approach
 	// of doing only one operation on every reconcile
 	result := ctrl.Result{RequeueAfter: time.Second * 10}
@@ -643,6 +645,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, err
 	}
 	if !exists {
+		klog.Infof("%v: Creating batcher", redshiftsink.Name)
 		event, err := r.createBatcher(ctx, redshiftsink)
 		if err != nil {
 			return result, nil, err
@@ -657,6 +660,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, err
 	}
 	if !exists {
+		klog.Infof("%v: Creating loader", redshiftsink.Name)
 		event, err := r.createLoader(ctx, redshiftsink)
 		if err != nil {
 			return result, nil, err
@@ -667,12 +671,14 @@ func (r *RedshiftSinkReconciler) reconcile(
 
 	// compare spec and update batcher if required
 	if r.updateBatcher(batcher, redshiftsink) {
+		klog.Infof("%v: Batcher update required", redshiftsink.Name)
 		event, err := r.updateDeployment(ctx, batcher, redshiftsink)
 		return result, event, err
 	}
 
 	// compare spec and update loader if required
 	if r.updateLoader(loader, redshiftsink) {
+		klog.Infof("%v: Loader update required", redshiftsink.Name)
 		event, err := r.updateDeployment(ctx, loader, redshiftsink)
 		return result, event, err
 	}
