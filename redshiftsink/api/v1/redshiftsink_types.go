@@ -29,6 +29,10 @@ import (
 // that the operator explicitly permits. We don't
 // want to allow a user to set arbitrary features on our underlying pods.
 type RedshiftPodTemplateSpec struct {
+	// Image for the underlying pod
+	// +optional
+	Image *string `json:"image,omitempty"`
+
 	// Resources is for configuring the compute resources required
 	// +optional
 	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
