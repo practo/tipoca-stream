@@ -69,6 +69,9 @@ spec:
                   description: Template describes the pods that will be created. if
                     this is not specifed, a default pod template is created
                   properties:
+                    image:
+                      description: Image for the underlying pod
+                      type: string
                     resources:
                       description: Resources is for configuring the compute resources
                         required
@@ -171,6 +174,9 @@ spec:
                   description: Template describes the pods that will be created. if
                     this is not specifed, a default pod template is created
                   properties:
+                    image:
+                      description: Image for the underlying pod
+                      type: string
                     resources:
                       description: Resources is for configuring the compute resources
                         required
