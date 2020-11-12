@@ -488,6 +488,38 @@ func (r *RedshiftSinkReconciler) updateBatcher(
 	return false
 }
 
+// updateLoader compares the state and returns if the update is required
+func (r *RedshiftSinkReconciler) updateLoader(
+	batcher *appsv1.Deployment,
+	redshiftsink *tipocav1.RedshiftSink) bool {
+
+	specEnvs := []corev1.EnvVar{}
+	specEnvs = addLoaderConfigToEnv(specEnvs, redshiftsink)
+	specEnvs = addLoaderSecretsToEnv(specEnvs, redshiftsink.Spec.SecretRefName)
+	currentEnvs := batcher.Spec.Template.Spec.Containers[0].Env
+	if !reflect.DeepEqual(specEnvs, currentEnvs) {
+		klog.Infof("Envs of loader: %v requires update.", batcher.Name)
+		return true
+	}
+
+	equal, reason := isSpecSubsetEqual(
+		batcher,
+		redshiftsink.Spec.Loader.Suspend,
+		redshiftsink.Spec.Loader.PodTemplate.Image,
+		redshiftsink.Spec.Loader.PodTemplate.Resources,
+		redshiftsink.Spec.Loader.PodTemplate.Tolerations,
+	)
+
+	if !equal {
+		klog.Infof(
+			"Spec mismatch for %v, reason: %v, deployment would be updated",
+			batcher.Name, reason)
+		return true
+	}
+
+	return false
+}
+
 func (r *RedshiftSinkReconciler) updateDeployment(
 	ctx context.Context,
 	deployment *appsv1.Deployment,
@@ -639,8 +671,9 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, event, err
 	}
 
-	event, err := r.updateDeployment(ctx, loader, redshiftsink)
-	if err != nil {
+	// compare spec and update loader if required
+	if r.updateLoader(loader, redshiftsink) {
+		event, err := r.updateDeployment(ctx, loader, redshiftsink)
 		return result, event, err
 	}
 
