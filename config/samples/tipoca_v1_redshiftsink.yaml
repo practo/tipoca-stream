@@ -3,7 +3,7 @@ kind: RedshiftSink
 metadata:
   name: inventory
 spec:
-  secretRefName: redshiftsink-secret-585g5m8t9h
+  secretRefName: redshfitsink-secret-2bh89m59ct
   secretRefNamespace: kube-system
   batcher:
     suspend: false
