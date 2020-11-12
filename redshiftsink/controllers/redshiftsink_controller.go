@@ -91,6 +91,7 @@ func deploymentForRedshiftSink(deploySpec deploymentSpec) *appsv1.Deployment {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      deploySpec.name,
 					Namespace: deploySpec.namespace,
+					Labels:    deploySpec.labels,
 				},
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
@@ -413,10 +414,84 @@ func addLoaderSecretsToEnv(
 	return envVars
 }
 
+// isSpecSubsetEqual compares only subset of specs
+func isSpecSubsetEqual(
+	deployment *appsv1.Deployment,
+	suspend bool,
+	image *string,
+	resources *corev1.ResourceRequirements,
+	tolerations *[]corev1.Toleration) (bool, string) {
+
+	if deployment == nil {
+		return true, "deployment was nil"
+	}
+
+	specReplicas := getReplicas(suspend)
+	if *specReplicas != *deployment.Spec.Replicas {
+		return true, "replicas mismatch"
+	}
+
+	if image != nil {
+		if *image != deployment.Spec.Template.Spec.Containers[0].Image {
+			return true, "image mismatch"
+		}
+	}
+
+	if resources != nil {
+		if !reflect.DeepEqual(
+			*resources, deployment.Spec.Template.Spec.Containers[0].Resources) {
+
+			return true, "resources mismatch"
+		}
+	}
+
+	if tolerations != nil {
+		if !reflect.DeepEqual(
+			*tolerations, deployment.Spec.Template.Spec.Tolerations) {
+
+			return true, "tolerations mismatch"
+		}
+	}
+
+	return false, ""
+}
+
+// updateBatcher compares the state and returns if the update is required
+func (r *RedshiftSinkReconciler) updateBatcher(
+	batcher *appsv1.Deployment,
+	redshiftsink *tipocav1.RedshiftSink) bool {
+
+	specEnvs := []corev1.EnvVar{}
+	specEnvs = addBatcherConfigToEnv(specEnvs, redshiftsink)
+	specEnvs = addBatcherSecretsToEnv(specEnvs, redshiftsink.Spec.SecretRefName)
+	currentEnvs := batcher.Spec.Template.Spec.Containers[0].Env
+	if !reflect.DeepEqual(specEnvs, currentEnvs) {
+		klog.Infof("Envs of batcher: %v requires update.", batcher.Name)
+		return true
+	}
+
+	equal, reason := isSpecSubsetEqual(
+		batcher,
+		redshiftsink.Spec.Batcher.Suspend,
+		redshiftsink.Spec.Batcher.PodTemplate.Image,
+		redshiftsink.Spec.Batcher.PodTemplate.Resources,
+		redshiftsink.Spec.Batcher.PodTemplate.Tolerations,
+	)
+
+	if !equal {
+		klog.Infof(
+			"Spec mismatch for %v, reason: %v, deployment would be updated",
+			batcher.Name, reason)
+		return true
+	}
+
+	return false
+}
+
 func (r *RedshiftSinkReconciler) updateDeployment(
 	ctx context.Context,
 	deployment *appsv1.Deployment,
-	redshiftsink *tipocav1.RedshiftSink) error {
+	redshiftsink *tipocav1.RedshiftSink) (*DeploymentUpdatedEvent, error) {
 
 	err := r.Update(ctx, deployment)
 	if err != nil {
@@ -425,13 +500,10 @@ func (r *RedshiftSinkReconciler) updateDeployment(
 		return nil, err
 	}
 
-	event := &DeploymentUpdateEvent{
+	return &DeploymentUpdatedEvent{
 		Object: redshiftsink,
 		Name:   deployment.Name,
-	}
-	event.Record(r.Recorder)
-
-	return nil
+	}, nil
 }
 
 func (r *RedshiftSinkReconciler) createDeployment(
@@ -441,7 +513,8 @@ func (r *RedshiftSinkReconciler) createDeployment(
 
 	err := r.Create(ctx, deployment)
 	if err != nil {
-		klog.Errorf("Failed to create Deployment: %s/%s, err: %v\n",
+		klog.Errorf(
+			"Failed to create Deployment: %s/%s, err: %v\n",
 			deployment.Namespace, deployment.Name, err)
 		return nil, err
 	}
@@ -485,129 +558,94 @@ func (r *RedshiftSinkReconciler) getDeployment(
 	err := r.Get(ctx, nameNamespace, deployment)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
+			// got the expected err of not found
 			return nil, false, nil
 		}
+		// unexpected err, should return err
 		return nil, false, err
 	}
 	return deployment, true, nil
 }
 
-// loader gets the deplyoment if it already exists or create and returns that
-func (r *RedshiftSinkReconciler) loader(
+func (r *RedshiftSinkReconciler) hasLoader(
 	ctx context.Context,
-	redshiftsink *tipocav1.RedshiftSink) (*appsv1.Deployment, error) {
+	redshiftsink *tipocav1.RedshiftSink) (*appsv1.Deployment, bool, error) {
 
-	deployment, found, err := r.getDeployment(
+	return r.getDeployment(
 		ctx,
 		serviceName(
 			redshiftsink.Name+LoaderSuffix,
 			redshiftsink.Namespace,
 		),
 	)
-	if err != nil {
-		return nil, err
-	}
-	if found {
-		return deployment, nil
-	}
-
-	// create
-	event, err := r.createLoader(ctx, redshiftsink)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create loader: %w", err)
-	}
-	klog.V(1).Info("Created Loader: ", event.Name)
-	event.Record(r.Recorder)
-
-	// get
-	deployment, found, err = r.getDeployment(
-		ctx,
-		serviceName(
-			redshiftsink.Name+LoaderSuffix,
-			redshiftsink.Namespace,
-		),
-	)
-	if err != nil {
-		return nil, err
-	}
-	if found {
-		return deployment, nil
-	}
-
-	return nil, fmt.Errorf("Could not get loader deployment")
 }
 
-// batcher gets the deplyoment if it already exists or create and returns that
-func (r *RedshiftSinkReconciler) batcher(
+func (r *RedshiftSinkReconciler) hasBatcher(
 	ctx context.Context,
-	redshiftsink *tipocav1.RedshiftSink) (*appsv1.Deployment, error) {
+	redshiftsink *tipocav1.RedshiftSink) (*appsv1.Deployment, bool, error) {
 
-	// get
-	deployment, found, err := r.getDeployment(
+	return r.getDeployment(
 		ctx,
 		serviceName(
 			redshiftsink.Name+BatcherSuffix,
 			redshiftsink.Namespace,
 		),
 	)
-	if err != nil {
-		return nil, err
-	}
-	if found {
-		return deployment, nil
-	}
-
-	// create
-	event, err := r.createBatcher(ctx, redshiftsink)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create batcher: %w", err)
-	}
-	klog.V(1).Info("Created Batcher: ", event.Name)
-	event.Record(r.Recorder)
-
-	// get
-	deployment, found, err = r.getDeployment(
-		ctx,
-		serviceName(
-			redshiftsink.Name+BatcherSuffix,
-			redshiftsink.Namespace,
-		),
-	)
-	if err != nil {
-		return nil, err
-	}
-	if found {
-		return deployment, nil
-	}
-
-	return nil, fmt.Errorf("Could not get batcher deployment")
 }
 
 func (r *RedshiftSinkReconciler) reconcile(
 	ctx context.Context,
-	redshiftsink *tipocav1.RedshiftSink) (ctrl.Result, error) {
+	redshiftsink *tipocav1.RedshiftSink,
+) (
+	ctrl.Result,
+	ReconcilerEvent,
+	error,
+) {
+	// always requeue after 10 seconds as we are going with the approach
+	// of doing only one operation on every reconcile
+	result := ctrl.Result{RequeueAfter: time.Second * 10}
 
-	batcher, err := r.batcher(ctx, redshiftsink)
+	// ensure batcher deployment exists
+	batcher, exists, err := r.hasBatcher(ctx, redshiftsink)
 	if err != nil {
-		return ctrl.Result{Requeue: true}, err
+		return result, nil, err
+	}
+	if !exists {
+		event, err := r.createBatcher(ctx, redshiftsink)
+		if err != nil {
+			return result, nil, err
+		}
+		// one operation at a time
+		return result, event, nil
 	}
 
-	loader, err := r.loader(ctx, redshiftsink)
+	// ensure loader deployment exists
+	loader, exists, err := r.hasLoader(ctx, redshiftsink)
 	if err != nil {
-		return ctrl.Result{Requeue: true}, err
+		return result, nil, err
+	}
+	if !exists {
+		event, err := r.createLoader(ctx, redshiftsink)
+		if err != nil {
+			return result, nil, err
+		}
+		// one operation at a time
+		return result, event, nil
 	}
 
-	err = r.updateDeployment(ctx, batcher, redshiftsink)
-	if err != nil {
-		return ctrl.Result{Requeue: true}, err
+	// compare spec and update batcher if required
+	if r.updateBatcher(batcher, redshiftsink) {
+		event, err := r.updateDeployment(ctx, batcher, redshiftsink)
+		return result, event, err
 	}
 
-	err = r.updateDeployment(ctx, loader, redshiftsink)
+	event, err := r.updateDeployment(ctx, loader, redshiftsink)
 	if err != nil {
-		return ctrl.Result{Requeue: true}, err
+		return result, event, err
 	}
 
-	return ctrl.Result{}, nil
+	// do not requue until some event happens
+	return ctrl.Result{}, nil, nil
 }
 
 func (r *RedshiftSinkReconciler) Reconcile(
@@ -645,9 +683,15 @@ func (r *RedshiftSinkReconciler) Reconcile(
 	}()
 
 	// Perform a reconcile, getting back the desired result, any utilerrors
-	result, err := r.reconcile(ctx, &redshiftsink)
+	result, event, err := r.reconcile(ctx, &redshiftsink)
 	if err != nil {
 		err = fmt.Errorf("Failed to reconcile: %s", err)
+	}
+
+	// Finally, the event is used to generate a Kubernetes event by
+	// calling `Record` and passing in the recorder.
+	if event != nil {
+		event.Record(r.Recorder)
 	}
 
 	return result, err

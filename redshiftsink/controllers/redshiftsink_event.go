@@ -32,12 +32,12 @@ func (d DeploymentCreatedEvent) Record(recorder record.EventRecorder) {
 		fmt.Sprintf("Created deployment: %q", d.Name))
 }
 
-type DeploymentUpdateEvent struct {
+type DeploymentUpdatedEvent struct {
 	Object runtime.Object
 	Name   string
 }
 
-func (d DeploymentUpdateEvent) Record(recorder record.EventRecorder) {
+func (d DeploymentUpdatedEvent) Record(recorder record.EventRecorder) {
 	recorder.Event(d.Object,
 		K8sEventTypeNormal,
 		"DeploymentUpdated",
