@@ -40,10 +40,13 @@ import (
 )
 
 const (
-	BatcherSuffix    = "-batcher"
-	LoaderSuffix     = "-loader"
-	BatcherEnvPrefix = "BATCHER_"
-	LoaderEnvPrefix  = "LOADER_"
+	BatcherSuffix       = "-batcher"
+	BatcherEnvPrefix    = "BATCHER_"
+	BatcherDefaultImage = "practodev/redshiftbatcher:latest"
+
+	LoaderSuffix       = "-loader"
+	LoaderEnvPrefix    = "LOADER_"
+	LoaderDefaultImage = "practodev/redshiftloader:latest"
 )
 
 // RedshiftSinkReconciler reconciles a RedshiftSink object
@@ -113,6 +116,19 @@ func deploymentForRedshiftSink(deploySpec deploymentSpec) *appsv1.Deployment {
 	return d
 }
 
+// getImage gets the image based on the image passed otherwise default
+func getImage(image *string, batcher bool) string {
+	if image != nil {
+		return *image
+	}
+
+	if batcher {
+		return BatcherDefaultImage
+	} else {
+		return LoaderDefaultImage
+	}
+}
+
 // getDefaultLabels gives back the default labels for the crd resources
 func getDefaultLabels(app string) map[string]string {
 	return map[string]string{
@@ -140,12 +156,12 @@ type deploymentSpec struct {
 	name           string
 	namespace      string
 	labels         map[string]string
-	image          string
 	replicas       *int32
 	deploymentName string
 	envs           []corev1.EnvVar
 	resources      *corev1.ResourceRequirements
 	tolerations    *[]corev1.Toleration
+	image          string
 }
 
 // loaderDeploymentForRedshiftSink constructs the deployment
@@ -158,12 +174,12 @@ func (r *RedshiftSinkReconciler) loaderDeploymentForRedshiftSink(
 		name:           redshiftsink.Name + LoaderSuffix,
 		namespace:      redshiftsink.Namespace,
 		labels:         getDefaultLabels("redshiftloader"),
-		image:          "practodev/redshiftloader:latest",
 		replicas:       getReplicas(redshiftsink.Spec.Loader.Suspend),
 		deploymentName: redshiftsink.Name + LoaderSuffix,
 		envs:           envs,
 		resources:      redshiftsink.Spec.Loader.PodTemplate.Resources,
 		tolerations:    redshiftsink.Spec.Loader.PodTemplate.Tolerations,
+		image: 		getImage(redshiftsink.Spec.Loader.PodTemplate.Image, false),
 	}
 	deployment := deploymentForRedshiftSink(deploySpec)
 	ctrl.SetControllerReference(redshiftsink, deployment, r.Scheme)
@@ -181,12 +197,12 @@ func (r *RedshiftSinkReconciler) batcherDeploymentForRedshiftSink(
 		name:           redshiftsink.Name + BatcherSuffix,
 		namespace:      redshiftsink.Namespace,
 		labels:         getDefaultLabels("redshiftbatcher"),
-		image:          "practodev/redshiftbatcher:latest",
 		replicas:       getReplicas(redshiftsink.Spec.Batcher.Suspend),
 		deploymentName: redshiftsink.Name + BatcherSuffix,
 		envs:           envs,
 		resources:      redshiftsink.Spec.Batcher.PodTemplate.Resources,
 		tolerations:    redshiftsink.Spec.Batcher.PodTemplate.Tolerations,
+		image:      getImage(redshiftsink.Spec.Batcher.PodTemplate.Image, true),
 	}
 	deployment := deploymentForRedshiftSink(deploySpec)
 	ctrl.SetControllerReference(redshiftsink, deployment, r.Scheme)
