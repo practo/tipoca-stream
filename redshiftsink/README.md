@@ -21,8 +21,8 @@ kubectl get redshiftsink
 ### Deploy Controller Manager
 * Create redshiftsink secret containing aws secrets, redshift secrets and mask salt:
 ```bash
-cp config/manager/secret_sample config/manager/secret.txt
-vim config/manager/secret.txt
+cp config/manager/kustomization_sample.yaml config/manager/kustomization.yaml
+vim config/manager/kustomization.yaml #fill in ur secrets
 NAME=redshfitsink-secret SECRETFILE=./config/manager/secret.txt make create-secret (TODO)
 ```
 
@@ -41,37 +41,38 @@ kind: RedshiftSink
 metadata:
   name: inventory
 spec:
-  secretRefName: redshiftsink-secret-585g5m8t9h
+  secretRefName: redshfitsink-secret-2bh89m59ct
   secretRefNamespace: kube-system
   batcher:
-      suspend: false
-      maxSize: 10
-      maxWaitSeconds: 30
-      mask: true
-      maskConfigDir: "/"
-      maskConfigFileName: "mask_config.yaml"
-      kafkaBrokers: "kafka1.example.com,kafka2.example.com"
-      kafkaGroup: "inventory-batcher"
-      kafkaTopicRegexes: "^ts.inventory*"
-      kafkaLoaderTopicPrefix: "loader-"
-      podTemplate:
-        resources:
-          requests:
-              cpu: 100m
-              memory: 200Mi
-    loader:
-        suspend: false
-        maxSize: 10
-        maxWaitSeconds: 30
-        kafkaBrokers: "kafka1.example.com,kafka2.example.com"
-        kafkaGroup: "inventory-batcher"
-        kafkaTopicRegexes: "^ts.inventory*"
-        redshiftSchema: "inventory"
-        podTemplate:
-          resources:
-            requests:
-                cpu: 100m
-                memory: 200Mi
+    suspend: false
+    maxSize: 10
+    maxWaitSeconds: 30
+    mask: true
+    maskConfigDir: "/"
+    maskConfigFileName: "mask_config.yaml"
+    kafkaBrokers: "kafka1.example.com,kafka2.example.com"
+    kafkaGroup: "inventory-batcher"
+    kafkaTopicRegexes: "^ts.inventory*"
+    kafkaLoaderTopicPrefix: "loader-"
+    podTemplate:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 200Mi
+  loader:
+    suspend: false
+    maxSize: 10
+    maxWaitSeconds: 30
+    kafkaBrokers: "kafka1.example.com,kafka2.example.com"
+    kafkaGroup: "inventory-batcher"
+    kafkaTopicRegexes: "^ts.inventory*"
+    redshiftSchema: "inventory"
+    podTemplate:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 200Mi
+
 ```
 
 ```bash
