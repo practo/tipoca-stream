@@ -179,7 +179,7 @@ func (r *RedshiftSinkReconciler) loaderDeploymentForRedshiftSink(
 		envs:           envs,
 		resources:      redshiftsink.Spec.Loader.PodTemplate.Resources,
 		tolerations:    redshiftsink.Spec.Loader.PodTemplate.Tolerations,
-		image: 		getImage(redshiftsink.Spec.Loader.PodTemplate.Image, false),
+		image:          getImage(redshiftsink.Spec.Loader.PodTemplate.Image, false),
 	}
 	deployment := deploymentForRedshiftSink(deploySpec)
 	ctrl.SetControllerReference(redshiftsink, deployment, r.Scheme)
@@ -202,7 +202,7 @@ func (r *RedshiftSinkReconciler) batcherDeploymentForRedshiftSink(
 		envs:           envs,
 		resources:      redshiftsink.Spec.Batcher.PodTemplate.Resources,
 		tolerations:    redshiftsink.Spec.Batcher.PodTemplate.Tolerations,
-		image:      getImage(redshiftsink.Spec.Batcher.PodTemplate.Image, true),
+		image:          getImage(redshiftsink.Spec.Batcher.PodTemplate.Image, true),
 	}
 	deployment := deploymentForRedshiftSink(deploySpec)
 	ctrl.SetControllerReference(redshiftsink, deployment, r.Scheme)
@@ -413,6 +413,27 @@ func addLoaderSecretsToEnv(
 	return envVars
 }
 
+func (r *RedshiftSinkReconciler) updateDeployment(
+	ctx context.Context,
+	deployment *appsv1.Deployment,
+	redshiftsink *tipocav1.RedshiftSink) error {
+
+	err := r.Update(ctx, deployment)
+	if err != nil {
+		klog.Errorf("Failed to update Deployment: %s/%s, err: %v\n",
+			deployment.Namespace, deployment.Name, err)
+		return nil, err
+	}
+
+	event := &DeploymentUpdateEvent{
+		Object: redshiftsink,
+		Name:   deployment.Name,
+	}
+	event.Record(r.Recorder)
+
+	return nil
+}
+
 func (r *RedshiftSinkReconciler) createDeployment(
 	ctx context.Context,
 	deployment *appsv1.Deployment,
@@ -576,8 +597,15 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return ctrl.Result{Requeue: true}, err
 	}
 
-	_ = batcher
-	_ = loader
+	err = r.updateDeployment(ctx, batcher, redshiftsink)
+	if err != nil {
+		return ctrl.Result{Requeue: true}, err
+	}
+
+	err = r.updateDeployment(ctx, loader, redshiftsink)
+	if err != nil {
+		return ctrl.Result{Requeue: true}, err
+	}
 
 	return ctrl.Result{}, nil
 }
