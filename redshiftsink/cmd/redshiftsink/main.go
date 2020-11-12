@@ -18,6 +18,8 @@ import (
 	"flag"
 	"os"
 
+	"github.com/practo/klog/v2"
+	pflag "github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -35,6 +37,8 @@ var (
 )
 
 func init() {
+	klog.InitFlags(nil)
+	pflag.CommandLine.AddGoFlag(flag.CommandLine.Lookup("v"))
 	_ = clientgoscheme.AddToScheme(scheme)
 
 	_ = tipocav1.AddToScheme(scheme)
