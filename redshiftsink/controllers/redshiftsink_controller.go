@@ -456,8 +456,8 @@ func isSpecSubsetEqual(
 	return true, ""
 }
 
-// updateBatcher compares the state and returns if the update is required
-func (r *RedshiftSinkReconciler) updateBatcher(
+// batcherUpdateRequired compares the state and return accordingly
+func (r *RedshiftSinkReconciler) batcherUpdateRequired(
 	batcher *appsv1.Deployment,
 	redshiftsink *tipocav1.RedshiftSink) bool {
 
@@ -488,8 +488,8 @@ func (r *RedshiftSinkReconciler) updateBatcher(
 	return false
 }
 
-// updateLoader compares the state and returns if the update is required
-func (r *RedshiftSinkReconciler) updateLoader(
+// loaderUpdateRequired compares the state and returns accordingly
+func (r *RedshiftSinkReconciler) loaderUpdateRequired(
 	batcher *appsv1.Deployment,
 	redshiftsink *tipocav1.RedshiftSink) bool {
 
@@ -538,6 +538,44 @@ func (r *RedshiftSinkReconciler) updateDeployment(
 	}, nil
 }
 
+func (r *RedshiftSinkReconciler) batcherDeploymentFromRedshiftSink(
+	redshiftsink *tipocav1.RedshiftSink) *appsv1.Deployment {
+
+	envs := []corev1.EnvVar{}
+	envs = addBatcherConfigToEnv(envs, redshiftsink)
+	envs = addBatcherSecretsToEnv(envs, redshiftsink.Spec.SecretRefName)
+
+	return r.batcherDeploymentForRedshiftSink(redshiftsink, envs)
+}
+
+func (r *RedshiftSinkReconciler) loaderDeploymentFromRedshiftSink(
+	redshiftsink *tipocav1.RedshiftSink) *appsv1.Deployment {
+
+	envs := []corev1.EnvVar{}
+	envs = addLoaderConfigToEnv(envs, redshiftsink)
+	envs = addLoaderSecretsToEnv(envs, redshiftsink.Spec.SecretRefName)
+
+	return r.loaderDeploymentForRedshiftSink(redshiftsink, envs)
+}
+
+func (r *RedshiftSinkReconciler) updateBatcher(
+	ctx context.Context,
+	redshiftsink *tipocav1.RedshiftSink) (*DeploymentUpdatedEvent, error) {
+
+	deployment := r.batcherDeploymentFromRedshiftSink(redshiftsink)
+
+	return r.updateDeployment(ctx, deployment, redshiftsink)
+}
+
+func (r *RedshiftSinkReconciler) updateLoader(
+	ctx context.Context,
+	redshiftsink *tipocav1.RedshiftSink) (*DeploymentUpdatedEvent, error) {
+
+	deployment := r.loaderDeploymentFromRedshiftSink(redshiftsink)
+
+	return r.updateDeployment(ctx, deployment, redshiftsink)
+}
+
 func (r *RedshiftSinkReconciler) createDeployment(
 	ctx context.Context,
 	deployment *appsv1.Deployment,
@@ -562,10 +600,7 @@ func (r *RedshiftSinkReconciler) createLoader(
 	ctx context.Context,
 	redshiftsink *tipocav1.RedshiftSink) (*DeploymentCreatedEvent, error) {
 
-	envs := []corev1.EnvVar{}
-	envs = addLoaderConfigToEnv(envs, redshiftsink)
-	envs = addLoaderSecretsToEnv(envs, redshiftsink.Spec.SecretRefName)
-	deployment := r.loaderDeploymentForRedshiftSink(redshiftsink, envs)
+	deployment := r.loaderDeploymentFromRedshiftSink(redshiftsink)
 
 	return r.createDeployment(ctx, deployment, redshiftsink)
 }
@@ -574,10 +609,7 @@ func (r *RedshiftSinkReconciler) createBatcher(
 	ctx context.Context,
 	redshiftsink *tipocav1.RedshiftSink) (*DeploymentCreatedEvent, error) {
 
-	envs := []corev1.EnvVar{}
-	envs = addBatcherConfigToEnv(envs, redshiftsink)
-	envs = addBatcherSecretsToEnv(envs, redshiftsink.Spec.SecretRefName)
-	deployment := r.batcherDeploymentForRedshiftSink(redshiftsink, envs)
+	deployment := r.batcherDeploymentFromRedshiftSink(redshiftsink)
 
 	return r.createDeployment(ctx, deployment, redshiftsink)
 }
@@ -670,16 +702,16 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 
 	// compare spec and update batcher if required
-	if r.updateBatcher(batcher, redshiftsink) {
+	if r.batcherUpdateRequired(batcher, redshiftsink) {
 		klog.Infof("%v: Batcher update required", redshiftsink.Name)
-		event, err := r.updateDeployment(ctx, batcher, redshiftsink)
+		event, err := r.updateBatcher(ctx, redshiftsink)
 		return result, event, err
 	}
 
 	// compare spec and update loader if required
-	if r.updateLoader(loader, redshiftsink) {
+	if r.loaderUpdateRequired(loader, redshiftsink) {
 		klog.Infof("%v: Loader update required", redshiftsink.Name)
-		event, err := r.updateDeployment(ctx, loader, redshiftsink)
+		event, err := r.updateLoader(ctx, redshiftsink)
 		return result, event, err
 	}
 
