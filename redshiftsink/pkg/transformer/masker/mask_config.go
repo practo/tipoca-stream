@@ -6,7 +6,6 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
-	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -58,21 +57,7 @@ func loweredKeys(keys map[string][]string) {
 	}
 }
 
-// TODO: document the convention to specify configuration files
-// Convention: Explained with an example:
-// Say topic="datapipe.inventory.customers"
-//     maskConfigDir="/usr" (in redshiftbatcher config)
-//     mask=true         (in redshiftbatcher config)
-// 	   then the configuration file should be present at below location:
-//     /usr/inventory.yaml
-func NewMaskConfig(
-	dir string, topic string, fileName string) (MaskConfig, error) {
-
-	if fileName == "" {
-		_, database, _ := transformer.ParseTopic(topic)
-		fileName = database + ".yaml"
-	}
-	configFilePath := filepath.Join(dir, fileName)
+func NewMaskConfig(topic string, configFilePath string) (MaskConfig, error) {
 	klog.V(2).Infof("Using mask config file: %s\n", configFilePath)
 
 	var maskConfig MaskConfig

@@ -223,13 +223,8 @@ func addBatcherConfigToEnv(
 			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.Mask),
 		},
 		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "BATCHER_MASKCONFIGDIR",
-			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.MaskConfigDir),
-		},
-		corev1.EnvVar{
-			Name: BatcherEnvPrefix + "BATCHER_MASKCONFIGFILENAME",
-			Value: fmt.Sprintf(
-				"%v", redshiftsink.Spec.Batcher.MaskConfigFileName),
+			Name:  BatcherEnvPrefix + "BATCHER_MASKFILE",
+			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.MaskFile),
 		},
 		corev1.EnvVar{
 			Name:  BatcherEnvPrefix + "BATCHER_MAXSIZE",
