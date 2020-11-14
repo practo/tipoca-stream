@@ -89,21 +89,17 @@ func (b *batcher) Insert(saramaMessage *sarama.ConsumerMessage) {
 type BatcherConfig struct {
 	// Mask should be turned on or off
 	Mask string `yaml:"mask,omitempty"`
-
 	// MaskSalt specifies the salt to be used for masking
 	MaskSalt string `yaml:"maskSalt,omitempty"`
-
 	// MaskConfigDir is the directory where the database.yaml is
 	// is to be searched to apply masking to the incoming messages
 	MaskConfigDir string `yaml:"maskConfigDir,omitempty"`
-
 	// MaskConfigFileName defaults to database name
 	MaskConfigFileName string `yaml:"maskConfigFileName"`
 
 	// MaxSize is the maximum size of a batch, on exceeding this batch is pushed
 	// regarless of the wait time.
 	MaxSize int `yaml:"maxSize,omitempty"`
-
 	// MaxWaitSeconds after which the bash would be pushed regardless of its size.
 	MaxWaitSeconds int `yaml:"maxWaitSeconds,omitempty"`
 }
