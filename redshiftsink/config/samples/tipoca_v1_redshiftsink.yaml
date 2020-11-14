@@ -1,7 +1,36 @@
 apiVersion: tipoca.k8s.practo.dev/v1
 kind: RedshiftSink
 metadata:
-  name: redshiftsink-sample
+  name: inventory
 spec:
-  # Add fields here
-  foo: bar
+  secretRefName: redshfitsink-secret-2bh89m59ct
+  secretRefNamespace: kube-system
+  batcher:
+    suspend: false
+    maxSize: 10
+    maxWaitSeconds: 30
+    mask: true
+    maskConfigDir: "/"
+    maskConfigFileName: "mask_config.yaml"
+    kafkaBrokers: "kafka1.example.com,kafka2.example.com"
+    kafkaGroup: "inventory-batcher"
+    kafkaTopicRegexes: "^ts.inventory*"
+    kafkaLoaderTopicPrefix: "loader-"
+    podTemplate:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 200Mi
+  loader:
+    suspend: false
+    maxSize: 10
+    maxWaitSeconds: 30
+    kafkaBrokers: "kafka1.example.com,kafka2.example.com"
+    kafkaGroup: "inventory-batcher"
+    kafkaTopicRegexes: "^ts.inventory*"
+    redshiftSchema: "inventory"
+    podTemplate:
+      resources:
+        requests:
+          cpu: 100m
+          memory: 200Mi
