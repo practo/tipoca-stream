@@ -57,9 +57,7 @@ type RedshiftBatcherSpec struct {
 	// +optional
 	Mask bool `json:"mask"`
 	// +optional
-	MaskConfigDir string `json:"maskConfigDir"`
-	// +optional
-	MaskConfigFileName string `json:"maskConfigFileName"`
+	MaskFile string `json:"maskFile"`
 
 	// Kafka configurations like consumer group and topics to watch
 	KafkaBrokers      string `json:"kafkaBrokers"`

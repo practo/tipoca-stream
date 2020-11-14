@@ -128,9 +128,8 @@ func newBatchProcessor(
 	if maskMessages {
 		msgMasker, err = masker.NewMsgMasker(
 			viper.GetString("batcher.maskSalt"),
-			viper.GetString("batcher.maskConfigDir"),
 			topic,
-			viper.GetString("batcher.maskConfigFileName"),
+			viper.GetString("batcher.maskFile"),
 		)
 		if err != nil && maskMessages {
 			klog.Fatalf("unable to create the masker, err:%v", err)
