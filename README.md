@@ -34,7 +34,7 @@ Creating the kafkaconenct and kafkaconnector creates a kafkaconnect pod in the c
 ```
 
 ## Contribute
-This repo holds the code for redshiftsink only. Please follow [this](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/README.md#contributing).
+This repo holds the code for [redshiftsink](./redshiftsink) only. Please follow [this](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/README.md#contributing) for bringing a change.
 
 ## Thanks
 
