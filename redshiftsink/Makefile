@@ -240,9 +240,14 @@ help:
 	        BEGIN {FS = ": *# *@HELP"};           \
 	        { printf "  %-30s %s\n", $$1, $$2 };  \
 	    '
+
 ###
 # kubebuilder targets
 ###
+
+# TODO: to make it work with kubectl kustomize edit
+# Image URL to use all building/pushing image targets
+# CONTROLLER_MANAGER_IMAGE ?= practodev/redshiftsink:latest
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
@@ -277,7 +282,12 @@ manifests: controller-gen
 
 # Install CRDs into a cluster
 install: manifests
-	kustomize build config/crd | kubectl apply -f -
+	kubectl kustomize config/crd | kubectl apply -f -
+
+# Deploy controller in the configured Kubernetes cluster in ~/.kube/config
+deploy: manifests
+	cd config/manager #&& kustomize edit set image controller=${CONTROLLER_MANAGER_IMAGE}
+	kustomize build config/default | kubectl apply -f -
 
 # Generate code
 generate: controller-gen
