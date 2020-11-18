@@ -4,6 +4,7 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -41,12 +42,18 @@ func TestSaltMask(t *testing.T) {
 	}
 }
 
-func testMasker(t *testing.T, salt, dir, topic, cName string,
+func testMasker(t *testing.T, salt, topic, cName string,
 	columns map[string]*string, result *string,
 	resultMaskSchema map[string]serializer.MaskInfo,
 	redshiftTable redshift.Table) {
 
-	masker, err := NewMsgMasker(salt, dir, topic, "")
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	configFilePath := filepath.Join(dir, "database.yaml")
+
+	masker, err := NewMsgMasker(salt, topic, configFilePath)
 	if err != nil {
 		t.Fatalf("Error making masker, err: %v\n", err)
 	}
@@ -107,11 +114,6 @@ func testMasker(t *testing.T, salt, dir, topic, cName string,
 
 func TestMasker(t *testing.T) {
 	t.Parallel()
-
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Error(err)
-	}
 	salt := "testhash"
 
 	tests := []struct {
@@ -419,7 +421,7 @@ func TestMasker(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			testMasker(
-				t, salt, dir, tc.topic,
+				t, salt, tc.topic,
 				tc.cName, tc.columns,
 				tc.resultVal, tc.resultMaskSchema,
 				tc.redshiftTable,
