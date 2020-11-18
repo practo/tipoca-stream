@@ -1,13 +1,21 @@
 package masker
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
 func testMasked(t *testing.T, topic, table, cName, cValue string,
 	result bool, allColumns map[string]*string) {
 
-	m, err := NewMaskConfig(topic, "")
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	configFilePath := filepath.Join(dir, "database.yaml")
+
+	m, err := NewMaskConfig(topic, configFilePath)
 	if err != nil {
 		t.Error(err)
 	}
