@@ -58,6 +58,13 @@ type RedshiftBatcherSpec struct {
 	Mask bool `json:"mask"`
 	// +optional
 	MaskFile string `json:"maskFile"`
+	// +optional
+	// MaskFileVersion is a opeartor managed field which stores the
+	// latest mask file version information. Latest is determined
+	// by the mask file poller. When a new version gets updated here then
+	// the opertor tries to reload the topics affected by it with the new
+	// mask configurations.
+	MaskFileVersion string `json:"maskFileVersion"`
 
 	// Kafka configurations like consumer group and topics to watch
 	KafkaBrokers      string `json:"kafkaBrokers"`
@@ -110,10 +117,40 @@ type RedshiftSinkSpec struct {
 	Loader  RedshiftLoaderSpec  `json:"loader"`
 }
 
+// MaskPhase is a label for the condition of a masking at the current time.
+type MaskPhase string
+
+// These are the valid statuses of masking.
+const (
+	// MaskActive tells the current MaskFileVersion
+	MaskActive MaskPhase = "Active"
+
+	// MaskReloading tells the current MaskFileVersion is not same as the
+	// MaskFileVersion specified(i.e. the latest mask config) and is in the
+	// phase of transition to the new mask configuration. At the end of
+	// transition the MaskFileVersion in the status is updated to the spec.
+	MaskReloading MaskPhase = "Reloading"
+)
+
+type MaskStatus struct {
+	// +optional
+	Topic string `json:"topic,omitempty"`
+	// MaskFileVersion is the current mask configuration being used
+	// +optional
+	MaskFileVersion string `json:"maskFileVersion,omitempty"`
+	// Phase determines the
+	// +optional
+	Phase MaskPhase `json:"phase,omitempty"`
+}
+
 // RedshiftSinkStatus defines the observed state of RedshiftSink
 type RedshiftSinkStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	// MaskStatus stores the status of the masking for each of the topics
+	// +optional
+	MaskStatus []MaskStatus `json:"maskStatus,omitempty"`
 }
 
 // +kubebuilder:resource:path=redshiftsinks,shortName=rsk;rsks
