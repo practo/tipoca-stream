@@ -3,6 +3,8 @@ package masker
 import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -45,7 +47,13 @@ func testMasker(t *testing.T, salt, topic, cName string,
 	resultMaskSchema map[string]serializer.MaskInfo,
 	redshiftTable redshift.Table) {
 
-	masker, err := NewMsgMasker(salt, topic, "")
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	configFilePath := filepath.Join(dir, "database.yaml")
+
+	masker, err := NewMsgMasker(salt, topic, configFilePath)
 	if err != nil {
 		t.Fatalf("Error making masker, err: %v\n", err)
 	}
