@@ -12,24 +12,29 @@ The pipeline is a combination of services deployed independently.
 
 - **RedshiftSink** Using the CRD written in this repo. [Instructions.](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/README.md)
 ```
-      kubectl get redshiftsink (TODO)
+      kubectl get redshiftsink
 ```
+Creating the RedshiftSink CRD object installs Batcher and Loader pods in the cluster. These pods sinks the data from Kafka topics to Redshift, it also takes care of the database migration when required. Redshiftsink also has a rich [masking](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/MASKING.md) support. (TODO=>) It supports table reloads in Redshift when masking configurations are modified in Github.
 
-- **Producer** Using Strimzi CRDs. [Instructions.](https://github.com/practo/tipoca-stream/blob/master/producer/README.md) (can be deployed as regular deployments as well)
+- **Producer** Using [Strimzi](http://strimzi.io/) CRDs. [Instructions.](https://github.com/practo/tipoca-stream/blob/master/producer/README.md) (can be deployed as regular deployments as well)
 ```
       kubectl get kafkaconnect
       kubectl get kafkaconnector
 ```
-- **Kafka** Using Strimzi CRDs or self hosted or managed kafka. (TODO instructions)
+Creating the kafkaconenct and kafkaconnector creates a kafkaconnect pod in the cluster which start streaming the data from the source(MYSQL, RDS, etc..) to Kafka.
+
+- **Kafka** Using [Strimzi](http://strimzi.io/) CRDs or self hosted or managed kafka. (TODO instructions)
 ```
       kubectl get kafka
 ```
-- **Schema Registry** Deployment using helm charts. (TODO instructions)
 
-Note: Redshiftsink [supports masking](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/MASKING.md).
+- **Schema Registry** Deployment using helm charts. (TODO instructions)
+```
+      kubectl get deploy schema-registry
+```
 
 ## Contribute
-This repo holds the code for redshiftsink only. Please follow [this](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/README.md#contributing).
+This repo holds the code for [redshiftsink](./redshiftsink) only. Please follow [this](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/README.md#contributing) for bringing a change.
 
 ## Thanks
 

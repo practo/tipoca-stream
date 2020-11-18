@@ -2,13 +2,20 @@ package masker
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 )
 
-func testMasked(t *testing.T, dir, topic, table, cName, cValue string,
+func testMasked(t *testing.T, topic, table, cName, cValue string,
 	result bool, allColumns map[string]*string) {
 
-	m, err := NewMaskConfig(dir, topic, "")
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	configFilePath := filepath.Join(dir, "database.yaml")
+
+	m, err := NewMaskConfig(topic, configFilePath)
 	if err != nil {
 		t.Error(err)
 	}
@@ -24,11 +31,6 @@ func testMasked(t *testing.T, dir, topic, table, cName, cValue string,
 
 func TestMaskConfig(t *testing.T) {
 	t.Parallel()
-
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Error(err)
-	}
 
 	tests := []struct {
 		name       string
@@ -142,7 +144,7 @@ func TestMaskConfig(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			testMasked(
-				t, dir, tc.topic, tc.table, tc.cName,
+				t, tc.topic, tc.table, tc.cName,
 				tc.cValue, tc.unMasked, tc.allColumns,
 			)
 		})
