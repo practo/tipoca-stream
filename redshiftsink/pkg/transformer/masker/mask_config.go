@@ -63,12 +63,14 @@ func NewMaskConfig(topic string, configFilePath string) (MaskConfig, error) {
 	var maskConfig MaskConfig
 	yamlFile, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
-		return maskConfig, err
+		return maskConfig, fmt.Errorf(
+			"Unable to read file: %s, err: %v", configFilePath, err)
 	}
 
 	err = yaml.Unmarshal(yamlFile, &maskConfig)
 	if err != nil {
-		return maskConfig, err
+		return maskConfig, fmt.Errorf(
+			"Unable to unmarshal: %v, err: %v", configFilePath, err)
 	}
 
 	// convert to lower case, redshift works with lowercase
