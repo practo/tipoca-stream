@@ -1002,13 +1002,20 @@ func checkColumnsAndOrdering(
 			inputTableSortColumns,
 			targetTableSortColumns,
 		)
-		alterSQL := fmt.Sprintf(
-			alterSortColumn,
-			inputTable.Meta.Schema,
-			inputTable.Name,
-			strings.Join(inputTableSortColumns, ","),
-		)
-		transactColumnOps = append(transactColumnOps, alterSQL)
+		if len(inputTableSortColumns) == 0 {
+			klog.Warningf(
+				"SortKey in table %s looks manually modified, skipped.",
+				inputTable.Name,
+			)
+		} else {
+			alterSQL := fmt.Sprintf(
+				alterSortColumn,
+				inputTable.Meta.Schema,
+				inputTable.Name,
+				strings.Join(inputTableSortColumns, ","),
+			)
+			transactColumnOps = append(transactColumnOps, alterSQL)
+		}
 	}
 
 	// alter dist (requires table migration, can't run in transaction)
