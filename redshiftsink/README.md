@@ -96,6 +96,8 @@ Redshiftsink performs the sink by creating two pods. Creating a RedshiftSink CRD
 - Signals the Redshift loader to load the batch in Redshift using Kafka Topics.
 - **Batcher supports masking the data**. Please follow [this for enabling masking](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/MASKING.md).
 
+<img src="arch-batcher.png">
+
 ```bash
 $ bin/darwin_amd64/redshiftbatcher --help
 Consumes the Kafka Topics, trasnform them for redshfit, batches them and uploads to s3. Also signals the load of the batch on successful batch and upload operation..
