@@ -3,9 +3,14 @@ package masker
 import (
 	"fmt"
 	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/git"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
+	"github.com/spf13/viper"
+	"github.com/whilp/git-urls"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -57,10 +62,57 @@ func loweredKeys(keys map[string][]string) {
 	}
 }
 
-func NewMaskConfig(topic string, configFilePath string) (MaskConfig, error) {
+func downloadMaskFile(maskFile string, maskFileVersion string) (string, error) {
+	url, err := giturls.Parse(maskFile)
+	if err != nil {
+		return "", err
+	}
+
+	switch url.Scheme {
+	case "file":
+		klog.V(2).Info("Mask file is of file type, nothing to download")
+		return maskFile, nil
+	default:
+		configFilePath := strings.Join(strings.Split(url.Path, "/")[3:], "/")
+		dir, err := ioutil.TempDir("", "mask-clones")
+		if err != nil {
+			return "", err
+		}
+		defer os.RemoveAll(dir)
+
+		repo := strings.ReplaceAll(maskFile, "/"+configFilePath, "")
+		klog.V(2).Infof("Downloading git repo: %s", repo)
+
+		g := git.New(dir, repo,
+			viper.GetString("batcher.githubAccessToken"))
+		err = g.Clone()
+		if err != nil {
+			return "", err
+		}
+		err = g.Checkout(maskFileVersion)
+		if err != nil {
+			return "", err
+		}
+		klog.V(4).Infof("Downloaded git repo at: %s", dir)
+		_, err = git.Copy(filepath.Join(dir, configFilePath), "/")
+		if err != nil {
+			return "", err
+		}
+
+		klog.V(2).Info("Copied the mask file at the read location")
+		return "/" + filepath.Base(configFilePath), nil
+	}
+}
+
+func NewMaskConfig(
+	topic string, maskFile string, maskFileVersion string) (MaskConfig, error) {
+	var maskConfig MaskConfig
+	configFilePath, err := downloadMaskFile(maskFile, maskFileVersion)
+	if err != nil {
+		return maskConfig, err
+	}
 	klog.V(2).Infof("Using mask config file: %s\n", configFilePath)
 
-	var maskConfig MaskConfig
 	yamlFile, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
 		return maskConfig, fmt.Errorf(
