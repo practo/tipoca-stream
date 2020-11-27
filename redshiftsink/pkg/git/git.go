@@ -52,23 +52,18 @@ func (g *Git) Checkout(hash string) error {
 	if g.repo == nil {
 		return fmt.Errorf("repo nil cannot checkout, init repo by calling Clone()")
 	}
+	if hash != "" {
+		return fmt.Errorf("hash version cannot ve null in checkout")
+	}
 
 	tree, err := g.repo.Worktree()
 	if err != nil {
 		return err
 	}
 
-	var checkoutOptions *git.CheckoutOptions
-	if hash != "" {
-		checkoutOptions = &git.CheckoutOptions{
-			Hash: plumbing.NewHash(hash),
-		}
-	} else {
-		checkoutOptions = &git.CheckoutOptions{}
-	}
-	err = tree.Checkout(checkoutOptions)
-
-	return err
+	return tree.Checkout(&git.CheckoutOptions{
+		Hash: plumbing.NewHash(hash),
+	})
 }
 
 // Copy is a util function to copy file from one location to another

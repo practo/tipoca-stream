@@ -73,6 +73,11 @@ func downloadMaskFile(maskFile string, maskFileVersion string) (string, error) {
 		klog.V(2).Info("Mask file is of file type, nothing to download")
 		return maskFile, nil
 	default:
+		if maskFileVersion == "" {
+			return "", fmt.Errorf(
+				"maskFileVersion is mandatory if maskFile is not local file.",
+			)
+		}
 		configFilePath := strings.Join(strings.Split(url.Path, "/")[3:], "/")
 		dir, err := ioutil.TempDir("", "mask-clones")
 		if err != nil {
