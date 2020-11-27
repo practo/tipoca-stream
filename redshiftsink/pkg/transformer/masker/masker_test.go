@@ -53,7 +53,7 @@ func testMasker(t *testing.T, salt, topic, cName string,
 	}
 	configFilePath := filepath.Join(dir, "database.yaml")
 
-	masker, err := NewMsgMasker(salt, topic, configFilePath)
+	masker, err := NewMsgMasker(salt, topic, configFilePath, "")
 	if err != nil {
 		t.Fatalf("Error making masker, err: %v\n", err)
 	}

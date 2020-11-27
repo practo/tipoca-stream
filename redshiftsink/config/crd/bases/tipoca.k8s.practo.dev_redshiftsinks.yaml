@@ -56,9 +56,14 @@ spec:
                   description: 'Mask when turned on enables masking of the data Default:
                     false'
                   type: boolean
-                maskConfigDir:
+                maskFile:
                   type: string
-                maskConfigFileName:
+                maskFileVersion:
+                  description: MaskFileVersion is a opeartor managed field which stores
+                    the latest mask file version information. Latest is determined
+                    by the mask file poller. When a new version gets updated here
+                    then the opertor tries to reload the topics affected by it with
+                    the new mask configurations.
                   type: string
                 maxSize:
                   description: Max configurations for the batcher to batch
@@ -277,6 +282,23 @@ spec:
           type: object
         status:
           description: RedshiftSinkStatus defines the observed state of RedshiftSink
+          properties:
+            maskStatus:
+              description: MaskStatus stores the status of the masking for each of
+                the topics
+              items:
+                properties:
+                  maskFileVersion:
+                    description: MaskFileVersion is the current mask configuration
+                      being used
+                    type: string
+                  phase:
+                    description: Phase determines the
+                    type: string
+                  topic:
+                    type: string
+                type: object
+              type: array
           type: object
       type: object
   version: v1

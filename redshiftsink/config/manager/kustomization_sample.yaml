@@ -1,9 +1,12 @@
 resources:
 - manager.yaml
+generatorOptions:
+ disableNameSuffixHash: true
 secretGenerator:
 - name: redshfitsink-secret
   literals:
   - maskSalt=salt
+  - githubAccessToken=token
   - s3Region=ap-south-1
   - s3Bucket=prod-tipoca-stream
   - s3BatcherBucketDir=redshiftbatcher
@@ -16,4 +19,3 @@ secretGenerator:
   - redshiftDatabase=sample
   - redshiftUser=sample
   - redshiftPassword=sample
-  - name=redshiftsink-secret
