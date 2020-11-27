@@ -24,10 +24,11 @@ type masker struct {
 }
 
 func NewMsgMasker(salt string, topic string,
-	configFilePath string) (transformer.MessageTransformer, error) {
+	maskFile string,
+	maskFileVersion string) (transformer.MessageTransformer, error) {
 
 	_, database, table := transformer.ParseTopic(topic)
-	maskConfig, err := NewMaskConfig(topic, configFilePath)
+	maskConfig, err := NewMaskConfig(topic, maskFile, maskFileVersion)
 	if err != nil {
 		return nil, err
 	}
