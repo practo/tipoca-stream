@@ -17,6 +17,7 @@ type Config struct {
 	Sarama            consumer.SaramaConfig         `yaml:"sarama"`
 	S3Sink            s3sink.Config                 `yaml:"s3sink"`
 	SchemaRegistryURL string                        `yaml:"schemaRegistryURL"`
+	GitAccessToken    string                        `yaml:"gitAccessToken"`
 }
 
 func LoadConfig(cmd *cobra.Command) (Config, error) {
