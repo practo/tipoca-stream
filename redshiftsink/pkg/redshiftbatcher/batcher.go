@@ -91,8 +91,17 @@ type BatcherConfig struct {
 	Mask string `yaml:"mask,omitempty"`
 	// MaskSalt specifies the salt to be used for masking
 	MaskSalt string `yaml:"maskSalt,omitempty"`
-	// MaskFile is the absolute path of the mask configuration file
+	// MaskFile can be the either of the two:
+	// 1. Absolute path of the mask configuration file. This file needs to be
+	// be mounted as config map when the batcher starts.
+	// 2. Git File or Folder. Examples:
+	// https://github.com/practo/tipoca-stream/pkg/database.yaml
+	// then this file or repo be cloned and kept at / when batcher starts.
 	MaskFile string `yaml:"maskFile,omitempty"`
+	// MaskFileVersion is the git version of the MaskFile
+	// It is useful when the MaskFile is specified is a Git File.
+	// otherwise when MaskFile is an abosolute mounted file, it is not used.
+	MaskFileVersion string `yaml:"maskFileVersion,omitempty"`
 
 	// MaxSize is the maximum size of a batch, on exceeding this batch is pushed
 	// regarless of the wait time.
