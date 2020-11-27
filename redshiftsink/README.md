@@ -48,11 +48,10 @@ spec:
     maxSize: 10
     maxWaitSeconds: 30
     mask: true
-    maskConfigDir: "/"
-    maskConfigFileName: "mask_config.yaml"
+    maskFile: "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker/database.yaml"
     kafkaBrokers: "kafka1.example.com,kafka2.example.com"
     kafkaGroup: "inventory-batcher"
-    kafkaTopicRegexes: "^ts.inventory*"
+    kafkaTopicRegexes: "^db.inventory*"
     kafkaLoaderTopicPrefix: "loader-"
     podTemplate:
       resources:
@@ -64,22 +63,21 @@ spec:
     maxSize: 10
     maxWaitSeconds: 30
     kafkaBrokers: "kafka1.example.com,kafka2.example.com"
-    kafkaGroup: "inventory-batcher"
-    kafkaTopicRegexes: "^ts.inventory*"
+    kafkaGroup: "inventory-loader"
+    kafkaTopicRegexes: "^loader-db.inventory*"
     redshiftSchema: "inventory"
     podTemplate:
       resources:
         requests:
           cpu: 100m
           memory: 200Mi
-
 ```
 
 ```bash
 kubectl create -f config/samples/tipoca_v1_redshiftsink.yaml
 ```
 
-This will start syncing all the Kakfa topics matching regex `"^ts.inventory*"` from Kafka to Redshift via S3. If masking is turned on it will also mask the data. More on masking [here](./MASKING.MD)
+This will start syncing all the Kakfa topics matching regex `"^db.inventory*"` from Kafka to Redshift via S3. If masking is turned on it will also mask the data. More on masking [here](./MASKING.MD)
 
 ### Configuration
 
