@@ -362,6 +362,9 @@ func addBatcherSecretsToEnv(
 		secretEnvVar(
 			BatcherEnvPrefix+"SCHEMAREGISTRYURL",
 			"schemaRegistryURL", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"GITACCESSTOKEN",
+			"gitAccessToken", secretRefName),
 	)
 
 	return envVars
