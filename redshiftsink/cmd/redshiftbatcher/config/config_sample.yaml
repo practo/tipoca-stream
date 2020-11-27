@@ -1,8 +1,8 @@
 batcher:
     mask: false
     maskSalt: "sample-salt"
-    maskConfigDir: "/maskfiles"
-    maskConfigFileName: ""
+    maskFile: "/mask.yaml"
+    maskFileVersion: ""
     maxSize: 10
     maxSize: 10
     maxWaitSeconds: 20
@@ -24,3 +24,4 @@ s3sink:
     bucket: "docker-vault"
     bucketDir: "tipoca-stream-redshiftsink"
 schemaRegistryURL: "https://schema-registry.practodev.com"
+gitAccessToken: "748abcdefghijklmnopqrstuvwxyz"

@@ -362,6 +362,9 @@ func addBatcherSecretsToEnv(
 		secretEnvVar(
 			BatcherEnvPrefix+"SCHEMAREGISTRYURL",
 			"schemaRegistryURL", secretRefName),
+		secretEnvVar(
+			BatcherEnvPrefix+"GITACCESSTOKEN",
+			"gitAccessToken", secretRefName),
 	)
 
 	return envVars
@@ -710,7 +713,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, event, err
 	}
 
-	// do not requue until some event happens
+	// do not requeue until some event happens
 	return ctrl.Result{}, nil, nil
 }
 

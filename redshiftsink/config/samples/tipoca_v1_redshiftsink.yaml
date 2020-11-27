@@ -10,11 +10,10 @@ spec:
     maxSize: 10
     maxWaitSeconds: 30
     mask: true
-    maskConfigDir: "/"
-    maskConfigFileName: "mask_config.yaml"
+    maskFile: "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker/database.yaml"
     kafkaBrokers: "kafka1.example.com,kafka2.example.com"
     kafkaGroup: "inventory-batcher"
-    kafkaTopicRegexes: "^ts.inventory*"
+    kafkaTopicRegexes: "^db.inventory*"
     kafkaLoaderTopicPrefix: "loader-"
     podTemplate:
       resources:
@@ -26,8 +25,8 @@ spec:
     maxSize: 10
     maxWaitSeconds: 30
     kafkaBrokers: "kafka1.example.com,kafka2.example.com"
-    kafkaGroup: "inventory-batcher"
-    kafkaTopicRegexes: "^ts.inventory*"
+    kafkaGroup: "inventory-loader"
+    kafkaTopicRegexes: "^loader-db.inventory*"
     redshiftSchema: "inventory"
     podTemplate:
       resources:
