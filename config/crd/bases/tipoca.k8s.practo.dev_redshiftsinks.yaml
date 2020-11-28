@@ -58,13 +58,6 @@ spec:
                   type: boolean
                 maskFile:
                   type: string
-                maskFileVersion:
-                  description: MaskFileVersion is a opeartor managed field which stores
-                    the latest mask file version information. Latest is determined
-                    by the mask file poller. When a new version gets updated here
-                    then the opertor tries to reload the topics affected by it with
-                    the new mask configurations.
-                  type: string
                 maxSize:
                   description: Max configurations for the batcher to batch
                   type: integer
@@ -153,7 +146,6 @@ spec:
                     running for this CRD object. Default: false'
                   type: boolean
               required:
-              - kafkaBrokers
               - kafkaGroup
               - kafkaTopicRegexes
               - maxSize
@@ -283,10 +275,9 @@ spec:
         status:
           description: RedshiftSinkStatus defines the observed state of RedshiftSink
           properties:
-            maskStatus:
-              description: MaskStatus stores the status of the masking for each of
-                the topics
-              items:
+            currentMaskStatus:
+              additionalProperties:
+                description: MaskStatus store the mask status of a single topic
                 properties:
                   maskFileVersion:
                     description: MaskFileVersion is the current mask configuration
@@ -295,10 +286,25 @@ spec:
                   phase:
                     description: Phase determines the
                     type: string
-                  topic:
+                type: object
+              description: CurrentMaskStatus stores the current status of mask status
+                of topics
+              type: object
+            desiredMaskStatus:
+              additionalProperties:
+                description: MaskStatus store the mask status of a single topic
+                properties:
+                  maskFileVersion:
+                    description: MaskFileVersion is the current mask configuration
+                      being used
+                    type: string
+                  phase:
+                    description: Phase determines the
                     type: string
                 type: object
-              type: array
+              description: DesiredMaskStatus stores the current status of mask status
+                of topics
+              type: object
           type: object
       type: object
   version: v1

@@ -26,6 +26,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
+	consumer "github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -56,6 +57,8 @@ type RedshiftSinkReconciler struct {
 	Log      logr.Logger
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
+
+	KafkaWatcher consumer.KafkaWatcher
 }
 
 // +kubebuilder:rbac:groups=tipoca.k8s.practo.dev,resources=redshiftsinks,verbs=get;list;watch;create;update;patch;delete
