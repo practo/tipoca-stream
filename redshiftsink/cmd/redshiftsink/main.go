@@ -17,8 +17,10 @@ package main
 import (
 	"flag"
 	"os"
+	"strings"
 
 	"github.com/practo/klog/v2"
+	consumer "github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
 	pflag "github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -46,8 +48,10 @@ func init() {
 }
 
 func main() {
-	var metricsAddr string
 	var enableLeaderElection bool
+	var kafkaBrokers, kafkaVersion, metricsAddr string
+	flag.StringVar(&kafkaBrokers, "kafka-brokers", "kafka-example.com", "command separated kafka hosts to watch.")
+	flag.StringVar(&kafkaVersion, "kafka-version", "2.5.0", "version of the kafka in use.")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. "+
@@ -68,11 +72,20 @@ func main() {
 		os.Exit(1)
 	}
 
+	kafkaWatcher, err := consumer.NewKafkaWatcher(
+		strings.Split(kafkaBrokers, ","), kafkaVersion,
+	)
+	if err != nil {
+		setupLog.Error(err, "err initializing kafka watcher")
+		os.Exit(1)
+	}
+
 	if err = (&controllers.RedshiftSinkReconciler{
-		Client:   mgr.GetClient(),
-		Log:      ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("redshiftsink-reconciler"),
+		Client:       mgr.GetClient(),
+		Log:          ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
+		Scheme:       mgr.GetScheme(),
+		Recorder:     mgr.GetEventRecorderFor("redshiftsink-reconciler"),
+		KafkaWatcher: kafkaWatcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RedshiftSink")
 		os.Exit(1)
