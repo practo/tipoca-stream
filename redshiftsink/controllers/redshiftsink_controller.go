@@ -20,7 +20,9 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -58,7 +60,8 @@ type RedshiftSinkReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
-	KafkaWatcher consumer.KafkaWatcher
+	KafkaTopicRegexes *sync.Map
+	KafkaWatcher      consumer.KafkaWatcher
 }
 
 // +kubebuilder:rbac:groups=tipoca.k8s.practo.dev,resources=redshiftsinks,verbs=get;list;watch;create;update;patch;delete
@@ -214,10 +217,24 @@ func (r *RedshiftSinkReconciler) batcherDeploymentForRedshiftSink(
 	return deployment
 }
 
+func expandTopicsToRegex(topics []string) string {
+	fullMatchRegex := ""
+	for _, topic := range topics {
+		fullMatchRegex = fullMatchRegex + "^" + topic + "$,"
+	}
+
+	return strings.TrimSuffix(fullMatchRegex, ",")
+}
+
 // addBatcherConfigToEnv adds the batcher envs to the list
-func addBatcherConfigToEnv(
+func (r *RedshiftSinkReconciler) addBatcherConfigToEnv(
 	envVars []corev1.EnvVar,
-	redshiftsink *tipocav1.RedshiftSink) []corev1.EnvVar {
+	redshiftsink *tipocav1.RedshiftSink) ([]corev1.EnvVar, error) {
+
+	topics, err := r.topics(redshiftsink.Spec.Batcher.KafkaTopicRegexes)
+	if err != nil {
+		return []corev1.EnvVar{}, err
+	}
 
 	// TODO: any better way to do this?
 	envs := []corev1.EnvVar{
@@ -246,9 +263,8 @@ func addBatcherConfigToEnv(
 			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.KafkaGroup),
 		},
 		corev1.EnvVar{
-			Name: BatcherEnvPrefix + "KAFKA_TOPICREGEXES",
-			Value: fmt.Sprintf(
-				"%v", redshiftsink.Spec.Batcher.KafkaTopicRegexes),
+			Name:  BatcherEnvPrefix + "KAFKA_TOPICREGEXES",
+			Value: expandTopicsToRegex(topics),
 		},
 		corev1.EnvVar{
 			Name: BatcherEnvPrefix + "KAFKA_LOADERTOPICPREFIX",
@@ -270,13 +286,18 @@ func addBatcherConfigToEnv(
 	}
 	envVars = append(envVars, envs...)
 
-	return envVars
+	return envVars, nil
 }
 
 // addLoaderConfigToEnv adds the loader envs to the list
-func addLoaderConfigToEnv(
+func (r *RedshiftSinkReconciler) addLoaderConfigToEnv(
 	envVars []corev1.EnvVar,
-	redshiftsink *tipocav1.RedshiftSink) []corev1.EnvVar {
+	redshiftsink *tipocav1.RedshiftSink) ([]corev1.EnvVar, error) {
+
+	topics, err := r.topics(redshiftsink.Spec.Loader.KafkaTopicRegexes)
+	if err != nil {
+		return []corev1.EnvVar{}, err
+	}
 
 	// TODO: any better way to do this?
 	envs := []corev1.EnvVar{
@@ -297,9 +318,8 @@ func addLoaderConfigToEnv(
 			Value: fmt.Sprintf("%v", redshiftsink.Spec.Loader.KafkaGroup),
 		},
 		corev1.EnvVar{
-			Name: BatcherEnvPrefix + "KAFKA_TOPICREGEXES",
-			Value: fmt.Sprintf(
-				"%v", redshiftsink.Spec.Loader.KafkaTopicRegexes),
+			Name:  BatcherEnvPrefix + "KAFKA_TOPICREGEXES",
+			Value: expandTopicsToRegex(topics),
 		},
 		corev1.EnvVar{
 			Name:  BatcherEnvPrefix + "SARAMA_OLDEST",
@@ -320,7 +340,7 @@ func addLoaderConfigToEnv(
 	}
 	envVars = append(envVars, envs...)
 
-	return envVars
+	return envVars, nil
 }
 
 // secretEnvVar constructs the secret envvar
@@ -460,15 +480,18 @@ func isSpecSubsetEqual(
 // batcherUpdateRequired compares the state and return accordingly
 func (r *RedshiftSinkReconciler) batcherUpdateRequired(
 	batcher *appsv1.Deployment,
-	redshiftsink *tipocav1.RedshiftSink) bool {
+	redshiftsink *tipocav1.RedshiftSink) (bool, error) {
 
-	specEnvs := []corev1.EnvVar{}
-	specEnvs = addBatcherConfigToEnv(specEnvs, redshiftsink)
+	var specEnvs []corev1.EnvVar
+	specEnvs, err := r.addBatcherConfigToEnv(specEnvs, redshiftsink)
+	if err != nil {
+		return false, err
+	}
 	specEnvs = addBatcherSecretsToEnv(specEnvs, redshiftsink.Spec.SecretRefName)
 	currentEnvs := batcher.Spec.Template.Spec.Containers[0].Env
 	if !reflect.DeepEqual(specEnvs, currentEnvs) {
 		klog.Infof("Envs of batcher: %v requires update.", batcher.Name)
-		return true
+		return true, nil
 	}
 
 	equal, reason := isSpecSubsetEqual(
@@ -483,24 +506,27 @@ func (r *RedshiftSinkReconciler) batcherUpdateRequired(
 		klog.Infof(
 			"Spec mismatch for %v, reason: %v, deployment would be updated",
 			batcher.Name, reason)
-		return true
+		return true, nil
 	}
 
-	return false
+	return false, nil
 }
 
 // loaderUpdateRequired compares the state and returns accordingly
 func (r *RedshiftSinkReconciler) loaderUpdateRequired(
 	batcher *appsv1.Deployment,
-	redshiftsink *tipocav1.RedshiftSink) bool {
+	redshiftsink *tipocav1.RedshiftSink) (bool, error) {
 
-	specEnvs := []corev1.EnvVar{}
-	specEnvs = addLoaderConfigToEnv(specEnvs, redshiftsink)
+	var specEnvs []corev1.EnvVar
+	specEnvs, err := r.addLoaderConfigToEnv(specEnvs, redshiftsink)
+	if err != nil {
+		return false, err
+	}
 	specEnvs = addLoaderSecretsToEnv(specEnvs, redshiftsink.Spec.SecretRefName)
 	currentEnvs := batcher.Spec.Template.Spec.Containers[0].Env
 	if !reflect.DeepEqual(specEnvs, currentEnvs) {
 		klog.Infof("Envs of loader: %v requires update.", batcher.Name)
-		return true
+		return true, nil
 	}
 
 	equal, reason := isSpecSubsetEqual(
@@ -515,10 +541,10 @@ func (r *RedshiftSinkReconciler) loaderUpdateRequired(
 		klog.Infof(
 			"Spec mismatch for %v, reason: %v, deployment would be updated",
 			batcher.Name, reason)
-		return true
+		return true, nil
 	}
 
-	return false
+	return false, nil
 }
 
 func (r *RedshiftSinkReconciler) updateDeployment(
@@ -539,31 +565,81 @@ func (r *RedshiftSinkReconciler) updateDeployment(
 	}, nil
 }
 
+func (r *RedshiftSinkReconciler) topics(regexes string) ([]string, error) {
+	var topics []string
+	var err error
+	var rgx *regexp.Regexp
+	topicsAppended := make(map[string]bool)
+	expressions := strings.Split(regexes, ",")
+
+	allTopics, err := r.KafkaWatcher.Topics()
+	if err != nil {
+		return topics, err
+	}
+
+	for _, expression := range expressions {
+		rgxLoaded, ok := r.KafkaTopicRegexes.Load(expression)
+		if !ok {
+			rgx, err = regexp.Compile(strings.TrimSpace(expression))
+			if err != nil {
+				return topics, fmt.Errorf(
+					"Compling regex: %s failed, err:%v\n", expression, err)
+			}
+			r.KafkaTopicRegexes.Store(expression, rgx)
+		} else {
+			rgx = rgxLoaded.(*regexp.Regexp)
+		}
+
+		for _, topic := range allTopics {
+			if !rgx.MatchString(topic) {
+				continue
+			}
+			_, ok := topicsAppended[topic]
+			if ok {
+				continue
+			}
+			topics = append(topics, topic)
+			topicsAppended[topic] = true
+		}
+	}
+
+	return topics, nil
+}
+
 func (r *RedshiftSinkReconciler) batcherDeploymentFromRedshiftSink(
-	redshiftsink *tipocav1.RedshiftSink) *appsv1.Deployment {
+	redshiftsink *tipocav1.RedshiftSink) (*appsv1.Deployment, error) {
 
-	envs := []corev1.EnvVar{}
-	envs = addBatcherConfigToEnv(envs, redshiftsink)
+	var envs []corev1.EnvVar
+	envs, err := r.addBatcherConfigToEnv(envs, redshiftsink)
+	if err != nil {
+		return nil, err
+	}
 	envs = addBatcherSecretsToEnv(envs, redshiftsink.Spec.SecretRefName)
-
-	return r.batcherDeploymentForRedshiftSink(redshiftsink, envs)
+	dep := r.batcherDeploymentForRedshiftSink(redshiftsink, envs)
+	return dep, nil
 }
 
 func (r *RedshiftSinkReconciler) loaderDeploymentFromRedshiftSink(
-	redshiftsink *tipocav1.RedshiftSink) *appsv1.Deployment {
+	redshiftsink *tipocav1.RedshiftSink) (*appsv1.Deployment, error) {
 
-	envs := []corev1.EnvVar{}
-	envs = addLoaderConfigToEnv(envs, redshiftsink)
+	var envs []corev1.EnvVar
+	envs, err := r.addLoaderConfigToEnv(envs, redshiftsink)
+	if err != nil {
+		return nil, err
+	}
 	envs = addLoaderSecretsToEnv(envs, redshiftsink.Spec.SecretRefName)
-
-	return r.loaderDeploymentForRedshiftSink(redshiftsink, envs)
+	dep := r.loaderDeploymentForRedshiftSink(redshiftsink, envs)
+	return dep, nil
 }
 
 func (r *RedshiftSinkReconciler) updateBatcher(
 	ctx context.Context,
 	redshiftsink *tipocav1.RedshiftSink) (*DeploymentUpdatedEvent, error) {
 
-	deployment := r.batcherDeploymentFromRedshiftSink(redshiftsink)
+	deployment, err := r.batcherDeploymentFromRedshiftSink(redshiftsink)
+	if err != nil {
+		return nil, err
+	}
 
 	return r.updateDeployment(ctx, deployment, redshiftsink)
 }
@@ -572,7 +648,10 @@ func (r *RedshiftSinkReconciler) updateLoader(
 	ctx context.Context,
 	redshiftsink *tipocav1.RedshiftSink) (*DeploymentUpdatedEvent, error) {
 
-	deployment := r.loaderDeploymentFromRedshiftSink(redshiftsink)
+	deployment, err := r.loaderDeploymentFromRedshiftSink(redshiftsink)
+	if err != nil {
+		return nil, err
+	}
 
 	return r.updateDeployment(ctx, deployment, redshiftsink)
 }
@@ -601,7 +680,10 @@ func (r *RedshiftSinkReconciler) createLoader(
 	ctx context.Context,
 	redshiftsink *tipocav1.RedshiftSink) (*DeploymentCreatedEvent, error) {
 
-	deployment := r.loaderDeploymentFromRedshiftSink(redshiftsink)
+	deployment, err := r.loaderDeploymentFromRedshiftSink(redshiftsink)
+	if err != nil {
+		return nil, err
+	}
 
 	return r.createDeployment(ctx, deployment, redshiftsink)
 }
@@ -610,7 +692,10 @@ func (r *RedshiftSinkReconciler) createBatcher(
 	ctx context.Context,
 	redshiftsink *tipocav1.RedshiftSink) (*DeploymentCreatedEvent, error) {
 
-	deployment := r.batcherDeploymentFromRedshiftSink(redshiftsink)
+	deployment, err := r.batcherDeploymentFromRedshiftSink(redshiftsink)
+	if err != nil {
+		return nil, err
+	}
 
 	return r.createDeployment(ctx, deployment, redshiftsink)
 }
@@ -703,14 +788,22 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 
 	// compare spec and update batcher if required
-	if r.batcherUpdateRequired(batcher, redshiftsink) {
+	required, err := r.batcherUpdateRequired(batcher, redshiftsink)
+	if err != nil {
+		return result, nil, err
+	}
+	if required {
 		klog.Infof("%v: Batcher update required", redshiftsink.Name)
 		event, err := r.updateBatcher(ctx, redshiftsink)
 		return result, event, err
 	}
 
 	// compare spec and update loader if required
-	if r.loaderUpdateRequired(loader, redshiftsink) {
+	required, err = r.loaderUpdateRequired(loader, redshiftsink)
+	if err != nil {
+		return result, nil, err
+	}
+	if required {
 		klog.Infof("%v: Loader update required", redshiftsink.Name)
 		event, err := r.updateLoader(ctx, redshiftsink)
 		return result, event, err
