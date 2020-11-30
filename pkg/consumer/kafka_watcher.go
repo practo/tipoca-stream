@@ -12,12 +12,11 @@ type KafkaWatcher interface {
 }
 
 type kafkaWatch struct {
-	client sarama.Client
-
-	topics []string
-
+	client               sarama.Client
 	cacheValidity        time.Duration
 	lastTopicRefreshTime *int64
+
+	topics []string
 }
 
 func NewKafkaWatcher(brokers []string, version string) (KafkaWatcher, error) {
