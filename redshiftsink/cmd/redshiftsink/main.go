@@ -18,6 +18,7 @@ import (
 	"flag"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/practo/klog/v2"
 	consumer "github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
@@ -81,11 +82,12 @@ func main() {
 	}
 
 	if err = (&controllers.RedshiftSinkReconciler{
-		Client:       mgr.GetClient(),
-		Log:          ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
-		Scheme:       mgr.GetScheme(),
-		Recorder:     mgr.GetEventRecorderFor("redshiftsink-reconciler"),
-		KafkaWatcher: kafkaWatcher,
+		Client:            mgr.GetClient(),
+		Log:               ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
+		Scheme:            mgr.GetScheme(),
+		Recorder:          mgr.GetEventRecorderFor("redshiftsink-reconciler"),
+		KafkaTopicRegexes: new(sync.Map),
+		KafkaWatcher:      kafkaWatcher,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RedshiftSink")
 		os.Exit(1)
