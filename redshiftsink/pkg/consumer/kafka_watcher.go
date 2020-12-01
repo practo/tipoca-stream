@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
+	"sync"
 	"time"
 )
 
@@ -15,6 +16,9 @@ type kafkaWatch struct {
 	client               sarama.Client
 	cacheValidity        time.Duration
 	lastTopicRefreshTime *int64
+
+	// mutex protects the following the mutable state
+	mutex sync.Mutex
 
 	topics []string
 }
@@ -55,7 +59,17 @@ func (t *kafkaWatch) Topics() ([]string, error) {
 		return []string{}, err
 	}
 
-	return t.client.Topics()
+	topics, err := t.client.Topics()
+	if err != nil {
+		return []string{}, err
+	}
+
+	t.mutex.Lock()
+	defer t.mutex.Unlock()
+
+	t.topics = topics
+
+	return t.topics, nil
 }
 
 func cacheValid(validity time.Duration, lastCachedTime *int64) bool {

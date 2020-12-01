@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -155,7 +156,7 @@ func getReplicas(suspend bool) *int32 {
 	} else {
 		replicas = 1
 	}
-
+	// replicas = 0
 	return &replicas
 }
 
@@ -218,6 +219,8 @@ func (r *RedshiftSinkReconciler) batcherDeploymentForRedshiftSink(
 }
 
 func expandTopicsToRegex(topics []string) string {
+	sort.Strings(topics)
+
 	fullMatchRegex := ""
 	for _, topic := range topics {
 		fullMatchRegex = fullMatchRegex + "^" + topic + "$,"
@@ -283,6 +286,10 @@ func (r *RedshiftSinkReconciler) addBatcherConfigToEnv(
 			Name:  BatcherEnvPrefix + "SARAMA_AUTOCOMMIT",
 			Value: "true",
 		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "RELOAD",
+			Value: "false",
+		},
 	}
 	envVars = append(envVars, envs...)
 
@@ -302,40 +309,44 @@ func (r *RedshiftSinkReconciler) addLoaderConfigToEnv(
 	// TODO: any better way to do this?
 	envs := []corev1.EnvVar{
 		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "LOADER_MAXSIZE",
+			Name:  LoaderEnvPrefix + "LOADER_MAXSIZE",
 			Value: fmt.Sprintf("%v", redshiftsink.Spec.Loader.MaxSize),
 		},
 		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "LOADER_MAXWAITSECONDS",
+			Name:  LoaderEnvPrefix + "LOADER_MAXWAITSECONDS",
 			Value: fmt.Sprintf("%v", redshiftsink.Spec.Loader.MaxWaitSeconds),
 		},
 		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "KAFKA_BROKERS",
+			Name:  LoaderEnvPrefix + "KAFKA_BROKERS",
 			Value: fmt.Sprintf("%v", redshiftsink.Spec.Loader.KafkaBrokers),
 		},
 		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "KAFKA_GROUP",
+			Name:  LoaderEnvPrefix + "KAFKA_GROUP",
 			Value: fmt.Sprintf("%v", redshiftsink.Spec.Loader.KafkaGroup),
 		},
 		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "KAFKA_TOPICREGEXES",
+			Name:  LoaderEnvPrefix + "KAFKA_TOPICREGEXES",
 			Value: expandTopicsToRegex(topics),
 		},
 		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "SARAMA_OLDEST",
+			Name:  LoaderEnvPrefix + "SARAMA_OLDEST",
 			Value: "true",
 		},
 		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "SARAMA_LOG",
+			Name:  LoaderEnvPrefix + "SARAMA_LOG",
 			Value: "false",
 		},
 		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "SARAMA_AUTOCOMMIT",
+			Name:  LoaderEnvPrefix + "SARAMA_AUTOCOMMIT",
 			Value: "false",
 		},
 		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "REDSHIFT_SCHEMA",
+			Name:  LoaderEnvPrefix + "REDSHIFT_SCHEMA",
 			Value: redshiftsink.Spec.Loader.RedshiftSchema,
+		},
+		corev1.EnvVar{
+			Name:  LoaderEnvPrefix + "RELOAD",
+			Value: "false",
 		},
 	}
 	envVars = append(envVars, envs...)
@@ -490,7 +501,9 @@ func (r *RedshiftSinkReconciler) batcherUpdateRequired(
 	specEnvs = addBatcherSecretsToEnv(specEnvs, redshiftsink.Spec.SecretRefName)
 	currentEnvs := batcher.Spec.Template.Spec.Containers[0].Env
 	if !reflect.DeepEqual(specEnvs, currentEnvs) {
-		klog.Infof("Envs of batcher: %v requires update.", batcher.Name)
+		klog.Info(specEnvs)
+		klog.Info(currentEnvs)
+		// klog.Infof("Envs of batcher: %v requires update.", batcher.Name)
 		return true, nil
 	}
 
@@ -525,7 +538,7 @@ func (r *RedshiftSinkReconciler) loaderUpdateRequired(
 	specEnvs = addLoaderSecretsToEnv(specEnvs, redshiftsink.Spec.SecretRefName)
 	currentEnvs := batcher.Spec.Template.Spec.Containers[0].Env
 	if !reflect.DeepEqual(specEnvs, currentEnvs) {
-		klog.Infof("Envs of loader: %v requires update.", batcher.Name)
+		// klog.Infof("Envs of loader: %v requires update.", batcher.Name)
 		return true, nil
 	}
 
@@ -751,11 +764,9 @@ func (r *RedshiftSinkReconciler) reconcile(
 	ReconcilerEvent,
 	error,
 ) {
-
-	klog.Infof("%v: Reconciling", redshiftsink.Name)
-	// always requeue after 10 seconds as we are going with the approach
+	// always requeue after 30 seconds as we are going with the approach
 	// of doing only one operation on every reconcile
-	result := ctrl.Result{RequeueAfter: time.Second * 10}
+	result := ctrl.Result{RequeueAfter: time.Second * 30}
 
 	// ensure batcher deployment exists
 	batcher, exists, err := r.hasBatcher(ctx, redshiftsink)
@@ -768,6 +779,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		if err != nil {
 			return result, nil, err
 		}
+		// klog.Info("1 returning batcher create")
 		// one operation at a time
 		return result, event, nil
 	}
@@ -783,6 +795,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		if err != nil {
 			return result, nil, err
 		}
+		// klog.Info("2 returning loader create")
 		// one operation at a time
 		return result, event, nil
 	}
@@ -808,20 +821,23 @@ func (r *RedshiftSinkReconciler) reconcile(
 		event, err := r.updateLoader(ctx, redshiftsink)
 		return result, event, err
 	}
+	klog.Infof("%v: Nothing done.", redshiftsink.Name)
 
-	// do not requeue until some event happens
-	return ctrl.Result{}, nil, nil
+	return result, nil, nil
 }
 
 func (r *RedshiftSinkReconciler) Reconcile(
 	req ctrl.Request) (_ ctrl.Result, reterr error) {
 
+	klog.Infof("Reconciling %+v", req)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	var redshiftsink tipocav1.RedshiftSink
-	if err := r.Get(ctx, req.NamespacedName, &redshiftsink); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+	err := r.Get(ctx, req.NamespacedName, &redshiftsink)
+	if err != nil {
+		return ctrl.Result{
+			RequeueAfter: time.Second * 30}, client.IgnoreNotFound(err)
 	}
 
 	original := redshiftsink.DeepCopy()
