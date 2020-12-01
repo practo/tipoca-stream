@@ -19,6 +19,7 @@ type Config struct {
 	S3Sink            s3sink.Config               `yaml:"s3sink"`
 	SchemaRegistryURL string                      `yaml:"schemaRegistryURL"`
 	Redshift          redshift.RedshiftConfig     `yaml:"redshift"`
+	Reload            bool                        `yaml:"reload"`
 }
 
 func LoadConfig(cmd *cobra.Command) (Config, error) {
