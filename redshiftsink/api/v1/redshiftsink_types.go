@@ -59,12 +59,6 @@ type RedshiftBatcherSpec struct {
 	// +optional
 	MaskFile string `json:"maskFile"`
 	// +optional
-	// MaskFileVersion is a opeartor managed field which stores the
-	// latest mask file version information. Latest is determined
-	// by the mask file poller. When a new version gets updated here then
-	// the opertor tries to reload the topics affected by it with the new
-	// mask configurations.
-	MaskFileVersion string `json:"maskFileVersion"`
 
 	// Kafka configurations like consumer group and topics to watch
 	KafkaBrokers      string `json:"kafkaBrokers"`
@@ -117,6 +111,9 @@ type RedshiftSinkSpec struct {
 	Loader  RedshiftLoaderSpec  `json:"loader"`
 }
 
+// Topic is the kafka topic
+type Topic string
+
 // MaskPhase is a label for the condition of a masking at the current time.
 type MaskPhase string
 
@@ -132,9 +129,8 @@ const (
 	MaskReloading MaskPhase = "Reloading"
 )
 
+// MaskStatus store the mask status of a single topic
 type MaskStatus struct {
-	// +optional
-	Topic string `json:"topic,omitempty"`
 	// MaskFileVersion is the current mask configuration being used
 	// +optional
 	MaskFileVersion string `json:"maskFileVersion,omitempty"`
@@ -148,9 +144,12 @@ type RedshiftSinkStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// MaskStatus stores the status of the masking for each of the topics
+	// CurrentMaskStatus stores the current status of mask status of topics
 	// +optional
-	MaskStatus []MaskStatus `json:"maskStatus,omitempty"`
+	CurrentMaskStatus map[Topic]MaskStatus `json:"currentMaskStatus,omitempty"`
+
+	// DesiredMaskStatus stores the current status of mask status of topics
+	DesiredMaskStatus map[Topic]MaskStatus `json:"desiredMaskStatus,omitempty"`
 }
 
 // +kubebuilder:resource:path=redshiftsinks,shortName=rsk;rsks
