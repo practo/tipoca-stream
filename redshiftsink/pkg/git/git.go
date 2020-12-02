@@ -74,6 +74,24 @@ func (g *Git) Pull() error {
 	return err
 }
 
+func (g *Git) Checkout(hash string) error {
+	if g.repo == nil {
+		return fmt.Errorf("repo nil cannot checkout, init repo by calling Clone()")
+	}
+	if hash != "" {
+		return fmt.Errorf("hash version cannot ve null in checkout")
+	}
+
+	tree, err := g.repo.Worktree()
+	if err != nil {
+		return err
+	}
+
+	return tree.Checkout(&git.CheckoutOptions{
+		Hash: plumbing.NewHash(hash),
+	})
+}
+
 func (g *Git) Log(fileName string, numberOfCommits int) ([]string, error) {
 	commitHashes := []string{}
 
@@ -97,24 +115,6 @@ func (g *Git) Log(fileName string, numberOfCommits int) ([]string, error) {
 	}
 
 	return commitHashes, nil
-}
-
-func (g *Git) Checkout(hash string) error {
-	if g.repo == nil {
-		return fmt.Errorf("repo nil cannot checkout, init repo by calling Clone()")
-	}
-	if hash != "" {
-		return fmt.Errorf("hash version cannot ve null in checkout")
-	}
-
-	tree, err := g.repo.Worktree()
-	if err != nil {
-		return err
-	}
-
-	return tree.Checkout(&git.CheckoutOptions{
-		Hash: plumbing.NewHash(hash),
-	})
 }
 
 // Copy is a util function to copy file from one location to another
