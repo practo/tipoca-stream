@@ -63,6 +63,8 @@ type RedshiftSinkReconciler struct {
 
 	KafkaTopicRegexes *sync.Map
 	KafkaWatcher      consumer.KafkaWatcher
+
+	GitCache *sync.Map
 }
 
 // +kubebuilder:rbac:groups=tipoca.k8s.practo.dev,resources=redshiftsinks,verbs=get;list;watch;create;update;patch;delete

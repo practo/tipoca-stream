@@ -5,13 +5,18 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/whilp/git-urls"
 	"io"
+	"net/url"
 	"os"
+	"strings"
 )
 
 type GitInterface interface {
 	Clone() error
+	Pull() error
 	Checkout(hash string) error
+	Log(fileName string, numberOfCommits int) ([]string, error)
 }
 
 type Git struct {
@@ -46,6 +51,52 @@ func (g *Git) Clone() error {
 	g.repo = repo
 
 	return nil
+}
+
+func (g *Git) Pull() error {
+	tree, err := g.repo.Worktree()
+	if err != nil {
+		return err
+	}
+
+	err = tree.Pull(&git.PullOptions{
+		Auth: &http.BasicAuth{
+			Username: "ts", // not used, but requires to be not empty
+			Password: g.accessToken,
+		},
+	})
+
+	// ignore already up to date
+	if err == git.NoErrAlreadyUpToDate {
+		return nil
+	}
+
+	return err
+}
+
+func (g *Git) Log(fileName string, numberOfCommits int) ([]string, error) {
+	commitHashes := []string{}
+
+	pathIter := func(path string) bool {
+		return path == fileName
+	}
+	logOptions := &git.LogOptions{
+		PathFilter: pathIter,
+	}
+	cIter, err := g.repo.Log(logOptions)
+	if err != nil {
+		return commitHashes, err
+	}
+
+	for i := 0; i < numberOfCommits; i++ {
+		commit, err := cIter.Next()
+		if err != nil {
+			return commitHashes, err
+		}
+		commitHashes = append(commitHashes, fmt.Sprintf("%v", commit.Hash))
+	}
+
+	return commitHashes, nil
 }
 
 func (g *Git) Checkout(hash string) error {
@@ -90,4 +141,18 @@ func Copy(src, dst string) (int64, error) {
 	defer destination.Close()
 	nBytes, err := io.Copy(destination, source)
 	return nBytes, err
+}
+
+func ParseURL(pathOrURL string) (*url.URL, error) {
+	return giturls.Parse(pathOrURL)
+}
+
+// ParseRepoURL breaks a path github.com/practo/tipoca-stream/pkg/README.md
+// into "practo", "tipoca-stream" and "pkg/README.md"
+func ParseGithubURL(urlPath string) (string, string, string) {
+	filePath := strings.Join(strings.Split(urlPath, "/")[3:], "/")
+	repo := strings.ReplaceAll(urlPath, "/"+filePath, "")
+	orgRepo := strings.Split(repo, "/")
+
+	return orgRepo[0], orgRepo[1], filePath
 }
