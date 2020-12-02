@@ -6,7 +6,6 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/git"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"github.com/spf13/viper"
-	"github.com/whilp/git-urls"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -63,7 +62,7 @@ func loweredKeys(keys map[string][]string) {
 }
 
 func downloadMaskFile(maskFile string, maskFileVersion string) (string, error) {
-	url, err := giturls.Parse(maskFile)
+	url, err := git.ParseURL(maskFile)
 	if err != nil {
 		return "", err
 	}
@@ -78,18 +77,27 @@ func downloadMaskFile(maskFile string, maskFileVersion string) (string, error) {
 				"maskFileVersion is mandatory if maskFile is not local file.",
 			)
 		}
-		configFilePath := strings.Join(strings.Split(url.Path, "/")[3:], "/")
-		dir, err := ioutil.TempDir("", "mask-clones")
+		var repo, configFilePath string
+		switch url.Host {
+		case "github.com":
+			var org, repoName string
+			org, repoName, configFilePath = git.ParseGithubURL(url.Path)
+			repo = org + "/" + repoName
+		default:
+			return "", fmt.Errorf("parsing not supported for: %s\n", url.Host)
+		}
+
+		dir, err := ioutil.TempDir("", "maskdir")
 		if err != nil {
 			return "", err
 		}
 		defer os.RemoveAll(dir)
 
-		repo := strings.ReplaceAll(maskFile, "/"+configFilePath, "")
-		klog.V(2).Infof("Downloading git repo: %s", repo)
-
 		g := git.New(dir, repo,
-			viper.GetString("batcher.githubAccessToken"))
+			viper.GetString("batcher.githubAccessToken"),
+		)
+
+		klog.V(2).Infof("Downloading git repo: %s", repo)
 		err = g.Clone()
 		if err != nil {
 			return "", err
@@ -99,12 +107,13 @@ func downloadMaskFile(maskFile string, maskFileVersion string) (string, error) {
 			return "", err
 		}
 		klog.V(4).Infof("Downloaded git repo at: %s", dir)
+
 		_, err = git.Copy(filepath.Join(dir, configFilePath), "/")
 		if err != nil {
 			return "", err
 		}
-
 		klog.V(2).Info("Copied the mask file at the read location")
+
 		return "/" + filepath.Base(configFilePath), nil
 	}
 }
