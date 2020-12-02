@@ -11,7 +11,7 @@ var tcancelFunc context.CancelFunc
 func testTopicRegex(t *testing.T, regexes string,
 	allTopics []string, expectedTopics []string) {
 
-	c := NewManager(nil, regexes, tcancelFunc)
+	c := NewManager(nil, regexes, tcancelFunc, true)
 	c.updatetopics(allTopics)
 
 	topics := c.deepCopyTopics()
@@ -82,7 +82,7 @@ func testSync(t *testing.T, c *Manager, allTopics []string, expected []string) {
 }
 
 func TestTopicSync(t *testing.T) {
-	c := NewManager(nil, "db.*", tcancelFunc)
+	c := NewManager(nil, "db.*", tcancelFunc, true)
 
 	// nothing
 	allTopics := []string{}

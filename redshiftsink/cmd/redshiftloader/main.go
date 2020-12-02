@@ -66,6 +66,7 @@ func run(cmd *cobra.Command, args []string) {
 		consumerGroup,
 		config.Kafka.TopicRegexes,
 		cancel,
+		config.Reload,
 	)
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
