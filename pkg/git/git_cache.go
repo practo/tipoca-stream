@@ -49,6 +49,7 @@ func (g *GitCache) GetFileVersion(filePath string) (string, error) {
 			return version, nil
 		}
 	}
+	now := time.Now().UnixNano()
 
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
@@ -67,19 +68,34 @@ func (g *GitCache) GetFileVersion(filePath string) (string, error) {
 		}
 	}
 
-	// get the latest commit, update cache, return
+	// new cache
+	newFileVersion := make(map[string]string)
+
+	// update new cache for filePath
 	commits, err := g.client.Log(filePath, 1)
 	if err != nil {
 		return "", err
 	}
-
-	// burst cache for all files
-	// recreate the fileVersion so that fileVersion for all files
-	// in this repo update it again as the new pull/clone has occured
-	newFileVersion := make(map[string]string)
 	newFileVersion[filePath] = commits[0]
+
+	// update new cache for all the other files that already existed
+	for path, version := range g.fileVersion {
+		// get the latest commit, update cache
+		commits, err := g.client.Log(filePath, 1)
+		if err != nil {
+			// this could happen if the filePath does not exist, so burst
+			// the cache so that next update fixes it.
+			g.fileVersion = make(map[string]string)
+			g.lastCacheRefresh = &now
+			return "", err
+		}
+		newFileVersion[path] = commits[0]
+	}
+
+	// replace the cache with the new cache
 	g.fileVersion = newFileVersion
-	now := time.Now().UnixNano()
+
+	// update last cache update time
 	g.lastCacheRefresh = &now
 
 	return commits[0], nil
