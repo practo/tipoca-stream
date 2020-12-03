@@ -42,16 +42,6 @@ spec:
             batcher:
               description: RedshiftBatcherSpec defines the desired state of RedshiftBatcher
               properties:
-                kafkaBrokers:
-                  description: Kafka configurations like consumer group and topics
-                    to watch
-                  type: string
-                kafkaGroup:
-                  type: string
-                kafkaLoaderTopicPrefix:
-                  type: string
-                kafkaTopicRegexes:
-                  type: string
                 mask:
                   description: 'Mask when turned on enables masking of the data Default:
                     false'
@@ -142,26 +132,24 @@ spec:
                       type: array
                   type: object
                 suspend:
-                  description: 'Supsend when turned makes sure no batcher pods are
-                    running for this CRD object. Default: false'
+                  description: 'Supsend when turned on makes sure no batcher pods
+                    are running for this CRD object. Default: false'
                   type: boolean
               required:
-              - kafkaGroup
-              - kafkaTopicRegexes
               - maxSize
               - maxWaitSeconds
               type: object
+            kafkaBrokers:
+              description: Kafka configurations like consumer group and topics to
+                watch
+              type: string
+            kafkaLoaderTopicPrefix:
+              type: string
+            kafkaTopicRegexes:
+              type: string
             loader:
               description: RedshiftLoaderSpec defines the desired state of RedshifLoader
               properties:
-                kafkaBrokers:
-                  description: Kafka configurations like consumer group and topics
-                    to watch
-                  type: string
-                kafkaGroup:
-                  type: string
-                kafkaTopicRegexes:
-                  type: string
                 maxSize:
                   description: Max configurations for the loader to batch and load
                   type: integer
@@ -249,13 +237,10 @@ spec:
                   description: RedshiftSchema to sink the data in
                   type: string
                 suspend:
-                  description: 'Supsend when turned makes sure no batcher pods are
-                    running for this CRD object. Default: false'
+                  description: 'Supsend when turned on makes sure no batcher pods
+                    are running for this CRD object. Default: false'
                   type: boolean
               required:
-              - kafkaBrokers
-              - kafkaGroup
-              - kafkaTopicRegexes
               - maxSize
               - maxWaitSeconds
               - redshiftSchema
@@ -268,6 +253,8 @@ spec:
               type: string
           required:
           - batcher
+          - kafkaBrokers
+          - kafkaTopicRegexes
           - loader
           - secretRefName
           - secretRefNamespace
