@@ -298,16 +298,13 @@ func (r *RedshiftSinkReconciler) addBatcherConfigToEnv(
 	return envVars, nil
 }
 
-func getLoaderTopicRegexes(prefix, topicRegexes string) string {
-	var loaderTopicRegexes []string
-	for _, regex := range strings.Split(topicRegexes, ",") {
-		loaderTopicRegexes = append(
-			loaderTopicRegexes,
-			strings.TrimSpace(prefix+strings.TrimSpace(regex)),
-		)
+func addLoaderPrefix(prefix string, topics []string) []string {
+	var prefixedTopics []string
+	for _, topic := range topics {
+		prefixedTopics = append(prefixedTopics, prefix+topic)
 	}
 
-	return strings.Join(loaderTopicRegexes, ",")
+	return prefixedTopics
 }
 
 // addLoaderConfigToEnv adds the loader envs to the list
@@ -315,15 +312,11 @@ func (r *RedshiftSinkReconciler) addLoaderConfigToEnv(
 	envVars []corev1.EnvVar,
 	redshiftsink *tipocav1.RedshiftSink) ([]corev1.EnvVar, error) {
 
-	topics, err := r.topics(
-		getLoaderTopicRegexes(
-			redshiftsink.Spec.KafkaLoaderTopicPrefix,
-			redshiftsink.Spec.KafkaTopicRegexes,
-		),
-	)
+	topics, err := r.topics(redshiftsink.Spec.KafkaTopicRegexes)
 	if err != nil {
 		return []corev1.EnvVar{}, err
 	}
+	topics = addLoaderPrefix(redshiftsink.Spec.KafkaLoaderTopicPrefix, topics)
 
 	// TODO: any better way to do this?
 	envs := []corev1.EnvVar{
