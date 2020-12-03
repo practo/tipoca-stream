@@ -105,6 +105,8 @@ type Redshift struct {
 }
 
 type RedshiftConfig struct {
+	Schema            string `yaml:"schema"`
+	TableSuffix       string `yaml:"tableSuffix"`
 	Host              string `yaml:"host"`
 	Port              string `yaml:"port"`
 	Database          string `yaml:"database"`
@@ -113,7 +115,6 @@ type RedshiftConfig struct {
 	Timeout           int    `yaml:"timeout"`
 	S3AccessKeyId     string `yaml:"s3AccessKeyId"`
 	S3SecretAccessKey string `yaml:"s3SecretAccessKey"`
-	Schema            string `yaml:"schema"`
 	Stats             bool   `yaml:"stats"`
 	MaxOpenConns      int    `yaml:"maxOpenConns"`
 	MaxIdleConns      int    `yaml:"maxIdleConns"`

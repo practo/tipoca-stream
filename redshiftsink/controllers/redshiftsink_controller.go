@@ -360,6 +360,10 @@ func (r *RedshiftSinkReconciler) addLoaderConfigToEnv(
 			Name:  LoaderEnvPrefix + "RELOAD",
 			Value: "false",
 		},
+		corev1.EnvVar{
+			Name:  LoaderEnvPrefix + "REDSHIFT_TARGETTABLESUFFIX",
+			Value: "", // to be passed later.
+		},
 	}
 	envVars = append(envVars, envs...)
 
