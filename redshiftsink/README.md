@@ -43,16 +43,15 @@ metadata:
 spec:
   secretRefName: redshfitsink-secret-2bh89m59ct
   secretRefNamespace: kube-system
+  kafkaBrokers: "kafka1.example.com,kafka2.example.com"
+  kafkaTopicRegexes: "^db.inventory*"
+  kafkaLoaderTopicPrefix: "loader-"
   batcher:
     suspend: false
     maxSize: 10
     maxWaitSeconds: 30
     mask: true
     maskFile: "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker/database.yaml"
-    kafkaBrokers: "kafka1.example.com,kafka2.example.com"
-    kafkaGroup: "inventory-batcher"
-    kafkaTopicRegexes: "^db.inventory*"
-    kafkaLoaderTopicPrefix: "loader-"
     podTemplate:
       resources:
         requests:
@@ -62,9 +61,6 @@ spec:
     suspend: false
     maxSize: 10
     maxWaitSeconds: 30
-    kafkaBrokers: "kafka1.example.com,kafka2.example.com"
-    kafkaGroup: "inventory-loader"
-    kafkaTopicRegexes: "^loader-db.inventory*"
     redshiftSchema: "inventory"
     podTemplate:
       resources:
