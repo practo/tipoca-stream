@@ -236,7 +236,7 @@ func (r *RedshiftSinkReconciler) addBatcherConfigToEnv(
 	envVars []corev1.EnvVar,
 	redshiftsink *tipocav1.RedshiftSink) ([]corev1.EnvVar, error) {
 
-	topics, err := r.topics(redshiftsink.Spec.Batcher.KafkaTopicRegexes)
+	topics, err := r.topics(redshiftsink.Spec.KafkaTopicRegexes)
 	if err != nil {
 		return []corev1.EnvVar{}, err
 	}
@@ -261,11 +261,11 @@ func (r *RedshiftSinkReconciler) addBatcherConfigToEnv(
 		},
 		corev1.EnvVar{
 			Name:  BatcherEnvPrefix + "KAFKA_BROKERS",
-			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.KafkaBrokers),
+			Value: fmt.Sprintf("%v", redshiftsink.Spec.KafkaBrokers),
 		},
 		corev1.EnvVar{
 			Name:  BatcherEnvPrefix + "KAFKA_GROUP",
-			Value: fmt.Sprintf("%v", redshiftsink.Spec.Batcher.KafkaGroup),
+			Value: fmt.Sprintf("%s-batcher", redshiftsink.Name),
 		},
 		corev1.EnvVar{
 			Name:  BatcherEnvPrefix + "KAFKA_TOPICREGEXES",
@@ -274,7 +274,7 @@ func (r *RedshiftSinkReconciler) addBatcherConfigToEnv(
 		corev1.EnvVar{
 			Name: BatcherEnvPrefix + "KAFKA_LOADERTOPICPREFIX",
 			Value: fmt.Sprintf(
-				"%v", redshiftsink.Spec.Batcher.KafkaLoaderTopicPrefix),
+				"%v", redshiftsink.Spec.KafkaLoaderTopicPrefix),
 		},
 		corev1.EnvVar{
 			Name:  BatcherEnvPrefix + "SARAMA_OLDEST",
@@ -298,12 +298,29 @@ func (r *RedshiftSinkReconciler) addBatcherConfigToEnv(
 	return envVars, nil
 }
 
+func getLoaderTopicRegexes(prefix, topicRegexes string) string {
+	var loaderTopicRegexes []string
+	for _, regex := range strings.Split(topicRegexes, ",") {
+		loaderTopicRegexes = append(
+			loaderTopicRegexes,
+			strings.TrimSpace(prefix+strings.TrimSpace(regex)),
+		)
+	}
+
+	return strings.Join(loaderTopicRegexes, ",")
+}
+
 // addLoaderConfigToEnv adds the loader envs to the list
 func (r *RedshiftSinkReconciler) addLoaderConfigToEnv(
 	envVars []corev1.EnvVar,
 	redshiftsink *tipocav1.RedshiftSink) ([]corev1.EnvVar, error) {
 
-	topics, err := r.topics(redshiftsink.Spec.Loader.KafkaTopicRegexes)
+	topics, err := r.topics(
+		getLoaderTopicRegexes(
+			redshiftsink.Spec.KafkaLoaderTopicPrefix,
+			redshiftsink.Spec.KafkaTopicRegexes,
+		),
+	)
 	if err != nil {
 		return []corev1.EnvVar{}, err
 	}
@@ -320,11 +337,11 @@ func (r *RedshiftSinkReconciler) addLoaderConfigToEnv(
 		},
 		corev1.EnvVar{
 			Name:  LoaderEnvPrefix + "KAFKA_BROKERS",
-			Value: fmt.Sprintf("%v", redshiftsink.Spec.Loader.KafkaBrokers),
+			Value: fmt.Sprintf("%v", redshiftsink.Spec.KafkaBrokers),
 		},
 		corev1.EnvVar{
 			Name:  LoaderEnvPrefix + "KAFKA_GROUP",
-			Value: fmt.Sprintf("%v", redshiftsink.Spec.Loader.KafkaGroup),
+			Value: fmt.Sprintf("%s-loader", redshiftsink.Name),
 		},
 		corev1.EnvVar{
 			Name:  LoaderEnvPrefix + "KAFKA_TOPICREGEXES",
