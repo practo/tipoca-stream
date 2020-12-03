@@ -69,6 +69,11 @@ type loadProcessor struct {
 	// targetTable is actual table in redshift
 	targetTable *redshift.Table
 
+	// tableSuffix is used to perform table updates without downtime
+	// it will be used by the redshiftsink operator
+	// it adds suffix to both staging and target table
+	tableSuffix string
+
 	// primaryKeys is the primary key columns for the topics corresponding table
 	primaryKeys []string
 }
@@ -100,6 +105,7 @@ func newLoadProcessor(
 		redshiftSchema: viper.GetString("redshift.schema"),
 		stagingTable:   nil,
 		targetTable:    nil,
+		tableSuffix:    viper.GetString("redshift.tableSuffix"),
 		redshiftStats:  viper.GetBool("redshift.stats"),
 	}
 }
@@ -611,7 +617,8 @@ func (b *loadProcessor) processBatch(
 				inputTable = resp.(redshift.Table)
 				inputTable.Meta.Schema = b.redshiftSchema
 				// postgres(redshift)
-				inputTable.Name = strings.ToLower(inputTable.Name)
+				inputTable.Name = strings.ToLower(
+					inputTable.Name + b.tableSuffix)
 				b.migrateSchema(schemaId, inputTable)
 			}
 			entries = append(
