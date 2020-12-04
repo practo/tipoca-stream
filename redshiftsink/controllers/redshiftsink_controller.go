@@ -31,7 +31,7 @@ import (
 	consumer "github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -117,7 +117,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, err
 	}
 
-	masterSinkGroup := NewSinkGroup("master", r.Client, rsk, kakfaTopics, "")
+	masterSinkGroup := NewSinkGroup(
+		"master", r.Client, r.Scheme, rsk, kakfaTopics, "")
 
 	return masterSinkGroup.Reconcile(ctx)
 }
