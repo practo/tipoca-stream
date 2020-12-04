@@ -5,6 +5,7 @@ import (
 	klog "github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
@@ -14,7 +15,9 @@ type SinkGroup struct {
 	name    string
 	batcher Deployment
 	loader  Deployment
-	rsk     *tipocav1.RedshiftSink
+
+	scheme *runtime.Scheme
+	rsk    *tipocav1.RedshiftSink
 }
 
 type Deployment interface {
@@ -28,6 +31,7 @@ type Deployment interface {
 func NewSinkGroup(
 	name string,
 	client client.Client,
+	scheme *runtime.Scheme,
 	rsk *tipocav1.RedshiftSink,
 	kakfaTopics []string, tableSuffix string) *SinkGroup {
 
@@ -41,6 +45,7 @@ func NewSinkGroup(
 	return &SinkGroup{
 		batcher: NewBatcher(name, client, rsk, batcherTopics),
 		loader:  NewLoader(name, client, rsk, loaderTopics, tableSuffix),
+		scheme:  scheme,
 		rsk:     rsk,
 	}
 }
@@ -77,6 +82,8 @@ func (s *SinkGroup) reconcile(
 		event, err := updateDeployment(ctx, d.Client(), d.Deployment(), s.rsk)
 		return event, err
 	}
+
+	ctrl.SetControllerReference(s.rsk, d.Deployment(), s.scheme)
 
 	return nil, nil
 }
