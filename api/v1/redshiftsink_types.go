@@ -44,7 +44,7 @@ type RedshiftPodTemplateSpec struct {
 
 // RedshiftBatcherSpec defines the desired state of RedshiftBatcher
 type RedshiftBatcherSpec struct {
-	// Supsend when turned makes sure no batcher pods
+	// Supsend when turned on makes sure no batcher pods
 	// are running for this CRD object. Default: false
 	Suspend bool `json:"suspend,omitempty"`
 
@@ -60,13 +60,6 @@ type RedshiftBatcherSpec struct {
 	MaskFile string `json:"maskFile"`
 	// +optional
 
-	// Kafka configurations like consumer group and topics to watch
-	KafkaBrokers      string `json:"kafkaBrokers"`
-	KafkaGroup        string `json:"kafkaGroup"`
-	KafkaTopicRegexes string `json:"kafkaTopicRegexes"`
-	// +optional
-	KafkaLoaderTopicPrefix string `json:"kafkaLoaderTopicPrefix,omitempty"`
-
 	// Template describes the pods that will be created.
 	// if this is not specifed, a default pod template is created
 	// +optional
@@ -75,18 +68,13 @@ type RedshiftBatcherSpec struct {
 
 // RedshiftLoaderSpec defines the desired state of RedshifLoader
 type RedshiftLoaderSpec struct {
-	// Supsend when turned makes sure no batcher pods
+	// Supsend when turned on makes sure no batcher pods
 	// are running for this CRD object. Default: false
 	Suspend bool `json:"suspend,omitempty"`
 
 	// Max configurations for the loader to batch and load
 	MaxSize        int `json:"maxSize"`
 	MaxWaitSeconds int `json:"maxWaitSeconds"`
-
-	// Kafka configurations like consumer group and topics to watch
-	KafkaBrokers      string `json:"kafkaBrokers"`
-	KafkaGroup        string `json:"kafkaGroup"`
-	KafkaTopicRegexes string `json:"kafkaTopicRegexes"`
 
 	// RedshiftSchema to sink the data in
 	RedshiftSchema string `json:"redshiftSchema"`
@@ -106,6 +94,12 @@ type RedshiftSinkSpec struct {
 	// Default: the secret name and namespace provided in the controller flags
 	SecretRefName      string `json:"secretRefName"`
 	SecretRefNamespace string `json:"secretRefNamespace"`
+
+	// Kafka configurations like consumer group and topics to watch
+	KafkaBrokers      string `json:"kafkaBrokers"`
+	KafkaTopicRegexes string `json:"kafkaTopicRegexes"`
+	// +optional
+	KafkaLoaderTopicPrefix string `json:"kafkaLoaderTopicPrefix,omitempty"`
 
 	Batcher RedshiftBatcherSpec `json:"batcher"`
 	Loader  RedshiftLoaderSpec  `json:"loader"`

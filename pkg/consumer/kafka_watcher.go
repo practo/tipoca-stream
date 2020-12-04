@@ -68,6 +68,8 @@ func (t *kafkaWatch) Topics() ([]string, error) {
 	defer t.mutex.Unlock()
 
 	t.topics = topics
+	now := time.Now().UnixNano()
+	t.lastTopicRefreshTime = &now
 
 	return t.topics, nil
 }
