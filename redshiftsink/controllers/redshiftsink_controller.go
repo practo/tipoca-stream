@@ -25,17 +25,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-logr/logr"
+	logr "github.com/go-logr/logr"
 	klog "github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	consumer "github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
+	git "github.com/practo/tipoca-stream/redshiftsink/pkg/git"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/client-go/tools/record"
+	record "k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 	controller "sigs.k8s.io/controller-runtime/pkg/controller"
 )
 
@@ -58,6 +59,86 @@ type RedshiftSinkReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
+
+// fetchSecretMap fetchs the k8s secret and returns it as a the map
+// also it expects the secret to be of
+// type as created from ../config/manager/kustomization_sample.yaml
+func (r *RedshiftSinkReconciler) fetchSecretMap(
+	ctx context.Context, name, namespace string) (map[string]string, error) {
+
+	secret := make(map[string]string)
+
+	k8sSecret, err := getSecret(ctx, r.Client, name, namespace)
+	if err != nil {
+		return secret, nil
+	}
+
+	for _, bytes := range k8sSecret.Data {
+		if len(bytes) == 0 {
+			continue
+		}
+		for _, key := range strings.Split(string(bytes), "\n") {
+			s := strings.Split(key, "=")
+			if len(s) != 2 {
+				continue
+			}
+			secret[s[0]] = fmt.Sprintf("%s", s[1])
+		}
+	}
+
+	return secret, err
+}
+
+// fetchLatestMaskFile gets the latest mask file from remote git repository.
+// It returns the local file path and the git hash of the file.
+// Supports only github at present as maskFile parsing is not handled
+// for all the types of url formats but with very few line of changes
+// it can support all the other git repository.
+func (r *RedshiftSinkReconciler) fetchLatestMaskFile(
+	maskFile string, secret map[string]string) (string, string, error) {
+	url, err := git.ParseURL(maskFile)
+	if err != nil {
+		return "", "", err
+	}
+
+	if url.Scheme != "https" {
+		return "", "", fmt.Errorf("scheme: %s not supported.\n", url.Scheme)
+	}
+
+	var repo, filePath string
+
+	switch url.Host {
+	case "github.com":
+		repo, filePath = git.ParseGithubURL(url.Path)
+	default:
+		return "", "", fmt.Errorf("parsing not supported for: %s\n", url.Host)
+	}
+
+	var cache git.GitCacheInterface
+
+	cacheLoaded, ok := r.GitCache.Load(repo)
+	if ok {
+		cache = cacheLoaded.(git.GitCacheInterface)
+	} else {
+		repoURL := strings.ReplaceAll(maskFile, filePath, "")
+		gitToken, ok := secret["githubAccessToken"]
+		if !ok {
+			return "", "", fmt.Errorf("githubAccessToken not found in secret")
+		}
+		cache, err := git.NewGitCache(repoURL, gitToken)
+		if err != nil {
+			return "", "", err
+		}
+		r.GitCache.Store(repo, cache)
+	}
+
+	hash, err := cache.GetFileVersion(filePath)
+	if err != nil {
+		return "", "", err
+	}
+
+	return hash, cache.GetFileLocalPath(filePath), nil
+}
 
 func (r *RedshiftSinkReconciler) fetchLatestTopics(
 	regexes string) ([]string, error) {
@@ -117,10 +198,13 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, err
 	}
 
-	masterSinkGroup := NewSinkGroup(
-		"master", r.Client, r.Scheme, rsk, kakfaTopics, "")
+	if rsk.Spec.Batcher.Mask == false {
+		masterSinkGroup := NewSinkGroup(
+			"master", r.Client, r.Scheme, rsk, kakfaTopics, "")
+		return masterSinkGroup.Reconcile(ctx)
+	}
 
-	return masterSinkGroup.Reconcile(ctx)
+	return result, nil, nil
 }
 
 func (r *RedshiftSinkReconciler) Reconcile(

@@ -60,10 +60,8 @@ func (s *SinkGroup) reconcile(
 	currentDeployment, exists, err := getDeployment(
 		ctx,
 		d.Client(),
-		serviceName(
-			d.Name(),
-			d.Namespace(),
-		),
+		d.Name(),
+		d.Namespace(),
 	)
 	if err != nil {
 		return nil, err

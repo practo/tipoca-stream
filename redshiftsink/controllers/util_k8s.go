@@ -197,10 +197,11 @@ func deploymentSpecEqual(
 func getDeployment(
 	ctx context.Context,
 	client client.Client,
-	nameNamespace types.NamespacedName) (*appsv1.Deployment, bool, error) {
+	name string,
+	namespace string) (*appsv1.Deployment, bool, error) {
 
 	deployment := &appsv1.Deployment{}
-	err := client.Get(ctx, nameNamespace, deployment)
+	err := client.Get(ctx, serviceName(name, namespace), deployment)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			// got the expected err of not found
@@ -250,4 +251,15 @@ func updateDeployment(
 		Object: redshiftsink,
 		Name:   deployment.Name,
 	}, nil
+}
+
+func getSecret(
+	ctx context.Context,
+	client client.Client,
+	name string,
+	namespace string) (*corev1.Secret, error) {
+
+	secret := &corev1.Secret{}
+	err := client.Get(ctx, serviceName(name, namespace), secret)
+	return secret, err
 }

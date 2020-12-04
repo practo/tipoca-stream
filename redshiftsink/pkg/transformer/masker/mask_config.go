@@ -80,9 +80,7 @@ func downloadMaskFile(maskFile string, maskFileVersion string) (string, error) {
 		var repo, configFilePath string
 		switch url.Host {
 		case "github.com":
-			var org, repoName string
-			org, repoName, configFilePath = git.ParseGithubURL(url.Path)
-			repo = org + "/" + repoName
+			repo, configFilePath = git.ParseGithubURL(url.Path)
 		default:
 			return "", fmt.Errorf("parsing not supported for: %s\n", url.Host)
 		}
