@@ -89,20 +89,29 @@ func (r *RedshiftSinkReconciler) fetchSecretMap(
 	return secret, err
 }
 
-// fetchLatestMaskFile gets the latest mask file from remote git repository.
-// It returns the local file path and the git hash of the file.
+func getGitToken(secret map[string]string) (string, error) {
+	gitToken, ok := secret["githubAccessToken"]
+	if !ok {
+		return "", fmt.Errorf("githubAccessToken not found in secret")
+	}
+
+	return gitToken, nil
+}
+
+// fetchLatestMaskFileVersion gets the latest mask file from remote git repository.
+// It the git hash of the maskFile.
 // Supports only github at present as maskFile parsing is not handled
 // for all the types of url formats but with very few line of changes
 // it can support all the other git repository.
-func (r *RedshiftSinkReconciler) fetchLatestMaskFile(
-	maskFile string, secret map[string]string) (string, string, error) {
+func (r *RedshiftSinkReconciler) fetchLatestMaskFileVersion(
+	maskFile string, gitToken string) (string, error) {
 	url, err := git.ParseURL(maskFile)
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 
 	if url.Scheme != "https" {
-		return "", "", fmt.Errorf("scheme: %s not supported.\n", url.Scheme)
+		return "", fmt.Errorf("scheme: %s not supported.\n", url.Scheme)
 	}
 
 	var repo, filePath string
@@ -111,7 +120,7 @@ func (r *RedshiftSinkReconciler) fetchLatestMaskFile(
 	case "github.com":
 		repo, filePath = git.ParseGithubURL(url.Path)
 	default:
-		return "", "", fmt.Errorf("parsing not supported for: %s\n", url.Host)
+		return "", fmt.Errorf("parsing not supported for: %s\n", url.Host)
 	}
 
 	var cache git.GitCacheInterface
@@ -121,23 +130,14 @@ func (r *RedshiftSinkReconciler) fetchLatestMaskFile(
 		cache = cacheLoaded.(git.GitCacheInterface)
 	} else {
 		repoURL := strings.ReplaceAll(maskFile, filePath, "")
-		gitToken, ok := secret["githubAccessToken"]
-		if !ok {
-			return "", "", fmt.Errorf("githubAccessToken not found in secret")
-		}
-		cache, err := git.NewGitCache(repoURL, gitToken)
+		cache, err = git.NewGitCache(repoURL, gitToken)
 		if err != nil {
-			return "", "", err
+			return "", err
 		}
 		r.GitCache.Store(repo, cache)
 	}
 
-	hash, err := cache.GetFileVersion(filePath)
-	if err != nil {
-		return "", "", err
-	}
-
-	return hash, cache.GetFileLocalPath(filePath), nil
+	return cache.GetFileVersion(filePath)
 }
 
 func (r *RedshiftSinkReconciler) fetchLatestTopics(
@@ -193,16 +193,41 @@ func (r *RedshiftSinkReconciler) reconcile(
 ) {
 	result := ctrl.Result{RequeueAfter: time.Second * 30}
 
-	kakfaTopics, err := r.fetchLatestTopics(rsk.Spec.KafkaTopicRegexes)
+	kafkaTopics, err := r.fetchLatestTopics(rsk.Spec.KafkaTopicRegexes)
 	if err != nil {
 		return result, nil, err
 	}
 
 	if rsk.Spec.Batcher.Mask == false {
 		masterSinkGroup := NewSinkGroup(
-			"master", r.Client, r.Scheme, rsk, kakfaTopics, "")
+			"master", r.Client, r.Scheme, rsk, kafkaTopics, "")
 		return masterSinkGroup.Reconcile(ctx)
 	}
+
+	secret, err := r.fetchSecretMap(
+		ctx, rsk.Spec.SecretRefName, rsk.Spec.SecretRefNamespace)
+	if err != nil {
+		return result, nil, err
+	}
+	gitToken, err := getGitToken(secret)
+	if err != nil {
+		return result, nil, err
+	}
+
+	desiredMaskVersion, err := r.fetchLatestMaskFileVersion(
+		rsk.Spec.Batcher.MaskFile, gitToken)
+	if err != nil {
+		return result, nil, err
+	}
+
+	maskDiffer := NewMaskVersionDiffer(
+		kafkaTopics,
+		gitToken,
+		rsk.Spec.Batcher.MaskFile,
+		desiredMaskVersion,
+		rsk.Status.MaskStatus,
+	)
+	maskDiffer.Diff()
 
 	return result, nil, nil
 }
