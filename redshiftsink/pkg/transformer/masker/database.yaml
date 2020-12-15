@@ -50,7 +50,7 @@ sort_keys:
     justifications:
     - createdAt
 dist_keys:
-    customers:
+    removedCustomers:
     - email
     justifications:
     - source

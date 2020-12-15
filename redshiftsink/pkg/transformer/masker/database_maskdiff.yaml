@@ -9,6 +9,7 @@ non_pii_keys:
     - addedNewRowToUnmask
     establishments:
     - id
+    - addedNewRowToUnmask
     settings:
     - id
 conditional_non_pii_keys:
@@ -21,12 +22,17 @@ conditional_non_pii_keys:
     customers:
         email:
         - '%example.com'
+        - '%practodev.com%'
         - '%exampledev.com'
 dependent_non_pii_keys:
     justifications::
         # test for case insensitivity
         Justice:
             # test for case insensitivity
+            Reason:
+            - 'want'
+    addedNewTable:
+        Justice:
             Reason:
             - 'want'
     customers:

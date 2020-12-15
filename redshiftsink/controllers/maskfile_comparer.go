@@ -34,8 +34,7 @@ func NewMaskVersionDiffer(
 	}
 }
 
-// Diff performs the diff and makes a map of version and topics
-// which should be sinked together
+// Diff finds the list of topics which would need update
 func (m *MaskVersionDiffer) Diff() error {
 	if m.currentMaskVersion == "" {
 		return nil
@@ -59,6 +58,10 @@ func (m *MaskVersionDiffer) Diff() error {
 		return err
 	}
 
-	masker.Diff(currentMaskConfig, desiredMaskConfig)
+	differ := masker.NewMaskDiffer(currentMaskConfig, desiredMaskConfig)
+	tables := differ.Modified()
+
+	_ = tables
+
 	return nil
 }
