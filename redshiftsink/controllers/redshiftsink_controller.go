@@ -73,17 +73,8 @@ func (r *RedshiftSinkReconciler) fetchSecretMap(
 		return secret, nil
 	}
 
-	for _, bytes := range k8sSecret.Data {
-		if len(bytes) == 0 {
-			continue
-		}
-		for _, key := range strings.Split(string(bytes), "\n") {
-			s := strings.Split(key, "=")
-			if len(s) != 2 {
-				continue
-			}
-			secret[s[0]] = fmt.Sprintf("%s", s[1])
-		}
+	for key, value := range k8sSecret.Data {
+		secret[key] = string(value)
 	}
 
 	return secret, err
@@ -191,7 +182,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	ReconcilerEvent,
 	error,
 ) {
-	result := ctrl.Result{RequeueAfter: time.Second * 30}
+	result := ctrl.Result{RequeueAfter: time.Second * 5}
 
 	kafkaTopics, err := r.fetchLatestTopics(rsk.Spec.KafkaTopicRegexes)
 	if err != nil {
