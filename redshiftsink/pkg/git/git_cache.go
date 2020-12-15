@@ -57,7 +57,7 @@ func (g *GitCache) GetFileVersion(filePath string) (string, error) {
 	defer g.mutex.Unlock()
 
 	// clone or pull
-	_, err := os.Stat(g.cloneDir)
+	_, err := os.Stat(filepath.Join(g.cloneDir, ".git"))
 	if os.IsNotExist(err) {
 		err = g.client.Clone()
 		if err != nil {

@@ -42,8 +42,8 @@ func (in *MaskStatus) DeepCopyInto(out *MaskStatus) {
 			(*out)[key] = val
 		}
 	}
-	if in.CurrenMaskVersion != nil {
-		in, out := &in.CurrenMaskVersion, &out.CurrenMaskVersion
+	if in.CurrentMaskVersion != nil {
+		in, out := &in.CurrentMaskVersion, &out.CurrentMaskVersion
 		*out = new(string)
 		**out = **in
 	}

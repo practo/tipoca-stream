@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	klog "github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -99,7 +100,7 @@ func (s *SinkGroup) Reconcile(
 	// reconcile batcher
 	event, err := s.reconcile(ctx, s.batcher)
 	if err != nil {
-		return result, event, err
+		return result, event, fmt.Errorf("Error reconciling batcher, %v", err)
 	}
 	if event != nil {
 		return result, event, nil
@@ -108,12 +109,11 @@ func (s *SinkGroup) Reconcile(
 	// reconcile loader
 	event, err = s.reconcile(ctx, s.loader)
 	if err != nil {
-		return result, event, err
+		return result, event, fmt.Errorf("Error reconciling loader, %v", err)
 	}
 	if event != nil {
 		return result, event, nil
 	}
 
-	klog.Info("Nothing done.")
 	return result, nil, nil
 }

@@ -263,3 +263,12 @@ func getSecret(
 	err := client.Get(ctx, serviceName(name, namespace), secret)
 	return secret, err
 }
+
+func toMap(s []string) map[string]bool {
+	m := make(map[string]bool)
+	for _, r := range s {
+		m[r] = true
+	}
+
+	return m
+}

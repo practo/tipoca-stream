@@ -142,7 +142,7 @@ type MaskStatus struct {
 	// CurrentMaskVersion stores the mask version which was completely rolled
 	// out in all the topics.
 	// +optional
-	CurrenMaskVersion *string `json:"currentMaskVersion,omitempty"`
+	CurrentMaskVersion *string `json:"currentMaskVersion,omitempty"`
 
 	// DesiredMaskVersion stores the latest mask version which should be
 	// completely rolled out in all the topics.

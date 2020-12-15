@@ -70,14 +70,14 @@ func (r *RedshiftSinkReconciler) fetchSecretMap(
 
 	k8sSecret, err := getSecret(ctx, r.Client, name, namespace)
 	if err != nil {
-		return secret, nil
+		return secret, fmt.Errorf("Error getting secret, %v", err)
 	}
 
 	for key, value := range k8sSecret.Data {
 		secret[key] = string(value)
 	}
 
-	return secret, err
+	return secret, nil
 }
 
 func getGitToken(secret map[string]string) (string, error) {
@@ -174,6 +174,59 @@ func (r *RedshiftSinkReconciler) fetchLatestTopics(
 	return topics, nil
 }
 
+func getCurrentMaskStatus(
+	topics []string, reloadTopic map[string]bool,
+	currentVersion string, desiredVersion string) map[string]tipocav1.TopicMaskStatus {
+
+	status := make(map[string]tipocav1.TopicMaskStatus)
+	for _, topic := range topics {
+		_, ok := reloadTopic[topic]
+		if ok {
+			status[topic] = tipocav1.TopicMaskStatus{
+				MaskFileVersion: desiredVersion,
+				Phase:           tipocav1.MaskReloading,
+			}
+		} else {
+			status[topic] = tipocav1.TopicMaskStatus{
+				MaskFileVersion: currentVersion,
+				Phase:           tipocav1.MaskActive,
+			}
+		}
+	}
+
+	return status
+}
+
+func getDesiredMaskStatus(
+	topics []string, version string) map[string]tipocav1.TopicMaskStatus {
+
+	status := make(map[string]tipocav1.TopicMaskStatus)
+	for _, topic := range topics {
+		status[topic] = tipocav1.TopicMaskStatus{
+			MaskFileVersion: version,
+			Phase:           tipocav1.MaskActive,
+		}
+	}
+
+	return status
+}
+
+func (r *RedshiftSinkReconciler) updateStatus(
+	rsk *tipocav1.RedshiftSink,
+	topics []string,
+	reloadTopic map[string]bool,
+	currentMaskVersion string,
+	desiredMaskVersion string,
+) {
+	rsk.Status.MaskStatus.CurrentMaskVersion = &currentMaskVersion
+	rsk.Status.MaskStatus.DesiredMaskVersion = &desiredMaskVersion
+	rsk.Status.MaskStatus.DesiredMaskStatus = getDesiredMaskStatus(
+		topics, desiredMaskVersion)
+	rsk.Status.MaskStatus.CurrentMaskStatus = getCurrentMaskStatus(
+		topics, reloadTopic, currentMaskVersion, desiredMaskVersion,
+	)
+}
+
 func (r *RedshiftSinkReconciler) reconcile(
 	ctx context.Context,
 	rsk *tipocav1.RedshiftSink,
@@ -186,20 +239,23 @@ func (r *RedshiftSinkReconciler) reconcile(
 
 	kafkaTopics, err := r.fetchLatestTopics(rsk.Spec.KafkaTopicRegexes)
 	if err != nil {
-		return result, nil, err
+		return result, nil, fmt.Errorf(
+			"Error fetching topics, err: %v", err)
 	}
 
 	masterSinkGroup := NewSinkGroup(
 		MasterSinkGroup, r.Client, r.Scheme, rsk, kafkaTopics, "")
 
 	if rsk.Spec.Batcher.Mask == false {
-		return masterSinkGroup.Reconcile(ctx)
+		result, event, err := masterSinkGroup.Reconcile(ctx)
+		return result, event, err
 	} else {
 		// reconcile master sink group
 		result, event, err := masterSinkGroup.Reconcile(ctx)
 		if err != nil {
 			return result, event, err
 		}
+
 		if event != nil {
 			return result, event, nil
 		}
@@ -218,28 +274,39 @@ func (r *RedshiftSinkReconciler) reconcile(
 	desiredMaskVersion, err := r.fetchLatestMaskFileVersion(
 		rsk.Spec.Batcher.MaskFile, gitToken)
 	if err != nil {
-		return result, nil, err
+		return result, nil, fmt.Errorf(
+			"Error fetching latest mask file version, err: %v\n", err)
 	}
 
-	if rsk.Status.MaskStatus == nil ||
-		rsk.Status.MaskStatus.CurrenMaskVersion == nil {
-
-		return result, nil, fmt.Errorf("Current mask Version is nil")
+	var currentMaskVersion string
+	if rsk.Status.MaskStatus != nil ||
+		rsk.Status.MaskStatus.CurrentMaskVersion != nil {
+		currentMaskVersion = *rsk.Status.MaskStatus.CurrentMaskVersion
+	} else {
+		currentMaskVersion = desiredMaskVersion
 	}
 
 	reloadTopics, err := MaskDiff(
 		kafkaTopics,
 		rsk.Spec.Batcher.MaskFile,
 		desiredMaskVersion,
-		*rsk.Status.MaskStatus.CurrenMaskVersion,
+		currentMaskVersion,
 		gitToken,
 	)
 	if err != nil {
 		return result, nil, err
 	}
 
+	// update mask status
+	r.updateStatus(
+		rsk, kafkaTopics, toMap(reloadTopics),
+		currentMaskVersion, desiredMaskVersion,
+	)
+
 	reloadSinkGroup := NewSinkGroup(
-		ReloadSinkGroup, r.Client, r.Scheme, rsk, reloadTopics, "-reload")
+		ReloadSinkGroup, r.Client, r.Scheme, rsk,
+		reloadTopics, "-reload",
+	)
 
 	// reconcile reload sink group
 	result, event, err := reloadSinkGroup.Reconcile(ctx)
@@ -249,6 +316,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 	if event != nil {
 		return result, event, nil
 	}
+
+	klog.Info("Nothing done.")
 
 	return result, nil, nil
 }
