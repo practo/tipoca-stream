@@ -279,7 +279,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 
 	var currentMaskVersion string
-	if rsk.Status.MaskStatus != nil ||
+	if rsk.Status.MaskStatus != nil &&
 		rsk.Status.MaskStatus.CurrentMaskVersion != nil {
 		currentMaskVersion = *rsk.Status.MaskStatus.CurrentMaskVersion
 	} else {
@@ -294,7 +294,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		gitToken,
 	)
 	if err != nil {
-		return result, nil, err
+		return result, nil, fmt.Errorf("Error doing mask diff, err: %v", err)
 	}
 
 	// update mask status

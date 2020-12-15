@@ -18,6 +18,7 @@ func MaskDiff(
 		return []string{}, err
 	}
 
+	klog.Info("desired")
 	desiredMaskConfig, err := masker.NewMaskConfig(maskFile, desiredVersion, t)
 	if err != nil {
 		return []string{}, err
