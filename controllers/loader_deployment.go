@@ -111,11 +111,18 @@ func NewLoader(
 			"redshiftPassword", secretRefName),
 	}
 
+	var replicas int32
+	if loaderTopics != "" {
+		replicas = getReplicas(rsk.Spec.Batcher.Suspend)
+	} else {
+		replicas = 0
+	}
+
 	deploySpec := deploymentSpec{
 		name:           uniqueName,
 		namespace:      rsk.Namespace,
 		labels:         getDefaultLabels("redshiftloader"),
-		replicas:       getReplicas(rsk.Spec.Loader.Suspend),
+		replicas:       &replicas,
 		deploymentName: uniqueName,
 		envs:           envs,
 		resources:      rsk.Spec.Loader.PodTemplate.Resources,

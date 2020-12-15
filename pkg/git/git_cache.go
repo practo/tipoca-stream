@@ -3,12 +3,14 @@ package git
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 )
 
 type GitCacheInterface interface {
 	GetFileVersion(filePath string) (string, error)
+	GetFileLocalPath(filepath string) string
 }
 
 type GitCache struct {
@@ -55,7 +57,7 @@ func (g *GitCache) GetFileVersion(filePath string) (string, error) {
 	defer g.mutex.Unlock()
 
 	// clone or pull
-	_, err := os.Stat(g.cloneDir)
+	_, err := os.Stat(filepath.Join(g.cloneDir, ".git"))
 	if os.IsNotExist(err) {
 		err = g.client.Clone()
 		if err != nil {
@@ -99,6 +101,12 @@ func (g *GitCache) GetFileVersion(filePath string) (string, error) {
 	g.lastCacheRefresh = &now
 
 	return commits[0], nil
+}
+
+// GetFileLocalPath takes the relative path of the file from repo
+// and returns the local path the file should be present if downloaded
+func (g *GitCache) GetFileLocalPath(filePath string) string {
+	return filepath.Join(g.cloneDir, filePath)
 }
 
 func cacheValid(validity time.Duration, lastCachedTime *int64) bool {

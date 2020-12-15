@@ -5,7 +5,6 @@ import (
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/git"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
-	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
@@ -61,7 +60,11 @@ func loweredKeys(keys map[string][]string) {
 	}
 }
 
-func downloadMaskFile(maskFile string, maskFileVersion string) (string, error) {
+func downloadMaskFile(
+	maskFile string,
+	maskFileVersion string,
+	gitToken string) (string, error) {
+
 	url, err := git.ParseURL(maskFile)
 	if err != nil {
 		return "", err
@@ -80,9 +83,7 @@ func downloadMaskFile(maskFile string, maskFileVersion string) (string, error) {
 		var repo, configFilePath string
 		switch url.Host {
 		case "github.com":
-			var org, repoName string
-			org, repoName, configFilePath = git.ParseGithubURL(url.Path)
-			repo = org + "/" + repoName
+			repo, configFilePath = git.ParseGithubURL(url.Path)
 		default:
 			return "", fmt.Errorf("parsing not supported for: %s\n", url.Host)
 		}
@@ -93,9 +94,7 @@ func downloadMaskFile(maskFile string, maskFileVersion string) (string, error) {
 		}
 		defer os.RemoveAll(dir)
 
-		g := git.New(dir, repo,
-			viper.GetString("batcher.githubAccessToken"),
-		)
+		g := git.New(dir, repo, gitToken)
 
 		klog.V(2).Infof("Downloading git repo: %s", repo)
 		err = g.Clone()
@@ -119,9 +118,12 @@ func downloadMaskFile(maskFile string, maskFileVersion string) (string, error) {
 }
 
 func NewMaskConfig(
-	topic string, maskFile string, maskFileVersion string) (MaskConfig, error) {
+	maskFile string,
+	maskFileVersion string,
+	gitToken string) (MaskConfig, error) {
+
 	var maskConfig MaskConfig
-	configFilePath, err := downloadMaskFile(maskFile, maskFileVersion)
+	configFilePath, err := downloadMaskFile(maskFile, maskFileVersion, gitToken)
 	if err != nil {
 		return maskConfig, err
 	}

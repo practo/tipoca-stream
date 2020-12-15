@@ -1,3 +1,4 @@
 *.yaml
+!database_maskdiff.yaml
 !database.yaml
 inventory.yaml
