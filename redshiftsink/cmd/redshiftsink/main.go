@@ -88,6 +88,7 @@ func main() {
 		Recorder:          mgr.GetEventRecorderFor("redshiftsink-reconciler"),
 		KafkaTopicRegexes: new(sync.Map),
 		KafkaWatcher:      kafkaWatcher,
+		GitCache:          new(sync.Map),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RedshiftSink")
 		os.Exit(1)

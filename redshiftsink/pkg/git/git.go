@@ -147,12 +147,12 @@ func ParseURL(pathOrURL string) (*url.URL, error) {
 	return giturls.Parse(pathOrURL)
 }
 
-// ParseRepoURL breaks a path github.com/practo/tipoca-stream/pkg/README.md
-// into "practo", "tipoca-stream" and "pkg/README.md"
-func ParseGithubURL(urlPath string) (string, string, string) {
+// ParseRepoURL breaks a path into repo and filepath
+// eg: for github.com/practo/tipoca-stream/pkg/README.md
+// this: "practo/tipoca-stream" and "pkg/README.md"
+func ParseGithubURL(urlPath string) (string, string) {
 	filePath := strings.Join(strings.Split(urlPath, "/")[3:], "/")
 	repo := strings.ReplaceAll(urlPath, "/"+filePath, "")
-	orgRepo := strings.Split(repo, "/")
 
-	return orgRepo[0], orgRepo[1], filePath
+	return repo, filePath
 }

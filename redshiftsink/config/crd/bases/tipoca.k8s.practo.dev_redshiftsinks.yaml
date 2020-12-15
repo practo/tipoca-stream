@@ -262,35 +262,50 @@ spec:
         status:
           description: RedshiftSinkStatus defines the observed state of RedshiftSink
           properties:
-            currentMaskStatus:
-              additionalProperties:
-                description: MaskStatus store the mask status of a single topic
-                properties:
-                  maskFileVersion:
-                    description: MaskFileVersion is the current mask configuration
-                      being used
-                    type: string
-                  phase:
-                    description: Phase determines the
-                    type: string
-                type: object
-              description: CurrentMaskStatus stores the current status of mask status
-                of topics
-              type: object
-            desiredMaskStatus:
-              additionalProperties:
-                description: MaskStatus store the mask status of a single topic
-                properties:
-                  maskFileVersion:
-                    description: MaskFileVersion is the current mask configuration
-                      being used
-                    type: string
-                  phase:
-                    description: Phase determines the
-                    type: string
-                type: object
-              description: DesiredMaskStatus stores the current status of mask status
-                of topics
+            maskStatus:
+              description: MaskStatus stores the status of masking for topics if masking
+                is enabled
+              properties:
+                currentMaskStatus:
+                  additionalProperties:
+                    description: TopicMaskStatus store the mask status of a single
+                      topic
+                    properties:
+                      maskFileVersion:
+                        description: MaskFileVersion is the current mask configuration
+                          being used
+                        type: string
+                      phase:
+                        description: Phase determines the
+                        type: string
+                    type: object
+                  description: CurrentMaskStatus stores the current status of mask
+                    status of topics
+                  type: object
+                currentMaskVersion:
+                  description: CurrentMaskVersion stores the mask version which was
+                    completely rolled out in all the topics.
+                  type: string
+                desiredMaskStatus:
+                  additionalProperties:
+                    description: TopicMaskStatus store the mask status of a single
+                      topic
+                    properties:
+                      maskFileVersion:
+                        description: MaskFileVersion is the current mask configuration
+                          being used
+                        type: string
+                      phase:
+                        description: Phase determines the
+                        type: string
+                    type: object
+                  description: DesiredMaskStatus stores the current status of mask
+                    status of topics
+                  type: object
+                desiredMaskedVersion:
+                  description: DesiredMaskVersion stores the latest mask version which
+                    should be completely rolled out in all the topics.
+                  type: string
               type: object
           type: object
       type: object

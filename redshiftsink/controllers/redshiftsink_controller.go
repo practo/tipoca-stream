@@ -25,17 +25,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-logr/logr"
+	logr "github.com/go-logr/logr"
 	klog "github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	consumer "github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
+	git "github.com/practo/tipoca-stream/redshiftsink/pkg/git"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	kerrors "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/client-go/tools/record"
+	record "k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 	controller "sigs.k8s.io/controller-runtime/pkg/controller"
 )
 
@@ -58,6 +59,77 @@ type RedshiftSinkReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
+
+// fetchSecretMap fetchs the k8s secret and returns it as a the map
+// also it expects the secret to be of
+// type as created from ../config/manager/kustomization_sample.yaml
+func (r *RedshiftSinkReconciler) fetchSecretMap(
+	ctx context.Context, name, namespace string) (map[string]string, error) {
+
+	secret := make(map[string]string)
+
+	k8sSecret, err := getSecret(ctx, r.Client, name, namespace)
+	if err != nil {
+		return secret, fmt.Errorf("Error getting secret, %v", err)
+	}
+
+	for key, value := range k8sSecret.Data {
+		secret[key] = string(value)
+	}
+
+	return secret, nil
+}
+
+func getGitToken(secret map[string]string) (string, error) {
+	gitToken, ok := secret["githubAccessToken"]
+	if !ok {
+		return "", fmt.Errorf("githubAccessToken not found in secret")
+	}
+
+	return gitToken, nil
+}
+
+// fetchLatestMaskFileVersion gets the latest mask file from remote git repository.
+// It the git hash of the maskFile.
+// Supports only github at present as maskFile parsing is not handled
+// for all the types of url formats but with very few line of changes
+// it can support all the other git repository.
+func (r *RedshiftSinkReconciler) fetchLatestMaskFileVersion(
+	maskFile string, gitToken string) (string, error) {
+	url, err := git.ParseURL(maskFile)
+	if err != nil {
+		return "", err
+	}
+
+	if url.Scheme != "https" {
+		return "", fmt.Errorf("scheme: %s not supported.\n", url.Scheme)
+	}
+
+	var repo, filePath string
+
+	switch url.Host {
+	case "github.com":
+		repo, filePath = git.ParseGithubURL(url.Path)
+	default:
+		return "", fmt.Errorf("parsing not supported for: %s\n", url.Host)
+	}
+
+	var cache git.GitCacheInterface
+
+	cacheLoaded, ok := r.GitCache.Load(repo)
+	if ok {
+		cache = cacheLoaded.(git.GitCacheInterface)
+	} else {
+		repoURL := strings.ReplaceAll(maskFile, filePath, "")
+		cache, err = git.NewGitCache(repoURL, gitToken)
+		if err != nil {
+			return "", err
+		}
+		r.GitCache.Store(repo, cache)
+	}
+
+	return cache.GetFileVersion(filePath)
+}
 
 func (r *RedshiftSinkReconciler) fetchLatestTopics(
 	regexes string) ([]string, error) {
@@ -102,6 +174,59 @@ func (r *RedshiftSinkReconciler) fetchLatestTopics(
 	return topics, nil
 }
 
+func getCurrentMaskStatus(
+	topics []string, reloadTopic map[string]bool,
+	currentVersion string, desiredVersion string) map[string]tipocav1.TopicMaskStatus {
+
+	status := make(map[string]tipocav1.TopicMaskStatus)
+	for _, topic := range topics {
+		_, ok := reloadTopic[topic]
+		if ok {
+			status[topic] = tipocav1.TopicMaskStatus{
+				MaskFileVersion: desiredVersion,
+				Phase:           tipocav1.MaskReloading,
+			}
+		} else {
+			status[topic] = tipocav1.TopicMaskStatus{
+				MaskFileVersion: currentVersion,
+				Phase:           tipocav1.MaskActive,
+			}
+		}
+	}
+
+	return status
+}
+
+func getDesiredMaskStatus(
+	topics []string, version string) map[string]tipocav1.TopicMaskStatus {
+
+	status := make(map[string]tipocav1.TopicMaskStatus)
+	for _, topic := range topics {
+		status[topic] = tipocav1.TopicMaskStatus{
+			MaskFileVersion: version,
+			Phase:           tipocav1.MaskActive,
+		}
+	}
+
+	return status
+}
+
+func (r *RedshiftSinkReconciler) updateStatus(
+	rsk *tipocav1.RedshiftSink,
+	topics []string,
+	reloadTopic map[string]bool,
+	currentMaskVersion string,
+	desiredMaskVersion string,
+) {
+	rsk.Status.MaskStatus.CurrentMaskVersion = &currentMaskVersion
+	rsk.Status.MaskStatus.DesiredMaskVersion = &desiredMaskVersion
+	rsk.Status.MaskStatus.DesiredMaskStatus = getDesiredMaskStatus(
+		topics, desiredMaskVersion)
+	rsk.Status.MaskStatus.CurrentMaskStatus = getCurrentMaskStatus(
+		topics, reloadTopic, currentMaskVersion, desiredMaskVersion,
+	)
+}
+
 func (r *RedshiftSinkReconciler) reconcile(
 	ctx context.Context,
 	rsk *tipocav1.RedshiftSink,
@@ -110,17 +235,91 @@ func (r *RedshiftSinkReconciler) reconcile(
 	ReconcilerEvent,
 	error,
 ) {
-	result := ctrl.Result{RequeueAfter: time.Second * 30}
+	result := ctrl.Result{RequeueAfter: time.Second * 5}
 
-	kakfaTopics, err := r.fetchLatestTopics(rsk.Spec.KafkaTopicRegexes)
+	kafkaTopics, err := r.fetchLatestTopics(rsk.Spec.KafkaTopicRegexes)
+	if err != nil {
+		return result, nil, fmt.Errorf(
+			"Error fetching topics, err: %v", err)
+	}
+
+	masterSinkGroup := NewSinkGroup(
+		MasterSinkGroup, r.Client, r.Scheme, rsk, kafkaTopics, "")
+
+	if rsk.Spec.Batcher.Mask == false {
+		result, event, err := masterSinkGroup.Reconcile(ctx)
+		return result, event, err
+	} else {
+		// reconcile master sink group
+		result, event, err := masterSinkGroup.Reconcile(ctx)
+		if err != nil {
+			return result, event, err
+		}
+
+		if event != nil {
+			return result, event, nil
+		}
+	}
+
+	secret, err := r.fetchSecretMap(
+		ctx, rsk.Spec.SecretRefName, rsk.Spec.SecretRefNamespace)
+	if err != nil {
+		return result, nil, err
+	}
+	gitToken, err := getGitToken(secret)
 	if err != nil {
 		return result, nil, err
 	}
 
-	masterSinkGroup := NewSinkGroup(
-		"master", r.Client, r.Scheme, rsk, kakfaTopics, "")
+	desiredMaskVersion, err := r.fetchLatestMaskFileVersion(
+		rsk.Spec.Batcher.MaskFile, gitToken)
+	if err != nil {
+		return result, nil, fmt.Errorf(
+			"Error fetching latest mask file version, err: %v\n", err)
+	}
 
-	return masterSinkGroup.Reconcile(ctx)
+	var currentMaskVersion string
+	if rsk.Status.MaskStatus != nil &&
+		rsk.Status.MaskStatus.CurrentMaskVersion != nil {
+		currentMaskVersion = *rsk.Status.MaskStatus.CurrentMaskVersion
+	} else {
+		currentMaskVersion = desiredMaskVersion
+	}
+
+	reloadTopics, err := MaskDiff(
+		kafkaTopics,
+		rsk.Spec.Batcher.MaskFile,
+		desiredMaskVersion,
+		currentMaskVersion,
+		gitToken,
+	)
+	if err != nil {
+		return result, nil, fmt.Errorf("Error doing mask diff, err: %v", err)
+	}
+
+	// update mask status
+	r.updateStatus(
+		rsk, kafkaTopics, toMap(reloadTopics),
+		currentMaskVersion, desiredMaskVersion,
+	)
+
+	reloadSinkGroup := NewSinkGroup(
+		ReloadSinkGroup, r.Client, r.Scheme, rsk,
+		reloadTopics, "-reload",
+	)
+
+	// reconcile reload sink group
+	result, event, err := reloadSinkGroup.Reconcile(ctx)
+	if err != nil {
+		return result, event, err
+	}
+	if event != nil {
+		return result, event, nil
+	}
+
+	klog.Info("Nothing done.")
+
+	return result, nil, nil
 }
 
 func (r *RedshiftSinkReconciler) Reconcile(

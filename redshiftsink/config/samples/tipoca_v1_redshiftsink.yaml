@@ -13,7 +13,7 @@ spec:
     maxSize: 10
     maxWaitSeconds: 30
     mask: true
-    maskFile: "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker/database.yaml"
+    maskFile: "https://github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker/database.yaml"
     podTemplate:
       resources:
         requests:

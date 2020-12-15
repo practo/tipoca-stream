@@ -105,9 +105,6 @@ type RedshiftSinkSpec struct {
 	Loader  RedshiftLoaderSpec  `json:"loader"`
 }
 
-// Topic is the kafka topic
-type Topic string
-
 // MaskPhase is a label for the condition of a masking at the current time.
 type MaskPhase string
 
@@ -123,8 +120,8 @@ const (
 	MaskReloading MaskPhase = "Reloading"
 )
 
-// MaskStatus store the mask status of a single topic
-type MaskStatus struct {
+// TopicMaskStatus store the mask status of a single topic
+type TopicMaskStatus struct {
 	// MaskFileVersion is the current mask configuration being used
 	// +optional
 	MaskFileVersion string `json:"maskFileVersion,omitempty"`
@@ -133,17 +130,34 @@ type MaskStatus struct {
 	Phase MaskPhase `json:"phase,omitempty"`
 }
 
+type MaskStatus struct {
+	// CurrentMaskStatus stores the current status of mask status of topics
+	// +optional
+	CurrentMaskStatus map[string]TopicMaskStatus `json:"currentMaskStatus,omitempty"`
+
+	// DesiredMaskStatus stores the current status of mask status of topics
+	// +optional
+	DesiredMaskStatus map[string]TopicMaskStatus `json:"desiredMaskStatus,omitempty"`
+
+	// CurrentMaskVersion stores the mask version which was completely rolled
+	// out in all the topics.
+	// +optional
+	CurrentMaskVersion *string `json:"currentMaskVersion,omitempty"`
+
+	// DesiredMaskVersion stores the latest mask version which should be
+	// completely rolled out in all the topics.
+	// +optional
+	DesiredMaskVersion *string `json:"desiredMaskedVersion,omitempty"`
+}
+
 // RedshiftSinkStatus defines the observed state of RedshiftSink
 type RedshiftSinkStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// CurrentMaskStatus stores the current status of mask status of topics
+	// MaskStatus stores the status of masking for topics if masking is enabled
 	// +optional
-	CurrentMaskStatus map[Topic]MaskStatus `json:"currentMaskStatus,omitempty"`
-
-	// DesiredMaskStatus stores the current status of mask status of topics
-	DesiredMaskStatus map[Topic]MaskStatus `json:"desiredMaskStatus,omitempty"`
+	MaskStatus *MaskStatus `json:"maskStatus"`
 }
 
 // +kubebuilder:resource:path=redshiftsinks,shortName=rsk;rsks

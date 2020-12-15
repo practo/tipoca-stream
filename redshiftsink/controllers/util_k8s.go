@@ -98,15 +98,12 @@ func getImage(image *string, batcher bool) string {
 }
 
 // replicas for the crd resources batcher and loader are boolean, either 1 or 0
-func getReplicas(suspend bool) *int32 {
-	var replicas int32
+func getReplicas(suspend bool) int32 {
 	if suspend {
-		replicas = 0
+		return 0
 	} else {
-		replicas = 1
+		return 1
 	}
-
-	return &replicas
 }
 
 // secretEnvVar constructs the secret envvar
@@ -137,6 +134,9 @@ func makeLoaderTopics(prefix string, topics []string) []string {
 }
 
 func expandTopicsToRegex(topics []string) string {
+	if len(topics) == 0 {
+		return ""
+	}
 	sort.Strings(topics)
 
 	fullMatchRegex := ""
@@ -197,10 +197,11 @@ func deploymentSpecEqual(
 func getDeployment(
 	ctx context.Context,
 	client client.Client,
-	nameNamespace types.NamespacedName) (*appsv1.Deployment, bool, error) {
+	name string,
+	namespace string) (*appsv1.Deployment, bool, error) {
 
 	deployment := &appsv1.Deployment{}
-	err := client.Get(ctx, nameNamespace, deployment)
+	err := client.Get(ctx, serviceName(name, namespace), deployment)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			// got the expected err of not found
@@ -250,4 +251,24 @@ func updateDeployment(
 		Object: redshiftsink,
 		Name:   deployment.Name,
 	}, nil
+}
+
+func getSecret(
+	ctx context.Context,
+	client client.Client,
+	name string,
+	namespace string) (*corev1.Secret, error) {
+
+	secret := &corev1.Secret{}
+	err := client.Get(ctx, serviceName(name, namespace), secret)
+	return secret, err
+}
+
+func toMap(s []string) map[string]bool {
+	m := make(map[string]bool)
+	for _, r := range s {
+		m[r] = true
+	}
+
+	return m
 }
