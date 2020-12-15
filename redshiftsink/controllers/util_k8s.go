@@ -98,15 +98,12 @@ func getImage(image *string, batcher bool) string {
 }
 
 // replicas for the crd resources batcher and loader are boolean, either 1 or 0
-func getReplicas(suspend bool) *int32 {
-	var replicas int32
+func getReplicas(suspend bool) int32 {
 	if suspend {
-		replicas = 0
+		return 0
 	} else {
-		replicas = 1
+		return 1
 	}
-
-	return &replicas
 }
 
 // secretEnvVar constructs the secret envvar
@@ -137,6 +134,9 @@ func makeLoaderTopics(prefix string, topics []string) []string {
 }
 
 func expandTopicsToRegex(topics []string) string {
+	if len(topics) == 0 {
+		return ""
+	}
 	sort.Strings(topics)
 
 	fullMatchRegex := ""

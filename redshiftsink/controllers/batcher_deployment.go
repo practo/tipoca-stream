@@ -103,11 +103,19 @@ func NewBatcher(
 			BatcherEnvPrefix+"GITACCESSTOKEN",
 			"gitAccessToken", secretRefName),
 	}
+
+	var replicas int32
+	if topics != "" {
+		replicas = getReplicas(rsk.Spec.Batcher.Suspend)
+	} else {
+		replicas = 0
+	}
+
 	deploySpec := deploymentSpec{
 		name:           uniqueName,
 		namespace:      rsk.Namespace,
 		labels:         getDefaultLabels("redshiftbatcher"),
-		replicas:       getReplicas(rsk.Spec.Batcher.Suspend),
+		replicas:       &replicas,
 		deploymentName: uniqueName,
 		envs:           envs,
 		resources:      rsk.Spec.Batcher.PodTemplate.Resources,

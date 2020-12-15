@@ -11,6 +11,11 @@ import (
 	"time"
 )
 
+const (
+	MasterSinkGroup = "master"
+	ReloadSinkGroup = "reload"
+)
+
 type SinkGroup struct {
 	name    string
 	batcher Deployment

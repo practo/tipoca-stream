@@ -198,10 +198,20 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, err
 	}
 
+	masterSinkGroup := NewSinkGroup(
+		MasterSinkGroup, r.Client, r.Scheme, rsk, kafkaTopics, "")
+
 	if rsk.Spec.Batcher.Mask == false {
-		masterSinkGroup := NewSinkGroup(
-			"master", r.Client, r.Scheme, rsk, kafkaTopics, "")
 		return masterSinkGroup.Reconcile(ctx)
+	} else {
+		// reconcile master sink group
+		result, event, err := masterSinkGroup.Reconcile(ctx)
+		if err != nil {
+			return result, event, err
+		}
+		if event != nil {
+			return result, event, nil
+		}
 	}
 
 	secret, err := r.fetchSecretMap(
@@ -220,14 +230,34 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, err
 	}
 
-	maskDiffer := NewMaskVersionDiffer(
+	if rsk.Status.MaskStatus == nil ||
+		rsk.Status.MaskStatus.CurrenMaskVersion == nil {
+
+		return result, nil, fmt.Errorf("Current mask Version is nil")
+	}
+
+	reloadTopics, err := MaskDiff(
 		kafkaTopics,
-		gitToken,
 		rsk.Spec.Batcher.MaskFile,
 		desiredMaskVersion,
-		rsk.Status.MaskStatus,
+		*rsk.Status.MaskStatus.CurrenMaskVersion,
+		gitToken,
 	)
-	maskDiffer.Diff()
+	if err != nil {
+		return result, nil, err
+	}
+
+	reloadSinkGroup := NewSinkGroup(
+		ReloadSinkGroup, r.Client, r.Scheme, rsk, reloadTopics, "-reload")
+
+	// reconcile reload sink group
+	result, event, err := reloadSinkGroup.Reconcile(ctx)
+	if err != nil {
+		return result, event, err
+	}
+	if event != nil {
+		return result, event, nil
+	}
 
 	return result, nil, nil
 }

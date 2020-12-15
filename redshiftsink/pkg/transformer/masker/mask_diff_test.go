@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sort"
 	"testing"
 )
 
@@ -31,22 +30,20 @@ func TestMaskDiff(t *testing.T) {
 
 	differ := NewMaskDiffer(m0, m1)
 	differ.Diff()
-	gotDiff := differ.Modified()
+	gotDiff := differ.ModifiedTables()
 	if len(gotDiff) != 0 {
 		t.Errorf("expected no difference, got: %+v", gotDiff)
 	}
 
 	differ = NewMaskDiffer(m1, m2)
 	differ.Diff()
-	gotDiff = differ.Modified()
-	expected := []string{
-		"justifications",
-		"establishments",
-		"customers",
-		"addedNewTable",
+	gotDiff = differ.ModifiedTables()
+	expected := map[string]bool{
+		"justifications": true,
+		"establishments": true,
+		"customers":      true,
+		"addedNewTable":  true,
 	}
-	sort.Strings(gotDiff)
-	sort.Strings(expected)
 	if !reflect.DeepEqual(gotDiff, expected) {
 		t.Errorf("expected :%v, got: %+v", expected, gotDiff)
 	}

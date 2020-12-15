@@ -6,7 +6,7 @@ import (
 
 type MaskDiff interface {
 	Diff()
-	Modified() []string
+	ModifiedTables() map[string]bool
 }
 
 type MaskDiffer struct {
@@ -27,13 +27,8 @@ func NewMaskDiffer(current MaskConfig, desired MaskConfig) MaskDiff {
 	}
 }
 
-func (m *MaskDiffer) Modified() []string {
-	tables := []string{}
-	for table, _ := range m.modified {
-		tables = append(tables, table)
-	}
-
-	return tables
+func (m *MaskDiffer) ModifiedTables() map[string]bool {
+	return m.modified
 }
 
 func (m *MaskDiffer) setModified(table string) {
