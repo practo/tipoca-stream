@@ -14,8 +14,6 @@ func MaskDiff(
 	t string,
 	homeDir string) ([]string, error) {
 
-	klog.Infof("maskDiffing %v %v %v %v %v\n", topics, maskFile, currentVersion, desiredVersion, homeDir)
-
 	if currentVersion == desiredVersion {
 		return []string{}, nil
 	}
