@@ -15,7 +15,7 @@ func testMasked(t *testing.T, topic, table, cName, cValue string,
 	}
 	configFilePath := filepath.Join(dir, "database.yaml")
 
-	m, err := NewMaskConfig(configFilePath, "", "")
+	m, err := NewMaskConfig("/", configFilePath, "", "")
 	if err != nil {
 		t.Error(err)
 	}

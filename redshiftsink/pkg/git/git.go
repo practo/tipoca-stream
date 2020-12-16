@@ -78,8 +78,8 @@ func (g *Git) Checkout(hash string) error {
 	if g.repo == nil {
 		return fmt.Errorf("repo nil cannot checkout, init repo by calling Clone()")
 	}
-	if hash != "" {
-		return fmt.Errorf("hash version cannot ve null in checkout")
+	if hash == "" {
+		return fmt.Errorf("hash version cannot be null in checkout")
 	}
 
 	tree, err := g.repo.Worktree()

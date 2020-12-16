@@ -30,6 +30,7 @@ func NewMsgMasker(salt string, topic string,
 
 	_, database, table := transformer.ParseTopic(topic)
 	maskConfig, err := NewMaskConfig(
+		"/",
 		maskFile,
 		maskFileVersion,
 		viper.GetString("batcher.githubAccessToken"),

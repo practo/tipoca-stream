@@ -50,9 +50,10 @@ func init() {
 
 func main() {
 	var enableLeaderElection bool
-	var kafkaBrokers, kafkaVersion, metricsAddr string
+	var kafkaBrokers, kafkaVersion, homeDir, metricsAddr string
 	flag.StringVar(&kafkaBrokers, "kafka-brokers", "kafka-example.com", "command separated kafka hosts to watch.")
 	flag.StringVar(&kafkaVersion, "kafka-version", "2.5.0", "version of the kafka in use.")
+	flag.StringVar(&homeDir, "home-dir", "/", "directory in the pod or local system where mask files should be downloaded and kept")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. "+
@@ -88,6 +89,7 @@ func main() {
 		Recorder:          mgr.GetEventRecorderFor("redshiftsink-reconciler"),
 		KafkaTopicRegexes: new(sync.Map),
 		KafkaWatcher:      kafkaWatcher,
+		HomeDir:           homeDir,
 		GitCache:          new(sync.Map),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RedshiftSink")

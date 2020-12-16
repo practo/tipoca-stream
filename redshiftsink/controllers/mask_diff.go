@@ -11,18 +11,24 @@ func MaskDiff(
 	maskFile string,
 	currentVersion string,
 	desiredVersion string,
-	t string) ([]string, error) {
+	t string,
+	homeDir string) ([]string, error) {
+
+	klog.Infof("maskDiffing %v %v %v %v %v\n", topics, maskFile, currentVersion, desiredVersion, homeDir)
 
 	if currentVersion == desiredVersion {
 		return []string{}, nil
 	}
 
-	currentMaskConfig, err := masker.NewMaskConfig(maskFile, currentVersion, t)
+	currentMaskConfig, err := masker.NewMaskConfig(
+		homeDir, maskFile, currentVersion, t)
 	if err != nil {
 		return []string{}, err
 	}
+	klog.Info(currentMaskConfig)
 
-	desiredMaskConfig, err := masker.NewMaskConfig(maskFile, desiredVersion, t)
+	desiredMaskConfig, err := masker.NewMaskConfig(
+		homeDir, maskFile, desiredVersion, t)
 	if err != nil {
 		return []string{}, err
 	}

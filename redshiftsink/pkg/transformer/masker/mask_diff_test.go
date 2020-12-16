@@ -15,15 +15,15 @@ func TestMaskDiff(t *testing.T) {
 	conf0 := filepath.Join(dir, "database.yaml")
 	conf1 := filepath.Join(dir, "database.yaml")
 	conf2 := filepath.Join(dir, "database_maskdiff.yaml")
-	m0, err := NewMaskConfig(conf0, "", "")
+	m0, err := NewMaskConfig("/", conf0, "", "")
 	if err != nil {
 		t.Error(err)
 	}
-	m1, err := NewMaskConfig(conf1, "", "")
+	m1, err := NewMaskConfig("/", conf1, "", "")
 	if err != nil {
 		t.Error(err)
 	}
-	m2, err := NewMaskConfig(conf2, "", "")
+	m2, err := NewMaskConfig("/", conf2, "", "")
 	if err != nil {
 		t.Error(err)
 	}
