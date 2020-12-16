@@ -42,3 +42,4 @@ This repo holds the code for [redshiftsink](./redshiftsink) only. Please follow 
 - Thockin for open-sourcing [go-build-template](https://github.com/thockin/go-build-template).
 - Clever for open-sourcing [s3-to-redshift library](https://github.com/Clever/s3-to-redshift/).
 - herryg91 for open-sourcing [go batch libray](https://github.com/herryg91/gobatch).
+- danielqsj for [kafka-exporter](https://github.com/danielqsj/kafka_exporter)
