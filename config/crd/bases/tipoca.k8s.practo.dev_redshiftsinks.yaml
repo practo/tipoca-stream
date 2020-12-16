@@ -271,12 +271,12 @@ spec:
                     description: TopicMaskStatus store the mask status of a single
                       topic
                     properties:
-                      maskFileVersion:
-                        description: MaskFileVersion is the current mask configuration
-                          being used
-                        type: string
                       phase:
                         description: Phase determines the
+                        type: string
+                      version:
+                        description: MaskFileVersion is the current mask configuration
+                          being used
                         type: string
                     type: object
                   description: CurrentMaskStatus stores the current status of mask
@@ -291,12 +291,12 @@ spec:
                     description: TopicMaskStatus store the mask status of a single
                       topic
                     properties:
-                      maskFileVersion:
-                        description: MaskFileVersion is the current mask configuration
-                          being used
-                        type: string
                       phase:
                         description: Phase determines the
+                        type: string
+                      version:
+                        description: MaskFileVersion is the current mask configuration
+                          being used
                         type: string
                     type: object
                   description: DesiredMaskStatus stores the current status of mask

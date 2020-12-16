@@ -124,7 +124,7 @@ const (
 type TopicMaskStatus struct {
 	// MaskFileVersion is the current mask configuration being used
 	// +optional
-	MaskFileVersion string `json:"maskFileVersion,omitempty"`
+	Version string `json:"version,omitempty"`
 	// Phase determines the
 	// +optional
 	Phase MaskPhase `json:"phase,omitempty"`

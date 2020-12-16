@@ -61,6 +61,7 @@ func loweredKeys(keys map[string][]string) {
 }
 
 func downloadMaskFile(
+	homeDir string,
 	maskFile string,
 	maskFileVersion string,
 	gitToken string) (string, error) {
@@ -109,25 +110,31 @@ func downloadMaskFile(
 		if err != nil {
 			return "", err
 		}
-		klog.V(4).Infof("Downloaded git repo at: %s", dir)
+		klog.V(2).Infof("Downloaded git repo at: %s", dir)
 
-		_, err = git.Copy(filepath.Join(dir, configFilePath), "/")
+		sourceFile := filepath.Join(dir, configFilePath)
+		destFile := filepath.Join(homeDir, filepath.Base(sourceFile))
+		_, err = git.Copy(sourceFile, destFile)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf(
+				"Error copying! src: %s, dest: %s, err:%v\n",
+				sourceFile, destFile, err)
 		}
 		klog.V(2).Info("Copied the mask file at the read location")
 
-		return "/" + filepath.Base(configFilePath), nil
+		return destFile, nil
 	}
 }
 
 func NewMaskConfig(
+	homeDir string,
 	maskFile string,
 	maskFileVersion string,
 	gitToken string) (MaskConfig, error) {
 
 	var maskConfig MaskConfig
-	configFilePath, err := downloadMaskFile(maskFile, maskFileVersion, gitToken)
+	configFilePath, err := downloadMaskFile(
+		homeDir, maskFile, maskFileVersion, gitToken)
 	if err != nil {
 		return maskConfig, err
 	}

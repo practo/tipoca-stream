@@ -50,6 +50,7 @@ type RedshiftSinkReconciler struct {
 
 	KafkaTopicRegexes *sync.Map
 	KafkaWatcher      consumer.KafkaWatcher
+	HomeDir           string
 
 	GitCache *sync.Map
 }
@@ -183,13 +184,13 @@ func getCurrentMaskStatus(
 		_, ok := reloadTopic[topic]
 		if ok {
 			status[topic] = tipocav1.TopicMaskStatus{
-				MaskFileVersion: desiredVersion,
-				Phase:           tipocav1.MaskReloading,
+				Version: desiredVersion,
+				Phase:   tipocav1.MaskReloading,
 			}
 		} else {
 			status[topic] = tipocav1.TopicMaskStatus{
-				MaskFileVersion: currentVersion,
-				Phase:           tipocav1.MaskActive,
+				Version: currentVersion,
+				Phase:   tipocav1.MaskActive,
 			}
 		}
 	}
@@ -203,8 +204,8 @@ func getDesiredMaskStatus(
 	status := make(map[string]tipocav1.TopicMaskStatus)
 	for _, topic := range topics {
 		status[topic] = tipocav1.TopicMaskStatus{
-			MaskFileVersion: version,
-			Phase:           tipocav1.MaskActive,
+			Version: version,
+			Phase:   tipocav1.MaskActive,
 		}
 	}
 
@@ -243,6 +244,10 @@ func (r *RedshiftSinkReconciler) reconcile(
 	if err != nil {
 		return result, nil, fmt.Errorf(
 			"Error fetching topics, err: %v", err)
+	}
+	if len(kafkaTopics) == 0 {
+		klog.Warningf(
+			"Kafka topics not found for regex: %s", rsk.Spec.KafkaTopicRegexes)
 	}
 
 	masterSinkGroup := NewSinkGroup(
@@ -294,6 +299,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		desiredMaskVersion,
 		currentMaskVersion,
 		gitToken,
+		r.HomeDir,
 	)
 	if err != nil {
 		return result, nil, fmt.Errorf("Error doing mask diff, err: %v", err)
