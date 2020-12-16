@@ -43,7 +43,7 @@ func NewKafkaWatcher(brokers []string, version string) (KafkaWatcher, error) {
 	err = broker.Open(nil)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"Cannot connect to broker: %s, err: %v", broker, err)
+			"Cannot connect to broker: %s, err: %v", brokers[0], err)
 	}
 
 	return &kafkaWatch{
