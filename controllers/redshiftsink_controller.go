@@ -218,13 +218,15 @@ func (r *RedshiftSinkReconciler) updateStatus(
 	currentMaskVersion string,
 	desiredMaskVersion string,
 ) {
-	rsk.Status.MaskStatus.CurrentMaskVersion = &currentMaskVersion
-	rsk.Status.MaskStatus.DesiredMaskVersion = &desiredMaskVersion
-	rsk.Status.MaskStatus.DesiredMaskStatus = getDesiredMaskStatus(
-		topics, desiredMaskVersion)
-	rsk.Status.MaskStatus.CurrentMaskStatus = getCurrentMaskStatus(
-		topics, reloadTopic, currentMaskVersion, desiredMaskVersion,
-	)
+	maskStatus := tipocav1.MaskStatus{
+		CurrentMaskStatus: getCurrentMaskStatus(
+			topics, reloadTopic, currentMaskVersion, desiredMaskVersion,
+		),
+		DesiredMaskStatus:  getDesiredMaskStatus(topics, desiredMaskVersion),
+		CurrentMaskVersion: &currentMaskVersion,
+		DesiredMaskVersion: &desiredMaskVersion,
+	}
+	rsk.Status.MaskStatus = &maskStatus
 }
 
 func (r *RedshiftSinkReconciler) reconcile(

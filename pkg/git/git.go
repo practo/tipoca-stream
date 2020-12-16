@@ -148,11 +148,11 @@ func ParseURL(pathOrURL string) (*url.URL, error) {
 }
 
 // ParseRepoURL breaks a path into repo and filepath
-// eg: for github.com/practo/tipoca-stream/pkg/README.md
+// eg: for /practo/tipoca-stream/pkg/README.md
 // this: "practo/tipoca-stream" and "pkg/README.md"
 func ParseGithubURL(urlPath string) (string, string) {
 	filePath := strings.Join(strings.Split(urlPath, "/")[3:], "/")
 	repo := strings.ReplaceAll(urlPath, "/"+filePath, "")
 
-	return repo, filePath
+	return repo[1:], filePath
 }

@@ -94,7 +94,11 @@ func downloadMaskFile(
 		}
 		defer os.RemoveAll(dir)
 
-		g := git.New(dir, repo, gitToken)
+		g := git.New(
+			dir,
+			fmt.Sprintf("%s://%s/%s", url.Scheme, url.Host, repo),
+			gitToken,
+		)
 
 		klog.V(2).Infof("Downloading git repo: %s", repo)
 		err = g.Clone()
