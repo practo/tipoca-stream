@@ -6,15 +6,14 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/linkedin/goavro/v2"
 	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
-	"github.com/riferrei/srclient"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/schemaregistry"
 	"strings"
 	"time"
 )
 
 type AvroProducer struct {
 	producer sarama.SyncProducer
-	srclient *srclient.SchemaRegistryClient
+	registry schemaregistry.SchemaRegistry
 }
 
 func NewAvroProducer(brokers []string,
@@ -42,7 +41,7 @@ func NewAvroProducer(brokers []string,
 
 	return &AvroProducer{
 		producer: producer,
-		srclient: srclient.CreateSchemaRegistryClient(schemaRegistryURL),
+		registry: schemaregistry.NewRegistry(schemaRegistryURL),
 	}, nil
 }
 
@@ -55,12 +54,13 @@ func (c *AvroProducer) CreateSchema(
 	schemeStr := strings.ReplaceAll(scheme, "\n", "")
 	schemeStr = strings.ReplaceAll(schemeStr, " ", "")
 
-	schema, err := serializer.GetLatestSchemaWithRetry(
-		c.srclient, topic, false, 10)
+	schema, err := schemaregistry.GetLatestSchemaWithRetry(
+		c.registry, topic, false, 10,
+	)
 	if schema == nil || schema.Schema() != schemeStr {
 		klog.V(2).Infof("Creating schema version. topic: %s", topic)
-		schema, err = c.srclient.CreateSchema(
-			topic, scheme, srclient.Avro, false,
+		schema, err = c.registry.CreateSchema(
+			topic, scheme, schemaregistry.Avro, false,
 		)
 		if err != nil {
 			return 0, false, err
