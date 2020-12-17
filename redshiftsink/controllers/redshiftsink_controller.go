@@ -175,10 +175,12 @@ func (r *RedshiftSinkReconciler) fetchLatestTopics(
 	return topics, nil
 }
 
-func getCurrentMaskStatus(
-	topics []string, reloadTopic map[string]bool,
-	currentVersion string, desiredVersion string) map[string]tipocav1.TopicMaskStatus {
-
+func computerCurrentMaskStatus(
+	topics []string,
+	reloadTopic map[string]bool,
+	currentVersion string,
+	desiredVersion string,
+) map[string]tipocav1.TopicMaskStatus {
 	status := make(map[string]tipocav1.TopicMaskStatus)
 	for _, topic := range topics {
 		_, ok := reloadTopic[topic]
@@ -198,9 +200,10 @@ func getCurrentMaskStatus(
 	return status
 }
 
-func getDesiredMaskStatus(
-	topics []string, version string) map[string]tipocav1.TopicMaskStatus {
-
+func computeDesiredMaskStatus(
+	topics []string,
+	version string,
+) map[string]tipocav1.TopicMaskStatus {
 	status := make(map[string]tipocav1.TopicMaskStatus)
 	for _, topic := range topics {
 		status[topic] = tipocav1.TopicMaskStatus{
@@ -212,7 +215,7 @@ func getDesiredMaskStatus(
 	return status
 }
 
-func (r *RedshiftSinkReconciler) updateStatus(
+func updateMaskStatus(
 	rsk *tipocav1.RedshiftSink,
 	topics []string,
 	reloadTopic map[string]bool,
@@ -220,10 +223,12 @@ func (r *RedshiftSinkReconciler) updateStatus(
 	desiredMaskVersion string,
 ) {
 	maskStatus := tipocav1.MaskStatus{
-		CurrentMaskStatus: getCurrentMaskStatus(
+		CurrentMaskStatus: computerCurrentMaskStatus(
 			topics, reloadTopic, currentMaskVersion, desiredMaskVersion,
 		),
-		DesiredMaskStatus:  getDesiredMaskStatus(topics, desiredMaskVersion),
+		DesiredMaskStatus: computeDesiredMaskStatus(
+			topics, desiredMaskVersion,
+		),
 		CurrentMaskVersion: &currentMaskVersion,
 		DesiredMaskVersion: &desiredMaskVersion,
 	}
@@ -242,8 +247,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 
 	kafkaTopics, err := r.fetchLatestTopics(rsk.Spec.KafkaTopicRegexes)
 	if err != nil {
-		return result, nil, fmt.Errorf(
-			"Error fetching topics, err: %v", err)
+		return result, nil, fmt.Errorf("Error fetching topics, err: %v", err)
 	}
 	if len(kafkaTopics) == 0 {
 		klog.Warningf(
@@ -251,25 +255,24 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 
 	masterSinkGroup := NewSinkGroup(
-		MasterSinkGroup, r.Client, r.Scheme, rsk, kafkaTopics, "")
+		MasterSinkGroup,
+		r.Client,
+		r.Scheme,
+		rsk,
+		kafkaTopics,
+		"",
+	)
 
 	if rsk.Spec.Batcher.Mask == false {
 		result, event, err := masterSinkGroup.Reconcile(ctx)
 		return result, event, err
-	} else {
-		// reconcile master sink group
-		result, event, err := masterSinkGroup.Reconcile(ctx)
-		if err != nil {
-			return result, event, err
-		}
-
-		if event != nil {
-			return result, event, nil
-		}
 	}
 
 	secret, err := r.fetchSecretMap(
-		ctx, rsk.Spec.SecretRefName, rsk.Spec.SecretRefNamespace)
+		ctx,
+		rsk.Spec.SecretRefName,
+		rsk.Spec.SecretRefNamespace,
+	)
 	if err != nil {
 		return result, nil, err
 	}
@@ -279,7 +282,9 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 
 	desiredMaskVersion, err := r.fetchLatestMaskFileVersion(
-		rsk.Spec.Batcher.MaskFile, gitToken)
+		rsk.Spec.Batcher.MaskFile,
+		gitToken,
+	)
 	if err != nil {
 		return result, nil, fmt.Errorf(
 			"Error fetching latest mask file version, err: %v\n", err)
@@ -306,18 +311,27 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 
 	// update mask status
-	r.updateStatus(
+	updateMaskStatus(
 		rsk, kafkaTopics, toMap(reloadTopics),
 		currentMaskVersion, desiredMaskVersion,
 	)
 
+	// reconcile master sink group
+	result, event, err := masterSinkGroup.Reconcile(ctx)
+	if err != nil {
+		return result, event, err
+	}
+
+	if event != nil {
+		return result, event, nil
+	}
+
+	// reconcile reload sink group
 	reloadSinkGroup := NewSinkGroup(
 		ReloadSinkGroup, r.Client, r.Scheme, rsk,
 		reloadTopics, "-reload",
 	)
-
-	// reconcile reload sink group
-	result, event, err := reloadSinkGroup.Reconcile(ctx)
+	result, event, err = reloadSinkGroup.Reconcile(ctx)
 	if err != nil {
 		return result, event, err
 	}
@@ -343,9 +357,7 @@ func (r *RedshiftSinkReconciler) Reconcile(
 		return ctrl.Result{
 			RequeueAfter: time.Second * 30}, client.IgnoreNotFound(err)
 	}
-
 	original := redshiftsink.DeepCopy()
-
 	// Always attempt to patch the status after each reconciliation.
 	defer func() {
 		if reflect.DeepEqual(original.Status, redshiftsink.Status) {
