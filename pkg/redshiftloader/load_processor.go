@@ -10,6 +10,7 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/debezium"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/util"
 	"github.com/spf13/viper"
 	"path/filepath"
 	"strings"
@@ -144,10 +145,11 @@ func (b *loadProcessor) markOffset(datas []interface{}) {
 			message.Offset+1,
 			"",
 		)
-		// TODO: not sure how to avoid any failure when the process restarts
-		// while doing this But if the system is idempotent we do not
-		// need to worry about this. Since the write to s3 again will
-		// just overwrite the same data.
+
+		// By default operator sets autoCommit as false but it is not a
+		// problem even if it is set to true because
+		// the duplication is prevented by the merge and order is maintained
+		// by kafka.
 		if b.autoCommit == false {
 			b.session.Commit()
 		}
@@ -285,7 +287,11 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 	}
 
 	s3CopyDir := filepath.Join(
-		viper.GetString("s3sink.bucketDir"), b.topic, "unload_")
+		viper.GetString("s3sink.bucketDir"),
+		b.topic,
+		util.NewUUIDString(),
+		"unload_",
+	)
 	err = b.redshifter.Unload(tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
@@ -462,6 +468,7 @@ func (b *loadProcessor) migrateTable(
 	s3CopyDir := filepath.Join(
 		viper.GetString("s3sink.bucketDir"),
 		b.topic,
+		util.NewUUIDString(),
 		"migrating_unload_",
 	)
 	unLoadS3Key := b.s3sink.GetKeyURI(s3CopyDir)
@@ -632,9 +639,11 @@ func (b *loadProcessor) processBatch(
 	}
 
 	// upload s3 manifest file to bulk copy data to staging table
-	// this is an overwrite operation
 	s3ManifestKey := filepath.Join(
-		viper.GetString("s3sink.bucketDir"), b.topic, "manifest.json")
+		viper.GetString("s3sink.bucketDir"),
+		b.topic,
+		util.NewUUIDString(),
+		"manifest.json")
 	err := b.s3sink.UploadS3Manifest(s3ManifestKey, entries)
 	if err != nil {
 		klog.Fatalf("Error uploading manifest: %s to s3, err:%v\n",
