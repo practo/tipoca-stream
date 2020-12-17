@@ -197,14 +197,27 @@ func (b *batchProcessor) setBatchId() {
 }
 
 func (b *batchProcessor) setS3key(topic string, partition int32, offset int64) {
-	b.s3Key = filepath.Join(
-		b.s3BucketDir,
-		topic,
-		fmt.Sprintf(
-			"%d_offset_%d_partition.json",
-			offset,
-			partition),
+	s3FileName := fmt.Sprintf(
+		"%d_offset_%d_partition.json",
+		offset,
+		partition,
 	)
+
+	maskFileVersion := viper.GetString("batcher.maskFileVersion")
+	if maskFileVersion != "" {
+		b.s3Key = filepath.Join(
+			b.s3BucketDir,
+			topic,
+			maskFileVersion,
+			s3FileName,
+		)
+	} else {
+		b.s3Key = filepath.Join(
+			b.s3BucketDir,
+			topic,
+			s3FileName,
+		)
+	}
 }
 
 func (b *batchProcessor) markOffset(datas []interface{}) {
