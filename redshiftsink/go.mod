@@ -7,6 +7,7 @@ require (
 	github.com/aws/aws-sdk-go v1.35.17
 	github.com/go-git/go-git/v5 v5.2.0
 	github.com/go-logr/logr v0.2.2-0.20201024050955-4fa77cb7175c
+	github.com/google/uuid v1.1.1
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/linkedin/goavro/v2 v2.9.8
 	github.com/onsi/ginkgo v1.11.0
