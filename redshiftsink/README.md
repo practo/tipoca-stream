@@ -1,10 +1,10 @@
-# redshiftsink
+# RedshiftSink
 
-redshiftsink reads the debezium events from Kafka and loads them to Redshift. It has rich support for [masking](../MASKING.MD).
+RedshiftSink reads the debezium events from Kafka and loads them to Redshift. It has rich support for [masking](../MASKING.MD).
 
 ----
 
-<img src="arch-loader.png">
+<img src="arch-operator.png">
 
 # Install Redshiftsink
 
