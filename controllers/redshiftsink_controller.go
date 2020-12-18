@@ -351,7 +351,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 	if err != nil {
 		return result, nil, fmt.Errorf("Error doing mask diff, err: %v", err)
 	}
-	klog.Infof("TopicsNotReleased: %v", reloadTopics)
+	klog.Infof("reloadTopics: %v", reloadTopics)
+
 	reloadSinkGroup := NewSinkGroup(
 		ReloadSinkGroup, r.Client, r.Scheme, rsk,
 		reloadTopics, "-reload",
@@ -361,6 +362,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	if err != nil {
 		return result, nil, err
 	}
+	klog.Infof("releaseTopics: %v", releaseTopics)
 
 	// update mask status
 	updateMaskStatus(

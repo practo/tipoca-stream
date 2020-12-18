@@ -85,19 +85,21 @@ func (t *kafkaWatch) ConsumerGroupLag(
 ) {
 	defaultLag := int64(-1)
 
-	fmt.Printf("checking for id:%s, %s %d", id, topic, partition)
-
 	lastOffset, err := t.client.GetOffset(topic, partition, sarama.OffsetNewest)
 	if err != nil {
 		return defaultLag, err
 	}
-	fmt.Printf("lastOffset: %v", lastOffset)
 
 	offsetFetchRequest := sarama.OffsetFetchRequest{
 		ConsumerGroup: id,
 		Version:       1,
 	}
 	offsetFetchRequest.AddPartition(topic, partition)
+
+	err = t.client.RefreshMetadata(topic)
+	if err != nil {
+		return defaultLag, err
+	}
 
 	broker, err := t.client.Leader(topic, partition)
 	if err != nil {
@@ -114,7 +116,6 @@ func (t *kafkaWatch) ConsumerGroupLag(
 			"OffsetFetch request got no response for request: %+v",
 			offsetFetchRequest)
 	}
-	fmt.Printf("offsetFetchResponse: %v", offsetFetchResponse)
 
 	for topicInResponse, partitions := range offsetFetchResponse.Blocks {
 		if topicInResponse != topic {
@@ -122,7 +123,6 @@ func (t *kafkaWatch) ConsumerGroupLag(
 		}
 
 		for partitionInResponse, offsetFetchResponseBlock := range partitions {
-			fmt.Printf("partitionInResponse: %v, offsetFetchResponseBlock: %v", partitionInResponse, offsetFetchResponseBlock)
 			if partition != partitionInResponse {
 				continue
 			}
@@ -139,7 +139,7 @@ func (t *kafkaWatch) ConsumerGroupLag(
 		}
 	}
 
-	klog.Warningf("%s for group is not active or present in Kafka", topic, id)
+	klog.Warningf("%s for group is not active or present in Kafka", topic)
 	return defaultLag, nil
 }
 
