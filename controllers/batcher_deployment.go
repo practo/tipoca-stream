@@ -1,14 +1,11 @@
 package controllers
 
-//ctrl.SetControllerReference(redshiftsink, deployment, r.Scheme)
-
 import (
 	"fmt"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
-	// ctrl "sigs.k8s.io/controller-runtime"
 )
 
 const (
@@ -30,7 +27,6 @@ func NewBatcher(
 	rsk *tipocav1.RedshiftSink,
 	topics string) Deployment {
 
-	uniqueName := rsk.Name + "-" + name + BatcherSuffix
 	secretRefName := rsk.Spec.SecretRefName
 	envs := []corev1.EnvVar{
 		corev1.EnvVar{
@@ -55,7 +51,7 @@ func NewBatcher(
 		},
 		corev1.EnvVar{
 			Name:  BatcherEnvPrefix + "KAFKA_GROUP",
-			Value: uniqueName,
+			Value: name,
 		},
 		corev1.EnvVar{
 			Name:  BatcherEnvPrefix + "KAFKA_TOPICREGEXES",
@@ -112,11 +108,11 @@ func NewBatcher(
 	}
 
 	deploySpec := deploymentSpec{
-		name:           uniqueName,
+		name:           name,
 		namespace:      rsk.Namespace,
 		labels:         getDefaultLabels("redshiftbatcher"),
 		replicas:       &replicas,
-		deploymentName: uniqueName,
+		deploymentName: name,
 		envs:           envs,
 		resources:      rsk.Spec.Batcher.PodTemplate.Resources,
 		tolerations:    rsk.Spec.Batcher.PodTemplate.Tolerations,
@@ -124,7 +120,7 @@ func NewBatcher(
 	}
 
 	return &Batcher{
-		name:       uniqueName,
+		name:       name,
 		client:     client,
 		namespace:  rsk.Namespace,
 		deployment: deploymentForRedshiftSink(deploySpec),

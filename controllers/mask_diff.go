@@ -23,7 +23,6 @@ func MaskDiff(
 	if err != nil {
 		return []string{}, err
 	}
-	klog.Info(currentMaskConfig)
 
 	desiredMaskConfig, err := masker.NewMaskConfig(
 		homeDir, maskFile, desiredVersion, t)
@@ -32,6 +31,7 @@ func MaskDiff(
 	}
 
 	differ := masker.NewMaskDiffer(currentMaskConfig, desiredMaskConfig)
+	differ.Diff()
 	tablesModified := differ.ModifiedTables()
 	if len(tablesModified) == 0 {
 		return []string{}, nil

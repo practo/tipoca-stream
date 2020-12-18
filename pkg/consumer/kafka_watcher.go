@@ -15,7 +15,6 @@ type KafkaWatcher interface {
 
 type kafkaWatch struct {
 	client               sarama.Client
-	broker               *sarama.Broker
 	cacheValidity        time.Duration
 	lastTopicRefreshTime *int64
 
@@ -39,16 +38,8 @@ func NewKafkaWatcher(brokers []string, version string) (KafkaWatcher, error) {
 		return nil, fmt.Errorf("Error creating client: %v\n", err)
 	}
 
-	broker := sarama.NewBroker(brokers[0])
-	err = broker.Open(nil)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"Cannot connect to broker: %s, err: %v", brokers[0], err)
-	}
-
 	return &kafkaWatch{
 		client:               client,
-		broker:               broker,
 		cacheValidity:        time.Second * time.Duration(30),
 		lastTopicRefreshTime: nil,
 	}, nil
@@ -94,10 +85,13 @@ func (t *kafkaWatch) ConsumerGroupLag(
 ) {
 	defaultLag := int64(-1)
 
+	fmt.Printf("checking for id:%s, %s %d", id, topic, partition)
+
 	lastOffset, err := t.client.GetOffset(topic, partition, sarama.OffsetNewest)
 	if err != nil {
 		return defaultLag, err
 	}
+	fmt.Printf("lastOffset: %v", lastOffset)
 
 	offsetFetchRequest := sarama.OffsetFetchRequest{
 		ConsumerGroup: id,
@@ -105,7 +99,13 @@ func (t *kafkaWatch) ConsumerGroupLag(
 	}
 	offsetFetchRequest.AddPartition(topic, partition)
 
-	offsetFetchResponse, err := t.broker.FetchOffset(&offsetFetchRequest)
+	broker, err := t.client.Leader(topic, partition)
+	if err != nil {
+		return defaultLag, fmt.Errorf(
+			"Error getting the leader broker, err: %v", err)
+	}
+
+	offsetFetchResponse, err := broker.FetchOffset(&offsetFetchRequest)
 	if err != nil {
 		return defaultLag, err
 	}
@@ -114,6 +114,7 @@ func (t *kafkaWatch) ConsumerGroupLag(
 			"OffsetFetch request got no response for request: %+v",
 			offsetFetchRequest)
 	}
+	fmt.Printf("offsetFetchResponse: %v", offsetFetchResponse)
 
 	for topicInResponse, partitions := range offsetFetchResponse.Blocks {
 		if topicInResponse != topic {
@@ -121,15 +122,14 @@ func (t *kafkaWatch) ConsumerGroupLag(
 		}
 
 		for partitionInResponse, offsetFetchResponseBlock := range partitions {
+			fmt.Printf("partitionInResponse: %v, offsetFetchResponseBlock: %v", partitionInResponse, offsetFetchResponseBlock)
 			if partition != partitionInResponse {
 				continue
 			}
 			// Kafka will return -1 if there is no offset associated
 			// with a topic-partition under that consumer group
 			if offsetFetchResponseBlock.Offset == -1 {
-				klog.Warningf(
-					"Topic:%s, Parition:%v not consumed by group: %s yet!",
-					topic, partition, id)
+				klog.Warningf("%s not consumed by group: %v", topic, id)
 				return defaultLag, nil
 			}
 			if offsetFetchResponseBlock.Err != sarama.ErrNoError {
@@ -139,9 +139,7 @@ func (t *kafkaWatch) ConsumerGroupLag(
 		}
 	}
 
-	klog.Warningf(
-		"Topic:%s, Parition:%v not found in Kafka for group: %s",
-		topic, partition, id)
+	klog.Warningf("%s for group is not active or present in Kafka", topic, id)
 	return defaultLag, nil
 }
 

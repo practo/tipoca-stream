@@ -175,7 +175,62 @@ func (r *RedshiftSinkReconciler) fetchLatestTopics(
 	return topics, nil
 }
 
+func getReleaseTopics(rsk *tipocav1.RedshiftSink) []string {
+	releaseTopics := []string{}
+	if rsk.Status.MaskStatus == nil ||
+		rsk.Status.MaskStatus.CurrentMaskStatus == nil {
+		return releaseTopics
+	}
+
+	for topic, status := range rsk.Status.MaskStatus.CurrentMaskStatus {
+		if status.Phase == tipocav1.MaskReleasing {
+			releaseTopics = append(releaseTopics, topic)
+		}
+	}
+
+	return releaseTopics
+}
+
 func computerCurrentMaskStatus(
+	topics []string,
+	reloadTopic map[string]bool,
+	releaseTopics []string,
+	currentVersion string,
+	desiredVersion string,
+) map[string]tipocav1.TopicMaskStatus {
+	releaseTopicMap := make(map[string]bool)
+	for _, topic := range releaseTopics {
+		releaseTopicMap[topic] = true
+	}
+
+	status := make(map[string]tipocav1.TopicMaskStatus)
+	for _, topic := range topics {
+		_, ok := releaseTopicMap[topic]
+		if ok {
+			status[topic] = tipocav1.TopicMaskStatus{
+				Version: desiredVersion,
+				Phase:   tipocav1.MaskReleasing,
+			}
+			continue
+		}
+		_, ok = reloadTopic[topic]
+		if ok {
+			status[topic] = tipocav1.TopicMaskStatus{
+				Version: desiredVersion,
+				Phase:   tipocav1.MaskReloading,
+			}
+			continue
+		}
+		status[topic] = tipocav1.TopicMaskStatus{
+			Version: currentVersion,
+			Phase:   tipocav1.MaskActive,
+		}
+	}
+
+	return status
+}
+
+func computeDesiredMaskStatus(
 	topics []string,
 	reloadTopic map[string]bool,
 	currentVersion string,
@@ -187,28 +242,13 @@ func computerCurrentMaskStatus(
 		if ok {
 			status[topic] = tipocav1.TopicMaskStatus{
 				Version: desiredVersion,
-				Phase:   tipocav1.MaskReloading,
+				Phase:   tipocav1.MaskActive,
 			}
 		} else {
 			status[topic] = tipocav1.TopicMaskStatus{
-				Version: currentVersion,
-				Phase:   tipocav1.MaskActive,
+				Version: desiredVersion,
+				Phase:   tipocav1.MaskNoChange,
 			}
-		}
-	}
-
-	return status
-}
-
-func computeDesiredMaskStatus(
-	topics []string,
-	version string,
-) map[string]tipocav1.TopicMaskStatus {
-	status := make(map[string]tipocav1.TopicMaskStatus)
-	for _, topic := range topics {
-		status[topic] = tipocav1.TopicMaskStatus{
-			Version: version,
-			Phase:   tipocav1.MaskActive,
 		}
 	}
 
@@ -219,15 +259,17 @@ func updateMaskStatus(
 	rsk *tipocav1.RedshiftSink,
 	topics []string,
 	reloadTopic map[string]bool,
+	releaseTopics []string,
 	currentMaskVersion string,
 	desiredMaskVersion string,
 ) {
 	maskStatus := tipocav1.MaskStatus{
 		CurrentMaskStatus: computerCurrentMaskStatus(
-			topics, reloadTopic, currentMaskVersion, desiredMaskVersion,
+			topics, reloadTopic, releaseTopics,
+			currentMaskVersion, desiredMaskVersion,
 		),
 		DesiredMaskStatus: computeDesiredMaskStatus(
-			topics, desiredMaskVersion,
+			topics, reloadTopic, currentMaskVersion, desiredMaskVersion,
 		),
 		CurrentMaskVersion: &currentMaskVersion,
 		DesiredMaskVersion: &desiredMaskVersion,
@@ -243,7 +285,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	ReconcilerEvent,
 	error,
 ) {
-	result := ctrl.Result{RequeueAfter: time.Second * 5}
+	result := ctrl.Result{RequeueAfter: time.Second * 15}
 
 	kafkaTopics, err := r.fetchLatestTopics(rsk.Spec.KafkaTopicRegexes)
 	if err != nil {
@@ -309,10 +351,20 @@ func (r *RedshiftSinkReconciler) reconcile(
 	if err != nil {
 		return result, nil, fmt.Errorf("Error doing mask diff, err: %v", err)
 	}
+	klog.Infof("TopicsNotReleased: %v", reloadTopics)
+	reloadSinkGroup := NewSinkGroup(
+		ReloadSinkGroup, r.Client, r.Scheme, rsk,
+		reloadTopics, "-reload",
+	)
+
+	releaseTopics, err := reloadSinkGroup.RealtimeTopics(r.KafkaWatcher)
+	if err != nil {
+		return result, nil, err
+	}
 
 	// update mask status
 	updateMaskStatus(
-		rsk, kafkaTopics, toMap(reloadTopics),
+		rsk, kafkaTopics, toMap(reloadTopics), releaseTopics,
 		currentMaskVersion, desiredMaskVersion,
 	)
 
@@ -327,10 +379,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 
 	// reconcile reload sink group
-	reloadSinkGroup := NewSinkGroup(
-		ReloadSinkGroup, r.Client, r.Scheme, rsk,
-		reloadTopics, "-reload",
-	)
 	result, event, err = reloadSinkGroup.Reconcile(ctx)
 	if err != nil {
 		return result, event, err
