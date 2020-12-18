@@ -1,14 +1,11 @@
 package controllers
 
-//ctrl.SetControllerReference(redshiftsink, deployment, r.Scheme)
-
 import (
 	"fmt"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
-	// ctrl "sigs.k8s.io/controller-runtime"
 )
 
 const (
@@ -31,7 +28,6 @@ func NewLoader(
 	loaderTopics string,
 	tableSuffix string) Deployment {
 
-	uniqueName := rsk.Name + "-" + name + LoaderSuffix
 	secretRefName := rsk.Spec.SecretRefName
 	envs := []corev1.EnvVar{
 		corev1.EnvVar{
@@ -48,7 +44,7 @@ func NewLoader(
 		},
 		corev1.EnvVar{
 			Name:  LoaderEnvPrefix + "KAFKA_GROUP",
-			Value: uniqueName,
+			Value: name,
 		},
 		corev1.EnvVar{
 			Name:  LoaderEnvPrefix + "KAFKA_TOPICREGEXES",
@@ -119,11 +115,11 @@ func NewLoader(
 	}
 
 	deploySpec := deploymentSpec{
-		name:           uniqueName,
+		name:           name,
 		namespace:      rsk.Namespace,
 		labels:         getDefaultLabels("redshiftloader"),
 		replicas:       &replicas,
-		deploymentName: uniqueName,
+		deploymentName: name,
 		envs:           envs,
 		resources:      rsk.Spec.Loader.PodTemplate.Resources,
 		tolerations:    rsk.Spec.Loader.PodTemplate.Tolerations,
@@ -131,7 +127,7 @@ func NewLoader(
 	}
 
 	return &Loader{
-		name:       uniqueName,
+		name:       name,
 		client:     client,
 		namespace:  rsk.Namespace,
 		deployment: deploymentForRedshiftSink(deploySpec),

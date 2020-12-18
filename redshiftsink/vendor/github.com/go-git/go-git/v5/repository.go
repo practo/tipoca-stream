@@ -1148,8 +1148,6 @@ func (r *Repository) Log(o *LogOptions) (object.CommitIter, error) {
 		return nil, fmt.Errorf("invalid Order=%v", o.Order)
 	}
 
-	fmt.Printf("logOptions: %+v\n", *o)
-
 	var (
 		it  object.CommitIter
 		err error
@@ -1157,7 +1155,6 @@ func (r *Repository) Log(o *LogOptions) (object.CommitIter, error) {
 	if o.All {
 		it, err = r.logAll(fn)
 	} else {
-		fmt.Println("insode not all")
 		it, err = r.log(o.From, fn)
 	}
 
@@ -1170,7 +1167,6 @@ func (r *Repository) Log(o *LogOptions) (object.CommitIter, error) {
 		it = r.logWithFile(*o.FileName, it, o.All)
 	}
 	if o.PathFilter != nil {
-		fmt.Println("inside pathfilter")
 		it = r.logWithPathFilter(o.PathFilter, it, o.All)
 	}
 
