@@ -1,8 +1,10 @@
 # redshiftsink
 
-redshiftsink reads the debezium events from Kafka and loads them to Redshift. It supports [masking](../MASKING.MD).
+redshiftsink reads the debezium events from Kafka and loads them to Redshift. It has rich support for [masking](../MASKING.MD).
 
 ----
+
+<img src="arch-loader.png">
 
 # Install Redshiftsink
 
@@ -115,6 +117,9 @@ cp config.sample.yaml config.yaml
 ```
 
 ## Redshift Loader
+
+<img src="arch-loader.png">
+
 ```bash
 $ bin/darwin_amd64/redshiftloader --help
 Loads the uploaded batch of debezium events to redshift.
