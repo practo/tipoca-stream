@@ -50,7 +50,6 @@ from information_schema.schemata where schema_name='%s';`
 table_schema='%s' and table_name='%s';`
 	dropColumn      = `ALTER TABLE "%s"."%s" DROP COLUMN %s;`
 	alterSortColumn = `ALTER TABLE "%s"."%s" ALTER SORTKEY(%s);`
-	dropTable       = `DROP TABLE %s;`
 	// returns one row per column with the attributes:
 	// name, type, default_val, not_null, primary_key,
 	// need to pass a schema and table name as the parameters
@@ -576,6 +575,55 @@ func (r *Redshift) ReplaceTable(
 	return nil
 }
 
+func (r *Redshift) RenameTable(
+	tx *sql.Tx,
+	schema string,
+	sourceTableName string,
+	destTableName string,
+) error {
+	renameSQL := fmt.Sprintf(
+		`ALTER TABLE %s.%s RENAME TO "%s"`,
+		schema,
+		sourceTableName,
+		destTableName,
+	)
+
+	klog.V(4).Infof("Running: %s", renameSQL)
+	_, err := tx.ExecContext(r.ctx, renameSQL)
+	if err != nil {
+		return fmt.Errorf("Error renaming table, err: %v", err)
+	}
+
+	return nil
+}
+
+func (r *Redshift) GrantSchemaAccess(
+	tx *sql.Tx,
+	schema string,
+	group string,
+) error {
+	grantSelectSQL := fmt.Sprintf(
+		`GRANT SELECT ON ALL TABLES IN SCHEMA %s TO GROUP %s`,
+		schema,
+		group,
+	)
+	grantUsageSQL := fmt.Sprintf(
+		`GRANT USAGE ON SCHEMA %s TO GROUP %s`,
+		schema,
+		group,
+	)
+
+	for _, sql := range []string{grantSelectSQL, grantUsageSQL} {
+		klog.V(4).Infof("Running: %s", sql)
+		_, err := tx.ExecContext(r.ctx, sql)
+		if err != nil {
+			return fmt.Errorf("Error granting schema access, err: %v", err)
+		}
+	}
+
+	return nil
+}
+
 func (r *Redshift) prepareAndExecute(tx *sql.Tx, command string) error {
 	klog.V(5).Infof("Preparing: %s\n", command)
 	statement, err := tx.PrepareContext(r.ctx, command)
@@ -683,6 +731,7 @@ select %s from %s t1 join %s t2 on %s);`
 }
 
 func (r *Redshift) DropTable(tx *sql.Tx, schema string, table string) error {
+	dropTable := `DROP TABLE %s;`
 	return r.prepareAndExecute(
 		tx,
 		fmt.Sprintf(
