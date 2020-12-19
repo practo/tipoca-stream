@@ -1,7 +1,7 @@
 # tipoca-stream
 [![CI Status](https://travis-ci.com/practo/tipoca-stream.svg?token=kWeQdLBoqkiCi2kdxHdt&branch=master)](https://travis-ci.com/practo/tipoca-stream)
 
-<img src="arch-lightmode.png">
+<img src="arch.png">
 
 ---
 
