@@ -119,15 +119,9 @@ const (
 	// transition the MaskFileVersion in the status is updated to the spec.
 	MaskReloading MaskPhase = "Reloading"
 
-	// MaskReleasing tells the SinkGroup has been reloaded with new mask
-	// version and is realtime and is being released
-	MaskReleasing MaskPhase = "Releasing"
-
-	// MaskNoChange siginfies the version is different but it does not
-	// impact the topic masking, as the version might have changes for
-	// only other topics which would be showing as MaskReloading. Since version
-	// is for the mask database file having many tables/topics.
-	MaskNoChange MaskPhase = "NoChange"
+	// MaskRealtime tells the SinkGroup has been reloaded with new mask
+	// version and is realtime and it is waiting to be released
+	MaskRealtime MaskPhase = "Realtime"
 )
 
 // TopicMaskStatus store the mask status of a single topic
