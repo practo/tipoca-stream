@@ -25,7 +25,8 @@ func NewBatcher(
 	name string,
 	client client.Client,
 	rsk *tipocav1.RedshiftSink,
-	topics string) Deployment {
+	topics string,
+	maskFileVersion string) Deployment {
 
 	secretRefName := rsk.Spec.SecretRefName
 	envs := []corev1.EnvVar{
@@ -36,6 +37,10 @@ func NewBatcher(
 		corev1.EnvVar{
 			Name:  BatcherEnvPrefix + "BATCHER_MASKFILE",
 			Value: rsk.Spec.Batcher.MaskFile,
+		},
+		corev1.EnvVar{
+			Name:  BatcherEnvPrefix + "BATCHER_MASKFILEVERSION",
+			Value: maskFileVersion,
 		},
 		corev1.EnvVar{
 			Name:  BatcherEnvPrefix + "BATCHER_MAXSIZE",

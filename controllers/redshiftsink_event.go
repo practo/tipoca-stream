@@ -43,3 +43,16 @@ func (d DeploymentUpdatedEvent) Record(recorder record.EventRecorder) {
 		"DeploymentUpdated",
 		fmt.Sprintf("Updated deployment: %s", d.Name))
 }
+
+type TopicReleasedEvent struct {
+	Object  runtime.Object
+	Topic   string
+	Version string
+}
+
+func (d TopicReleasedEvent) Record(recorder record.EventRecorder) {
+	recorder.Event(d.Object,
+		K8sEventTypeNormal,
+		"TopicReleased",
+		fmt.Sprintf("Released topic: %s, maskVersion: %s", d.Topic, d.Version))
+}

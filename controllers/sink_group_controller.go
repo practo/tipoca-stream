@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	MasterSinkGroup           = "master"
+	MainSinkGroup             = "main"
 	ReloadSinkGroup           = "reload"
+	ReloadDupeSinkGroup       = "reload-dupe"
 	DefaultBatcherRealtimeLag = int64(100)
 	DefautLoaderRealtimeLag   = int64(10)
 )
@@ -56,7 +57,8 @@ func NewSinkGroup(
 	client client.Client,
 	scheme *runtime.Scheme,
 	rsk *tipocav1.RedshiftSink,
-	kafkaTopics []string, tableSuffix string) *SinkGroup {
+	kafkaTopics []string, tableSuffix string,
+	maskFileVersion string) *SinkGroup {
 
 	batcherTopics := expandTopicsToRegex(kafkaTopics)
 	loaderTopics := expandTopicsToRegex(
@@ -69,9 +71,11 @@ func NewSinkGroup(
 	loaderName := rsk.Name + "-" + name + LoaderSuffix
 
 	return &SinkGroup{
-		batcher: NewBatcher(batcherName, client, rsk, batcherTopics),
-		loader:  NewLoader(loaderName, client, rsk, loaderTopics, tableSuffix),
-		topics:  kafkaTopics,
+		batcher: NewBatcher(
+			batcherName, client, rsk, batcherTopics, maskFileVersion),
+		loader: NewLoader(
+			loaderName, client, rsk, loaderTopics, tableSuffix),
+		topics: kafkaTopics,
 
 		loaderTopicPrefix:  rsk.Spec.KafkaLoaderTopicPrefix,
 		batcherRealtimeLag: DefaultBatcherRealtimeLag,

@@ -81,13 +81,13 @@ func (r *RedshiftSinkReconciler) fetchSecretMap(
 	return secret, nil
 }
 
-func getGitToken(secret map[string]string) (string, error) {
-	gitToken, ok := secret["githubAccessToken"]
+func getSecretByKey(secret map[string]string, key string) (string, error) {
+	value, ok := secret[key]
 	if !ok {
-		return "", fmt.Errorf("githubAccessToken not found in secret")
+		return "", fmt.Errorf("%s not found in secret", key)
 	}
 
-	return gitToken, nil
+	return value, nil
 }
 
 // fetchLatestMaskFileVersion gets the latest mask file from remote git repository.
@@ -175,108 +175,6 @@ func (r *RedshiftSinkReconciler) fetchLatestTopics(
 	return topics, nil
 }
 
-func getReleaseTopics(rsk *tipocav1.RedshiftSink) []string {
-	releaseTopics := []string{}
-	if rsk.Status.MaskStatus == nil ||
-		rsk.Status.MaskStatus.CurrentMaskStatus == nil {
-		return releaseTopics
-	}
-
-	for topic, status := range rsk.Status.MaskStatus.CurrentMaskStatus {
-		if status.Phase == tipocav1.MaskReleasing {
-			releaseTopics = append(releaseTopics, topic)
-		}
-	}
-
-	return releaseTopics
-}
-
-func computerCurrentMaskStatus(
-	topics []string,
-	reloadTopic map[string]bool,
-	releaseTopics []string,
-	currentVersion string,
-	desiredVersion string,
-) map[string]tipocav1.TopicMaskStatus {
-	releaseTopicMap := make(map[string]bool)
-	for _, topic := range releaseTopics {
-		releaseTopicMap[topic] = true
-	}
-
-	status := make(map[string]tipocav1.TopicMaskStatus)
-	for _, topic := range topics {
-		_, ok := releaseTopicMap[topic]
-		if ok {
-			status[topic] = tipocav1.TopicMaskStatus{
-				Version: desiredVersion,
-				Phase:   tipocav1.MaskReleasing,
-			}
-			continue
-		}
-		_, ok = reloadTopic[topic]
-		if ok {
-			status[topic] = tipocav1.TopicMaskStatus{
-				Version: desiredVersion,
-				Phase:   tipocav1.MaskReloading,
-			}
-			continue
-		}
-		status[topic] = tipocav1.TopicMaskStatus{
-			Version: currentVersion,
-			Phase:   tipocav1.MaskActive,
-		}
-	}
-
-	return status
-}
-
-func computeDesiredMaskStatus(
-	topics []string,
-	reloadTopic map[string]bool,
-	currentVersion string,
-	desiredVersion string,
-) map[string]tipocav1.TopicMaskStatus {
-	status := make(map[string]tipocav1.TopicMaskStatus)
-	for _, topic := range topics {
-		_, ok := reloadTopic[topic]
-		if ok {
-			status[topic] = tipocav1.TopicMaskStatus{
-				Version: desiredVersion,
-				Phase:   tipocav1.MaskActive,
-			}
-		} else {
-			status[topic] = tipocav1.TopicMaskStatus{
-				Version: desiredVersion,
-				Phase:   tipocav1.MaskNoChange,
-			}
-		}
-	}
-
-	return status
-}
-
-func updateMaskStatus(
-	rsk *tipocav1.RedshiftSink,
-	topics []string,
-	reloadTopic map[string]bool,
-	releaseTopics []string,
-	currentMaskVersion string,
-	desiredMaskVersion string,
-) {
-	maskStatus := tipocav1.MaskStatus{
-		CurrentMaskStatus: computerCurrentMaskStatus(
-			topics, reloadTopic, releaseTopics,
-			currentMaskVersion, desiredMaskVersion,
-		),
-		DesiredMaskStatus: computeDesiredMaskStatus(
-			topics, reloadTopic, currentMaskVersion, desiredMaskVersion,
-		),
-		CurrentMaskVersion: &currentMaskVersion,
-		DesiredMaskVersion: &desiredMaskVersion,
-	}
-	rsk.Status.MaskStatus = &maskStatus
-}
-
 func (r *RedshiftSinkReconciler) reconcile(
 	ctx context.Context,
 	rsk *tipocav1.RedshiftSink,
@@ -296,17 +194,11 @@ func (r *RedshiftSinkReconciler) reconcile(
 			"Kafka topics not found for regex: %s", rsk.Spec.KafkaTopicRegexes)
 	}
 
-	masterSinkGroup := NewSinkGroup(
-		MasterSinkGroup,
-		r.Client,
-		r.Scheme,
-		rsk,
-		kafkaTopics,
-		"",
-	)
-
 	if rsk.Spec.Batcher.Mask == false {
-		result, event, err := masterSinkGroup.Reconcile(ctx)
+		maskLessSinkGroup := NewSinkGroup(
+			MainSinkGroup, r.Client, r.Scheme, rsk, kafkaTopics, "", "",
+		)
+		result, event, err := maskLessSinkGroup.Reconcile(ctx)
 		return result, event, err
 	}
 
@@ -318,7 +210,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	if err != nil {
 		return result, nil, err
 	}
-	gitToken, err := getGitToken(secret)
+	gitToken, err := getSecretByKey(secret, "githubAccessToken")
 	if err != nil {
 		return result, nil, err
 	}
@@ -340,7 +232,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		currentMaskVersion = desiredMaskVersion
 	}
 
-	reloadTopics, err := MaskDiff(
+	diff, err := MaskDiff(
 		kafkaTopics,
 		rsk.Spec.Batcher.MaskFile,
 		desiredMaskVersion,
@@ -351,45 +243,134 @@ func (r *RedshiftSinkReconciler) reconcile(
 	if err != nil {
 		return result, nil, fmt.Errorf("Error doing mask diff, err: %v", err)
 	}
-	klog.Infof("reloadTopics: %v", reloadTopics)
+
+	klog.Infof("diff: %v", diff)
+
+	status := newTopicStatus(
+		kafkaTopics,
+		diff,
+		currentMaskVersion,
+		desiredMaskVersion,
+		rsk)
+	if !status.verify() {
+		return result, nil, fmt.Errorf(
+			"topics status does not add up as expected")
+	}
+
+	topicsReleased := status.released()
+	topicsRealtime := status.realtime()
+	topicsReloading := status.reloading()
+
+	klog.Infof("released: %v", topicsReleased)
+	klog.Infof("realtime: %v", topicsRealtime)
+	klog.Infof("reloading: %v", topicsReloading)
 
 	reloadSinkGroup := NewSinkGroup(
-		ReloadSinkGroup, r.Client, r.Scheme, rsk,
-		reloadTopics, "-reload",
+		ReloadSinkGroup,
+		r.Client,
+		r.Scheme,
+		rsk,
+		topicsReloading,
+		"-reload",
+		desiredMaskVersion,
 	)
-
-	releaseTopics, err := reloadSinkGroup.RealtimeTopics(r.KafkaWatcher)
+	topicsRealtime, err = reloadSinkGroup.RealtimeTopics(r.KafkaWatcher)
 	if err != nil {
 		return result, nil, err
 	}
-	klog.Infof("releaseTopics: %v", releaseTopics)
 
-	// update mask status
-	updateMaskStatus(
-		rsk, kafkaTopics, toMap(reloadTopics), releaseTopics,
-		currentMaskVersion, desiredMaskVersion,
+	klog.Infof("realtime (latest): %v", topicsRealtime)
+
+	status.updateMaskStatus(
+		topicsReleased,
+		topicsRealtime,
+		topicsReloading,
+	)
+	topicsReleased = status.released()
+	topicsRealtime = status.realtime()
+	topicsReloading = status.reloading()
+
+	// SinkGroup are of following types:
+	// 1. main: sink group which has desiredMaskVersion
+	//      and has topics which have been released
+	//      consumer group: main
+	//      tableSuffix: ""
+	// 2. reload: sink group which has the desiredMaskVersion and is
+	//      is undergoing reload with new mask configurations
+	//      consumer group: desiredMaskVersion
+	//      tableSuffix: -reload
+	// 3. reloadDupe: sink group which has the currentMaskVersion
+	//      and will be stopped when reload ones moves to realtime
+	//      and when they are released.
+	//      consumer group: currentMaskVersion
+	//      tableSuffix: ""
+	var main, reload, reloadDupe *SinkGroup
+	main = NewSinkGroup(
+		MainSinkGroup, r.Client, r.Scheme, rsk,
+		topicsReleased, "", desiredMaskVersion,
+	)
+	reload = NewSinkGroup(
+		ReloadSinkGroup, r.Client, r.Scheme, rsk,
+		topicsReloading, "-reload", desiredMaskVersion,
+	)
+	reloadDupe = NewSinkGroup(
+		ReloadDupeSinkGroup, r.Client, r.Scheme, rsk,
+		topicsReloading, "", currentMaskVersion,
+	)
+	for _, sinkGroup := range []*SinkGroup{main, reload, reloadDupe} {
+		result, event, err := sinkGroup.Reconcile(ctx)
+		if err != nil {
+			return result, event, err
+		}
+		if event != nil {
+			return result, event, nil
+		}
+	}
+
+	klog.Info("executing release if any..")
+
+	var topicReleaseEvent *TopicReleasedEvent
+	var releaseError error
+	var releaser *Releaser
+	if len(topicsRealtime) > 0 {
+		klog.Infof("release candidates: %v", topicsRealtime)
+		releaser, releaseError = NewReleaser(
+			ctx, rsk.Spec.Loader.RedshiftSchema, secret)
+		if releaseError != nil {
+			return result, nil, releaseError
+		}
+
+		releaseError = releaser.Release(topicsRealtime[0])
+		if err != nil {
+			topicReleaseEvent = &TopicReleasedEvent{
+				Topic:   topicsRealtime[0],
+				Version: desiredMaskVersion,
+			}
+			topicsReleased = append(topicsReleased, topicsRealtime[0])
+			klog.Infof(
+				"Released topic: %v, version: %v",
+				topicsRealtime[0], desiredMaskVersion,
+			)
+		}
+	}
+
+	// remove the released topics
+	topicsReloading = removeReleased(topicsReloading, toMap(topicsReleased))
+	topicsRealtime = removeReleased(topicsRealtime, toMap(topicsReleased))
+	status.updateMaskStatus(
+		topicsReleased,
+		topicsRealtime,
+		topicsReloading,
 	)
 
-	// reconcile master sink group
-	result, event, err := masterSinkGroup.Reconcile(ctx)
-	if err != nil {
-		return result, event, err
+	if releaseError != nil {
+		return result, nil, releaseError
+	}
+	if topicReleaseEvent != nil {
+		return result, topicReleaseEvent, nil
 	}
 
-	if event != nil {
-		return result, event, nil
-	}
-
-	// reconcile reload sink group
-	result, event, err = reloadSinkGroup.Reconcile(ctx)
-	if err != nil {
-		return result, event, err
-	}
-	if event != nil {
-		return result, event, nil
-	}
-
-	klog.Info("Nothing done.")
+	klog.Info("Nothing done in reconcile.")
 
 	return result, nil, nil
 }
