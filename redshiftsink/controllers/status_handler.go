@@ -168,8 +168,8 @@ func (r *statusHandler) updateMaskStatus(
 }
 
 func consumerGroupsBySinkGroup(
-	rsk *tipocav1.RedshiftSink, sgName string) map[string]tipocav1.ConsumerGroup {
-	empty := map[string]tipocav1.ConsumerGroup{}
+	rsk *tipocav1.RedshiftSink, sgName string) tipocav1.ConsumerGroups {
+	var empty tipocav1.ConsumerGroups
 
 	if rsk.Status.SinkGroupStatus == nil {
 		return empty
@@ -191,7 +191,7 @@ func (r *statusHandler) updateSinkGroupStatus(
 ) {
 	consumerGroups := consumerGroupsBySinkGroup(r.rsk, sgName)
 	if len(consumerGroups) == 0 {
-		r.rsk.Status.SinkGroupStatus[sgName] = map[string]tipocav1.ConsumerGroup{
+		r.rsk.Status.SinkGroupStatus[sgName] = tipocav1.ConsumerGroups{
 			cgName: tipocav1.ConsumerGroup{
 				KafkaLoaderTopicPrefix: loaderPrefix,
 				KafkaTopicRegexes:      expandTopicsToRegex([]string{topic}),
