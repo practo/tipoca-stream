@@ -6,16 +6,16 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 )
 
-type Releaser struct {
+type releaser struct {
 	redshiftClient *redshift.Redshift
 }
 
-func NewReleaser(
+func newReleaser(
 	ctx context.Context,
 	schema string,
 	secret map[string]string,
 ) (
-	*Releaser,
+	*releaser,
 	error,
 ) {
 
@@ -53,12 +53,12 @@ func NewReleaser(
 		return nil, err
 	}
 
-	return &Releaser{
+	return &releaser{
 		redshiftClient: redshiftClient,
 	}, nil
 }
 
-func (r *Releaser) Release(topic string) error {
+func (r *releaser) release(topic string) error {
 
 	return nil
 }

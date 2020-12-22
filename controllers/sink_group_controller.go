@@ -26,7 +26,7 @@ type SinkGroupInterface interface {
 	RealtimeTopics(watcher consumer.KafkaWatcher) ([]string, error)
 }
 
-type SinkGroup struct {
+type sinkGroup struct {
 	name    string
 	batcher Deployment
 	loader  Deployment
@@ -52,13 +52,13 @@ type Deployment interface {
 	UpdateRequired(current *appsv1.Deployment) bool
 }
 
-func NewSinkGroup(
+func newSinkGroup(
 	name string,
 	client client.Client,
 	scheme *runtime.Scheme,
 	rsk *tipocav1.RedshiftSink,
 	kafkaTopics []string,
-	maskFileVersion string) *SinkGroup {
+	maskFileVersion string) *sinkGroup {
 
 	tableSuffix := tableSuffixBySinkGroup(name, maskFileVersion)
 	consumerGroups := consumerGroupsBySinkGroup(rsk, name)
@@ -75,7 +75,7 @@ func NewSinkGroup(
 	batcherName := rsk.Name + "-" + name + BatcherSuffix
 	loaderName := rsk.Name + "-" + name + LoaderSuffix
 
-	return &SinkGroup{
+	return &sinkGroup{
 		batcher: NewBatcher(
 			batcherName, client, rsk, batcherTopics, maskFileVersion),
 		loader: NewLoader(
@@ -109,7 +109,7 @@ func tableSuffixBySinkGroup(sg string, desireVersion string) string {
 	return ""
 }
 
-func (s *SinkGroup) reconcile(
+func (s *sinkGroup) reconcileDeployment(
 	ctx context.Context,
 	d Deployment,
 ) (
@@ -145,7 +145,7 @@ func (s *SinkGroup) reconcile(
 	return nil, nil
 }
 
-func (s *SinkGroup) Reconcile(
+func (s *sinkGroup) reconcile(
 	ctx context.Context,
 ) (
 	ctrl.Result, ReconcilerEvent, error,
@@ -153,7 +153,7 @@ func (s *SinkGroup) Reconcile(
 	result := ctrl.Result{RequeueAfter: time.Second * 10}
 
 	// reconcile batcher
-	event, err := s.reconcile(ctx, s.batcher)
+	event, err := s.reconcileDeployment(ctx, s.batcher)
 	if err != nil {
 		return result, event, fmt.Errorf("Error reconciling batcher, %v", err)
 	}
@@ -162,7 +162,7 @@ func (s *SinkGroup) Reconcile(
 	}
 
 	// reconcile loader
-	event, err = s.reconcile(ctx, s.loader)
+	event, err = s.reconcileDeployment(ctx, s.loader)
 	if err != nil {
 		return result, event, fmt.Errorf("Error reconciling loader, %v", err)
 	}
@@ -173,9 +173,9 @@ func (s *SinkGroup) Reconcile(
 	return result, nil, nil
 }
 
-// RealtimeTopics gives back the list of topics whose consumer lags are
+// realtimeTopics gives back the list of topics whose consumer lags are
 // less than or equal to the specified thresholds to be considered realtime
-func (s *SinkGroup) RealtimeTopics(
+func (s *sinkGroup) realtimeTopics(
 	watcher consumer.KafkaWatcher,
 ) (
 	[]string, error,

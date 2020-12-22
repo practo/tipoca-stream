@@ -195,10 +195,10 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 
 	if rsk.Spec.Batcher.Mask == false {
-		maskLessSinkGroup := NewSinkGroup(
+		maskLessSinkGroup := newSinkGroup(
 			MainSinkGroup, r.Client, r.Scheme, rsk, kafkaTopics, "",
 		)
-		result, event, err := maskLessSinkGroup.Reconcile(ctx)
+		result, event, err := maskLessSinkGroup.reconcile(ctx)
 		return result, event, err
 	}
 
@@ -265,7 +265,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	klog.Infof("realtime: %v", topicsRealtime)
 	klog.Infof("reloading: %v", topicsReloading)
 
-	reloadSinkGroup := NewSinkGroup(
+	reloadSinkGroup := newSinkGroup(
 		ReloadSinkGroup,
 		r.Client,
 		r.Scheme,
@@ -273,7 +273,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		topicsReloading,
 		desiredMaskVersion,
 	)
-	topicsRealtime, err = reloadSinkGroup.RealtimeTopics(r.KafkaWatcher)
+	topicsRealtime, err = reloadSinkGroup.realtimeTopics(r.KafkaWatcher)
 	if err != nil {
 		return result, nil, err
 	}
@@ -303,24 +303,24 @@ func (r *RedshiftSinkReconciler) reconcile(
 	//      and when they are released.
 	//      consumer group: currentMaskVersion
 	//      tableSuffix: ""
-	var main, reload, reloadDupe *SinkGroup
-	main = NewSinkGroup(
+	var main, reload, reloadDupe *sinkGroup
+	main = newSinkGroup(
 		MainSinkGroup, r.Client, r.Scheme, rsk,
 		topicsReleased,
 		desiredMaskVersion,
 	)
-	reload = NewSinkGroup(
+	reload = newSinkGroup(
 		ReloadSinkGroup, r.Client, r.Scheme, rsk,
 		topicsReloading,
 		desiredMaskVersion,
 	)
-	reloadDupe = NewSinkGroup(
+	reloadDupe = newSinkGroup(
 		ReloadDupeSinkGroup, r.Client, r.Scheme, rsk,
 		topicsReloading,
 		currentMaskVersion,
 	)
-	for _, sinkGroup := range []*SinkGroup{main, reload, reloadDupe} {
-		result, event, err := sinkGroup.Reconcile(ctx)
+	for _, sinkGroup := range []*sinkGroup{main, reload, reloadDupe} {
+		result, event, err := sinkGroup.reconcile(ctx)
 		if err != nil {
 			return result, event, err
 		}
@@ -333,16 +333,16 @@ func (r *RedshiftSinkReconciler) reconcile(
 
 	var topicReleaseEvent *TopicReleasedEvent
 	var releaseError error
-	var releaser *Releaser
+	var releaser *releaser
 	if len(topicsRealtime) > 0 {
 		klog.Infof("release candidates: %v", topicsRealtime)
-		releaser, releaseError = NewReleaser(
+		releaser, releaseError = newReleaser(
 			ctx, rsk.Spec.Loader.RedshiftSchema, secret)
 		if releaseError != nil {
 			return result, nil, releaseError
 		}
 
-		releaseError = releaser.Release(topicsRealtime[0])
+		releaseError = releaser.release(topicsRealtime[0])
 		if err != nil {
 			status.updateSinkGroupStatus(
 				MainSinkGroup,
