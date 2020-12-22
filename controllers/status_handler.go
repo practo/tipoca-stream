@@ -4,7 +4,7 @@ import (
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 )
 
-type topicStatus struct {
+type statusHandler struct {
 	all            []string
 	diff           []string
 	currentVersion string
@@ -12,11 +12,11 @@ type topicStatus struct {
 	rsk            *tipocav1.RedshiftSink
 }
 
-func newTopicStatus(
+func newStatusHandler(
 	all, diff []string,
-	c string, d string, rsk *tipocav1.RedshiftSink) *topicStatus {
+	c string, d string, rsk *tipocav1.RedshiftSink) *statusHandler {
 
-	return &topicStatus{
+	return &statusHandler{
 		all:            all,
 		diff:           diff,
 		currentVersion: c,
@@ -26,7 +26,7 @@ func newTopicStatus(
 
 }
 
-func (r *topicStatus) reloading() []string {
+func (r *statusHandler) reloading() []string {
 	if r.rsk.Status.MaskStatus == nil ||
 		r.rsk.Status.MaskStatus.CurrentMaskStatus == nil {
 		return r.diff
@@ -34,15 +34,19 @@ func (r *topicStatus) reloading() []string {
 	return r.getTopics(tipocav1.MaskReloading, r.desiredVersion)
 }
 
-func (r *topicStatus) realtime() []string {
+func (r *statusHandler) realtime() []string {
 	return r.getTopics(tipocav1.MaskRealtime, r.desiredVersion)
 }
 
-func (r *topicStatus) released() []string {
+func (r *statusHandler) released() []string {
 	return r.getTopics(tipocav1.MaskActive, r.desiredVersion)
 }
 
-func (r *topicStatus) verify() bool {
+func (r *statusHandler) verify() bool {
+	if r.currentVersion == "" {
+		return true
+	}
+
 	total := len(r.reloading()) + len(r.realtime()) + len(r.released())
 	if total != len(r.all) {
 		return false
@@ -63,8 +67,8 @@ func removeReleased(from []string, released map[string]bool) []string {
 	return topics
 }
 
-func (r *topicStatus) getTopics(
-    phase tipocav1.MaskPhase, version string) []string {
+func (r *statusHandler) getTopics(
+	phase tipocav1.MaskPhase, version string) []string {
 	if r.rsk.Status.MaskStatus == nil ||
 		r.rsk.Status.MaskStatus.CurrentMaskStatus == nil {
 		return []string{}
@@ -82,13 +86,11 @@ func (r *topicStatus) getTopics(
 
 // computerCurrentMaskStatus updates the status for topics
 // reload -> releasing -> released(active)
-func (r *topicStatus) computerCurrentMaskStatus(
+func (r *statusHandler) computerCurrentMaskStatus(
 	topicsReleased map[string]bool,
 	topicsRealtime map[string]bool,
 	topicsReloading map[string]bool,
-) (
-    map[string]tipocav1.TopicMaskStatus,
-) {
+) map[string]tipocav1.TopicMaskStatus {
 	status := make(map[string]tipocav1.TopicMaskStatus)
 	for _, topic := range r.all {
 
@@ -135,10 +137,7 @@ func (r *topicStatus) computerCurrentMaskStatus(
 	return status
 }
 
-func (r *topicStatus) computeDesiredMaskStatus(
-) (
-    map[string]tipocav1.TopicMaskStatus,
-) {
+func (r *statusHandler) computeDesiredMaskStatus() map[string]tipocav1.TopicMaskStatus {
 	status := make(map[string]tipocav1.TopicMaskStatus)
 	for _, topic := range r.all {
 		status[topic] = tipocav1.TopicMaskStatus{
@@ -150,7 +149,7 @@ func (r *topicStatus) computeDesiredMaskStatus(
 	return status
 }
 
-func (r *topicStatus) updateMaskStatus(
+func (r *statusHandler) updateMaskStatus(
 	topicsReleased []string,
 	topicsRealtime []string,
 	topicsReloading []string,
@@ -166,4 +165,50 @@ func (r *topicStatus) updateMaskStatus(
 		DesiredMaskVersion: &r.desiredVersion,
 	}
 	r.rsk.Status.MaskStatus = &maskStatus
+}
+
+func consumerGroupsBySinkGroup(
+	rsk *tipocav1.RedshiftSink, sgName string) map[string]tipocav1.ConsumerGroup {
+	empty := map[string]tipocav1.ConsumerGroup{}
+
+	if rsk.Status.SinkGroupStatus == nil {
+		return empty
+	}
+
+	groups, ok := rsk.Status.SinkGroupStatus[sgName]
+	if ok {
+		return groups
+	}
+
+	return empty
+}
+
+func (r *statusHandler) updateSinkGroupStatus(
+	sgName,
+	cgName,
+	topic string,
+	loaderPrefix string,
+) {
+	consumerGroups := consumerGroupsBySinkGroup(r.rsk, sgName)
+	if len(consumerGroups) == 0 {
+		r.rsk.Status.SinkGroupStatus[sgName] = map[string]tipocav1.ConsumerGroup{
+			cgName: tipocav1.ConsumerGroup{
+				KafkaLoaderTopicPrefix: loaderPrefix,
+				KafkaTopicRegexes:      expandTopicsToRegex([]string{topic}),
+			},
+		}
+		return
+	}
+
+	consumerGroup, ok := consumerGroups[cgName]
+	if !ok {
+		consumerGroups[cgName] = tipocav1.ConsumerGroup{
+			KafkaLoaderTopicPrefix: loaderPrefix,
+			KafkaTopicRegexes:      expandTopicsToRegex([]string{topic}),
+		}
+		return
+	}
+
+	consumerGroup.KafkaTopicRegexes += "," + fullMatchRegexForTopic(topic)
+	consumerGroup.KafkaLoaderTopicPrefix = loaderPrefix
 }

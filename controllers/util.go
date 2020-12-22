@@ -133,6 +133,10 @@ func makeLoaderTopics(prefix string, topics []string) []string {
 	return prefixedTopics
 }
 
+func fullMatchRegexForTopic(topic string) string {
+	return "^" + topic + "$"
+}
+
 func expandTopicsToRegex(topics []string) string {
 	if len(topics) == 0 {
 		return ""
@@ -141,7 +145,7 @@ func expandTopicsToRegex(topics []string) string {
 
 	fullMatchRegex := ""
 	for _, topic := range topics {
-		fullMatchRegex = fullMatchRegex + "^" + topic + "$,"
+		fullMatchRegex = fullMatchRegex + fullMatchRegexForTopic(topic) + ","
 	}
 
 	return strings.TrimSuffix(fullMatchRegex, ",")

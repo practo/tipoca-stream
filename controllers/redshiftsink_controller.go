@@ -196,7 +196,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 
 	if rsk.Spec.Batcher.Mask == false {
 		maskLessSinkGroup := NewSinkGroup(
-			MainSinkGroup, r.Client, r.Scheme, rsk, kafkaTopics, "", "",
+			MainSinkGroup, r.Client, r.Scheme, rsk, kafkaTopics, "",
 		)
 		result, event, err := maskLessSinkGroup.Reconcile(ctx)
 		return result, event, err
@@ -229,7 +229,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		rsk.Status.MaskStatus.CurrentMaskVersion != nil {
 		currentMaskVersion = *rsk.Status.MaskStatus.CurrentMaskVersion
 	} else {
-		currentMaskVersion = desiredMaskVersion
+		currentMaskVersion = ""
 	}
 
 	diff, err := MaskDiff(
@@ -246,7 +246,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 
 	klog.Infof("diff: %v", diff)
 
-	status := newTopicStatus(
+	status := newStatusHandler(
 		kafkaTopics,
 		diff,
 		currentMaskVersion,
@@ -271,7 +271,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 		r.Scheme,
 		rsk,
 		topicsReloading,
-		"-reload",
 		desiredMaskVersion,
 	)
 	topicsRealtime, err = reloadSinkGroup.RealtimeTopics(r.KafkaWatcher)
@@ -307,15 +306,18 @@ func (r *RedshiftSinkReconciler) reconcile(
 	var main, reload, reloadDupe *SinkGroup
 	main = NewSinkGroup(
 		MainSinkGroup, r.Client, r.Scheme, rsk,
-		topicsReleased, "", desiredMaskVersion,
+		topicsReleased,
+		desiredMaskVersion,
 	)
 	reload = NewSinkGroup(
 		ReloadSinkGroup, r.Client, r.Scheme, rsk,
-		topicsReloading, "-reload", desiredMaskVersion,
+		topicsReloading,
+		desiredMaskVersion,
 	)
 	reloadDupe = NewSinkGroup(
 		ReloadDupeSinkGroup, r.Client, r.Scheme, rsk,
-		topicsReloading, "", currentMaskVersion,
+		topicsReloading,
+		currentMaskVersion,
 	)
 	for _, sinkGroup := range []*SinkGroup{main, reload, reloadDupe} {
 		result, event, err := sinkGroup.Reconcile(ctx)
@@ -342,6 +344,12 @@ func (r *RedshiftSinkReconciler) reconcile(
 
 		releaseError = releaser.Release(topicsRealtime[0])
 		if err != nil {
+			status.updateSinkGroupStatus(
+				MainSinkGroup,
+				desiredMaskVersion,
+				topicsRealtime[0],
+				tableSuffixBySinkGroup(ReloadSinkGroup, desiredMaskVersion),
+			)
 			topicReleaseEvent = &TopicReleasedEvent{
 				Topic:   topicsRealtime[0],
 				Version: desiredMaskVersion,
@@ -351,6 +359,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 				"Released topic: %v, version: %v",
 				topicsRealtime[0], desiredMaskVersion,
 			)
+		} else {
+			// TODO: rollback
 		}
 	}
 
