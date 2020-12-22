@@ -14,6 +14,10 @@ func MaskDiff(
 	t string,
 	homeDir string) ([]string, error) {
 
+	if currentVersion == "" {
+		return topics, nil
+	}
+
 	if currentVersion == desiredVersion {
 		return []string{}, nil
 	}

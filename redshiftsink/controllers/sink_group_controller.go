@@ -57,8 +57,13 @@ func NewSinkGroup(
 	client client.Client,
 	scheme *runtime.Scheme,
 	rsk *tipocav1.RedshiftSink,
-	kafkaTopics []string, tableSuffix string,
+	kafkaTopics []string,
 	maskFileVersion string) *SinkGroup {
+
+	tableSuffix := tableSuffixBySinkGroup(name, maskFileVersion)
+	consumerGroups := consumerGroupsBySinkGroup(rsk, name)
+	// TODO: pass on to batcher and loader to handle multiple consumer groups
+	_ = consumerGroups
 
 	batcherTopics := expandTopicsToRegex(kafkaTopics)
 	loaderTopics := expandTopicsToRegex(
@@ -84,6 +89,24 @@ func NewSinkGroup(
 		scheme: scheme,
 		rsk:    rsk,
 	}
+}
+
+// used to set consumer group name, sink group name batcher name
+func getBatcherUniqueName() {
+
+}
+
+func tableSuffixBySinkGroup(sg string, desireVersion string) string {
+	switch sg {
+	case ReloadSinkGroup:
+		return "-" + desireVersion
+	case MainSinkGroup:
+		return ""
+	case ReloadDupeSinkGroup:
+		return ""
+	}
+
+	return ""
 }
 
 func (s *SinkGroup) reconcile(

@@ -154,6 +154,16 @@ type MaskStatus struct {
 	DesiredMaskVersion *string `json:"desiredMaskedVersion,omitempty"`
 }
 
+type ConsumerGroup struct {
+	// KafkaLoaderTopicPrefix determines the topic prefix for the topic
+	// the consumer grou batcher would write to and loader will read from
+	// +optional
+	KafkaLoaderTopicPrefix string `json:"name,omitempty"`
+
+	// KafkaTopicRegexes the consumer group needs to handle
+	KafkaTopicRegexes string `json:"kafkaTopicRegexes"`
+}
+
 // RedshiftSinkStatus defines the observed state of RedshiftSink
 type RedshiftSinkStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
@@ -162,6 +172,9 @@ type RedshiftSinkStatus struct {
 	// MaskStatus stores the status of masking for topics if masking is enabled
 	// +optional
 	MaskStatus *MaskStatus `json:"maskStatus"`
+
+	// SinkGroupStatus stores the status of the sink groups
+	SinkGroupStatus map[string]map[string]ConsumerGroup `json:"sinkGroupStatus,omitempty"`
 }
 
 // +kubebuilder:resource:path=redshiftsinks,shortName=rsk;rsks

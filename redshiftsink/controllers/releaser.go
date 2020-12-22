@@ -1,13 +1,13 @@
 package controllers
 
 import (
-    "context"
+	"context"
 	// tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 )
 
 type Releaser struct {
-	client *redshift.Redshift
+	redshiftClient *redshift.Redshift
 }
 
 func NewReleaser(
@@ -48,16 +48,17 @@ func NewReleaser(
 		MaxIdleConns: 3,
 	}
 
-	client, err := redshift.NewRedshift(ctx, config)
+	redshiftClient, err := redshift.NewRedshift(ctx, config)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Releaser{
-		client: client,
+		redshiftClient: redshiftClient,
 	}, nil
 }
 
 func (r *Releaser) Release(topic string) error {
+
 	return nil
 }
