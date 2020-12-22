@@ -164,6 +164,8 @@ type ConsumerGroup struct {
 	KafkaTopicRegexes string `json:"kafkaTopicRegexes"`
 }
 
+type ConsumerGroups map[string]ConsumerGroup
+
 // RedshiftSinkStatus defines the observed state of RedshiftSink
 type RedshiftSinkStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
@@ -174,7 +176,7 @@ type RedshiftSinkStatus struct {
 	MaskStatus *MaskStatus `json:"maskStatus"`
 
 	// SinkGroupStatus stores the status of the sink groups
-	SinkGroupStatus map[string]map[string]ConsumerGroup `json:"sinkGroupStatus,omitempty"`
+	SinkGroupStatus map[string]ConsumerGroups `json:"sinkGroupStatus,omitempty"`
 }
 
 // +kubebuilder:resource:path=redshiftsinks,shortName=rsk;rsks
