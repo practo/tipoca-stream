@@ -14,6 +14,7 @@ func NewConsumer(ready chan bool) consumer {
 }
 
 // consumer represents a Sarama consumer group consumer
+// it is actually consumerGroupHandler, kept the name consumer to hide details
 type consumer struct {
 	// Ready is used to signal the main thread about the readiness
 	ready chan bool

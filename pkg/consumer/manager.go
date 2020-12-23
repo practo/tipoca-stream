@@ -12,7 +12,10 @@ import (
 
 type Manager struct {
 	// consumer client, this is sarama now, can be kafka-go later
-	consumerGroup ConsumerGroup
+	consumerGroup ConsumerGroupInterface
+
+	// consumerGroupID is the consumer group's id the manager is taking care of
+	consumerGroupID string
 
 	// topicRegexes is the list of topics to monitor
 	topicRegexes []*regexp.Regexp
@@ -43,7 +46,7 @@ type Manager struct {
 	topicsInitialized bool
 }
 
-func NewManager(consumerGroup ConsumerGroup,
+func NewManager(consumerGroup ConsumerGroupInterface, consumerGroupID string,
 	regexes string, cancel context.CancelFunc, reload bool) *Manager {
 
 	var topicRegexes []*regexp.Regexp
@@ -55,9 +58,11 @@ func NewManager(consumerGroup ConsumerGroup,
 		}
 		topicRegexes = append(topicRegexes, rgx)
 	}
+	klog.Infof("Manager %s is managing: %s", consumerGroupID, topicRegexes)
 
 	return &Manager{
 		consumerGroup:     consumerGroup,
+		consumerGroupID:   consumerGroupID,
 		topicRegexes:      topicRegexes,
 		Ready:             make(chan bool),
 		reload:            reload,
@@ -161,14 +166,14 @@ func (c *Manager) SyncTopics(
 
 		inactiveTopics := c.topicInActive(topics)
 		if len(inactiveTopics) > 0 && c.topicsInitialized {
-			klog.Infof("New topics are inactive: %v. Reload required!\n",
+			klog.V(2).Infof("New topics are inactive: %v. Reload required!\n",
 				inactiveTopics)
 			// TODO: assumes there is a proecss above that restarts
 			// when this shutsdown, it is using Kubernetes Deployment like
 			// functionality to reload
 			// Operator does not use this reload but manages the reload also
 			if c.reload {
-				klog.Info(
+				klog.V(2).Info(
 					"Reloading.... Gracefully shutdown!")
 				c.cancel()
 				return
@@ -193,7 +198,7 @@ func (c *Manager) printLastOffsets() {
 			klog.Errorf("Unable to get offset, err:%v\n", err)
 			continue
 		}
-		klog.Infof(
+		klog.V(2).Infof(
 			"topic:%s, partition:0, lastOffset:%d (kafka lastoffset)\n",
 			topic,
 			lastOffset,
@@ -206,7 +211,7 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 	for {
 		select {
 		case <-ctx.Done():
-			klog.Info("Context cancelled, bye bye!")
+			klog.V(2).Info("Context cancelled, bye bye!")
 			return
 		default:
 		}
@@ -216,7 +221,7 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 		// recreated to get the new claims
 		topics := c.deepCopyTopics()
 		if len(topics) == 0 {
-			klog.Info("No topics found. Waiting, correct topicRegexes?")
+			klog.V(2).Info("No topics found. Waiting, correct topicRegexes?")
 			time.Sleep(time.Second * 5)
 			continue
 		}
@@ -224,16 +229,23 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 		c.printLastOffsets()
 
 		c.setActiveTopics(topics)
-		klog.V(2).Infof("Manager.Consume for %d topic(s)\n", len(topics))
+		klog.V(2).Infof(
+			"Manager: %s, Consume for %d topic(s)\n",
+			c.consumerGroupID,
+			len(topics),
+		)
 		err := c.consumerGroup.Consume(ctx, topics)
 		if err != nil {
 			klog.Fatalf("Error from consumer: %v", err)
 		}
 		// check if context was cancelled, the consumer should stop
 		if ctx.Err() != nil {
-			klog.V(2).Info("Manager.Context cancelled")
+			klog.V(2).Infof("Manager: %s, Context cancelled", c.consumerGroupID)
 			return
 		}
-		klog.V(2).Info("Manager.Consume completed loop, will re run")
+		klog.V(2).Infof(
+			"Manager: %s, Consume completed loop, will re run",
+			c.consumerGroupID,
+		)
 	}
 }

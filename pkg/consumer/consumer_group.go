@@ -3,19 +3,16 @@ package consumer
 import (
 	"context"
 	"fmt"
-	"log"
-	"os"
-	"strings"
-
 	"github.com/Shopify/sarama"
-	"github.com/practo/klog/v2"
 )
 
-type ConsumerGroup interface {
+type ConsumerGroupInterface interface {
 	Topics() ([]string, error)
 
-	// RefreshMetadata takes a list of topics and queries the cluster to refresh the
-	// available metadata for those topics. If no topics are provided, it will refresh
+	// RefreshMetadata takes a list of topics and
+	// queries the cluster to refresh the
+	// available metadata for those topics.
+	// If no topics are provided, it will refresh
 	// metadata for all topics.
 	RefreshMetadata(topics ...string) error
 
@@ -24,13 +21,18 @@ type ConsumerGroup interface {
 	Close() error
 }
 
+type ConsumerGroupConfig struct {
+	GroupID           string       `yaml:"groupID"`
+	TopicRegexes      string       `yaml:"topicRegexes"`
+	LoaderTopicPrefix string       `yaml:"loaderTopicPrefix"` // default is there
+	Kafka             KafkaConfig  `yaml:"kafka"`
+	Sarama            SaramaConfig `yaml:"sarama"`
+}
+
 type KafkaConfig struct {
-	Brokers           string `yaml:"brokers"`
-	Group             string `yaml:"group"`
-	Version           string `yaml:"version"` // default is there
-	TopicRegexes      string `yaml:"topicRegexes"`
-	LoaderTopicPrefix string `yaml:"loaderTopicPrefix"` // defaults is there
-	KafkaClient       string `yaml:"kafkaClient"`       // default is there
+	Brokers     string `yaml:"brokers"`
+	Version     string `yaml:"version"`     // default is there
+	KafkaClient string `yaml:"kafkaClient"` // default is there
 }
 
 type SaramaConfig struct {
@@ -40,130 +42,32 @@ type SaramaConfig struct {
 	AutoCommit bool   `yaml:"autoCommit"`
 }
 
-func NewConsumerGroup(k KafkaConfig, s SaramaConfig,
-	consumer sarama.ConsumerGroupHandler) (ConsumerGroup, error) {
-
+func NewConsumerGroup(
+	config ConsumerGroupConfig,
+	consumerGroupHandler sarama.ConsumerGroupHandler,
+) (
+	ConsumerGroupInterface,
+	error,
+) {
 	// set defaults
-	if k.Version == "" {
-		k.Version = "2.5.0"
+	if config.Kafka.Version == "" {
+		config.Kafka.Version = "2.5.0"
 	}
-	if k.KafkaClient == "" {
-		k.KafkaClient = "sarama"
+	if config.Kafka.KafkaClient == "" {
+		config.Kafka.KafkaClient = "sarama"
 	}
-	if k.LoaderTopicPrefix == "" {
-		k.LoaderTopicPrefix = "loader-"
+	if config.LoaderTopicPrefix == "" {
+		config.LoaderTopicPrefix = "loader-"
 	}
-	if s.Assignor == "" {
-		s.Assignor = "range"
+	if config.Sarama.Assignor == "" {
+		config.Sarama.Assignor = "range"
 	}
 
-	switch k.KafkaClient {
+	switch config.Kafka.KafkaClient {
 	case "sarama":
-		return NewSaramaConsumerGroup(k, s, consumer)
-	default:
-		return nil, fmt.Errorf("kafkaClient not supported: %v\n", k.KafkaClient)
-	}
-}
-
-func NewSaramaConsumerGroup(k KafkaConfig, s SaramaConfig,
-	consumer sarama.ConsumerGroupHandler) (ConsumerGroup, error) {
-
-	if s.Log {
-		sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags)
-	}
-
-	version, err := sarama.ParseKafkaVersion(k.Version)
-	if err != nil {
-		return nil, fmt.Errorf("Error parsing Kafka version: %v\n", err)
-	}
-
-	c := sarama.NewConfig()
-	c.Version = version
-
-	switch s.Assignor {
-	case "sticky":
-		c.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategySticky
-	case "roundrobin":
-		c.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRoundRobin
-	case "range":
-		c.Consumer.Group.Rebalance.Strategy = sarama.BalanceStrategyRange
+		return NewSaramaConsumerGroup(config, consumerGroupHandler)
 	default:
 		return nil, fmt.Errorf(
-			"Unknown group partition saramaAssignor: %s", s.Assignor)
+			"client not supported: %v\n", config.Kafka.KafkaClient)
 	}
-
-	if s.Oldest {
-		c.Consumer.Offsets.Initial = sarama.OffsetOldest
-	}
-
-	// disable auto commits of offsets
-	// https://github.com/Shopify/sarama/issues/1570#issuecomment-574908417
-	c.Consumer.Offsets.AutoCommit.Enable = s.AutoCommit
-
-	// TODO: find the correct values and make it confiurable
-	// c.Consumer.Fetch.Min = 3
-	// c.Consumer.Fetch.Max = 10
-
-	brokers := strings.Split(k.Brokers, ",")
-	consumerGroup, err := sarama.NewConsumerGroup(brokers, k.Group, c)
-	if err != nil {
-		return nil, fmt.Errorf("Error creating consumer group: %v\n", err)
-	}
-
-	client, err := sarama.NewClient(brokers, c)
-	if err != nil {
-		return nil, fmt.Errorf("Error creating client: %v\n", err)
-	}
-
-	return &saramaConsumerGroup{
-		client:        client,
-		consumerGroup: consumerGroup,
-		consumer:      consumer,
-	}, nil
-}
-
-type saramaConsumerGroup struct {
-	// client is required to get Kafka cluster related info like Topics
-	client sarama.Client
-
-	// consumerGroup uses consumer to consume records in kaafka topics
-	consumerGroup sarama.ConsumerGroup
-
-	// consumer is the implementation that is called by the sarama
-	// to perform consumption
-	consumer sarama.ConsumerGroupHandler
-}
-
-func (c *saramaConsumerGroup) Topics() ([]string, error) {
-	return c.client.Topics()
-}
-
-func (c *saramaConsumerGroup) RefreshMetadata(topics ...string) error {
-	return c.client.RefreshMetadata(topics...)
-}
-
-func (c *saramaConsumerGroup) LastOffset(
-	topic string, partition int32) (int64, error) {
-	return c.client.GetOffset(topic, partition, sarama.OffsetNewest)
-}
-
-func (c *saramaConsumerGroup) Close() error {
-	klog.V(4).Infof("Closing consumerGroup.")
-	if err := c.consumerGroup.Close(); err != nil {
-		return err
-	}
-
-	klog.V(4).Info("Closing client.")
-	if err := c.client.Close(); err != nil {
-		return err
-	}
-
-	klog.Info("Closed open connections.")
-	return nil
-}
-
-func (c *saramaConsumerGroup) Consume(
-	ctx context.Context, topics []string) error {
-
-	return c.consumerGroup.Consume(ctx, topics, c.consumer)
 }
