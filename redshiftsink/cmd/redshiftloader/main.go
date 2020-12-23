@@ -45,34 +45,40 @@ func run(cmd *cobra.Command, args []string) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// shared by all topics in a loader process
+	// Redshift connections is shared by all topics in all routines
 	redshifter, err := redshift.NewRedshift(ctx, config.Redshift)
 	if err != nil {
 		klog.Fatalf("Error creating redshifter: %v\n", err)
 	}
 
+	var consumerGroups map[string]consumer.ConsumerGroupInterface
 	ready := make(chan bool)
-	consumerGroup, err := consumer.NewConsumerGroup(
-		config.Kafka, config.Sarama,
-		redshiftloader.NewConsumer(ready, redshifter),
-	)
-	if err != nil {
-		klog.Errorf("Error creating kafka consumer group, exiting: %v\n", err)
-		os.Exit(1)
-	}
-	klog.Info("Succesfully created kafka client")
-
-	manager := consumer.NewManager(
-		consumerGroup,
-		config.Kafka.TopicRegexes,
-		cancel,
-		config.Reload,
-	)
 	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go manager.SyncTopics(ctx, 15, wg)
-	wg.Add(1)
-	go manager.Consume(ctx, wg)
+
+	for _, groupConfig := range config.ConsumerGroups {
+		consumerGroup, err := consumer.NewConsumerGroup(
+			groupConfig,
+			redshiftloader.NewConsumer(ready, redshifter),
+		)
+		if err != nil {
+			klog.Errorf("Error making kafka consumer group, exiting: %v\n", err)
+			os.Exit(1)
+		}
+		groupID := groupConfig.GroupID
+		consumerGroups[groupID] = consumerGroup
+		klog.Info("Succesfully created kafka client for group: %s", groupID)
+		manager := consumer.NewManager(
+			consumerGroup,
+			groupID,
+			groupConfig.TopicRegexes,
+			cancel,
+			config.Reload,
+		)
+		wg.Add(1)
+		go manager.SyncTopics(ctx, 15, wg)
+		wg.Add(1)
+		go manager.Consume(ctx, wg)
+	}
 
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
@@ -95,15 +101,24 @@ func run(cmd *cobra.Command, args []string) {
 		cancel()
 	}
 
-	// TODO: the processing batching function should signal back
+	// TODO: the processing function should signal back
 	// It does not at present
 	// https://github.com/practo/tipoca-stream/issues/18
-	klog.Info("Waiting the batcher goroutines to gracefully shutdown")
-	time.Sleep(5 * time.Second)
+	klog.Info("Waiting the loader goroutines to gracefully shutdown")
+	time.Sleep(10 * time.Second)
 
 	wg.Wait()
-	if err = consumerGroup.Close(); err != nil {
-		klog.Errorf("Error closing group: %v", err)
+
+	var closeErr error
+	for groupID, consumerGroup := range consumerGroups {
+		klog.Infof("Closing consumerGroup: %s", groupID)
+		closeErr = consumerGroup.Close()
+		if closeErr != nil {
+			klog.Errorf(
+				"Error closing consumer group: %s, err: %v", groupID, err)
+		}
+	}
+	if closeErr != nil {
 		os.Exit(1)
 	}
 

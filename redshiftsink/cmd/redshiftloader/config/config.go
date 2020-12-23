@@ -13,13 +13,12 @@ import (
 )
 
 type Config struct {
-	Loader            redshiftloader.LoaderConfig `yaml:"loader"`
-	Kafka             consumer.KafkaConfig        `yaml:"kafka"`
-	Sarama            consumer.SaramaConfig       `yaml:"sarama"`
-	S3Sink            s3sink.Config               `yaml:"s3sink"`
-	SchemaRegistryURL string                      `yaml:"schemaRegistryURL"`
-	Redshift          redshift.RedshiftConfig     `yaml:"redshift"`
-	Reload            bool                        `yaml:"reload"`
+	Loader            redshiftloader.LoaderConfig    `yaml:"loader"`
+	ConsumerGroups    []consumer.ConsumerGroupConfig `yaml:consumerGroups`
+	S3Sink            s3sink.Config                  `yaml:"s3sink"`
+	SchemaRegistryURL string                         `yaml:"schemaRegistryURL"`
+	Redshift          redshift.RedshiftConfig        `yaml:"redshift"`
+	Reload            bool                           `yaml:"reload"`
 }
 
 func LoadConfig(cmd *cobra.Command) (Config, error) {
