@@ -870,7 +870,7 @@ func checkColumn(schemaName string, tableName string,
 	// klog.V(5).Infof("inCol: %+v\n,taCol: %+v\n", inCol, targetCol)
 
 	var errors error
-	mismatchedTemplate := "mismatch col: %s, prop: %s, input: %v, target: %v"
+	mismatchedTemplate := "table: %s mismatch col: %s, prop: %s, input: %v, target: %v"
 	alterSQL := []string{}
 	alterVarCharSQL := []string{}
 
@@ -878,7 +878,7 @@ func checkColumn(schemaName string, tableName string,
 		// TODO: add support for renaming columns
 		// the only migration that is not supported at present
 		errors = multierror.Append(
-			errors, fmt.Errorf(mismatchedTemplate,
+			errors, fmt.Errorf(mismatchedTemplate, tableName,
 				inCol.Name, "Name", inCol.Name, targetCol.Name))
 	}
 
