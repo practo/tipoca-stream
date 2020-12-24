@@ -918,7 +918,6 @@ func checkColumn(schemaName string, tableName string,
 	// klog.V(5).Infof("inCol: %+v\n,taCol: %+v\n", inCol, targetCol)
 
 	var errors error
-	mismatchedTemplate := "mismatch col: %s, prop: %s, input: %v, target: %v"
 	alterSQL := []string{}
 	alterVarCharSQL := []string{}
 
@@ -926,8 +925,14 @@ func checkColumn(schemaName string, tableName string,
 		// TODO: add support for renaming columns
 		// the only migration that is not supported at present
 		errors = multierror.Append(
-			errors, fmt.Errorf(mismatchedTemplate,
-				inCol.Name, "Name", inCol.Name, targetCol.Name))
+			errors, fmt.Errorf(
+				"table: %s mismatch col: %s, prop: %s, input: %v, target: %v",
+				tableName,
+				inCol.Name,
+				"Name", inCol.Name,
+				targetCol.Name,
+			),
+		)
 	}
 
 	if inCol.PrimaryKey != targetCol.PrimaryKey {
@@ -996,12 +1001,39 @@ func checkColumnsAndOrdering(
 
 	inColMap := make(map[string]bool)
 
-	for idx, inCol := range inputTable.Columns {
+	for _, inCol := range inputTable.Columns {
 		inColMap[inCol.Name] = true
+	}
 
+	// drop column (runs in a single transcation, single ALTER COMMAND)
+	// newTargetColumns is used to remove the columns which needs to be deleted
+	// and then find the cols to add
+	// and then the cols which has differences
+	var newTargetColumns []ColInfo
+	for _, taCol := range targetTable.Columns {
+		_, ok := inColMap[taCol.Name]
+		if !ok {
+			klog.V(5).Infof(
+				"Extra column: %s, delete column will run\n", taCol.Name,
+			)
+			alterSQL := fmt.Sprintf(
+				dropColumn,
+				targetTable.Meta.Schema,
+				targetTable.Name,
+				taCol.Name,
+			)
+			transactColumnOps = append(transactColumnOps, alterSQL)
+		} else {
+			newTargetColumns = append(newTargetColumns, taCol)
+		}
+	}
+	targetTable.Columns = newTargetColumns
+
+	for idx, inCol := range inputTable.Columns {
 		// add column (runs in a single transcation, single ALTER COMMAND)
 		if len(targetTable.Columns) <= idx {
-			klog.V(5).Info("Missing column, alter table will run.\n")
+			klog.V(5).Infof(
+				"Missing column: %s, add column will run.\n", inCol.Name)
 			alterSQL := fmt.Sprintf(
 				`ALTER TABLE "%s"."%s" ADD COLUMN %s`,
 				targetTable.Meta.Schema,
@@ -1023,23 +1055,6 @@ func checkColumnsAndOrdering(
 		}
 		columnOps = append(columnOps, alterColumnOps...)
 		varCharColumnOps = append(varCharColumnOps, alterVarCharSQL...)
-	}
-
-	// drop column (runs in a single transcation, single ALTER COMMAND)
-	for _, taCol := range targetTable.Columns {
-		if _, ok := inColMap[taCol.Name]; !ok {
-			klog.V(5).Infof(
-				"Extra column: %s, alter table will run\n", taCol.Name,
-			)
-			alterSQL := fmt.Sprintf(
-				dropColumn,
-				targetTable.Meta.Schema,
-				targetTable.Name,
-				taCol.Name,
-			)
-			transactColumnOps = append(transactColumnOps, alterSQL)
-			continue
-		}
 	}
 
 	// alter sort keys (runs in a single transcation, single ALTER COMMAND)
