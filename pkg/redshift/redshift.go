@@ -960,13 +960,13 @@ func checkColumnsAndOrdering(
 	// drop column (runs in a single transcation, single ALTER COMMAND)
 	// newTargetColumns is used to remove the columns which needs to be deleted
 	// and then find the cols to add
-	// and the cols which has differences
+	// and then the cols which has differences
 	var newTargetColumns []ColInfo
 	for _, taCol := range targetTable.Columns {
 		_, ok := inColMap[taCol.Name]
 		if !ok {
 			klog.V(5).Infof(
-				"Extra column: %s, alter table will run\n", taCol.Name,
+				"Extra column: %s, delete column will run\n", taCol.Name,
 			)
 			alterSQL := fmt.Sprintf(
 				dropColumn,
@@ -984,7 +984,8 @@ func checkColumnsAndOrdering(
 	for idx, inCol := range inputTable.Columns {
 		// add column (runs in a single transcation, single ALTER COMMAND)
 		if len(targetTable.Columns) <= idx {
-			klog.V(5).Info("Missing column, alter table will run.\n")
+			klog.V(5).Infof(
+				"Missing column: %s, add column will run.\n", inCol.Name)
 			alterSQL := fmt.Sprintf(
 				`ALTER TABLE "%s"."%s" ADD COLUMN %s`,
 				targetTable.Meta.Schema,
