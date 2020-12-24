@@ -20,6 +20,11 @@ type ReconcilerEvent interface {
 	Record(recorder record.EventRecorder)
 }
 
+// There are 3 types of RedshiftSink event
+// 1. Deployment (created, updated)
+// 2. ConfigMap  (created, updated)
+// 3. TopicReleased (released)
+
 type DeploymentCreatedEvent struct {
 	Object runtime.Object
 	Name   string
@@ -42,6 +47,30 @@ func (d DeploymentUpdatedEvent) Record(recorder record.EventRecorder) {
 		K8sEventTypeNormal,
 		"DeploymentUpdated",
 		fmt.Sprintf("Updated deployment: %s", d.Name))
+}
+
+type ConfigMapCreatedEvent struct {
+	Object runtime.Object
+	Name   string
+}
+
+func (d ConfigMapCreatedEvent) Record(recorder record.EventRecorder) {
+	recorder.Event(d.Object,
+		K8sEventTypeNormal,
+		"ConfigMapCreated",
+		fmt.Sprintf("Created configMap: %s", d.Name))
+}
+
+type ConfigMapUpdatedEvent struct {
+	Object runtime.Object
+	Name   string
+}
+
+func (d ConfigMapUpdatedEvent) Record(recorder record.EventRecorder) {
+	recorder.Event(d.Object,
+		K8sEventTypeNormal,
+		"ConfigMapUpdated",
+		fmt.Sprintf("Updated configMap: %s", d.Name))
 }
 
 type TopicReleasedEvent struct {

@@ -158,6 +158,26 @@ func serviceName(name, namespace string) types.NamespacedName {
 	}
 }
 
+func toMap(s []string) map[string]bool {
+	m := make(map[string]bool)
+	for _, r := range s {
+		m[r] = true
+	}
+
+	return m
+}
+
+func getSecret(
+	ctx context.Context,
+	client client.Client,
+	name string,
+	namespace string) (*corev1.Secret, error) {
+
+	secret := &corev1.Secret{}
+	err := client.Get(ctx, serviceName(name, namespace), secret)
+	return secret, err
+}
+
 func deploymentSpecEqual(
 	current *appsv1.Deployment,
 	desired *appsv1.Deployment) bool {
@@ -257,22 +277,40 @@ func updateDeployment(
 	}, nil
 }
 
-func getSecret(
+func createConfigMap(
 	ctx context.Context,
 	client client.Client,
-	name string,
-	namespace string) (*corev1.Secret, error) {
+	configMap *corev1.ConfigMap,
+	redshiftsink *tipocav1.RedshiftSink) (*ConfigMapCreatedEvent, error) {
 
-	secret := &corev1.Secret{}
-	err := client.Get(ctx, serviceName(name, namespace), secret)
-	return secret, err
-}
-
-func toMap(s []string) map[string]bool {
-	m := make(map[string]bool)
-	for _, r := range s {
-		m[r] = true
+	err := client.Create(ctx, configMap)
+	if err != nil {
+		klog.Errorf("Failed to create configMap: %s/%s, err: %v\n",
+			configMap.Namespace, configMap.Name, err)
+		return nil, err
 	}
 
-	return m
+	return &ConfigMapCreatedEvent{
+		Object: redshiftsink,
+		Name:   configMap.Name,
+	}, nil
+}
+
+func updateConfigMap(
+	ctx context.Context,
+	client client.Client,
+	configMap *corev1.ConfigMap,
+	redshiftsink *tipocav1.RedshiftSink) (*ConfigMapUpdatedEvent, error) {
+
+	err := client.Update(ctx, configMap)
+	if err != nil {
+		klog.Errorf("Failed to update configMap: %s/%s, err: %v\n",
+			configMap.Namespace, configMap.Name, err)
+		return nil, err
+	}
+
+	return &ConfigMapUpdatedEvent{
+		Object: redshiftsink,
+		Name:   configMap.Name,
+	}, nil
 }
