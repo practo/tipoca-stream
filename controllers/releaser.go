@@ -28,7 +28,7 @@ func newReleaser(
 		"redshiftPassword",
 	}
 	for _, key := range redshiftSecretKeys {
-		value, err := getSecretByKey(secret, key)
+		value, err := secretByKey(secret, key)
 		if err != nil {
 			return nil, err
 		}
