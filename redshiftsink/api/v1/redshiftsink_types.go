@@ -155,13 +155,13 @@ type MaskStatus struct {
 }
 
 type ConsumerGroup struct {
-	// KafkaLoaderTopicPrefix determines the topic prefix for the topic
+	// LoaderTopicPrefix determines the topic prefix for the topic
 	// the consumer grou batcher would write to and loader will read from
 	// +optional
-	KafkaLoaderTopicPrefix string `json:"name,omitempty"`
+	LoaderTopicPrefix string `json:"loaderTopicPrefix"`
 
-	// KafkaTopicRegexes the consumer group needs to handle
-	KafkaTopicRegexes string `json:"kafkaTopicRegexes"`
+	// Topics the consumer group needs to handle
+	Topics []string `json:"topics"`
 }
 
 type ConsumerGroups map[string]ConsumerGroup
@@ -176,6 +176,7 @@ type RedshiftSinkStatus struct {
 	MaskStatus *MaskStatus `json:"maskStatus"`
 
 	// SinkGroupStatus stores the status of the sink groups
+	// sinkGroup name = map of consumer groups
 	SinkGroupStatus map[string]ConsumerGroups `json:"sinkGroupStatus,omitempty"`
 }
 

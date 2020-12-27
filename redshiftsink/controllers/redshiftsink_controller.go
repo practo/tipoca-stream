@@ -81,7 +81,7 @@ func (r *RedshiftSinkReconciler) fetchSecretMap(
 	return secret, nil
 }
 
-func getSecretByKey(secret map[string]string, key string) (string, error) {
+func secretByKey(secret map[string]string, key string) (string, error) {
 	value, ok := secret[key]
 	if !ok {
 		return "", fmt.Errorf("%s not found in secret", key)
@@ -194,14 +194,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 			"Kafka topics not found for regex: %s", rsk.Spec.KafkaTopicRegexes)
 	}
 
-	if rsk.Spec.Batcher.Mask == false {
-		maskLessSinkGroup := newSinkGroup(
-			MainSinkGroup, r.Client, r.Scheme, rsk, kafkaTopics, "",
-		)
-		result, event, err := maskLessSinkGroup.reconcile(ctx)
-		return result, event, err
-	}
-
 	secret, err := r.fetchSecretMap(
 		ctx,
 		rsk.Spec.SecretRefName,
@@ -210,7 +202,19 @@ func (r *RedshiftSinkReconciler) reconcile(
 	if err != nil {
 		return result, nil, err
 	}
-	gitToken, err := getSecretByKey(secret, "githubAccessToken")
+
+	if rsk.Spec.Batcher.Mask == false {
+		maskLessSinkGroup := newSinkGroup(
+			MainSinkGroup, r.Client, r.Scheme, rsk,
+			kafkaTopics,
+			"",
+			secret,
+		)
+		result, event, err := maskLessSinkGroup.reconcile(ctx)
+		return result, event, err
+	}
+
+	gitToken, err := secretByKey(secret, "githubAccessToken")
 	if err != nil {
 		return result, nil, err
 	}
@@ -266,12 +270,10 @@ func (r *RedshiftSinkReconciler) reconcile(
 	klog.Infof("reloading: %v", topicsReloading)
 
 	reloadSinkGroup := newSinkGroup(
-		ReloadSinkGroup,
-		r.Client,
-		r.Scheme,
-		rsk,
+		ReloadSinkGroup, r.Client, r.Scheme, rsk,
 		topicsReloading,
 		desiredMaskVersion,
+		secret,
 	)
 	topicsRealtime, err = reloadSinkGroup.realtimeTopics(r.KafkaWatcher)
 	if err != nil {
@@ -308,16 +310,19 @@ func (r *RedshiftSinkReconciler) reconcile(
 		MainSinkGroup, r.Client, r.Scheme, rsk,
 		topicsReleased,
 		desiredMaskVersion,
+		secret,
 	)
 	reload = newSinkGroup(
 		ReloadSinkGroup, r.Client, r.Scheme, rsk,
 		topicsReloading,
 		desiredMaskVersion,
+		secret,
 	)
 	reloadDupe = newSinkGroup(
 		ReloadDupeSinkGroup, r.Client, r.Scheme, rsk,
 		topicsReloading,
 		currentMaskVersion,
+		secret,
 	)
 	for _, sinkGroup := range []*sinkGroup{main, reload, reloadDupe} {
 		result, event, err := sinkGroup.reconcile(ctx)

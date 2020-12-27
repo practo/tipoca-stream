@@ -105,6 +105,7 @@ type Redshift struct {
 
 type RedshiftConfig struct {
 	Schema            string `yaml:"schema"`
+	TableSuffix       string `yaml:"tableSuffix"`
 	Host              string `yaml:"host"`
 	Port              string `yaml:"port"`
 	Database          string `yaml:"database"`

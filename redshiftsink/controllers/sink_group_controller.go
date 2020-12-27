@@ -7,6 +7,7 @@ import (
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	consumer "github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
@@ -40,6 +41,7 @@ type sinkGroup struct {
 	batcherRealtimeLag int64
 	loaderRealtimeLag  int64
 
+	client client.Client
 	scheme *runtime.Scheme
 	rsk    *tipocav1.RedshiftSink
 }
@@ -47,8 +49,8 @@ type sinkGroup struct {
 type Deployment interface {
 	Name() string
 	Namespace() string
-	Client() client.Client
 	Deployment() *appsv1.Deployment
+	Config() *corev1.ConfigMap
 	UpdateRequired(current *appsv1.Deployment) bool
 }
 
@@ -58,42 +60,53 @@ func newSinkGroup(
 	scheme *runtime.Scheme,
 	rsk *tipocav1.RedshiftSink,
 	kafkaTopics []string,
-	maskFileVersion string) *sinkGroup {
+	maskFileVersion string,
+	secret map[string]string) *sinkGroup {
 
 	tableSuffix := tableSuffixBySinkGroup(name, maskFileVersion)
 	consumerGroups := consumerGroupsBySinkGroup(rsk, name)
-	// TODO: pass on to batcher and loader to handle multiple consumer groups
-	_ = consumerGroups
 
-	batcherTopics := expandTopicsToRegex(kafkaTopics)
-	loaderTopics := expandTopicsToRegex(
-		makeLoaderTopics(
-			rsk.Spec.KafkaLoaderTopicPrefix,
-			kafkaTopics),
+	batcher, err := NewBatcher(
+		rsk.Name+"-"+name+BatcherSuffix,
+		rsk,
+		maskFileVersion,
+		secret,
+		consumerGroups,
 	)
+	if err != nil {
+		klog.Fatalf("Error making batcher: %v", err)
+	}
 
-	batcherName := rsk.Name + "-" + name + BatcherSuffix
-	loaderName := rsk.Name + "-" + name + LoaderSuffix
+	loader, err := NewLoader(
+		rsk.Name+"-"+name+LoaderSuffix,
+		rsk,
+		tableSuffix,
+		secret,
+		consumerGroups,
+	)
+	if err != nil {
+		klog.Fatalf("Error making loader: %v", err)
+	}
 
 	return &sinkGroup{
-		batcher: NewBatcher(
-			batcherName, client, rsk, batcherTopics, maskFileVersion),
-		loader: NewLoader(
-			loaderName, client, rsk, loaderTopics, tableSuffix),
-		topics: kafkaTopics,
+		name:    name,
+		batcher: batcher,
+		loader:  loader,
 
-		loaderTopicPrefix:  rsk.Spec.KafkaLoaderTopicPrefix,
+		topics:            kafkaTopics,
+		loaderTopicPrefix: rsk.Spec.KafkaLoaderTopicPrefix,
+
 		batcherRealtimeLag: DefaultBatcherRealtimeLag,
 		loaderRealtimeLag:  DefautLoaderRealtimeLag,
 
+		client: client,
 		scheme: scheme,
 		rsk:    rsk,
 	}
 }
 
-// used to set consumer group name, sink group name batcher name
-func getBatcherUniqueName() {
-
+func consumerGroupID(sinkPodName string, groupID string) string {
+	return sinkPodName + "-" + groupID
 }
 
 func tableSuffixBySinkGroup(sg string, desireVersion string) string {
@@ -118,7 +131,7 @@ func (s *sinkGroup) reconcileDeployment(
 ) {
 	currentDeployment, exists, err := getDeployment(
 		ctx,
-		d.Client(),
+		s.client,
 		d.Name(),
 		d.Namespace(),
 	)
@@ -127,7 +140,7 @@ func (s *sinkGroup) reconcileDeployment(
 	}
 	if !exists {
 		klog.Infof("%v: Creating", d.Name())
-		event, err := createDeployment(ctx, d.Client(), d.Deployment(), s.rsk)
+		event, err := createDeployment(ctx, s.client, d.Deployment(), s.rsk)
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +149,7 @@ func (s *sinkGroup) reconcileDeployment(
 
 	if d.UpdateRequired(currentDeployment) {
 		klog.Infof("%v: Updating", d.Name())
-		event, err := updateDeployment(ctx, d.Client(), d.Deployment(), s.rsk)
+		event, err := updateDeployment(ctx, s.client, d.Deployment(), s.rsk)
 		return event, err
 	}
 

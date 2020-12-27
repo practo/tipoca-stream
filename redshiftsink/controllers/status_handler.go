@@ -193,8 +193,8 @@ func (r *statusHandler) updateSinkGroupStatus(
 	if len(consumerGroups) == 0 {
 		r.rsk.Status.SinkGroupStatus[sgName] = tipocav1.ConsumerGroups{
 			cgName: tipocav1.ConsumerGroup{
-				KafkaLoaderTopicPrefix: loaderPrefix,
-				KafkaTopicRegexes:      expandTopicsToRegex([]string{topic}),
+				LoaderTopicPrefix: loaderPrefix,
+				Topics:            []string{topic},
 			},
 		}
 		return
@@ -203,12 +203,14 @@ func (r *statusHandler) updateSinkGroupStatus(
 	consumerGroup, ok := consumerGroups[cgName]
 	if !ok {
 		consumerGroups[cgName] = tipocav1.ConsumerGroup{
-			KafkaLoaderTopicPrefix: loaderPrefix,
-			KafkaTopicRegexes:      expandTopicsToRegex([]string{topic}),
+			LoaderTopicPrefix: loaderPrefix,
+			Topics:            []string{topic},
 		}
 		return
 	}
 
-	consumerGroup.KafkaTopicRegexes += "," + fullMatchRegexForTopic(topic)
-	consumerGroup.KafkaLoaderTopicPrefix = loaderPrefix
+	topics := append(consumerGroup.Topics, topic)
+
+	consumerGroup.Topics = uniqueStringSlice(topics)
+	consumerGroup.LoaderTopicPrefix = loaderPrefix
 }

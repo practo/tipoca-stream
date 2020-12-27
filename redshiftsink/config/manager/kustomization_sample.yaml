@@ -6,7 +6,7 @@ secretGenerator:
 - name: redshfitsink-secret
   literals:
   - maskSalt=salt
-  - githubAccessToken=token
+  - gitAccessToken=token
   - s3Region=ap-south-1
   - s3Bucket=prod-tipoca-stream
   - s3BatcherBucketDir=redshiftbatcher

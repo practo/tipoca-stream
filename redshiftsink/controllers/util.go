@@ -21,21 +21,31 @@ type deploymentSpec struct {
 	labels         map[string]string
 	replicas       *int32
 	deploymentName string
-	envs           []corev1.EnvVar
 	resources      *corev1.ResourceRequirements
 	tolerations    *[]corev1.Toleration
 	image          string
 }
 
 type configMapSpec struct {
+	name       string
+	namespace  string
 	volumeName string
 	mountPath  string
 	subPath    string
+	data       map[string]string
 }
 
-// getDeployment gives back a deployment object for a deploySpec
-// deploySpec is constructed using redshiftsink crd
-func deploymentForRedshiftSink(
+func configFromSpec(configSpec configMapSpec) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      configSpec.name,
+			Namespace: configSpec.namespace,
+		},
+		Data: configSpec.data,
+	}
+}
+
+func deploymentFromSpec(
 	deploySpec deploymentSpec,
 	configSpec configMapSpec,
 ) *appsv1.Deployment {
@@ -63,7 +73,6 @@ func deploymentForRedshiftSink(
 						corev1.Container{
 							Name:  deploySpec.name,
 							Image: deploySpec.image,
-							Env:   deploySpec.envs,
 							VolumeMounts: []corev1.VolumeMount{
 								corev1.VolumeMount{
 									MountPath: configSpec.mountPath,
@@ -134,24 +143,6 @@ func getReplicas(suspend bool) int32 {
 	}
 }
 
-// secretEnvVar constructs the secret envvar
-func secretEnvVar(name, secretKey, secretRefName string) corev1.EnvVar {
-	optional := false
-
-	return corev1.EnvVar{
-		Name: strings.ToUpper(name),
-		ValueFrom: &corev1.EnvVarSource{
-			SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: secretRefName,
-				},
-				Key:      secretKey,
-				Optional: &optional,
-			},
-		},
-	}
-}
-
 func makeLoaderTopics(prefix string, topics []string) []string {
 	var prefixedTopics []string
 	for _, topic := range topics {
@@ -195,6 +186,21 @@ func toMap(s []string) map[string]bool {
 	return m
 }
 
+func uniqueStringSlice(s []string) []string {
+	keys := make(map[string]bool)
+	u := []string{}
+
+	for _, entry := range s {
+		_, value := keys[entry]
+		if !value {
+			keys[entry] = true
+			u = append(u, entry)
+		}
+	}
+
+	return u
+}
+
 func getSecret(
 	ctx context.Context,
 	client client.Client,
@@ -205,17 +211,9 @@ func getSecret(
 	err := client.Get(ctx, serviceName(name, namespace), secret)
 	return secret, err
 }
-
 func deploymentSpecEqual(
 	current *appsv1.Deployment,
 	desired *appsv1.Deployment) bool {
-
-	currentEnvs := current.Spec.Template.Spec.Containers[0].Env
-	desiredEnvs := desired.Spec.Template.Spec.Containers[0].Env
-	if !reflect.DeepEqual(currentEnvs, desiredEnvs) {
-		klog.Infof("%s environments variables required update!", desired.Name)
-		return false
-	}
 
 	if *current.Spec.Replicas != *desired.Spec.Replicas {
 		klog.Infof("%s replicas require update!", desired.Name)
