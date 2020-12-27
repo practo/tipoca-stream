@@ -209,6 +209,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			kafkaTopics,
 			"",
 			secret,
+			"",
 		)
 		result, event, err := maskLessSinkGroup.reconcile(ctx)
 		return result, event, err
@@ -274,6 +275,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		topicsReloading,
 		desiredMaskVersion,
 		secret,
+		reloadTableSuffix(desiredMaskVersion),
 	)
 	topicsRealtime, err = reloadSinkGroup.realtimeTopics(r.KafkaWatcher)
 	if err != nil {
@@ -299,7 +301,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	// 2. reload: sink group which has the desiredMaskVersion and is
 	//      is undergoing reload with new mask configurations
 	//      consumer group: desiredMaskVersion
-	//      tableSuffix: -reload
+	//      tableSuffix: "_reload_desiredMaskVersion"
 	// 3. reloadDupe: sink group which has the currentMaskVersion
 	//      and will be stopped when reload ones moves to realtime
 	//      and when they are released.
@@ -311,18 +313,21 @@ func (r *RedshiftSinkReconciler) reconcile(
 		topicsReleased,
 		desiredMaskVersion,
 		secret,
+		"",
 	)
 	reload = newSinkGroup(
 		ReloadSinkGroup, r.Client, r.Scheme, rsk,
 		topicsReloading,
 		desiredMaskVersion,
 		secret,
+		reloadTableSuffix(desiredMaskVersion),
 	)
 	reloadDupe = newSinkGroup(
 		ReloadDupeSinkGroup, r.Client, r.Scheme, rsk,
 		topicsReloading,
 		currentMaskVersion,
 		secret,
+		"",
 	)
 	for _, sinkGroup := range []*sinkGroup{main, reload, reloadDupe} {
 		result, event, err := sinkGroup.reconcile(ctx)

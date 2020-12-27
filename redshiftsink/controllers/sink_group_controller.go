@@ -61,11 +61,10 @@ func newSinkGroup(
 	rsk *tipocav1.RedshiftSink,
 	kafkaTopics []string,
 	maskFileVersion string,
-	secret map[string]string) *sinkGroup {
+	secret map[string]string,
+	tableSuffix string) *sinkGroup {
 
-	tableSuffix := tableSuffixBySinkGroup(name, maskFileVersion)
 	consumerGroups := consumerGroupsBySinkGroup(rsk, name)
-
 	batcher, err := NewBatcher(
 		rsk.Name+"-"+name+BatcherSuffix,
 		rsk,
@@ -109,17 +108,8 @@ func consumerGroupID(sinkPodName string, groupID string) string {
 	return sinkPodName + "-" + groupID
 }
 
-func tableSuffixBySinkGroup(sg string, desireVersion string) string {
-	switch sg {
-	case ReloadSinkGroup:
-		return "-" + desireVersion
-	case MainSinkGroup:
-		return ""
-	case ReloadDupeSinkGroup:
-		return ""
-	}
-
-	return ""
+func reloadTableSuffix(desiredMaskVersion string) string {
+	return "_reload_" + desiredMaskVersion
 }
 
 func (s *sinkGroup) reconcileDeployment(
