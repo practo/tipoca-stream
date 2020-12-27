@@ -126,11 +126,17 @@ func NewLoader(
 		image:          getImage(rsk.Spec.Loader.PodTemplate.Image, false),
 	}
 
+	configSpec := configMapSpec{
+		volumeName: name,
+		mountPath:  "/config.yaml",
+		subPath:    "config.yaml",
+	}
+
 	return &Loader{
 		name:       name,
 		client:     client,
 		namespace:  rsk.Namespace,
-		deployment: deploymentForRedshiftSink(deploySpec),
+		deployment: deploymentForRedshiftSink(deploySpec, configSpec),
 	}
 }
 

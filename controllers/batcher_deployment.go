@@ -124,11 +124,17 @@ func NewBatcher(
 		image:          getImage(rsk.Spec.Batcher.PodTemplate.Image, true),
 	}
 
+	configSpec := configMapSpec{
+		volumeName: name,
+		mountPath:  "/config.yaml",
+		subPath:    "config.yaml",
+	}
+
 	return &Batcher{
 		name:       name,
 		client:     client,
 		namespace:  rsk.Namespace,
-		deployment: deploymentForRedshiftSink(deploySpec),
+		deployment: deploymentForRedshiftSink(deploySpec, configSpec),
 	}
 }
 

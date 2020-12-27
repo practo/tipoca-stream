@@ -27,9 +27,18 @@ type deploymentSpec struct {
 	image          string
 }
 
+type configMapSpec struct {
+	volumeName string
+	mountPath  string
+	subPath    string
+}
+
 // getDeployment gives back a deployment object for a deploySpec
 // deploySpec is constructed using redshiftsink crd
-func deploymentForRedshiftSink(deploySpec deploymentSpec) *appsv1.Deployment {
+func deploymentForRedshiftSink(
+	deploySpec deploymentSpec,
+	configSpec configMapSpec,
+) *appsv1.Deployment {
 	d := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deploySpec.deploymentName,
@@ -55,6 +64,25 @@ func deploymentForRedshiftSink(deploySpec deploymentSpec) *appsv1.Deployment {
 							Name:  deploySpec.name,
 							Image: deploySpec.image,
 							Env:   deploySpec.envs,
+							VolumeMounts: []corev1.VolumeMount{
+								corev1.VolumeMount{
+									MountPath: configSpec.mountPath,
+									SubPath:   configSpec.subPath,
+									Name:      configSpec.volumeName,
+								},
+							},
+						},
+					},
+					Volumes: []corev1.Volume{
+						corev1.Volume{
+							Name: configSpec.volumeName,
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{
+									LocalObjectReference: corev1.LocalObjectReference{
+										Name: configSpec.volumeName,
+									},
+								},
+							},
 						},
 					},
 				},
