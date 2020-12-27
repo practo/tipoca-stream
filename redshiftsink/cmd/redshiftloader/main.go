@@ -89,10 +89,9 @@ func run(cmd *cobra.Command, args []string) {
 		case <-sigterm:
 			klog.Info("Sigterm signal received")
 			ready = -1
-			continue
 		}
 
-		if ready == len(consumersReady) {
+		if ready == -1 || ready == len(consumersReady) {
 			continue
 		}
 
