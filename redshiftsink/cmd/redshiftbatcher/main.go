@@ -57,11 +57,12 @@ func run(cmd *cobra.Command, args []string) {
 	}
 
 	var consumerGroups map[string]consumer.ConsumerGroupInterface
-	ready := make(chan bool)
+	var consumersReady []chan bool
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
 	for _, groupConfig := range config.ConsumerGroups {
+		ready := make(chan bool)
 		consumerGroup, err := consumer.NewConsumerGroup(
 			groupConfig,
 			redshiftbatcher.NewConsumer(ready),
@@ -70,6 +71,7 @@ func run(cmd *cobra.Command, args []string) {
 			klog.Errorf("Error making kafka consumer group, exiting: %v\n", err)
 			os.Exit(1)
 		}
+		consumersReady = append(consumersReady, ready)
 		groupID := groupConfig.GroupID
 		consumerGroups[groupID] = consumerGroup
 		klog.Infof("Succesfully created kafka client for group: %s", groupID)
@@ -78,8 +80,6 @@ func run(cmd *cobra.Command, args []string) {
 			consumerGroup,
 			groupID,
 			groupConfig.TopicRegexes,
-			cancel,
-			config.Reload,
 		)
 		wg.Add(1)
 		go manager.SyncTopics(ctx, 15, wg)
@@ -89,31 +89,40 @@ func run(cmd *cobra.Command, args []string) {
 
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
+	ready := 0
 
-	select {
-	case <-ctx.Done():
-		klog.Info("Context cancelled, bye bye!")
-	case <-sigterm:
-		klog.Info("Sigterm signal received")
-		cancel()
-	case <-ready:
-		klog.Info("Consumer is up and running")
+	for ready >= 0 {
+		select {
+		case <-sigterm:
+			klog.Info("Sigterm signal received")
+			ready = -1
+			continue
+		}
+
+		if ready == len(consumersReady) {
+			continue
+		}
+
+		for _, channel := range consumersReady {
+			select {
+			case <-channel:
+				ready += 1
+				klog.Infof("ConsumerGroup: %d is up and running", ready)
+			}
+		}
+		klog.Info("Waiting for ConsumerGroups to come up...")
 	}
 
-	select {
-	case <-ctx.Done():
-		klog.Info("Context cancelled, bye bye!")
-	case <-sigterm:
-		klog.Info("Sigterm signal received")
-		cancel()
-	}
+	klog.Info("Cancelling context to trigger graceful shutdown...")
+	cancel()
 
 	// TODO: the processing function should signal back
 	// It does not at present
 	// https://github.com/practo/tipoca-stream/issues/18
-	klog.Info("Waiting the batcher goroutines to gracefully shutdown")
+	klog.Info("Waiting the some routines to gracefully shutdown (some don't)")
 	time.Sleep(10 * time.Second)
 
+	// routines which works with wait groups will shutdown gracefully
 	wg.Wait()
 
 	var closeErr error
