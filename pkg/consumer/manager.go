@@ -20,18 +20,9 @@ type Manager struct {
 	// topicRegexes is the list of topics to monitor
 	topicRegexes []*regexp.Regexp
 
-	// used for gracefully shutting down
-	cancel context.CancelFunc
-
 	// ready is used to signal the main thread about the readiness of
 	// the manager
 	Ready chan bool
-
-	// reload shuts down the container and is dependent on
-	// external resource to start it. Default: false
-	// Operator passes it false as it manages the reload and without operator
-	// it can be passed true to reload to pick new topics.
-	reload bool
 
 	// mutex protects the following mutable state
 	mutex sync.Mutex
@@ -46,9 +37,11 @@ type Manager struct {
 	topicsInitialized bool
 }
 
-func NewManager(consumerGroup ConsumerGroupInterface, consumerGroupID string,
-	regexes string, cancel context.CancelFunc, reload bool) *Manager {
-
+func NewManager(
+	consumerGroup ConsumerGroupInterface,
+	consumerGroupID string,
+	regexes string,
+) *Manager {
 	var topicRegexes []*regexp.Regexp
 	expressions := strings.Split(regexes, ",")
 	for _, expression := range expressions {
@@ -65,8 +58,6 @@ func NewManager(consumerGroup ConsumerGroupInterface, consumerGroupID string,
 		consumerGroupID:   consumerGroupID,
 		topicRegexes:      topicRegexes,
 		Ready:             make(chan bool),
-		reload:            reload,
-		cancel:            cancel,
 		activeTopics:      make(map[string]bool),
 		topicsInitialized: false,
 	}
@@ -166,18 +157,8 @@ func (c *Manager) SyncTopics(
 
 		inactiveTopics := c.topicInActive(topics)
 		if len(inactiveTopics) > 0 && c.topicsInitialized {
-			klog.V(2).Infof("New topics are inactive: %v. Reload required!\n",
+			klog.Warningf("Inactive topics: %v. restart required!\n",
 				inactiveTopics)
-			// TODO: assumes there is a proecss above that restarts
-			// when this shutsdown, it is using Kubernetes Deployment like
-			// functionality to reload
-			// Operator does not use this reload but manages the reload also
-			if c.reload {
-				klog.V(2).Info(
-					"Reloading.... Gracefully shutdown!")
-				c.cancel()
-				return
-			}
 		}
 
 		select {

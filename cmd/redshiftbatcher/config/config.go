@@ -13,11 +13,10 @@ import (
 
 type Config struct {
 	Batcher           redshiftbatcher.BatcherConfig  `yaml:"batcher"`
-	ConsumerGroups    []consumer.ConsumerGroupConfig `yaml:consumerGroups`
+	ConsumerGroups    []consumer.ConsumerGroupConfig `yaml:"consumerGroups"`
 	S3Sink            s3sink.Config                  `yaml:"s3sink"`
 	SchemaRegistryURL string                         `yaml:"schemaRegistryURL"`
 	GitAccessToken    string                         `yaml:"gitAccessToken"`
-	Reload            bool                           `yaml:"reload"`
 }
 
 func LoadConfig(cmd *cobra.Command) (Config, error) {

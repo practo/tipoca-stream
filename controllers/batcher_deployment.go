@@ -101,7 +101,6 @@ func NewBatcher(
 		},
 		SchemaRegistryURL: secret["schemaRegistryURL"],
 		GitAccessToken:    secret["gitAccessToken"],
-		Reload:            false,
 	}
 	confBytes, err := yaml.Marshal(conf)
 	if err != nil {

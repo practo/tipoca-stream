@@ -118,7 +118,6 @@ func NewLoader(
 			MaxOpenConns: 3,
 			MaxIdleConns: 3,
 		},
-		Reload: false,
 	}
 	confBytes, err := yaml.Marshal(conf)
 	if err != nil {
