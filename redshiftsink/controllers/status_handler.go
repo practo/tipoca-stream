@@ -1,11 +1,12 @@
 package controllers
 
 import (
+	"fmt"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 )
 
 type statusHandler struct {
-	all            []string
+	allTopics      []string
 	diff           []string
 	currentVersion string
 	desiredVersion string
@@ -13,11 +14,11 @@ type statusHandler struct {
 }
 
 func newStatusHandler(
-	all, diff []string,
+	allTopics, diff []string,
 	c string, d string, rsk *tipocav1.RedshiftSink) *statusHandler {
 
 	return &statusHandler{
-		all:            all,
+		allTopics:      allTopics,
 		diff:           diff,
 		currentVersion: c,
 		desiredVersion: d,
@@ -48,7 +49,7 @@ func (r *statusHandler) verify() bool {
 	}
 
 	total := len(r.reloading()) + len(r.realtime()) + len(r.released())
-	if total != len(r.all) {
+	if total != len(r.allTopics) {
 		return false
 	}
 
@@ -92,7 +93,7 @@ func (r *statusHandler) computerCurrentMaskStatus(
 	topicsReloading map[string]bool,
 ) map[string]tipocav1.TopicMaskStatus {
 	status := make(map[string]tipocav1.TopicMaskStatus)
-	for _, topic := range r.all {
+	for _, topic := range r.allTopics {
 
 		// topic is released and the desired version is active now
 		// and the redshift schema operations for it is also done properly
@@ -139,7 +140,7 @@ func (r *statusHandler) computerCurrentMaskStatus(
 
 func (r *statusHandler) computeDesiredMaskStatus() map[string]tipocav1.TopicMaskStatus {
 	status := make(map[string]tipocav1.TopicMaskStatus)
-	for _, topic := range r.all {
+	for _, topic := range r.allTopics {
 		status[topic] = tipocav1.TopicMaskStatus{
 			Version: r.desiredVersion,
 			Phase:   tipocav1.MaskActive,
@@ -167,50 +168,60 @@ func (r *statusHandler) updateMaskStatus(
 	r.rsk.Status.MaskStatus = &maskStatus
 }
 
-func consumerGroupsBySinkGroup(
-	rsk *tipocav1.RedshiftSink, sgName string) tipocav1.ConsumerGroups {
-	var empty tipocav1.ConsumerGroups
-
-	if rsk.Status.SinkGroupStatus == nil {
-		return empty
+func (r *statusHandler) initTopicGroup() {
+	if r.rsk.Status.TopicGroup == nil {
+		r.rsk.Status.TopicGroup = make(map[string]tipocav1.Group)
 	}
-
-	groups, ok := rsk.Status.SinkGroupStatus[sgName]
-	if ok {
-		return groups
+	for _, topic := range r.allTopics {
+		_, ok := r.rsk.Status.TopicGroup[topic]
+		if ok {
+			continue
+		}
+		prefix := r.rsk.Spec.KafkaLoaderTopicPrefix + "-" + r.desiredVersion
+		r.rsk.Status.TopicGroup[topic] = tipocav1.Group{
+			LoaderTopicPrefix: prefix,
+			ID:                r.desiredVersion,
+		}
 	}
-
-	return empty
 }
 
-func (r *statusHandler) updateSinkGroupStatus(
-	sgName,
-	cgName,
-	topic string,
-	loaderPrefix string,
+type consumerGroup struct {
+	topics            []string
+	loaderTopicPrefix string
+}
+
+func computeConsumerGroups(
+	rsk *tipocav1.RedshiftSink,
+	topics []string,
+) (
+	map[string]consumerGroup,
+	error,
 ) {
-	consumerGroups := consumerGroupsBySinkGroup(r.rsk, sgName)
-	if len(consumerGroups) == 0 {
-		r.rsk.Status.SinkGroupStatus[sgName] = tipocav1.ConsumerGroups{
-			cgName: tipocav1.ConsumerGroup{
-				LoaderTopicPrefix: loaderPrefix,
-				Topics:            []string{topic},
-			},
+	consumerGroups := make(map[string]consumerGroup)
+	for _, topic := range topics {
+		topicGroup, ok := rsk.Status.TopicGroup[topic]
+		if !ok {
+			return nil, fmt.Errorf(
+				"Group info missing for topic: %s in Status", topic)
 		}
-		return
+
+		existingGroup, ok := consumerGroups[topicGroup.ID]
+		if !ok {
+			consumerGroups[topicGroup.ID] = consumerGroup{
+				topics:            []string{topic},
+				loaderTopicPrefix: topicGroup.LoaderTopicPrefix,
+			}
+		} else {
+			if existingGroup.loaderTopicPrefix != topicGroup.LoaderTopicPrefix {
+				return nil, fmt.Errorf(
+					"Mismatch in loaderTopicPrefix in status: %v for topic: %v",
+					existingGroup,
+					topic,
+				)
+			}
+			existingGroup.topics = append(existingGroup.topics, topic)
+		}
 	}
 
-	consumerGroup, ok := consumerGroups[cgName]
-	if !ok {
-		consumerGroups[cgName] = tipocav1.ConsumerGroup{
-			LoaderTopicPrefix: loaderPrefix,
-			Topics:            []string{topic},
-		}
-		return
-	}
-
-	topics := append(consumerGroup.Topics, topic)
-
-	consumerGroup.Topics = uniqueStringSlice(topics)
-	consumerGroup.LoaderTopicPrefix = loaderPrefix
+	return consumerGroups, nil
 }

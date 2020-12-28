@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	// tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
+	klog "github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 )
 
@@ -59,6 +60,7 @@ func newReleaser(
 }
 
 func (r *releaser) release(topic string) error {
+	klog.Infof("releasing topic: %s", topic)
 
 	return nil
 }

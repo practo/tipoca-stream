@@ -64,7 +64,11 @@ func newSinkGroup(
 	secret map[string]string,
 	tableSuffix string) *sinkGroup {
 
-	consumerGroups := consumerGroupsBySinkGroup(rsk, name)
+	consumerGroups, err := computeConsumerGroups(rsk, kafkaTopics)
+	if err != nil {
+		klog.Fatalf("Error computing consumer group from status, err: %v", err)
+	}
+
 	batcher, err := NewBatcher(
 		rsk.Name+"-"+name+BatcherSuffix,
 		rsk,

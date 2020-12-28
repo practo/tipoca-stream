@@ -16,7 +16,7 @@ type GitInterface interface {
 	Clone() error
 	Pull() error
 	Checkout(hash string) error
-	Log(fileName string, numberOfCommits int) ([]string, error)
+	Log(fileName string, numberOfCommits int, shortHash bool) ([]string, error)
 }
 
 type Git struct {
@@ -92,7 +92,13 @@ func (g *Git) Checkout(hash string) error {
 	})
 }
 
-func (g *Git) Log(fileName string, numberOfCommits int) ([]string, error) {
+func (g *Git) Log(
+	fileName string,
+	numberOfCommits int,
+	shortHash bool,
+) (
+	[]string, error,
+) {
 	commitHashes := []string{}
 
 	pathIter := func(path string) bool {
@@ -111,7 +117,11 @@ func (g *Git) Log(fileName string, numberOfCommits int) ([]string, error) {
 		if err != nil {
 			return commitHashes, err
 		}
-		commitHashes = append(commitHashes, fmt.Sprintf("%v", commit.Hash))
+		hash := fmt.Sprintf("%v", commit.Hash)
+		if shortHash {
+			hash = hash[:7]
+		}
+		commitHashes = append(commitHashes, hash)
 	}
 
 	return commitHashes, nil
