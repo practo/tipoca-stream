@@ -4,6 +4,7 @@ import (
 	"context"
 	klog "github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
+	masker "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,6 +34,7 @@ type configMapSpec struct {
 	mountPath  string
 	subPath    string
 	data       map[string]string
+	labels     map[string]string
 }
 
 func configFromSpec(configSpec configMapSpec) *corev1.ConfigMap {
@@ -110,14 +112,20 @@ func deploymentFromSpec(
 	return d
 }
 
+func generateConfigHash(data string) string {
+	hash := masker.Mask(data, "")
+	return *hash
+}
+
 // getDefaultLabels gives back the default labels for the crd resources
-func getDefaultLabels(app string) map[string]string {
+func getDefaultLabels(app string, hash string) map[string]string {
 	return map[string]string{
 		"app":                          "redshiftsink",
 		"app.kubernetes.io/instance":   app,
 		"app.kubernetes.io/managed-by": "redshiftsink-operator",
 		"practo.dev/kind":              "RedshiftSink",
 		"practo.dev/name":              app,
+		"config.hash":                  hash,
 	}
 }
 
@@ -211,9 +219,28 @@ func getSecret(
 	err := client.Get(ctx, serviceName(name, namespace), secret)
 	return secret, err
 }
+
+func configSpecEqual(
+	current *corev1.ConfigMap,
+	desired *corev1.ConfigMap,
+) bool {
+	if !reflect.DeepEqual(current.Data, desired.Data) {
+		return false
+	}
+
+	return true
+}
+
 func deploymentSpecEqual(
 	current *appsv1.Deployment,
-	desired *appsv1.Deployment) bool {
+	desired *appsv1.Deployment,
+) bool {
+	if !reflect.DeepEqual(
+		current.Spec.Template.Labels,
+		desired.Spec.Template.Labels) {
+		klog.Infof("% labels require update!", desired.Name)
+		return false
+	}
 
 	if *current.Spec.Replicas != *desired.Spec.Replicas {
 		klog.Infof("%s replicas require update!", desired.Name)
@@ -301,6 +328,25 @@ func updateDeployment(
 		Object: redshiftsink,
 		Name:   deployment.Name,
 	}, nil
+}
+
+func getConfigMap(
+	ctx context.Context,
+	client client.Client,
+	name string,
+	namespace string) (*corev1.ConfigMap, bool, error) {
+
+	configMap := &corev1.ConfigMap{}
+	err := client.Get(ctx, serviceName(name, namespace), configMap)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// got the expected err of not found
+			return nil, false, nil
+		}
+		// unexpected err, should return err
+		return nil, false, err
+	}
+	return configMap, true, nil
 }
 
 func createConfigMap(

@@ -131,26 +131,31 @@ func NewLoader(
 		replicas = 0
 	}
 
+	confString := string(confBytes)
+	labels := getDefaultLabels(
+		"redshiftloader",
+		generateConfigHash(confString),
+	)
+
+	configSpec := configMapSpec{
+		name:       name,
+		namespace:  rsk.Namespace,
+		labels:     labels,
+		volumeName: name,
+		mountPath:  "/config.yaml",
+		subPath:    "config.yaml",
+		data:       map[string]string{"config.yaml": confString},
+	}
+
 	deploySpec := deploymentSpec{
 		name:           name,
 		namespace:      rsk.Namespace,
-		labels:         getDefaultLabels("redshiftloader"),
+		labels:         labels,
 		replicas:       &replicas,
 		deploymentName: name,
 		resources:      rsk.Spec.Loader.PodTemplate.Resources,
 		tolerations:    rsk.Spec.Loader.PodTemplate.Tolerations,
 		image:          getImage(rsk.Spec.Loader.PodTemplate.Image, false),
-	}
-
-	configSpec := configMapSpec{
-		name:       name,
-		namespace:  rsk.Namespace,
-		volumeName: name,
-		mountPath:  "/config.yaml",
-		subPath:    "config.yaml",
-		data: map[string]string{
-			"config.yaml": string(confBytes),
-		},
 	}
 
 	return &Loader{
@@ -177,6 +182,10 @@ func (l Loader) Config() *corev1.ConfigMap {
 	return l.config
 }
 
-func (l Loader) UpdateRequired(current *appsv1.Deployment) bool {
+func (l Loader) UpdateDeployment(current *appsv1.Deployment) bool {
 	return !deploymentSpecEqual(current, l.Deployment())
+}
+
+func (l Loader) UpdateConfig(current *corev1.ConfigMap) bool {
+	return !configSpecEqual(current, l.Config())
 }

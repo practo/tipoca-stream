@@ -114,24 +114,31 @@ func NewBatcher(
 		replicas = 0
 	}
 
+	confString := string(confBytes)
+	labels := getDefaultLabels(
+		"redshiftbatcher",
+		generateConfigHash(confString),
+	)
+
+	configSpec := configMapSpec{
+		name:       name,
+		namespace:  rsk.Namespace,
+		labels:     labels,
+		volumeName: name,
+		mountPath:  "/config.yaml",
+		subPath:    "config.yaml",
+		data:       map[string]string{"config.yaml": confString},
+	}
+
 	deploySpec := deploymentSpec{
 		name:           name,
 		namespace:      rsk.Namespace,
-		labels:         getDefaultLabels("redshiftbatcher"),
+		labels:         labels,
 		replicas:       &replicas,
 		deploymentName: name,
 		resources:      rsk.Spec.Batcher.PodTemplate.Resources,
 		tolerations:    rsk.Spec.Batcher.PodTemplate.Tolerations,
 		image:          getImage(rsk.Spec.Batcher.PodTemplate.Image, true),
-	}
-
-	configSpec := configMapSpec{
-		volumeName: name,
-		mountPath:  "/config.yaml",
-		subPath:    "config.yaml",
-		data: map[string]string{
-			"config.yaml": string(confBytes),
-		},
 	}
 
 	return &Batcher{
@@ -158,6 +165,10 @@ func (b Batcher) Config() *corev1.ConfigMap {
 	return b.config
 }
 
-func (b Batcher) UpdateRequired(current *appsv1.Deployment) bool {
+func (b Batcher) UpdateDeployment(current *appsv1.Deployment) bool {
 	return !deploymentSpecEqual(current, b.Deployment())
+}
+
+func (b Batcher) UpdateConfig(current *corev1.ConfigMap) bool {
+	return !configSpecEqual(current, b.Config())
 }
