@@ -47,7 +47,7 @@ func NewMsgMasker(salt string, topic string,
 	}, nil
 }
 
-func mask(data string, salt string) *string {
+func Mask(data string, salt string) *string {
 	val := fmt.Sprintf("%x", sha1.Sum(
 		[]byte(data+salt),
 	))
@@ -131,7 +131,7 @@ func (m *masker) Transform(
 			if cVal == nil || strings.TrimSpace(*cVal) == "" {
 				hashedValue = nil
 			} else {
-				hashedValue = mask(*cVal, m.salt)
+				hashedValue = Mask(*cVal, m.salt)
 			}
 
 			extraColumns[transformer.MappingPIIColumnPrefix+cName] = hashedValue
@@ -148,7 +148,7 @@ func (m *masker) Transform(
 		} else if unmasked {
 			columns[cName] = cVal
 		} else {
-			columns[cName] = mask(*cVal, m.salt)
+			columns[cName] = Mask(*cVal, m.salt)
 		}
 
 		// This determines the type of the mask schema, the value is taken care

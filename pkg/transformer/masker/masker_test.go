@@ -34,7 +34,7 @@ func TestSaltMask(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			r := mask(tc.data, tc.salt)
+			r := Mask(tc.data, tc.salt)
 			if tc.resultVal != *r {
 				t.Errorf("expected: %v, got: %v\n", tc.resultVal, *r)
 			}
