@@ -79,6 +79,9 @@ type RedshiftLoaderSpec struct {
 	// RedshiftSchema to sink the data in
 	RedshiftSchema string `json:"redshiftSchema"`
 
+	// RedshiftGroup to give the access to when new topics gets released
+	RedshiftGroup *string `json:"redshiftGroup"`
+
 	// Template describes the pods that will be created.
 	// if this is not specifed, a default pod template is created
 	// +optional
@@ -156,11 +159,11 @@ type MaskStatus struct {
 
 type Group struct {
 	// LoaderTopicPrefix stores the name of the loader topic prefix
-	LoaderTopicPrefix string
+	LoaderTopicPrefix string `json:"loaderTopicPrefix"`
 
 	// ID stores the name of the consumer group for the topic
 	// based on this batcher and loader consumer groups are made
-	ID string
+	ID string `json:"id"`
 }
 
 // RedshiftSinkStatus defines the observed state of RedshiftSink

@@ -20,6 +20,7 @@ const (
 	ReloadDupeSinkGroup       = "reload-dupe"
 	DefaultBatcherRealtimeLag = int64(100)
 	DefautLoaderRealtimeLag   = int64(10)
+	ReloadTableSuffix         = "_ts_adx_reload"
 )
 
 type SinkGroupInterface interface {
@@ -111,10 +112,6 @@ func newSinkGroup(
 
 func consumerGroupID(sinkPodName string, groupID string) string {
 	return sinkPodName + "-" + groupID
-}
-
-func reloadTableSuffix(desiredMaskVersion string) string {
-	return "_reload_" + desiredMaskVersion
 }
 
 func (s *sinkGroup) reconcileConfigMap(
