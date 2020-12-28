@@ -64,6 +64,7 @@ spec:
     maxSize: 10
     maxWaitSeconds: 30
     redshiftSchema: "inventory"
+    redshiftGroup:  "sales"
     podTemplate:
       resources:
         requests:

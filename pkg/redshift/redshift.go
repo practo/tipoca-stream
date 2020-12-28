@@ -600,11 +600,13 @@ func (r *Redshift) RenameTable(
 func (r *Redshift) GrantSchemaAccess(
 	tx *sql.Tx,
 	schema string,
+	table string,
 	group string,
 ) error {
 	grantSelectSQL := fmt.Sprintf(
-		`GRANT SELECT ON ALL TABLES IN SCHEMA %s TO GROUP %s`,
+		`GRANT SELECT ON TABLE %s.%s TO GROUP %s`,
 		schema,
+		table,
 		group,
 	)
 	grantUsageSQL := fmt.Sprintf(

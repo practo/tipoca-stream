@@ -233,6 +233,10 @@ spec:
                         type: object
                       type: array
                   type: object
+                redshiftGroup:
+                  description: RedshiftGroup to give the access to when new topics
+                    gets released
+                  type: string
                 redshiftSchema:
                   description: RedshiftSchema to sink the data in
                   type: string
@@ -243,6 +247,7 @@ spec:
               required:
               - maxSize
               - maxWaitSeconds
+              - redshiftGroup
               - redshiftSchema
               type: object
             secretRefName:
@@ -309,6 +314,18 @@ spec:
               type: object
             topicGroups:
               additionalProperties:
+                properties:
+                  id:
+                    description: ID stores the name of the consumer group for the
+                      topic based on this batcher and loader consumer groups are made
+                    type: string
+                  loaderTopicPrefix:
+                    description: LoaderTopicPrefix stores the name of the loader topic
+                      prefix
+                    type: string
+                required:
+                - id
+                - loaderTopicPrefix
                 type: object
               description: TopicGroup stores the group info for the topic
               type: object
