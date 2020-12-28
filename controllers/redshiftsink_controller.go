@@ -215,7 +215,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, event, err
 	}
 
-	gitToken, err := secretByKey(secret, "githubAccessToken")
+	gitToken, err := secretByKey(secret, "gitAccessToken")
 	if err != nil {
 		return result, nil, err
 	}
@@ -261,6 +261,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, fmt.Errorf(
 			"topics status does not add up as expected")
 	}
+	status.initTopicGroup()
 
 	topicsReleased := status.released()
 	topicsRealtime := status.realtime()
@@ -353,24 +354,18 @@ func (r *RedshiftSinkReconciler) reconcile(
 		}
 
 		releaseError = releaser.release(topicsRealtime[0])
-		if err != nil {
-			status.updateSinkGroupStatus(
-				MainSinkGroup,
-				desiredMaskVersion,
-				topicsRealtime[0],
-				tableSuffixBySinkGroup(ReloadSinkGroup, desiredMaskVersion),
-			)
+		if releaseError != nil {
+			// TODO: rollback
+		} else {
 			topicReleaseEvent = &TopicReleasedEvent{
 				Topic:   topicsRealtime[0],
 				Version: desiredMaskVersion,
 			}
 			topicsReleased = append(topicsReleased, topicsRealtime[0])
 			klog.Infof(
-				"Released topic: %v, version: %v",
+				"released topic: %v, version: %v",
 				topicsRealtime[0], desiredMaskVersion,
 			)
-		} else {
-			// TODO: rollback
 		}
 	}
 

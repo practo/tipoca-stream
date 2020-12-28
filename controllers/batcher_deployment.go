@@ -53,7 +53,7 @@ func NewBatcher(
 	rsk *tipocav1.RedshiftSink,
 	maskFileVersion string,
 	secret map[string]string,
-	consumerGroups tipocav1.ConsumerGroups,
+	consumerGroups map[string]consumerGroup,
 ) (
 	Deployment,
 	error,
@@ -66,11 +66,11 @@ func NewBatcher(
 	totalTopics := 0
 	var groupConfigs []consumer.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
-		totalTopics += len(group.Topics)
+		totalTopics += len(group.topics)
 		groupConfigs = append(groupConfigs, consumer.ConsumerGroupConfig{
 			GroupID:           consumerGroupID(name, groupID),
-			TopicRegexes:      expandTopicsToRegex(group.Topics),
-			LoaderTopicPrefix: group.LoaderTopicPrefix,
+			TopicRegexes:      expandTopicsToRegex(group.topics),
+			LoaderTopicPrefix: group.loaderTopicPrefix,
 			Kafka: consumer.KafkaConfig{
 				Brokers: rsk.Spec.KafkaBrokers,
 			},

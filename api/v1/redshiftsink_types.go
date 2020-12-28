@@ -154,17 +154,14 @@ type MaskStatus struct {
 	DesiredMaskVersion *string `json:"desiredMaskedVersion,omitempty"`
 }
 
-type ConsumerGroup struct {
-	// LoaderTopicPrefix determines the topic prefix for the topic
-	// the consumer grou batcher would write to and loader will read from
-	// +optional
-	LoaderTopicPrefix string `json:"loaderTopicPrefix"`
+type Group struct {
+	// LoaderTopicPrefix stores the name of the loader topic prefix
+	LoaderTopicPrefix string
 
-	// Topics the consumer group needs to handle
-	Topics []string `json:"topics"`
+	// ID stores the name of the consumer group for the topic
+	// based on this batcher and loader consumer groups are made
+	ID string
 }
-
-type ConsumerGroups map[string]ConsumerGroup
 
 // RedshiftSinkStatus defines the observed state of RedshiftSink
 type RedshiftSinkStatus struct {
@@ -175,9 +172,9 @@ type RedshiftSinkStatus struct {
 	// +optional
 	MaskStatus *MaskStatus `json:"maskStatus"`
 
-	// SinkGroupStatus stores the status of the sink groups
-	// sinkGroup name = map of consumer groups
-	SinkGroupStatus map[string]ConsumerGroups `json:"sinkGroupStatus,omitempty"`
+	// TopicGroup stores the group info for the topic
+	// +optional
+	TopicGroup map[string]Group `json:"topicGroups"`
 }
 
 // +kubebuilder:resource:path=redshiftsinks,shortName=rsk;rsks

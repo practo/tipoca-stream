@@ -58,7 +58,7 @@ func NewLoader(
 	rsk *tipocav1.RedshiftSink,
 	tableSuffix string,
 	secret map[string]string,
-	consumerGroups tipocav1.ConsumerGroups,
+	consumerGroups map[string]consumerGroup,
 ) (
 	Deployment,
 	error,
@@ -71,13 +71,13 @@ func NewLoader(
 	totalTopics := 0
 	var groupConfigs []consumer.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
-		totalTopics += len(group.Topics)
+		totalTopics += len(group.topics)
 		groupConfigs = append(groupConfigs, consumer.ConsumerGroupConfig{
 			GroupID: consumerGroupID(name, groupID),
 			TopicRegexes: expandTopicsToRegex(
 				makeLoaderTopics(
-					group.LoaderTopicPrefix,
-					group.Topics,
+					group.loaderTopicPrefix,
+					group.topics,
 				),
 			),
 			Kafka: consumer.KafkaConfig{

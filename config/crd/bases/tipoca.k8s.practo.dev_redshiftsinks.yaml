@@ -307,23 +307,10 @@ spec:
                     should be completely rolled out in all the topics.
                   type: string
               type: object
-            sinkGroupStatus:
+            topicGroups:
               additionalProperties:
-                additionalProperties:
-                  properties:
-                    kafkaTopicRegexes:
-                      description: KafkaTopicRegexes the consumer group needs to handle
-                      type: string
-                    name:
-                      description: KafkaLoaderTopicPrefix determines the topic prefix
-                        for the topic the consumer grou batcher would write to and
-                        loader will read from
-                      type: string
-                  required:
-                  - kafkaTopicRegexes
-                  type: object
                 type: object
-              description: SinkGroupStatus stores the status of the sink groups
+              description: TopicGroup stores the group info for the topic
               type: object
           type: object
       type: object
