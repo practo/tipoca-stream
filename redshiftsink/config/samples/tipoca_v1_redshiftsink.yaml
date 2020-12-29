@@ -8,6 +8,9 @@ spec:
   kafkaBrokers: "kafka1.example.com,kafka2.example.com"
   kafkaTopicRegexes: "^db.inventory*"
   kafkaLoaderTopicPrefix: "loader-"
+  releaseCondition:
+    maxBatcherLag: 100
+    maxLoaderLag: 10
   batcher:
     suspend: false
     maxSize: 10

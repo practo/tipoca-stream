@@ -20,13 +20,13 @@ import (
 	"strings"
 	"sync"
 
-	"k8s.io/klog/klogr"
 	"github.com/practo/klog/v2"
 	consumer "github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
 	pflag "github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/klog/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"

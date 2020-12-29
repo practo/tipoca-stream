@@ -411,6 +411,7 @@ func (r *RedshiftSinkReconciler) Reconcile(
 		return ctrl.Result{
 			RequeueAfter: time.Second * 30}, client.IgnoreNotFound(err)
 	}
+
 	original := redshiftsink.DeepCopy()
 	// Always attempt to patch the status after each reconciliation.
 	defer func() {
