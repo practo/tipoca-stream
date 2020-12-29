@@ -15,12 +15,12 @@ import (
 )
 
 const (
-	MainSinkGroup             = "main"
-	ReloadSinkGroup           = "reload"
-	ReloadDupeSinkGroup       = "reload-dupe"
-	DefaultBatcherRealtimeLag = int64(100)
-	DefautLoaderRealtimeLag   = int64(10)
-	ReloadTableSuffix         = "_ts_adx_reload"
+	MainSinkGroup                = "main"
+	ReloadSinkGroup              = "reload"
+	ReloadDupeSinkGroup          = "reload-dupe"
+	DefaultmaxBatcherRealtimeLag = int64(100)
+	DefautmaxLoaderRealtimeLag   = int64(10)
+	ReloadTableSuffix            = "_ts_adx_reload"
 )
 
 type SinkGroupInterface interface {
@@ -35,12 +35,6 @@ type sinkGroup struct {
 
 	topics            []string
 	loaderTopicPrefix string
-
-	// realtimeLag is the metric that tells if the SinkGroup has reached
-	// near real time. i.e. batcher and loader's
-	// consumer group lags <= realtimeLag
-	batcherRealtimeLag int64
-	loaderRealtimeLag  int64
 
 	client client.Client
 	scheme *runtime.Scheme
@@ -100,9 +94,6 @@ func newSinkGroup(
 
 		topics:            kafkaTopics,
 		loaderTopicPrefix: rsk.Spec.KafkaLoaderTopicPrefix,
-
-		batcherRealtimeLag: DefaultBatcherRealtimeLag,
-		loaderRealtimeLag:  DefautLoaderRealtimeLag,
 
 		client: client,
 		scheme: scheme,
@@ -275,12 +266,50 @@ func (s *sinkGroup) realtimeTopics(
 			"%v%v: loader consumer group lag: %v",
 			s.loaderTopicPrefix, topic, loaderLag)
 
-		if batcherLag > s.batcherRealtimeLag &&
-			loaderLag > s.loaderRealtimeLag {
-			klog.Infof("%v: waiting for realtime condition to be met.", topic)
+		if s.lagBelowThreshold(topic, batcherLag, loaderLag) {
+			realtimeTopics = append(realtimeTopics, topic)
+		} else {
+			klog.Infof("%v: waiting for release condition to be met.", topic)
 		}
-		realtimeTopics = append(realtimeTopics, topic)
 	}
 
 	return realtimeTopics, nil
+}
+
+func (s *sinkGroup) lagBelowThreshold(
+	topic string,
+	batcherLag,
+	loaderLag int64,
+) bool {
+	var maxBatcherRealtimeLag, maxLoaderRealtimeLag int64
+	if s.rsk.Spec.ReleaseCondition == nil {
+		maxBatcherRealtimeLag = DefaultmaxBatcherRealtimeLag
+		maxLoaderRealtimeLag = DefautmaxLoaderRealtimeLag
+	} else {
+		if s.rsk.Spec.ReleaseCondition.MaxBatcherLag == nil {
+			maxBatcherRealtimeLag = *s.rsk.Spec.ReleaseCondition.MaxBatcherLag
+		}
+		if s.rsk.Spec.ReleaseCondition.MaxLoaderLag == nil {
+			maxLoaderRealtimeLag = *s.rsk.Spec.ReleaseCondition.MaxLoaderLag
+		}
+		if s.rsk.Spec.TopicReleaseCondition != nil {
+			d, ok := s.rsk.Spec.TopicReleaseCondition[topic]
+			if ok {
+				if d.MaxBatcherLag != nil {
+					maxBatcherRealtimeLag = *d.MaxBatcherLag
+				}
+				if d.MaxLoaderLag != nil {
+					maxLoaderRealtimeLag = *d.MaxLoaderLag
+				}
+			}
+		}
+	}
+
+	if batcherLag <= maxBatcherRealtimeLag &&
+		loaderLag <= maxLoaderRealtimeLag {
+
+		return true
+	}
+
+	return false
 }

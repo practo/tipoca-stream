@@ -106,6 +106,29 @@ type RedshiftSinkSpec struct {
 
 	Batcher RedshiftBatcherSpec `json:"batcher"`
 	Loader  RedshiftLoaderSpec  `json:"loader"`
+
+	// ReleaseCondition specifies the release condition to consider a topic
+	// realtime and to consider the topci to be moved from reloading to released
+	// This is relevant only if masking is turned on in mask configuration.
+	// It is used for live mask reloading.
+	ReleaseCondition *ReleaseCondition `json:"releaseCondition"`
+
+	// TopicReleaseCondition is considered instead of ReleaseCondition
+	// if it is defined for a topic. This is used for topics which
+	// does not work well with central ReleaseCondition for all topics
+	TopicReleaseCondition map[string]ReleaseCondition `json:"topicReleaseCondition"`
+}
+
+type ReleaseCondition struct {
+	// MaxBatcherLag is the maximum lag the batcher consumer group
+	// shoud have to be be considered to be operating in realtime and
+	// to be considered for release.
+	MaxBatcherLag *int64 `json:"maxBatcherLag"`
+
+	// MaxLoaderLag is the maximum lag the loader consumer group
+	// shoud have to be be considered to be operating in realtime and
+	// to be considered for release.
+	MaxLoaderLag *int64 `json:"maxLoaderLag"`
 }
 
 // MaskPhase is a label for the condition of a masking at the current time.

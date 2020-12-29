@@ -250,19 +250,66 @@ spec:
               - redshiftGroup
               - redshiftSchema
               type: object
+            releaseCondition:
+              description: ReleaseCondition specifies the release condition to consider
+                a topic realtime and to consider the topci to be moved from reloading
+                to released This is relevant only if masking is turned on in mask
+                configuration. It is used for live mask reloading.
+              properties:
+                maxBatcherLag:
+                  description: MaxBatcherLag is the maximum lag the batcher consumer
+                    group shoud have to be be considered to be operating in realtime
+                    and to be considered for release.
+                  format: int64
+                  type: integer
+                maxLoaderLag:
+                  description: MaxLoaderLag is the maximum lag the loader consumer
+                    group shoud have to be be considered to be operating in realtime
+                    and to be considered for release.
+                  format: int64
+                  type: integer
+              required:
+              - maxBatcherLag
+              - maxLoaderLag
+              type: object
             secretRefName:
               description: 'Secrets to be used by the batcher pod Default: the secret
                 name and namespace provided in the controller flags'
               type: string
             secretRefNamespace:
               type: string
+            topicReleaseCondition:
+              additionalProperties:
+                properties:
+                  maxBatcherLag:
+                    description: MaxBatcherLag is the maximum lag the batcher consumer
+                      group shoud have to be be considered to be operating in realtime
+                      and to be considered for release.
+                    format: int64
+                    type: integer
+                  maxLoaderLag:
+                    description: MaxLoaderLag is the maximum lag the loader consumer
+                      group shoud have to be be considered to be operating in realtime
+                      and to be considered for release.
+                    format: int64
+                    type: integer
+                required:
+                - maxBatcherLag
+                - maxLoaderLag
+                type: object
+              description: TopicReleaseCondition is considered instead of ReleaseCondition
+                if it is defined for a topic. This is used for topics which does not
+                work well with central ReleaseCondition for all topics
+              type: object
           required:
           - batcher
           - kafkaBrokers
           - kafkaTopicRegexes
           - loader
+          - releaseCondition
           - secretRefName
           - secretRefNamespace
+          - topicReleaseCondition
           type: object
         status:
           description: RedshiftSinkStatus defines the observed state of RedshiftSink
