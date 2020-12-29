@@ -74,7 +74,7 @@ func (g *GitCache) GetFileVersion(filePath string) (string, error) {
 	newFileVersion := make(map[string]string)
 
 	// update new cache for filePath
-	commits, err := g.client.Log(filePath, 1, true)
+	commits, err := g.client.Log(filePath, 1)
 	if err != nil {
 		return "", err
 	}
@@ -83,7 +83,7 @@ func (g *GitCache) GetFileVersion(filePath string) (string, error) {
 	// update new cache for all the other files that already existed
 	for path, _ := range g.fileVersion {
 		// get the latest commit, update cache
-		commits, err := g.client.Log(filePath, 1, true)
+		commits, err := g.client.Log(filePath, 1)
 		if err != nil {
 			// this could happen if the filePath does not exist, so burst
 			// the cache so that next update fixes it.

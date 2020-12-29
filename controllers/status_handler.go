@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+	klog "github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 )
 
@@ -41,6 +42,26 @@ func (r *statusHandler) realtime() []string {
 
 func (r *statusHandler) released() []string {
 	return r.getTopics(tipocav1.MaskActive, r.desiredVersion)
+}
+
+func (r *statusHandler) reloadingDupe() []string {
+	reloadDupeTopics := []string{}
+	reloading := r.reloading()
+	released := toMap(r.released())
+	for _, topicReloading := range reloading {
+		_, topicWasReleasedBefore := released[topicReloading]
+		// never dupe a topic which is releasing for the first time
+		if !topicWasReleasedBefore {
+			klog.V(3).Infof(
+				"topic: %s is a new topic, it was never released before",
+				topicReloading,
+			)
+			continue
+		}
+		reloadDupeTopics = append(reloadDupeTopics, topicReloading)
+	}
+
+	return reloadDupeTopics
 }
 
 func (r *statusHandler) verify() bool {
@@ -168,6 +189,19 @@ func (r *statusHandler) updateMaskStatus(
 	r.rsk.Status.MaskStatus = &maskStatus
 }
 
+func groupIDFromVersion(version string) string {
+	groupID := version
+	if len(version) >= 6 {
+		groupID = groupID[:6]
+	}
+
+	return groupID
+}
+
+func loaderPrefixFromGroupID(prefix string, version string) string {
+	return prefix + version + "-"
+}
+
 func (r *statusHandler) initTopicGroup() {
 	if r.rsk.Status.TopicGroup == nil {
 		r.rsk.Status.TopicGroup = make(map[string]tipocav1.Group)
@@ -177,10 +211,16 @@ func (r *statusHandler) initTopicGroup() {
 		if ok {
 			continue
 		}
-		prefix := r.rsk.Spec.KafkaLoaderTopicPrefix + "-" + r.desiredVersion
+
+		groupID := groupIDFromVersion(r.desiredVersion)
+		prefix := loaderPrefixFromGroupID(
+			r.rsk.Spec.KafkaLoaderTopicPrefix,
+			groupID,
+		)
+
 		r.rsk.Status.TopicGroup[topic] = tipocav1.Group{
 			LoaderTopicPrefix: prefix,
-			ID:                r.desiredVersion,
+			ID:                groupID,
 		}
 	}
 }
@@ -191,7 +231,7 @@ type consumerGroup struct {
 }
 
 func computeConsumerGroups(
-	rsk *tipocav1.RedshiftSink,
+	topicGroups map[string]tipocav1.Group,
 	topics []string,
 ) (
 	map[string]consumerGroup,
@@ -199,7 +239,7 @@ func computeConsumerGroups(
 ) {
 	consumerGroups := make(map[string]consumerGroup)
 	for _, topic := range topics {
-		topicGroup, ok := rsk.Status.TopicGroup[topic]
+		topicGroup, ok := topicGroups[topic]
 		if !ok {
 			return nil, fmt.Errorf(
 				"Group info missing for topic: %s in Status", topic)
@@ -220,6 +260,7 @@ func computeConsumerGroups(
 				)
 			}
 			existingGroup.topics = append(existingGroup.topics, topic)
+			consumerGroups[topicGroup.ID] = existingGroup
 		}
 	}
 

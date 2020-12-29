@@ -238,7 +238,12 @@ func deploymentSpecEqual(
 	if !reflect.DeepEqual(
 		current.Spec.Template.Labels,
 		desired.Spec.Template.Labels) {
-		klog.Infof("% labels require update!", desired.Name)
+		klog.V(5).Infof(
+			"currentLabels: %v, desiredLabels: %v\n",
+			current.Spec.Template.Labels,
+			desired.Spec.Template.Labels,
+		)
+		klog.Infof("%v labels require update!", desired.Name)
 		return false
 	}
 

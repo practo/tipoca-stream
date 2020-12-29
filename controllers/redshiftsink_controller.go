@@ -249,7 +249,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, fmt.Errorf("Error doing mask diff, err: %v", err)
 	}
 
-	klog.Infof("diff: %v", diff)
+	klog.V(2).Infof("diff: %v", diff)
 
 	status := newStatusHandler(
 		kafkaTopics,
@@ -267,9 +267,9 @@ func (r *RedshiftSinkReconciler) reconcile(
 	topicsRealtime := status.realtime()
 	topicsReloading := status.reloading()
 
-	klog.Infof("released: %v", topicsReleased)
-	klog.Infof("realtime: %v", topicsRealtime)
-	klog.Infof("reloading: %v", topicsReloading)
+	klog.V(4).Infof("released: %v", topicsReleased)
+	klog.V(4).Infof("realtime: %v", topicsRealtime)
+	klog.V(4).Infof("reloading: %v", topicsReloading)
 
 	reloadSinkGroup := newSinkGroup(
 		ReloadSinkGroup, r.Client, r.Scheme, rsk,
@@ -283,7 +283,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, err
 	}
 
-	klog.Infof("realtime (latest): %v", topicsRealtime)
+	klog.V(4).Infof("realtime (latest): %v", topicsRealtime)
 
 	status.updateMaskStatus(
 		topicsReleased,
@@ -293,6 +293,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	topicsReleased = status.released()
 	topicsRealtime = status.realtime()
 	topicsReloading = status.reloading()
+	topicsReloadingDupe := status.reloadingDupe()
 
 	// SinkGroup are of following types:
 	// 1. main: sink group which has desiredMaskVersion
@@ -325,7 +326,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	)
 	reloadDupe = newSinkGroup(
 		ReloadDupeSinkGroup, r.Client, r.Scheme, rsk,
-		topicsReloading,
+		topicsReloadingDupe,
 		currentMaskVersion,
 		secret,
 		"",
@@ -333,20 +334,20 @@ func (r *RedshiftSinkReconciler) reconcile(
 	for _, sinkGroup := range []*sinkGroup{main, reload, reloadDupe} {
 		result, event, err := sinkGroup.reconcile(ctx)
 		if err != nil {
-			return result, event, err
+			return result, nil, err
 		}
 		if event != nil {
 			return result, event, nil
 		}
 	}
 
-	klog.Info("executing release if any..")
+	klog.V(4).Info("executing release if any..")
 
 	var topicReleaseEvent *TopicReleasedEvent
 	var releaseError error
 	var releaser *releaser
 	if len(topicsRealtime) > 0 {
-		klog.Infof("release candidates: %v", topicsRealtime)
+		klog.V(2).Infof("release candidates: %v", topicsRealtime)
 		releaser, releaseError = newReleaser(
 			ctx, rsk.Spec.Loader.RedshiftSchema, secret)
 		if releaseError != nil {
@@ -370,7 +371,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 				Topic:   topicsRealtime[0],
 				Version: desiredMaskVersion,
 			}
-			klog.Infof(
+			klog.V(2).Infof(
 				"released topic: %v, version: %v",
 				topicsRealtime[0], desiredMaskVersion,
 			)
@@ -393,7 +394,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, topicReleaseEvent, nil
 	}
 
-	klog.Info("Nothing done in reconcile.")
+	klog.V(5).Info("Nothing done in reconcile.")
 
 	return result, nil, nil
 }
