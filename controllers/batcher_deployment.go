@@ -114,13 +114,10 @@ func NewBatcher(
 	}
 
 	confString := string(confBytes)
-	labels := getDefaultLabels(
-		"redshiftbatcher",
-		generateConfigHash(confString),
-	)
+	labels := getDefaultLabels("redshiftbatcher")
 
 	configSpec := configMapSpec{
-		name:       name,
+		name:       getConfigMapName(name, confString),
 		namespace:  rsk.Namespace,
 		labels:     labels,
 		volumeName: name,

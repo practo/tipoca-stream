@@ -22,8 +22,8 @@ type ConsumerGroupInterface interface {
 }
 
 type ConsumerGroupConfig struct {
-	GroupID           string       `yaml:"groupID"`
-	TopicRegexes      string       `yaml:"topicRegexes"`
+	GroupID      string `yaml:"groupID"`
+	TopicRegexes string `yaml:"topicRegexes"`
 	// TODO: LoaderTopicPrefix is "" for loader consumer groups
 	// it should be an optional field, a pointer.
 	LoaderTopicPrefix string       `yaml:"loaderTopicPrefix"` // default is there
