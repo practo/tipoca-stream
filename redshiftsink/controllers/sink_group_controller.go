@@ -160,10 +160,11 @@ func (s *sinkGroup) reconcileConfigMap(
 	ReconcilerEvent,
 	error,
 ) {
-	current, exists, err := getConfigMap(
+	config := d.Config()
+	_, exists, err := getConfigMap(
 		ctx,
 		s.client,
-		d.Name(),
+		config.Name,
 		d.Namespace(),
 	)
 	if err != nil {
@@ -171,19 +172,13 @@ func (s *sinkGroup) reconcileConfigMap(
 	}
 	if !exists {
 		klog.Infof("%v: Creating configMap", d.Name())
-		event, err := createConfigMap(ctx, s.client, d.Config(), s.rsk)
+		event, err := createConfigMap(ctx, s.client, config, s.rsk)
 		if err != nil {
 			return nil, err
 		}
+		ctrl.SetControllerReference(s.rsk, config, s.scheme)
 		return event, nil
 	}
-
-	if d.UpdateConfig(current) {
-		klog.Infof("%v: Updating configMap", d.Name())
-		return updateConfigMap(ctx, s.client, d.Config(), s.rsk)
-	}
-
-	ctrl.SetControllerReference(s.rsk, d.Config(), s.scheme)
 
 	return nil, nil
 }
@@ -210,15 +205,19 @@ func (s *sinkGroup) reconcileDeployment(
 		if err != nil {
 			return nil, err
 		}
+		ctrl.SetControllerReference(s.rsk, d.Deployment(), s.scheme)
 		return event, nil
 	}
 
 	if d.UpdateDeployment(current) {
 		klog.Infof("%v: Updating deployment", d.Name())
-		return updateDeployment(ctx, s.client, d.Deployment(), s.rsk)
+		event, err := updateDeployment(ctx, s.client, d.Deployment(), s.rsk)
+		if err != nil {
+			return nil, err
+		}
+		ctrl.SetControllerReference(s.rsk, d.Deployment(), s.scheme)
+		return event, nil
 	}
-
-	ctrl.SetControllerReference(s.rsk, d.Deployment(), s.scheme)
 
 	return nil, nil
 }

@@ -394,6 +394,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, topicReleaseEvent, nil
 	}
 
+	// TODO: handle cleanup of config maps
+
 	klog.V(5).Info("Nothing done in reconcile.")
 
 	return result, nil, nil

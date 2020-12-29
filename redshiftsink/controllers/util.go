@@ -117,15 +117,19 @@ func generateConfigHash(data string) string {
 	return *hash
 }
 
+func getConfigMapName(prefix, data string) string {
+	hash := generateConfigHash(data)
+	return prefix + "-" + hash[:6]
+}
+
 // getDefaultLabels gives back the default labels for the crd resources
-func getDefaultLabels(app string, hash string) map[string]string {
+func getDefaultLabels(app string) map[string]string {
 	return map[string]string{
 		"app":                          "redshiftsink",
 		"app.kubernetes.io/instance":   app,
 		"app.kubernetes.io/managed-by": "redshiftsink-operator",
 		"practo.dev/kind":              "RedshiftSink",
 		"practo.dev/name":              app,
-		"config.hash":                  hash,
 	}
 }
 

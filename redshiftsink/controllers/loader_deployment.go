@@ -131,13 +131,10 @@ func NewLoader(
 	}
 
 	confString := string(confBytes)
-	labels := getDefaultLabels(
-		"redshiftloader",
-		generateConfigHash(confString),
-	)
+	labels := getDefaultLabels("redshiftloader")
 
 	configSpec := configMapSpec{
-		name:       name,
+		name:       getConfigMapName(name, confString),
 		namespace:  rsk.Namespace,
 		labels:     labels,
 		volumeName: name,
