@@ -6,14 +6,19 @@ import (
 	masker "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
 )
 
+// MaskDiff reads two database mask configurations and returns the list of
+// topics whose mask values has changed.
 func MaskDiff(
 	topics []string,
 	maskFile string,
-	currentVersion string,
 	desiredVersion string,
-	t string,
-	homeDir string) ([]string, error) {
-
+	currentVersion string,
+	gitToken string,
+	homeDir string,
+) (
+	[]string,
+	error,
+) {
 	if currentVersion == "" {
 		return topics, nil
 	}
@@ -23,13 +28,13 @@ func MaskDiff(
 	}
 
 	currentMaskConfig, err := masker.NewMaskConfig(
-		homeDir, maskFile, currentVersion, t)
+		homeDir, maskFile, currentVersion, gitToken)
 	if err != nil {
 		return []string{}, err
 	}
 
 	desiredMaskConfig, err := masker.NewMaskConfig(
-		homeDir, maskFile, desiredVersion, t)
+		homeDir, maskFile, desiredVersion, gitToken)
 	if err != nil {
 		return []string{}, err
 	}

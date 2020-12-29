@@ -14,7 +14,6 @@ import (
 
 const (
 	BatcherSuffix       = "-batcher"
-	BatcherEnvPrefix    = "BATCHER_"
 	BatcherDefaultImage = "practodev/redshiftbatcher:latest"
 )
 
@@ -26,7 +25,7 @@ type Batcher struct {
 }
 
 func batcherSecret(secret map[string]string) (map[string]string, error) {
-	var s map[string]string
+	s := make(map[string]string)
 	secretKeys := []string{
 		"maskSalt",
 		"s3Region",

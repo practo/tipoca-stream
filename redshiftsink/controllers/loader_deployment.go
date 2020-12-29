@@ -15,7 +15,6 @@ import (
 
 const (
 	LoaderSuffix       = "-loader"
-	LoaderEnvPrefix    = "LOADER_"
 	LoaderDefaultImage = "practodev/redshiftloader:latest"
 )
 
@@ -27,7 +26,7 @@ type Loader struct {
 }
 
 func loaderSecret(secret map[string]string) (map[string]string, error) {
-	var s map[string]string
+	s := make(map[string]string)
 	secretKeys := []string{
 		"s3Region",
 		"s3Bucket",
