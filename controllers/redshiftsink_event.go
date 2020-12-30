@@ -37,12 +37,12 @@ func (d DeploymentCreatedEvent) Record(recorder record.EventRecorder) {
 		fmt.Sprintf("Created deployment: %s", d.Name))
 }
 
-type DeploymentUpdatedEvent struct {
+type DeploymentDeletedEvent struct {
 	Object runtime.Object
 	Name   string
 }
 
-func (d DeploymentUpdatedEvent) Record(recorder record.EventRecorder) {
+func (d DeploymentDeletedEvent) Record(recorder record.EventRecorder) {
 	recorder.Event(d.Object,
 		K8sEventTypeNormal,
 		"DeploymentUpdated",
@@ -61,12 +61,12 @@ func (d ConfigMapCreatedEvent) Record(recorder record.EventRecorder) {
 		fmt.Sprintf("Created configMap: %s", d.Name))
 }
 
-type ConfigMapUpdatedEvent struct {
+type ConfigMapDeletedEvent struct {
 	Object runtime.Object
 	Name   string
 }
 
-func (d ConfigMapUpdatedEvent) Record(recorder record.EventRecorder) {
+func (d ConfigMapDeletedEvent) Record(recorder record.EventRecorder) {
 	recorder.Event(d.Object,
 		K8sEventTypeNormal,
 		"ConfigMapUpdated",

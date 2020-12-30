@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	BatcherSuffix       = "-batcher"
-	BatcherDefaultImage = "practodev/redshiftbatcher:latest"
+	BatcherSuffix        = "-batcher"
+	BatcherLabelInstance = "redshiftbatcher"
+	BatcherDefaultImage  = "practodev/redshiftbatcher:latest"
 )
 
 type Batcher struct {
@@ -114,10 +115,11 @@ func NewBatcher(
 	}
 
 	confString := string(confBytes)
-	labels := getDefaultLabels("redshiftbatcher")
+	objectName := getObjectName(name, confString)
+	labels := getDefaultLabels(BatcherLabelInstance, objectName)
 
 	configSpec := configMapSpec{
-		name:       getConfigMapName(name, confString),
+		name:       objectName,
 		namespace:  rsk.Namespace,
 		labels:     labels,
 		volumeName: name,
@@ -127,7 +129,7 @@ func NewBatcher(
 	}
 
 	deploySpec := deploymentSpec{
-		name:           name,
+		name:           objectName,
 		namespace:      rsk.Namespace,
 		labels:         labels,
 		replicas:       &replicas,
