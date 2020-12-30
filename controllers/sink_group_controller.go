@@ -174,7 +174,7 @@ func (s *sinkGroup) reconcileConfigMap(
 		return nil, nil
 	}
 
-	klog.Infof("%v: Creating configMap", d.Name())
+	klog.V(2).Infof("Creating configMap: %v", config.name)
 	event, err := createConfigMap(ctx, s.client, config, s.rsk)
 	if err != nil {
 		return nil, err
@@ -217,12 +217,14 @@ func (s *sinkGroup) reconcileDeployment(
 	if err != nil {
 		return nil, err
 	}
+	klog.V(5).Infof("[Cleanup] DeploymentsList: %+v", len(deploymentList.Items))
 	for _, deploy := range deploymentList.Items {
 		labelValue, ok := deploy.Labels[InstanceName]
 		if !ok {
 			continue
 		}
 		if labelValue != deployment.Name {
+			klog.V(5).Infof("[Cleanup] Deleting deployment %s", labelValue)
 			event, err := deleteDeployment(ctx, s.client, &deploy, s.rsk)
 			if err != nil {
 				return nil, err
@@ -243,12 +245,14 @@ func (s *sinkGroup) reconcileDeployment(
 	if err != nil {
 		return nil, err
 	}
+	klog.V(5).Infof("[Cleanup] ConfigMapList: %+v", len(configMapList.Items))
 	for _, config := range configMapList.Items {
 		labelValue, ok := config.Labels[InstanceName]
 		if !ok {
 			continue
 		}
 		if labelValue != configMap.Name {
+			klog.V(5).Infof("[Cleanup] Deleting configMap %s", labelValue)
 			event, err := deleteConfigMap(ctx, s.client, &config, s.rsk)
 			if err != nil {
 				return nil, err
@@ -260,7 +264,7 @@ func (s *sinkGroup) reconcileDeployment(
 	}
 
 	// create new deployment pointing to new config map
-	klog.Infof("%v: Creating deployment", d.Name())
+	klog.V(2).Infof("Creating deployment: %v", deployment.name)
 	event, err := createDeployment(ctx, s.client, deployment, s.rsk)
 	if err != nil {
 		return nil, err
@@ -359,6 +363,7 @@ func (s *sinkGroup) realtimeTopics(
 ) (
 	[]string, error,
 ) {
+	// return []string{"db.inventory.customers"}, nil
 	realtimeTopics := []string{}
 	for _, topic := range s.topics {
 		batcherLag, err := watcher.ConsumerGroupLag(
