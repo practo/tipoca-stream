@@ -22,13 +22,13 @@ const (
 )
 
 type deploymentSpec struct {
-	name           string
-	namespace      string
-	labels         map[string]string
-	replicas       *int32
-	resources      *corev1.ResourceRequirements
-	tolerations    *[]corev1.Toleration
-	image          string
+	name        string
+	namespace   string
+	labels      map[string]string
+	replicas    *int32
+	resources   *corev1.ResourceRequirements
+	tolerations *[]corev1.Toleration
+	image       string
 }
 
 type configMapSpec struct {

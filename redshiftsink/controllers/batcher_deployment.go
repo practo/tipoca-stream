@@ -129,13 +129,13 @@ func NewBatcher(
 	}
 
 	deploySpec := deploymentSpec{
-		name:           objectName,
-		namespace:      rsk.Namespace,
-		labels:         labels,
-		replicas:       &replicas,
-		resources:      rsk.Spec.Batcher.PodTemplate.Resources,
-		tolerations:    rsk.Spec.Batcher.PodTemplate.Tolerations,
-		image:          getImage(rsk.Spec.Batcher.PodTemplate.Image, true),
+		name:        objectName,
+		namespace:   rsk.Namespace,
+		labels:      labels,
+		replicas:    &replicas,
+		resources:   rsk.Spec.Batcher.PodTemplate.Resources,
+		tolerations: rsk.Spec.Batcher.PodTemplate.Tolerations,
+		image:       getImage(rsk.Spec.Batcher.PodTemplate.Image, true),
 	}
 
 	return &Batcher{
