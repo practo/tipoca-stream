@@ -133,7 +133,6 @@ func NewBatcher(
 		namespace:      rsk.Namespace,
 		labels:         labels,
 		replicas:       &replicas,
-		deploymentName: name,
 		resources:      rsk.Spec.Batcher.PodTemplate.Resources,
 		tolerations:    rsk.Spec.Batcher.PodTemplate.Tolerations,
 		image:          getImage(rsk.Spec.Batcher.PodTemplate.Image, true),

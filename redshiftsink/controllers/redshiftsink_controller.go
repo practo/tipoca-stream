@@ -257,10 +257,11 @@ func (r *RedshiftSinkReconciler) reconcile(
 		currentMaskVersion,
 		desiredMaskVersion,
 		rsk)
-	if !status.verify() {
-		return result, nil, fmt.Errorf(
-			"topics status does not add up as expected")
-	}
+	// TODO: add some verifications
+	// if !status.verify() {
+	// 	return result, nil, fmt.Errorf(
+	// 		"topics status does not add up as expected")
+	// }
 	status.initTopicGroup()
 
 	topicsReleased := status.released()
@@ -341,7 +342,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		}
 	}
 
-	klog.V(4).Info("executing release if any..")
+	klog.V(4).Info("checking if release is possible...")
 
 	var topicReleaseEvent *TopicReleasedEvent
 	var releaseError error
@@ -375,6 +376,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 				"released topic: %v, version: %v",
 				topicsRealtime[0], desiredMaskVersion,
 			)
+			status.updateTopicGroup(topicsRealtime[0])
 		}
 	}
 
@@ -402,7 +404,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 func (r *RedshiftSinkReconciler) Reconcile(
 	req ctrl.Request) (_ ctrl.Result, reterr error) {
 
-	klog.Infof("Reconciling %+v", req)
+	klog.Infof("Reconciling %+v {-_-}", req)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

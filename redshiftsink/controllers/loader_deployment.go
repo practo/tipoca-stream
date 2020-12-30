@@ -150,7 +150,6 @@ func NewLoader(
 		namespace:      rsk.Namespace,
 		labels:         labels,
 		replicas:       &replicas,
-		deploymentName: name,
 		resources:      rsk.Spec.Loader.PodTemplate.Resources,
 		tolerations:    rsk.Spec.Loader.PodTemplate.Tolerations,
 		image:          getImage(rsk.Spec.Loader.PodTemplate.Image, false),

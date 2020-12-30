@@ -26,7 +26,6 @@ type deploymentSpec struct {
 	namespace      string
 	labels         map[string]string
 	replicas       *int32
-	deploymentName string
 	resources      *corev1.ResourceRequirements
 	tolerations    *[]corev1.Toleration
 	image          string
@@ -58,7 +57,7 @@ func deploymentFromSpec(
 ) *appsv1.Deployment {
 	d := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      deploySpec.deploymentName,
+			Name:      deploySpec.name,
 			Namespace: deploySpec.namespace,
 		},
 		Spec: appsv1.DeploymentSpec{

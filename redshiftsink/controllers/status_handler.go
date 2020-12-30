@@ -64,18 +64,29 @@ func (r *statusHandler) reloadingDupe() []string {
 	return reloadDupeTopics
 }
 
-func (r *statusHandler) verify() bool {
-	if r.currentVersion == "" {
-		return true
-	}
-
-	total := len(r.reloading()) + len(r.realtime()) + len(r.released())
-	if total != len(r.allTopics) {
-		return false
-	}
-
-	return true
-}
+// func (r *statusHandler) verify() bool {
+// 	if r.currentVersion == "" {
+// 		return true
+// 	}
+//
+// 	reloading := len(r.reloading())
+// 	realtime  := len(r.realtime())
+// 	released  := len(r.released())
+//
+// 	total := reloading + realtime + released
+// 	if total != len(r.allTopics) {
+// 		klog.V(2).Infof(
+// 			"allTopics: %d != relaoding: %d + realtime: %d + released: %d",
+// 			len(r.allTopics),
+// 			reloading,
+// 			realtime,
+// 			released,
+// 		)
+// 		return false
+// 	}
+//
+// 	return true
+// }
 
 func removeReleased(from []string, released map[string]bool) []string {
 	topics := []string{}
@@ -176,6 +187,13 @@ func (r *statusHandler) updateMaskStatus(
 	topicsRealtime []string,
 	topicsReloading []string,
 ) {
+	currentVersion := &r.currentVersion
+	if len(r.allTopics) == len(topicsReleased) &&
+		len(topicsReloading) == 0 && len(topicsRealtime) == 0 {
+
+		currentVersion = &r.desiredVersion
+	}
+
 	maskStatus := tipocav1.MaskStatus{
 		CurrentMaskStatus: r.computerCurrentMaskStatus(
 			toMap(topicsReleased),
@@ -183,7 +201,7 @@ func (r *statusHandler) updateMaskStatus(
 			toMap(topicsReloading),
 		),
 		DesiredMaskStatus:  r.computeDesiredMaskStatus(),
-		CurrentMaskVersion: &r.currentVersion,
+		CurrentMaskVersion: currentVersion,
 		DesiredMaskVersion: &r.desiredVersion,
 	}
 	r.rsk.Status.MaskStatus = &maskStatus
@@ -222,6 +240,23 @@ func (r *statusHandler) initTopicGroup() {
 			LoaderTopicPrefix: prefix,
 			ID:                groupID,
 		}
+	}
+}
+
+func (r *statusHandler) updateTopicGroup(topic string) {
+	if r.rsk.Status.TopicGroup == nil {
+		r.rsk.Status.TopicGroup = make(map[string]tipocav1.Group)
+	}
+
+	groupID := groupIDFromVersion(r.desiredVersion)
+	prefix := loaderPrefixFromGroupID(
+		r.rsk.Spec.KafkaLoaderTopicPrefix,
+		groupID,
+	)
+
+	r.rsk.Status.TopicGroup[topic] = tipocav1.Group{
+		LoaderTopicPrefix: prefix,
+		ID:                groupID,
 	}
 }
 
