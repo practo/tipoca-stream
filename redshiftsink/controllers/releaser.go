@@ -74,6 +74,7 @@ func (r *releaser) release(
 	group *string,
 ) error {
 	klog.Infof("releasing topic: %s", topic)
+	return nil
 
 	_, _, table := transformer.ParseTopic(topic)
 	tempTable := tempTableName(table)

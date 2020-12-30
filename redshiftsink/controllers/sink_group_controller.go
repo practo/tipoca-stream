@@ -170,52 +170,156 @@ func (s *sinkGroup) reconcileConfigMap(
 	if err != nil {
 		return nil, err
 	}
-	if !exists {
-		klog.Infof("%v: Creating configMap", d.Name())
-		event, err := createConfigMap(ctx, s.client, config, s.rsk)
-		if err != nil {
-			return nil, err
-		}
-		ctrl.SetControllerReference(s.rsk, config, s.scheme)
-		return event, nil
+	if exists {
+		return nil, nil
 	}
+
+	klog.Infof("%v: Creating configMap", d.Name())
+	event, err := createConfigMap(ctx, s.client, config, s.rsk)
+	if err != nil {
+		return nil, err
+	}
+	ctrl.SetControllerReference(s.rsk, config, s.scheme)
+	return event, nil
+}
+
+func (s *sinkGroup) reconcileDeployment(
+	ctx context.Context,
+	labelInstance string,
+	d Deployment,
+) (
+	ReconcilerEvent,
+	error,
+) {
+	deployment := d.Deployment()
+	configMap := d.Config()
+
+	_, exists, err := getDeployment(
+		ctx,
+		s.client,
+		deployment.Name,
+		d.Namespace(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, nil
+	}
+
+	// find and cleanup dead deployments
+	deploymentList, err := listDeployments(
+		ctx,
+		s.client,
+		labelInstance,
+		d.Namespace(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	for _, deploy := range deploymentList.Items {
+		labelValue, ok := deploy.Labels[InstanceName]
+		if !ok {
+			continue
+		}
+		if labelValue != deployment.Name {
+			event, err := deleteDeployment(ctx, s.client, &deploy, s.rsk)
+			if err != nil {
+				return nil, err
+			}
+			if event != nil {
+				return event, nil
+			}
+		}
+	}
+
+	// find and cleanup dead config maps
+	configMapList, err := listConfigMaps(
+		ctx,
+		s.client,
+		labelInstance,
+		d.Namespace(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	for _, config := range configMapList.Items {
+		labelValue, ok := config.Labels[InstanceName]
+		if !ok {
+			continue
+		}
+		if labelValue != configMap.Name {
+			event, err := deleteConfigMap(ctx, s.client, &config, s.rsk)
+			if err != nil {
+				return nil, err
+			}
+			if event != nil {
+				return event, nil
+			}
+		}
+	}
+
+	// create new deployment pointing to new config map
+	klog.Infof("%v: Creating deployment", d.Name())
+	event, err := createDeployment(ctx, s.client, deployment, s.rsk)
+	if err != nil {
+		return nil, err
+	}
+	ctrl.SetControllerReference(s.rsk, deployment, s.scheme)
+	return event, nil
 
 	return nil, nil
 }
 
-func (s *sinkGroup) reconcileDeployment(
+func (s *sinkGroup) reconcileBatcher(
 	ctx context.Context,
 	d Deployment,
 ) (
 	ReconcilerEvent,
 	error,
 ) {
-	current, exists, err := getDeployment(
-		ctx,
-		s.client,
-		d.Name(),
-		d.Namespace(),
-	)
+	// reconcile batcher configMap
+	event, err := s.reconcileConfigMap(ctx, s.batcher)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Error reconciling batcher configMap, %v", err)
 	}
-	if !exists {
-		klog.Infof("%v: Creating deployment", d.Name())
-		event, err := createDeployment(ctx, s.client, d.Deployment(), s.rsk)
-		if err != nil {
-			return nil, err
-		}
-		ctrl.SetControllerReference(s.rsk, d.Deployment(), s.scheme)
+	if event != nil {
 		return event, nil
 	}
 
-	if d.UpdateDeployment(current) {
-		klog.Infof("%v: Updating deployment", d.Name())
-		event, err := updateDeployment(ctx, s.client, d.Deployment(), s.rsk)
-		if err != nil {
-			return nil, err
-		}
-		ctrl.SetControllerReference(s.rsk, d.Deployment(), s.scheme)
+	// reconcile batcher deployment
+	event, err = s.reconcileDeployment(ctx, BatcherLabelInstance, s.batcher)
+	if err != nil {
+		return nil, fmt.Errorf("Error reconciling batcher deployment, %v", err)
+	}
+	if event != nil {
+		return event, nil
+	}
+
+	return nil, nil
+}
+
+func (s *sinkGroup) reconcileLoader(
+	ctx context.Context,
+	d Deployment,
+) (
+	ReconcilerEvent,
+	error,
+) {
+	event, err := s.reconcileConfigMap(ctx, s.loader)
+	if err != nil {
+		return nil, fmt.Errorf("Error reconciling loader configMap, %v", err)
+	}
+	if event != nil {
+		return event, nil
+	}
+
+	// reconcile loader deployment
+	event, err = s.reconcileDeployment(ctx, LoaderLabelInstance, s.loader)
+	if err != nil {
+		return nil, fmt.Errorf("Error reconciling loader deployment, %v", err)
+	}
+	if event != nil {
 		return event, nil
 	}
 
@@ -229,37 +333,17 @@ func (s *sinkGroup) reconcile(
 ) {
 	result := ctrl.Result{RequeueAfter: time.Second * 10}
 
-	// reconcile batcher configMap
-	event, err := s.reconcileConfigMap(ctx, s.batcher)
+	event, err := s.reconcileBatcher(ctx, s.batcher)
 	if err != nil {
-		return result, nil, fmt.Errorf("Error reconciling batcher, %v", err)
+		return result, nil, err
 	}
 	if event != nil {
 		return result, event, nil
 	}
 
-	// reconcile batcher deployment
-	event, err = s.reconcileDeployment(ctx, s.batcher)
+	event, err = s.reconcileLoader(ctx, s.loader)
 	if err != nil {
-		return result, nil, fmt.Errorf("Error reconciling batcher, %v", err)
-	}
-	if event != nil {
-		return result, event, nil
-	}
-
-	// reconcile loader configMap
-	event, err = s.reconcileConfigMap(ctx, s.loader)
-	if err != nil {
-		return result, nil, fmt.Errorf("Error reconciling loader, %v", err)
-	}
-	if event != nil {
-		return result, event, nil
-	}
-
-	// reconcile loader deployment
-	event, err = s.reconcileDeployment(ctx, s.loader)
-	if err != nil {
-		return result, nil, fmt.Errorf("Error reconciling loader, %v", err)
+		return result, nil, err
 	}
 	if event != nil {
 		return result, event, nil

@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	LoaderSuffix       = "-loader"
-	LoaderDefaultImage = "practodev/redshiftloader:latest"
+	LoaderSuffix        = "-loader"
+	LoaderLabelInstance = "redshiftloader"
+	LoaderDefaultImage  = "practodev/redshiftloader:latest"
 )
 
 type Loader struct {
@@ -131,10 +132,11 @@ func NewLoader(
 	}
 
 	confString := string(confBytes)
-	labels := getDefaultLabels("redshiftloader")
+	objectName := getObjectName(name, confString)
+	labels := getDefaultLabels(LoaderLabelInstance, objectName)
 
 	configSpec := configMapSpec{
-		name:       getConfigMapName(name, confString),
+		name:       objectName,
 		namespace:  rsk.Namespace,
 		labels:     labels,
 		volumeName: name,
@@ -144,7 +146,7 @@ func NewLoader(
 	}
 
 	deploySpec := deploymentSpec{
-		name:           name,
+		name:           objectName,
 		namespace:      rsk.Namespace,
 		labels:         labels,
 		replicas:       &replicas,

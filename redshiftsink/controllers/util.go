@@ -16,6 +16,11 @@ import (
 	"strings"
 )
 
+const (
+	InstanceLabel = "app.kubernetes.io/instance"
+	InstanceName  = "practo.dev/name"
+)
+
 type deploymentSpec struct {
 	name           string
 	namespace      string
@@ -117,19 +122,19 @@ func generateConfigHash(data string) string {
 	return *hash
 }
 
-func getConfigMapName(prefix, data string) string {
+func getObjectName(prefix, data string) string {
 	hash := generateConfigHash(data)
 	return prefix + "-" + hash[:6]
 }
 
 // getDefaultLabels gives back the default labels for the crd resources
-func getDefaultLabels(app string) map[string]string {
+func getDefaultLabels(instance string, name string) map[string]string {
 	return map[string]string{
 		"app":                          "redshiftsink",
-		"app.kubernetes.io/instance":   app,
+		InstanceLabel:                  instance,
 		"app.kubernetes.io/managed-by": "redshiftsink-operator",
 		"practo.dev/kind":              "RedshiftSink",
-		"practo.dev/name":              app,
+		InstanceName:                   name,
 	}
 }
 
@@ -299,6 +304,28 @@ func getDeployment(
 	return deployment, true, nil
 }
 
+func listDeployments(
+	ctx context.Context,
+	clientCrudder client.Client,
+	instance string,
+	namespace string,
+) (
+	*appsv1.DeploymentList,
+	error,
+) {
+	list := &appsv1.DeploymentList{}
+	options := []client.ListOption{
+		client.InNamespace(namespace),
+		client.MatchingLabels{InstanceLabel: instance},
+	}
+	err := clientCrudder.List(ctx, list, options...)
+	if err != nil {
+		return nil, err
+	}
+
+	return list, nil
+}
+
 func createDeployment(
 	ctx context.Context,
 	client client.Client,
@@ -320,20 +347,25 @@ func createDeployment(
 
 }
 
-func updateDeployment(
+func deleteDeployment(
 	ctx context.Context,
-	client client.Client,
+	clientCrudder client.Client,
 	deployment *appsv1.Deployment,
-	redshiftsink *tipocav1.RedshiftSink) (*DeploymentUpdatedEvent, error) {
+	redshiftsink *tipocav1.RedshiftSink) (*DeploymentDeletedEvent, error) {
 
-	err := client.Update(ctx, deployment)
+	err := clientCrudder.Delete(
+		ctx,
+		deployment,
+		client.PropagationPolicy(metav1.DeletePropagationForeground),
+	)
 	if err != nil {
-		klog.Errorf("Failed to update Deployment: %s/%s, err: %v\n",
+		klog.Errorf(
+			"Failed to delete Deployment: %s/%s, err: %v\n",
 			deployment.Namespace, deployment.Name, err)
 		return nil, err
 	}
 
-	return &DeploymentUpdatedEvent{
+	return &DeploymentDeletedEvent{
 		Object: redshiftsink,
 		Name:   deployment.Name,
 	}, nil
@@ -358,6 +390,28 @@ func getConfigMap(
 	return configMap, true, nil
 }
 
+func listConfigMaps(
+	ctx context.Context,
+	clientCrudder client.Client,
+	instance string,
+	namespace string,
+) (
+	*corev1.ConfigMapList,
+	error,
+) {
+	list := &corev1.ConfigMapList{}
+	options := []client.ListOption{
+		client.InNamespace(namespace),
+		client.MatchingLabels{InstanceLabel: instance},
+	}
+	err := clientCrudder.List(ctx, list, options...)
+	if err != nil {
+		return nil, err
+	}
+
+	return list, nil
+}
+
 func createConfigMap(
 	ctx context.Context,
 	client client.Client,
@@ -377,20 +431,21 @@ func createConfigMap(
 	}, nil
 }
 
-func updateConfigMap(
+func deleteConfigMap(
 	ctx context.Context,
 	client client.Client,
 	configMap *corev1.ConfigMap,
-	redshiftsink *tipocav1.RedshiftSink) (*ConfigMapUpdatedEvent, error) {
+	redshiftsink *tipocav1.RedshiftSink) (*ConfigMapDeletedEvent, error) {
 
-	err := client.Update(ctx, configMap)
+	err := client.Delete(ctx, configMap)
 	if err != nil {
-		klog.Errorf("Failed to update configMap: %s/%s, err: %v\n",
+		klog.Errorf(
+			"Failed to delete ConfigMap: %s/%s, err: %v\n",
 			configMap.Namespace, configMap.Name, err)
 		return nil, err
 	}
 
-	return &ConfigMapUpdatedEvent{
+	return &ConfigMapDeletedEvent{
 		Object: redshiftsink,
 		Name:   configMap.Name,
 	}, nil
