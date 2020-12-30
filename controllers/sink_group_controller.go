@@ -174,7 +174,7 @@ func (s *sinkGroup) reconcileConfigMap(
 		return nil, nil
 	}
 
-	klog.V(2).Infof("Creating configMap: %v", config.name)
+	klog.V(2).Infof("Creating configMap: %v", config.Name)
 	event, err := createConfigMap(ctx, s.client, config, s.rsk)
 	if err != nil {
 		return nil, err
@@ -264,7 +264,7 @@ func (s *sinkGroup) reconcileDeployment(
 	}
 
 	// create new deployment pointing to new config map
-	klog.V(2).Infof("Creating deployment: %v", deployment.name)
+	klog.V(2).Infof("Creating deployment: %v", deployment.Name)
 	event, err := createDeployment(ctx, s.client, deployment, s.rsk)
 	if err != nil {
 		return nil, err
