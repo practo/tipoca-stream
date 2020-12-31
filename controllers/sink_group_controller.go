@@ -3,6 +3,8 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"time"
+
 	klog "github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	consumer "github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
@@ -11,7 +13,6 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
-	"time"
 )
 
 const (
@@ -85,6 +86,7 @@ func newSinkGroup(
 		rsk,
 		maskFileVersion,
 		secret,
+		name,
 		consumerGroups,
 	)
 	if err != nil {
@@ -96,6 +98,7 @@ func newSinkGroup(
 		rsk,
 		tableSuffix,
 		secret,
+		name,
 		consumerGroups,
 	)
 	if err != nil {
@@ -194,7 +197,7 @@ func (s *sinkGroup) reconcileDeployment(
 	deployment := d.Deployment()
 	configMap := d.Config()
 
-	_, exists, err := getDeployment(
+	current, exists, err := getDeployment(
 		ctx,
 		s.client,
 		deployment.Name,
@@ -204,6 +207,17 @@ func (s *sinkGroup) reconcileDeployment(
 		return nil, err
 	}
 	if exists {
+		if !d.UpdateDeployment(current) {
+			return nil, nil
+		}
+		klog.V(2).Infof("Updating deployment: %v", deployment.Name)
+		event, err := updateDeployment(ctx, s.client, deployment, s.rsk)
+		if err != nil {
+			return nil, err
+		}
+		if event != nil {
+			return event, nil
+		}
 		return nil, nil
 	}
 
@@ -212,19 +226,19 @@ func (s *sinkGroup) reconcileDeployment(
 		ctx,
 		s.client,
 		labelInstance,
+		s.name,
 		d.Namespace(),
 	)
 	if err != nil {
 		return nil, err
 	}
-	klog.V(5).Infof("[Cleanup] DeploymentsList: %+v", len(deploymentList.Items))
 	for _, deploy := range deploymentList.Items {
 		labelValue, ok := deploy.Labels[InstanceName]
 		if !ok {
 			continue
 		}
 		if labelValue != deployment.Name {
-			klog.V(5).Infof("[Cleanup] Deleting deployment %s", labelValue)
+			klog.V(2).Infof("[Cleanup] Deleting deployment %s", labelValue)
 			event, err := deleteDeployment(ctx, s.client, &deploy, s.rsk)
 			if err != nil {
 				return nil, err
@@ -240,6 +254,7 @@ func (s *sinkGroup) reconcileDeployment(
 		ctx,
 		s.client,
 		labelInstance,
+		s.name,
 		d.Namespace(),
 	)
 	if err != nil {
@@ -252,7 +267,7 @@ func (s *sinkGroup) reconcileDeployment(
 			continue
 		}
 		if labelValue != configMap.Name {
-			klog.V(5).Infof("[Cleanup] Deleting configMap %s", labelValue)
+			klog.V(2).Infof("[Cleanup] Deleting configMap %s", labelValue)
 			event, err := deleteConfigMap(ctx, s.client, &config, s.rsk)
 			if err != nil {
 				return nil, err
@@ -271,8 +286,6 @@ func (s *sinkGroup) reconcileDeployment(
 	}
 	ctrl.SetControllerReference(s.rsk, deployment, s.scheme)
 	return event, nil
-
-	return nil, nil
 }
 
 func (s *sinkGroup) reconcileBatcher(
@@ -363,6 +376,7 @@ func (s *sinkGroup) realtimeTopics(
 ) (
 	[]string, error,
 ) {
+	// return s.topics, nil
 	// return []string{"db.inventory.customers"}, nil
 	realtimeTopics := []string{}
 	for _, topic := range s.topics {

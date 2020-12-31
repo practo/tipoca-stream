@@ -268,9 +268,9 @@ func (r *RedshiftSinkReconciler) reconcile(
 	topicsRealtime := status.realtime()
 	topicsReloading := status.reloading()
 
-	klog.V(4).Infof("released: %v", topicsReleased)
-	klog.V(4).Infof("realtime: %v", topicsRealtime)
-	klog.V(4).Infof("reloading: %v", topicsReloading)
+	klog.V(3).Infof("released: %v", topicsReleased)
+	klog.V(3).Infof("realtime: %v", topicsRealtime)
+	klog.V(3).Infof("reloading: %v", topicsReloading)
 
 	reloadSinkGroup := newSinkGroup(
 		ReloadSinkGroup, r.Client, r.Scheme, rsk,
@@ -284,7 +284,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, err
 	}
 
-	klog.V(4).Infof("realtime (latest): %v", topicsRealtime)
+	klog.V(3).Infof("realtime (latest): %v", topicsRealtime)
 
 	status.updateMaskStatus(
 		topicsReleased,
@@ -404,7 +404,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 func (r *RedshiftSinkReconciler) Reconcile(
 	req ctrl.Request) (_ ctrl.Result, reterr error) {
 
-	klog.Infof("Reconciling %+v {-_-}", req)
+	klog.Infof("Reconciling %+v ---------------------", req)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

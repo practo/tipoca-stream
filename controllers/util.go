@@ -2,6 +2,10 @@ package controllers
 
 import (
 	"context"
+	"reflect"
+	"sort"
+	"strings"
+
 	klog "github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	masker "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
@@ -10,15 +14,13 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
-	"reflect"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
-	"sort"
-	"strings"
 )
 
 const (
-	InstanceLabel = "app.kubernetes.io/instance"
-	InstanceName  = "practo.dev/name"
+	InstanceLabel  = "app.kubernetes.io/instance"
+	InstanceName   = "practo.dev/name"
+	SinkGroupLabel = "practo.dev/sinkgroup"
 )
 
 type deploymentSpec struct {
@@ -46,6 +48,7 @@ func configFromSpec(configSpec configMapSpec) *corev1.ConfigMap {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      configSpec.name,
 			Namespace: configSpec.namespace,
+			Labels:    configSpec.labels,
 		},
 		Data: configSpec.data,
 	}
@@ -59,6 +62,7 @@ func deploymentFromSpec(
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deploySpec.name,
 			Namespace: deploySpec.namespace,
+			Labels:    deploySpec.labels,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: deploySpec.replicas,
@@ -127,13 +131,16 @@ func getObjectName(prefix, data string) string {
 }
 
 // getDefaultLabels gives back the default labels for the crd resources
-func getDefaultLabels(instance string, name string) map[string]string {
+func getDefaultLabels(
+	instance, sinkGroup, objectName string) map[string]string {
+
 	return map[string]string{
 		"app":                          "redshiftsink",
 		InstanceLabel:                  instance,
+		InstanceName:                   objectName,
+		SinkGroupLabel:                 sinkGroup,
 		"app.kubernetes.io/managed-by": "redshiftsink-operator",
 		"practo.dev/kind":              "RedshiftSink",
-		InstanceName:                   name,
 	}
 }
 
@@ -307,6 +314,7 @@ func listDeployments(
 	ctx context.Context,
 	clientCrudder client.Client,
 	instance string,
+	sinkGroup string,
 	namespace string,
 ) (
 	*appsv1.DeploymentList,
@@ -315,7 +323,10 @@ func listDeployments(
 	list := &appsv1.DeploymentList{}
 	options := []client.ListOption{
 		client.InNamespace(namespace),
-		client.MatchingLabels{InstanceLabel: instance},
+		client.MatchingLabels{
+			InstanceLabel:  instance,
+			SinkGroupLabel: sinkGroup,
+		},
 	}
 	err := clientCrudder.List(ctx, list, options...)
 	if err != nil {
@@ -340,6 +351,27 @@ func createDeployment(
 	}
 
 	return &DeploymentCreatedEvent{
+		Object: redshiftsink,
+		Name:   deployment.Name,
+	}, nil
+
+}
+
+func updateDeployment(
+	ctx context.Context,
+	client client.Client,
+	deployment *appsv1.Deployment,
+	redshiftsink *tipocav1.RedshiftSink) (*DeploymentUpdatedEvent, error) {
+
+	err := client.Update(ctx, deployment)
+	if err != nil {
+		klog.Errorf(
+			"Failed to update Deployment: %s/%s, err: %v\n",
+			deployment.Namespace, deployment.Name, err)
+		return nil, err
+	}
+
+	return &DeploymentUpdatedEvent{
 		Object: redshiftsink,
 		Name:   deployment.Name,
 	}, nil
@@ -393,6 +425,7 @@ func listConfigMaps(
 	ctx context.Context,
 	clientCrudder client.Client,
 	instance string,
+	sinkGroup string,
 	namespace string,
 ) (
 	*corev1.ConfigMapList,
@@ -401,7 +434,10 @@ func listConfigMaps(
 	list := &corev1.ConfigMapList{}
 	options := []client.ListOption{
 		client.InNamespace(namespace),
-		client.MatchingLabels{InstanceLabel: instance},
+		client.MatchingLabels{
+			InstanceLabel:  instance,
+			SinkGroupLabel: sinkGroup,
+		},
 	}
 	err := clientCrudder.List(ctx, list, options...)
 	if err != nil {

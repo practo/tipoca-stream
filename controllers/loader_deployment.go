@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	"github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftloader/config"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
@@ -58,6 +59,7 @@ func NewLoader(
 	rsk *tipocav1.RedshiftSink,
 	tableSuffix string,
 	secret map[string]string,
+	sinkGroup string,
 	consumerGroups map[string]consumerGroup,
 ) (
 	Deployment,
@@ -133,7 +135,7 @@ func NewLoader(
 
 	confString := string(confBytes)
 	objectName := getObjectName(name, confString)
-	labels := getDefaultLabels(LoaderLabelInstance, objectName)
+	labels := getDefaultLabels(LoaderLabelInstance, sinkGroup, objectName)
 
 	configSpec := configMapSpec{
 		name:       objectName,

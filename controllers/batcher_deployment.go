@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	"github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftbatcher/config"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
@@ -53,6 +54,7 @@ func NewBatcher(
 	rsk *tipocav1.RedshiftSink,
 	maskFileVersion string,
 	secret map[string]string,
+	sinkGroup string,
 	consumerGroups map[string]consumerGroup,
 ) (
 	Deployment,
@@ -116,7 +118,7 @@ func NewBatcher(
 
 	confString := string(confBytes)
 	objectName := getObjectName(name, confString)
-	labels := getDefaultLabels(BatcherLabelInstance, objectName)
+	labels := getDefaultLabels(BatcherLabelInstance, sinkGroup, objectName)
 
 	configSpec := configMapSpec{
 		name:       objectName,
