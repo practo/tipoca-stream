@@ -158,12 +158,20 @@ func getImage(image *string, batcher bool) string {
 }
 
 // replicas for the crd resources batcher and loader are boolean, either 1 or 0
-func getReplicas(suspend bool) int32 {
+func getReplicas(suspend bool, totalGroups, totalTopics int) int32 {
 	if suspend {
 		return 0
-	} else {
-		return 1
 	}
+
+	if totalGroups == 0 {
+		return 0
+	}
+
+	if totalTopics == 0 {
+		return 0
+	}
+
+	return 1
 }
 
 func makeLoaderTopics(prefix string, topics []string) []string {

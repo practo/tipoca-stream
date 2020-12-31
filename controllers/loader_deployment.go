@@ -126,12 +126,11 @@ func NewLoader(
 		return nil, err
 	}
 
-	var replicas int32
-	if totalTopics > 0 {
-		replicas = getReplicas(rsk.Spec.Batcher.Suspend)
-	} else {
-		replicas = 0
-	}
+	replicas := getReplicas(
+		rsk.Spec.Batcher.Suspend,
+		len(consumerGroups),
+		totalTopics,
+	)
 
 	confString := string(confBytes)
 	objectName := getObjectName(name, confString)
