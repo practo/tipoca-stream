@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+
 	// tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	klog "github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
@@ -74,8 +75,6 @@ func (r *releaser) release(
 	group *string,
 ) error {
 	klog.Infof("releasing topic: %s", topic)
-	return nil
-
 	_, _, table := transformer.ParseTopic(topic)
 	tempTable := tempTableName(table)
 	reloadedTable := table + tableSuffix

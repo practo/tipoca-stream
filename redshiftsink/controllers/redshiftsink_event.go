@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 )
@@ -21,8 +22,8 @@ type ReconcilerEvent interface {
 }
 
 // There are 3 types of RedshiftSink event
-// 1. Deployment (created, updated)
-// 2. ConfigMap  (created, updated)
+// 1. Deployment (created, updated, deleted)
+// 2. ConfigMap  (created, deleted)
 // 3. TopicReleased (released)
 
 type DeploymentCreatedEvent struct {
@@ -35,6 +36,18 @@ func (d DeploymentCreatedEvent) Record(recorder record.EventRecorder) {
 		K8sEventTypeNormal,
 		"DeploymentCreated",
 		fmt.Sprintf("Created deployment: %s", d.Name))
+}
+
+type DeploymentUpdatedEvent struct {
+	Object runtime.Object
+	Name   string
+}
+
+func (d DeploymentUpdatedEvent) Record(recorder record.EventRecorder) {
+	recorder.Event(d.Object,
+		K8sEventTypeNormal,
+		"DeploymentUpdated",
+		fmt.Sprintf("Updated deployment: %s", d.Name))
 }
 
 type DeploymentDeletedEvent struct {
