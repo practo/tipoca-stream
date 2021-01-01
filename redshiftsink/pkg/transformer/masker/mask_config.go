@@ -2,15 +2,16 @@ package masker
 
 import (
 	"fmt"
-	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/git"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/git"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -73,7 +74,7 @@ func downloadMaskFile(
 
 	switch url.Scheme {
 	case "file":
-		klog.V(2).Info("Mask file is of file type, nothing to download")
+		klog.V(4).Info("Mask file is of file type, nothing to download")
 		return maskFile, nil
 	default:
 		if maskFileVersion == "" {
@@ -101,7 +102,7 @@ func downloadMaskFile(
 			gitToken,
 		)
 
-		klog.V(2).Infof("Downloading git repo: %s", repo)
+		klog.V(4).Infof("Downloading git repo: %s", repo)
 		err = g.Clone()
 		if err != nil {
 			return "", err
@@ -110,7 +111,7 @@ func downloadMaskFile(
 		if err != nil {
 			return "", err
 		}
-		klog.V(2).Infof("Downloaded git repo at: %s", dir)
+		klog.V(4).Infof("Downloaded git repo at: %s", dir)
 
 		sourceFile := filepath.Join(dir, configFilePath)
 		destFile := filepath.Join(homeDir, filepath.Base(sourceFile))
@@ -120,7 +121,7 @@ func downloadMaskFile(
 				"Error copying! src: %s, dest: %s, err:%v\n",
 				sourceFile, destFile, err)
 		}
-		klog.V(2).Info("Copied the mask file at the read location")
+		klog.V(4).Info("Copied the mask file at the read location")
 
 		return destFile, nil
 	}

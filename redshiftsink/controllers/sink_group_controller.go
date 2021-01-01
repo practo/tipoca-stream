@@ -348,7 +348,7 @@ func (s *sinkGroup) reconcile(
 ) (
 	ctrl.Result, ReconcilerEvent, error,
 ) {
-	result := ctrl.Result{RequeueAfter: time.Second * 10}
+	result := ctrl.Result{RequeueAfter: time.Second * 15}
 
 	event, err := s.reconcileBatcher(ctx, s.batcher)
 	if err != nil {
@@ -376,7 +376,7 @@ func (s *sinkGroup) realtimeTopics(
 ) (
 	[]string, error,
 ) {
-	// return s.topics, nil
+	return s.topics, nil
 	// return []string{"db.inventory.customers"}, nil
 	realtimeTopics := []string{}
 	for _, topic := range s.topics {
