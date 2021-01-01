@@ -237,6 +237,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		currentMaskVersion = ""
 	}
 
+	// TODO: add cache to prevent multiple pull from github and diff
 	diff, err := MaskDiff(
 		kafkaTopics,
 		rsk.Spec.Batcher.MaskFile,
@@ -257,11 +258,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 		currentMaskVersion,
 		desiredMaskVersion,
 		rsk)
-	// TODO: add some verifications
-	// if !status.verify() {
-	// 	return result, nil, fmt.Errorf(
-	// 		"topics status does not add up as expected")
-	// }
 	status.initTopicGroup()
 
 	topicsReleased := status.released()
@@ -295,6 +291,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	topicsRealtime = status.realtime()
 	topicsReloading = status.reloading()
 	topicsReloadingDupe := status.reloadingDupe()
+	klog.V(3).Infof("reloadingDupe: %v", topicsReloadingDupe)
 
 	// SinkGroup are of following types:
 	// 1. main: sink group which has desiredMaskVersion

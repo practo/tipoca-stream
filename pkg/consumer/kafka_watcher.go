@@ -2,10 +2,11 @@ package consumer
 
 import (
 	"fmt"
-	"github.com/Shopify/sarama"
-	"github.com/practo/klog/v2"
 	"sync"
 	"time"
+
+	"github.com/Shopify/sarama"
+	"github.com/practo/klog/v2"
 )
 
 type KafkaWatcher interface {
@@ -52,7 +53,7 @@ func (t *kafkaWatch) Topics() ([]string, error) {
 		return t.topics, nil
 	}
 
-	klog.V(3).Info("Refreshing kafka topic cache")
+	klog.V(4).Info("Refreshing kafka topic cache")
 	// empty so that it refresh all topics
 	emptyTopics := []string{}
 	err := t.client.RefreshMetadata(emptyTopics...)

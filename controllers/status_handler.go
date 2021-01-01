@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"fmt"
+
 	klog "github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 )
@@ -44,49 +45,39 @@ func (r *statusHandler) released() []string {
 	return r.getTopics(tipocav1.MaskActive, r.desiredVersion)
 }
 
+func (r *statusHandler) currentTopicStatus(
+	topic string) *tipocav1.TopicMaskStatus {
+
+	if r.rsk.Status.MaskStatus != nil &&
+		r.rsk.Status.MaskStatus.CurrentMaskStatus != nil {
+		topicStatus, ok := r.rsk.Status.MaskStatus.CurrentMaskStatus[topic]
+		if ok {
+			return &topicStatus
+		}
+	}
+
+	return nil
+}
+
 func (r *statusHandler) reloadingDupe() []string {
 	reloadDupeTopics := []string{}
 	reloading := r.reloading()
-	released := toMap(r.released())
-	for _, topicReloading := range reloading {
-		_, topicWasReleasedBefore := released[topicReloading]
+
+	for _, reloadingTopic := range reloading {
+		topicStatus := r.currentTopicStatus(reloadingTopic)
 		// never dupe a topic which is releasing for the first time
-		if !topicWasReleasedBefore {
+		if topicStatus == nil {
 			klog.V(3).Infof(
 				"topic: %s is a new topic, it was never released before",
-				topicReloading,
+				reloadingTopic,
 			)
 			continue
 		}
-		reloadDupeTopics = append(reloadDupeTopics, topicReloading)
+		reloadDupeTopics = append(reloadDupeTopics, reloadingTopic)
 	}
 
 	return reloadDupeTopics
 }
-
-// func (r *statusHandler) verify() bool {
-// 	if r.currentVersion == "" {
-// 		return true
-// 	}
-//
-// 	reloading := len(r.reloading())
-// 	realtime  := len(r.realtime())
-// 	released  := len(r.released())
-//
-// 	total := reloading + realtime + released
-// 	if total != len(r.allTopics) {
-// 		klog.V(2).Infof(
-// 			"allTopics: %d != relaoding: %d + realtime: %d + released: %d",
-// 			len(r.allTopics),
-// 			reloading,
-// 			realtime,
-// 			released,
-// 		)
-// 		return false
-// 	}
-//
-// 	return true
-// }
 
 func removeReleased(from []string, released map[string]bool) []string {
 	topics := []string{}
@@ -108,6 +99,7 @@ func (r *statusHandler) getTopics(
 	}
 
 	topics := []string{}
+
 	for topic, status := range r.rsk.Status.MaskStatus.CurrentMaskStatus {
 		if status.Phase == phase && status.Version == version {
 			topics = append(topics, topic)
@@ -131,6 +123,7 @@ func (r *statusHandler) computerCurrentMaskStatus(
 		// and the redshift schema operations for it is also done properly
 		_, ok := topicsReleased[topic]
 		if ok {
+			klog.V(5).Infof("%s/%s marked active", topic, r.desiredVersion)
 			status[topic] = tipocav1.TopicMaskStatus{
 				Version: r.desiredVersion,
 				Phase:   tipocav1.MaskActive,
@@ -143,6 +136,7 @@ func (r *statusHandler) computerCurrentMaskStatus(
 		// per reconcile, the topics might be there in this state
 		_, ok = topicsRealtime[topic]
 		if ok {
+			klog.V(5).Infof("%s/%s marked realtime", topic, r.desiredVersion)
 			status[topic] = tipocav1.TopicMaskStatus{
 				Version: r.desiredVersion,
 				Phase:   tipocav1.MaskRealtime,
@@ -153,10 +147,18 @@ func (r *statusHandler) computerCurrentMaskStatus(
 		// if the topic has not reached realtime and is still reloading
 		_, ok = topicsReloading[topic]
 		if ok {
+			klog.V(5).Infof("%s/%s marked reloading", topic, r.desiredVersion)
 			status[topic] = tipocav1.TopicMaskStatus{
 				Version: r.desiredVersion,
 				Phase:   tipocav1.MaskReloading,
 			}
+			continue
+		}
+
+		topicStatus := r.currentTopicStatus(topic)
+		if topicStatus != nil {
+			klog.V(5).Infof("%s status unchanged", topic)
+			status[topic] = *topicStatus
 			continue
 		}
 
