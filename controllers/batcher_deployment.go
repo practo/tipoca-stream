@@ -49,6 +49,10 @@ func batcherSecret(secret map[string]string) (map[string]string, error) {
 	return s, nil
 }
 
+func batcherName(rskName, sinkGroup string) string {
+	return fmt.Sprintf("%s-%s%s", rskName, sinkGroup, BatcherSuffix)
+}
+
 func NewBatcher(
 	name string,
 	rsk *tipocav1.RedshiftSink,

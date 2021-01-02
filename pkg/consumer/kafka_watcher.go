@@ -18,6 +18,7 @@ type kafkaWatch struct {
 	client               sarama.Client
 	cacheValidity        time.Duration
 	lastTopicRefreshTime *int64
+	brokers              []string
 
 	// mutex protects the following the mutable state
 	mutex sync.Mutex
@@ -43,6 +44,7 @@ func NewKafkaWatcher(brokers []string, version string) (KafkaWatcher, error) {
 		client:               client,
 		cacheValidity:        time.Second * time.Duration(30),
 		lastTopicRefreshTime: nil,
+		brokers:              brokers,
 	}, nil
 }
 
@@ -84,6 +86,45 @@ func (t *kafkaWatch) ConsumerGroupLag(
 	int64,
 	error,
 ) {
+	lag := int64(-1)
+
+	err := t.client.RefreshBrokers(t.brokers)
+	if err != nil {
+		return lag, err
+	}
+	err = t.client.RefreshMetadata(topic)
+	if err != nil {
+		return lag, err
+	}
+
+	for _, broker := range t.client.Brokers() {
+		err = broker.Open(t.client.Config())
+		if err != nil && err != sarama.ErrAlreadyConnected {
+			return lag, err
+		}
+
+		lag, err = t.consumerGroupLag(id, topic, 0, broker)
+		if err != nil {
+			return lag, err
+		}
+
+		if lag != -1 {
+			return lag, nil
+		}
+	}
+
+	return lag, nil
+}
+
+func (t *kafkaWatch) consumerGroupLag(
+	id string,
+	topic string,
+	partition int32,
+	broker *sarama.Broker,
+) (
+	int64,
+	error,
+) {
 	defaultLag := int64(-1)
 
 	lastOffset, err := t.client.GetOffset(topic, partition, sarama.OffsetNewest)
@@ -96,17 +137,6 @@ func (t *kafkaWatch) ConsumerGroupLag(
 		Version:       1,
 	}
 	offsetFetchRequest.AddPartition(topic, partition)
-
-	err = t.client.RefreshMetadata(topic)
-	if err != nil {
-		return defaultLag, err
-	}
-
-	broker, err := t.client.Leader(topic, partition)
-	if err != nil {
-		return defaultLag, fmt.Errorf(
-			"Error getting the leader broker, err: %v", err)
-	}
 
 	offsetFetchResponse, err := broker.FetchOffset(&offsetFetchRequest)
 	if err != nil {
