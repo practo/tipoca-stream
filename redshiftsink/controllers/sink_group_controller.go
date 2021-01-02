@@ -37,6 +37,8 @@ type sinkGroup struct {
 	topics            []string
 	loaderTopicPrefix string
 
+	topicGroups map[string]tipocav1.Group
+
 	client client.Client
 	scheme *runtime.Scheme
 	rsk    *tipocav1.RedshiftSink
@@ -82,7 +84,7 @@ func newSinkGroup(
 	}
 
 	batcher, err := NewBatcher(
-		rsk.Name+"-"+name+BatcherSuffix,
+		batcherName(rsk.Name, name),
 		rsk,
 		maskFileVersion,
 		secret,
@@ -94,7 +96,7 @@ func newSinkGroup(
 	}
 
 	loader, err := NewLoader(
-		rsk.Name+"-"+name+LoaderSuffix,
+		loaderName(rsk.Name, name),
 		rsk,
 		tableSuffix,
 		secret,
@@ -112,6 +114,8 @@ func newSinkGroup(
 
 		topics:            kafkaTopics,
 		loaderTopicPrefix: rsk.Spec.KafkaLoaderTopicPrefix,
+
+		topicGroups: topicGroups,
 
 		client: client,
 		scheme: scheme,
@@ -348,7 +352,7 @@ func (s *sinkGroup) reconcile(
 ) (
 	ctrl.Result, ReconcilerEvent, error,
 ) {
-	result := ctrl.Result{RequeueAfter: time.Second * 15}
+	result := ctrl.Result{RequeueAfter: time.Second * 1}
 
 	event, err := s.reconcileBatcher(ctx, s.batcher)
 	if err != nil {
@@ -376,12 +380,16 @@ func (s *sinkGroup) realtimeTopics(
 ) (
 	[]string, error,
 ) {
-	return s.topics, nil
-	// return []string{"db.inventory.customers"}, nil
 	realtimeTopics := []string{}
 	for _, topic := range s.topics {
+		group, ok := s.topicGroups[topic]
+		if !ok {
+			return realtimeTopics, fmt.Errorf("groupID not found for %s", topic)
+		}
+
+		batcherCGID := consumerGroupID(s.batcher.Name(), group.ID)
 		batcherLag, err := watcher.ConsumerGroupLag(
-			s.batcher.Name(),
+			batcherCGID,
 			topic,
 			0,
 		)
@@ -389,12 +397,13 @@ func (s *sinkGroup) realtimeTopics(
 			return realtimeTopics, err
 		}
 		if batcherLag == -1 {
-			klog.V(5).Infof("%v: consumer lag is -1, condition unmet", topic)
+			klog.V(3).Infof("%v: lag=-1, condition unmet", batcherCGID)
 			continue
 		}
 
+		loaderCGID := consumerGroupID(s.loader.Name(), group.ID)
 		loaderLag, err := watcher.ConsumerGroupLag(
-			s.loader.Name(),
+			loaderCGID,
 			s.loaderTopicPrefix+topic,
 			0,
 		)
@@ -402,23 +411,17 @@ func (s *sinkGroup) realtimeTopics(
 			return realtimeTopics, err
 		}
 		if loaderLag == -1 {
-			klog.V(5).Infof(
-				"%v%v: consumer lag is -1, condition unmet",
-				s.loaderTopicPrefix,
-				topic)
+			klog.V(3).Infof("%v: lag=-1, condition unmet", loaderCGID)
 			continue
 		}
 
-		klog.V(5).Infof("%v: batcher consumer group lag: %v", topic, batcherLag)
-		klog.V(5).Infof(
-			"%v%v: loader consumer group lag: %v",
-			s.loaderTopicPrefix, topic, loaderLag)
+		klog.V(3).Infof("%v: lag=%v", batcherCGID)
+		klog.V(3).Infof("%v: lag=%v", loaderCGID)
 
 		if s.lagBelowThreshold(topic, batcherLag, loaderLag) {
 			realtimeTopics = append(realtimeTopics, topic)
 		} else {
-			klog.V(2).Infof(
-				"%v: waiting for release condition to be met.", topic)
+			klog.V(2).Infof("%v: waiting to reach realtime", topic)
 		}
 	}
 

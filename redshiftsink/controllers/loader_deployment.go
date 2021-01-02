@@ -54,6 +54,10 @@ func loaderSecret(secret map[string]string) (map[string]string, error) {
 	return s, nil
 }
 
+func loaderName(rskName, sinkGroup string) string {
+	return fmt.Sprintf("%s-%s%s", rskName, sinkGroup, LoaderSuffix)
+}
+
 func NewLoader(
 	name string,
 	rsk *tipocav1.RedshiftSink,

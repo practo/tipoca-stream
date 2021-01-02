@@ -183,7 +183,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	ReconcilerEvent,
 	error,
 ) {
-	result := ctrl.Result{RequeueAfter: time.Second * 15}
+	result := ctrl.Result{RequeueAfter: time.Second * 1}
 
 	kafkaTopics, err := r.fetchLatestTopics(rsk.Spec.KafkaTopicRegexes)
 	if err != nil {
@@ -329,7 +329,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		secret,
 		"",
 	)
-	for _, sinkGroup := range []*sinkGroup{main, reload, reloadDupe} {
+	for _, sinkGroup := range []*sinkGroup{reloadDupe, reload, main} {
 		result, event, err := sinkGroup.reconcile(ctx)
 		if err != nil {
 			return result, nil, err
