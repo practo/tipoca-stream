@@ -28,7 +28,6 @@ type statusBuilder interface {
 	setRealtime() statusBuilder
 	computeReloading() statusBuilder
 	computeReloadingDupe() statusBuilder
-	setTopicGroup() statusBuilder
 	build() *status
 }
 
@@ -59,7 +58,7 @@ func (sb *builder) setCurrentVersion(version string) statusBuilder {
 }
 
 func (sb *builder) setDesiredVersion(version string) statusBuilder {
-	sb.currentVersion = version
+	sb.desiredVersion = version
 	return sb
 }
 
@@ -112,7 +111,7 @@ func (sb *builder) computeReloadingDupe() statusBuilder {
 	reloadDupeTopics := []string{}
 
 	for _, reloadingTopic := range sb.reloading {
-		topicStatus := currentTopicStatus(sb.rsk, reloadingTopic)
+		topicStatus := topicGroup(sb.rsk, reloadingTopic)
 		// never dupe a topic which is releasing for the first time
 		if topicStatus == nil {
 			klog.V(3).Infof(
@@ -128,33 +127,8 @@ func (sb *builder) computeReloadingDupe() statusBuilder {
 	return sb
 }
 
-func (sb *builder) setTopicGroup() statusBuilder {
-	if sb.rsk.Status.TopicGroup == nil {
-		sb.rsk.Status.TopicGroup = make(map[string]tipocav1.Group)
-	}
-	for _, topic := range sb.allTopics {
-		_, ok := sb.rsk.Status.TopicGroup[topic]
-		if ok {
-			continue
-		}
-
-		groupID := groupIDFromVersion(sb.desiredVersion)
-		prefix := loaderPrefixFromGroupID(
-			sb.rsk.Spec.KafkaLoaderTopicPrefix,
-			groupID,
-		)
-
-		sb.rsk.Status.TopicGroup[topic] = tipocav1.Group{
-			LoaderTopicPrefix: prefix,
-			ID:                groupID,
-		}
-	}
-
-	return sb
-}
-
 func (sb *builder) build() *status {
-	return &status{
+	s := &status{
 		rsk:            sb.rsk,
 		currentVersion: sb.currentVersion,
 		desiredVersion: sb.desiredVersion,
@@ -165,6 +139,9 @@ func (sb *builder) build() *status {
 		reloading:      sb.reloading,
 		reloadingDupe:  sb.reloadingDupe,
 	}
+
+	s.updateMaskStatus()
+	return s
 }
 
 func currentTopicsByMaskStatus(rsk *tipocav1.RedshiftSink, phase tipocav1.MaskPhase, version string) []string {
@@ -192,6 +169,15 @@ func currentTopicStatus(rsk *tipocav1.RedshiftSink, topic string) *tipocav1.Topi
 	}
 
 	return nil
+}
+
+func (s *status) info() {
+	klog.V(3).Infof("allTopics:  %d", len(s.allTopics))
+	klog.V(3).Infof("diffTopics: %d", len(s.diffTopics))
+	klog.V(2).Infof("released:   %d", len(s.released))
+	klog.V(2).Infof("reloading:  %d %v", len(s.reloading), s.reloading)
+	klog.V(2).Infof("rDupe:      %d %v", len(s.reloadingDupe), s.reloadingDupe)
+	klog.V(3).Infof("realtime:   %d %v", len(s.realtime), s.realtime)
 }
 
 func (s *status) updateTopicsOnRelease(releasedTopic string) {
@@ -287,6 +273,7 @@ func (s *status) updateMaskStatus() {
 }
 
 func (s *status) updateTopicGroup(topic string) {
+	klog.Infof("updating topic group: %s %+v", topic, s.rsk.Status)
 	if s.rsk.Status.TopicGroup == nil {
 		s.rsk.Status.TopicGroup = make(map[string]tipocav1.Group)
 	}
@@ -301,4 +288,5 @@ func (s *status) updateTopicGroup(topic string) {
 		LoaderTopicPrefix: prefix,
 		ID:                groupID,
 	}
+	klog.Infof("done")
 }

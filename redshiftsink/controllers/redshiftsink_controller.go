@@ -249,7 +249,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 	if err != nil {
 		return result, nil, fmt.Errorf("Error doing mask diff, err: %v", err)
 	}
-	klog.V(2).Infof("diff: %v", diffTopics)
 
 	builder := newStatusBuilder()
 	status := builder.
@@ -261,8 +260,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setReleased().
 		computeReloading().
 		computeReloadingDupe().
-		setTopicGroup().
 		build()
+	status.info()
 	defer status.updateMaskStatus()
 
 	// SinkGroup are of following types:
@@ -321,6 +320,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	// var releaser *releaser
 	if len(status.realtime) > 0 {
 		klog.V(2).Infof("release candidates: %v", status.realtime)
+		releasingTopic := status.realtime[0]
 		// releaser, releaseError = newReleaser(
 		// 	ctx, rsk.Spec.Loader.RedshiftSchema, secret)
 		// if releaseError != nil {
@@ -336,20 +336,20 @@ func (r *RedshiftSinkReconciler) reconcile(
 		if releaseError != nil {
 			klog.Errorf(
 				"Error releasing topic: %s, err: %v",
-				status.realtime[0],
+				releasingTopic,
 				releaseError,
 			)
 		} else {
 			topicReleaseEvent = &TopicReleasedEvent{
-				Topic:   status.realtime[0],
+				Topic:   releasingTopic,
 				Version: status.desiredVersion,
 			}
 			klog.V(2).Infof(
 				"released topic: %v, version: %v",
-				status.realtime[0], status.desiredVersion,
+				releasingTopic, status.desiredVersion,
 			)
-			status.updateTopicsOnRelease(status.realtime[0])
-			status.updateTopicGroup(status.realtime[0])
+			status.updateTopicsOnRelease(releasingTopic)
+			status.updateTopicGroup(releasingTopic)
 		}
 	}
 
