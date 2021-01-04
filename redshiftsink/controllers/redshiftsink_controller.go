@@ -203,14 +203,16 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, err
 	}
 
+	sgBuilder := newSinkGroupBuilder()
 	if rsk.Spec.Batcher.Mask == false {
-		maskLessSinkGroup := newSinkGroup(
-			MainSinkGroup, r.Client, r.Scheme, rsk,
-			kafkaTopics,
-			"",
-			secret,
-			"",
-		)
+		maskLessSinkGroup := sgBuilder.
+			setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).
+			setType(MainSinkGroup).
+			setTopics(kafkaTopics).
+			setMaskVersion("").
+			buildBatcher(secret).
+			buildLoader(secret, "").
+			build()
 		result, event, err := maskLessSinkGroup.reconcile(ctx)
 		return result, event, err
 	}
@@ -250,8 +252,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, fmt.Errorf("Error doing mask diff, err: %v", err)
 	}
 
-	builder := newStatusBuilder()
-	status := builder.
+	sBuilder := newStatusBuilder()
+	status := sBuilder.
 		setRedshiftSink(rsk).
 		setCurrentVersion(currentMaskVersion).
 		setDesiredVersion(desiredMaskVersion).
@@ -279,31 +281,41 @@ func (r *RedshiftSinkReconciler) reconcile(
 	//      consumer group: currentMaskVersion
 	//      tableSuffix: ""
 	var reload, reloadDupe, main *sinkGroup
-	reload = newSinkGroup(
-		ReloadSinkGroup, r.Client, r.Scheme, rsk,
-		status.reloading,
-		status.desiredVersion,
-		secret,
-		ReloadTableSuffix,
-	)
+
+	reload = sgBuilder.
+		setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).
+		setType(ReloadSinkGroup).
+		setTopics(status.reloading).
+		setMaskVersion(status.desiredVersion).
+		setTopicGroups().
+		buildBatcher(secret).
+		buildLoader(secret, ReloadTableSuffix).
+		build()
+
 	status.realtime, err = reload.realtimeTopics(r.KafkaWatcher)
 	if err != nil {
 		return result, nil, err
 	}
-	main = newSinkGroup(
-		MainSinkGroup, r.Client, r.Scheme, rsk,
-		status.released,
-		status.desiredVersion,
-		secret,
-		"",
-	)
-	reloadDupe = newSinkGroup(
-		ReloadDupeSinkGroup, r.Client, r.Scheme, rsk,
-		status.reloadingDupe,
-		status.desiredVersion,
-		secret,
-		"",
-	)
+
+	reloadDupe = sgBuilder.
+		setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).
+		setType(ReloadDupeSinkGroup).
+		setTopics(status.reloadingDupe).
+		setMaskVersion(status.desiredVersion).
+		setTopicGroups().
+		buildBatcher(secret).
+		buildLoader(secret, "").
+		build()
+	main = sgBuilder.
+		setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).
+		setType(MainSinkGroup).
+		setTopics(status.released).
+		setMaskVersion(status.desiredVersion).
+		setTopicGroups().
+		buildBatcher(secret).
+		buildLoader(secret, "").
+		build()
+
 	for _, sinkGroup := range []*sinkGroup{reloadDupe, reload, main} {
 		result, event, err := sinkGroup.reconcile(ctx)
 		if err != nil {
