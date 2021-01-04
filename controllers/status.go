@@ -32,10 +32,10 @@ type statusBuilder interface {
 }
 
 func newStatusBuilder() statusBuilder {
-	return &builder{}
+	return &buildStatus{}
 }
 
-type builder struct {
+type buildStatus struct {
 	currentVersion string
 	desiredVersion string
 	rsk            *tipocav1.RedshiftSink
@@ -47,46 +47,46 @@ type builder struct {
 	reloadingDupe  []string
 }
 
-func (sb *builder) setRedshiftSink(rsk *tipocav1.RedshiftSink) statusBuilder {
+func (sb *buildStatus) setRedshiftSink(rsk *tipocav1.RedshiftSink) statusBuilder {
 	sb.rsk = rsk
 	return sb
 }
 
-func (sb *builder) setCurrentVersion(version string) statusBuilder {
+func (sb *buildStatus) setCurrentVersion(version string) statusBuilder {
 	sb.currentVersion = version
 	return sb
 }
 
-func (sb *builder) setDesiredVersion(version string) statusBuilder {
+func (sb *buildStatus) setDesiredVersion(version string) statusBuilder {
 	sb.desiredVersion = version
 	return sb
 }
 
-func (sb *builder) setAllTopics(topics []string) statusBuilder {
+func (sb *buildStatus) setAllTopics(topics []string) statusBuilder {
 	sb.allTopics = topics
 	return sb
 }
 
-func (sb *builder) setDiffTopics(topics []string) statusBuilder {
+func (sb *buildStatus) setDiffTopics(topics []string) statusBuilder {
 	sb.diffTopics = topics
 	return sb
 }
 
-func (sb *builder) setReleased() statusBuilder {
+func (sb *buildStatus) setReleased() statusBuilder {
 	sb.released = currentTopicsByMaskStatus(
 		sb.rsk, tipocav1.MaskActive, sb.desiredVersion,
 	)
 	return sb
 }
 
-func (sb *builder) setRealtime() statusBuilder {
+func (sb *buildStatus) setRealtime() statusBuilder {
 	sb.realtime = currentTopicsByMaskStatus(
 		sb.rsk, tipocav1.MaskRealtime, sb.desiredVersion,
 	)
 	return sb
 }
 
-func (sb *builder) computeReloading() statusBuilder {
+func (sb *buildStatus) computeReloading() statusBuilder {
 	if sb.rsk.Status.MaskStatus == nil ||
 		sb.rsk.Status.MaskStatus.CurrentMaskStatus == nil {
 		sb.reloading = sb.diffTopics
@@ -107,7 +107,7 @@ func (sb *builder) computeReloading() statusBuilder {
 	return sb
 }
 
-func (sb *builder) computeReloadingDupe() statusBuilder {
+func (sb *buildStatus) computeReloadingDupe() statusBuilder {
 	reloadDupeTopics := []string{}
 
 	for _, reloadingTopic := range sb.reloading {
@@ -127,7 +127,7 @@ func (sb *builder) computeReloadingDupe() statusBuilder {
 	return sb
 }
 
-func (sb *builder) build() *status {
+func (sb *buildStatus) build() *status {
 	s := &status{
 		rsk:            sb.rsk,
 		currentVersion: sb.currentVersion,
