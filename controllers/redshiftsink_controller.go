@@ -238,7 +238,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 
 	// TODO: add cache to prevent multiple pull from github and diff
-	diff, err := MaskDiff(
+	diffTopics, err := MaskDiff(
 		kafkaTopics,
 		rsk.Spec.Batcher.MaskFile,
 		desiredMaskVersion,
@@ -249,49 +249,21 @@ func (r *RedshiftSinkReconciler) reconcile(
 	if err != nil {
 		return result, nil, fmt.Errorf("Error doing mask diff, err: %v", err)
 	}
+	klog.V(2).Infof("diff: %v", diffTopics)
 
-	klog.V(2).Infof("diff: %v", diff)
-
-	status := newStatusHandler(
-		kafkaTopics,
-		diff,
-		currentMaskVersion,
-		desiredMaskVersion,
-		rsk)
-	status.initTopicGroup()
-
-	topicsReleased := status.released()
-	topicsRealtime := status.realtime()
-	topicsReloading := status.reloading()
-
-	klog.V(3).Infof("released: %v", topicsReleased)
-	klog.V(3).Infof("realtime: %v", topicsRealtime)
-	klog.V(3).Infof("reloading: %v", topicsReloading)
-
-	reloadSinkGroup := newSinkGroup(
-		ReloadSinkGroup, r.Client, r.Scheme, rsk,
-		topicsReloading,
-		desiredMaskVersion,
-		secret,
-		ReloadTableSuffix,
-	)
-	topicsRealtime, err = reloadSinkGroup.realtimeTopics(r.KafkaWatcher)
-	if err != nil {
-		return result, nil, err
-	}
-
-	klog.V(3).Infof("realtime (latest): %v", topicsRealtime)
-
-	status.updateMaskStatus(
-		topicsReleased,
-		topicsRealtime,
-		topicsReloading,
-	)
-	topicsReleased = status.released()
-	topicsRealtime = status.realtime()
-	topicsReloading = status.reloading()
-	topicsReloadingDupe := status.reloadingDupe()
-	klog.V(3).Infof("reloadingDupe: %v", topicsReloadingDupe)
+	builder := newStatusBuilder()
+	status := builder.
+		setRedshiftSink(rsk).
+		setCurrentVersion(currentMaskVersion).
+		setDesiredVersion(desiredMaskVersion).
+		setAllTopics(kafkaTopics).
+		setDiffTopics(diffTopics).
+		setReleased().
+		computeReloading().
+		computeReloadingDupe().
+		setTopicGroup().
+		build()
+	defer status.updateMaskStatus()
 
 	// SinkGroup are of following types:
 	// 1. main: sink group which has desiredMaskVersion
@@ -307,25 +279,29 @@ func (r *RedshiftSinkReconciler) reconcile(
 	//      and when they are released.
 	//      consumer group: currentMaskVersion
 	//      tableSuffix: ""
-	var main, reload, reloadDupe *sinkGroup
-	main = newSinkGroup(
-		MainSinkGroup, r.Client, r.Scheme, rsk,
-		topicsReleased,
-		desiredMaskVersion,
-		secret,
-		"",
-	)
+	var reload, reloadDupe, main *sinkGroup
 	reload = newSinkGroup(
 		ReloadSinkGroup, r.Client, r.Scheme, rsk,
-		topicsReloading,
-		desiredMaskVersion,
+		status.reloading,
+		status.desiredVersion,
 		secret,
 		ReloadTableSuffix,
 	)
+	status.realtime, err = reload.realtimeTopics(r.KafkaWatcher)
+	if err != nil {
+		return result, nil, err
+	}
+	main = newSinkGroup(
+		MainSinkGroup, r.Client, r.Scheme, rsk,
+		status.released,
+		status.desiredVersion,
+		secret,
+		"",
+	)
 	reloadDupe = newSinkGroup(
 		ReloadDupeSinkGroup, r.Client, r.Scheme, rsk,
-		topicsReloadingDupe,
-		currentMaskVersion,
+		status.reloadingDupe,
+		status.desiredVersion,
 		secret,
 		"",
 	)
@@ -339,52 +315,43 @@ func (r *RedshiftSinkReconciler) reconcile(
 		}
 	}
 
-	klog.V(4).Info("checking if release is possible...")
-
+	klog.V(4).Info("finding release candidates...")
 	var topicReleaseEvent *TopicReleasedEvent
 	var releaseError error
-	var releaser *releaser
-	if len(topicsRealtime) > 0 {
-		klog.V(2).Infof("release candidates: %v", topicsRealtime)
-		releaser, releaseError = newReleaser(
-			ctx, rsk.Spec.Loader.RedshiftSchema, secret)
-		if releaseError != nil {
-			return result, nil, releaseError
-		}
-		releaseError = releaser.release(
-			rsk.Spec.Loader.RedshiftSchema,
-			topicsRealtime[0],
-			ReloadTableSuffix,
-			rsk.Spec.Loader.RedshiftGroup,
-		)
+	// var releaser *releaser
+	if len(status.realtime) > 0 {
+		klog.V(2).Infof("release candidates: %v", status.realtime)
+		// releaser, releaseError = newReleaser(
+		// 	ctx, rsk.Spec.Loader.RedshiftSchema, secret)
+		// if releaseError != nil {
+		// 	return result, nil, releaseError
+		// }
+		// releaseError = releaser.release(
+		// 	rsk.Spec.Loader.RedshiftSchema,
+		// 	status.realtime[0],
+		// 	ReloadTableSuffix,
+		// 	rsk.Spec.Loader.RedshiftGroup,
+		// )
+		releaseError = nil
 		if releaseError != nil {
 			klog.Errorf(
-				"Error performing release for topic: %s, err: %v",
-				topicsRealtime[0],
+				"Error releasing topic: %s, err: %v",
+				status.realtime[0],
 				releaseError,
 			)
 		} else {
-			topicsReleased = append(topicsReleased, topicsRealtime[0])
 			topicReleaseEvent = &TopicReleasedEvent{
-				Topic:   topicsRealtime[0],
-				Version: desiredMaskVersion,
+				Topic:   status.realtime[0],
+				Version: status.desiredVersion,
 			}
 			klog.V(2).Infof(
 				"released topic: %v, version: %v",
-				topicsRealtime[0], desiredMaskVersion,
+				status.realtime[0], status.desiredVersion,
 			)
-			status.updateTopicGroup(topicsRealtime[0])
+			status.updateTopicsOnRelease(status.realtime[0])
+			status.updateTopicGroup(status.realtime[0])
 		}
 	}
-
-	// remove the released topics
-	topicsReloading = removeReleased(topicsReloading, toMap(topicsReleased))
-	topicsRealtime = removeReleased(topicsRealtime, toMap(topicsReleased))
-	status.updateMaskStatus(
-		topicsReleased,
-		topicsRealtime,
-		topicsReloading,
-	)
 
 	if releaseError != nil {
 		return result, nil, releaseError

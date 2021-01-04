@@ -217,19 +217,23 @@ func toMap(s []string) map[string]bool {
 	return m
 }
 
-func uniqueStringSlice(s []string) []string {
-	keys := make(map[string]bool)
-	u := []string{}
-
-	for _, entry := range s {
-		_, value := keys[entry]
-		if !value {
-			keys[entry] = true
-			u = append(u, entry)
+func appendIfMissing(slice []string, elementToAdd string) []string {
+	for _, element := range slice {
+		if element == elementToAdd {
+			return slice
 		}
 	}
+	return append(slice, elementToAdd)
+}
 
-	return u
+func removeFromSlice(slice []string, elementToRemove string) []string {
+	new := []string{}
+	for _, element := range slice {
+		if element != elementToRemove {
+			new = append(new, element)
+		}
+	}
+	return new
 }
 
 func getSecret(
