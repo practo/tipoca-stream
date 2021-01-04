@@ -465,3 +465,58 @@ func (s *sinkGroup) lagBelowThreshold(
 
 	return false
 }
+
+func groupIDFromVersion(version string) string {
+	groupID := version
+	if len(version) >= 6 {
+		groupID = groupID[:6]
+	}
+
+	return groupID
+}
+
+func loaderPrefixFromGroupID(prefix string, version string) string {
+	return prefix + version + "-"
+}
+
+type consumerGroup struct {
+	topics            []string
+	loaderTopicPrefix string
+}
+
+func computeConsumerGroups(
+	topicGroups map[string]tipocav1.Group,
+	topics []string,
+) (
+	map[string]consumerGroup,
+	error,
+) {
+	consumerGroups := make(map[string]consumerGroup)
+	for _, topic := range topics {
+		topicGroup, ok := topicGroups[topic]
+		if !ok {
+			return nil, fmt.Errorf(
+				"Group info missing for topic: %s in Status", topic)
+		}
+
+		existingGroup, ok := consumerGroups[topicGroup.ID]
+		if !ok {
+			consumerGroups[topicGroup.ID] = consumerGroup{
+				topics:            []string{topic},
+				loaderTopicPrefix: topicGroup.LoaderTopicPrefix,
+			}
+		} else {
+			if existingGroup.loaderTopicPrefix != topicGroup.LoaderTopicPrefix {
+				return nil, fmt.Errorf(
+					"Mismatch in loaderTopicPrefix in status: %v for topic: %v",
+					existingGroup,
+					topic,
+				)
+			}
+			existingGroup.topics = append(existingGroup.topics, topic)
+			consumerGroups[topicGroup.ID] = existingGroup
+		}
+	}
+
+	return consumerGroups, nil
+}
