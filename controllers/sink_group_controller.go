@@ -53,8 +53,6 @@ type Deployment interface {
 	UpdateDeployment(current *appsv1.Deployment) bool
 }
 
-// TODO: use builder pattern to construct the sink group
-// refactor here plz
 func newSinkGroup(
 	name string,
 	client client.Client,
@@ -65,18 +63,13 @@ func newSinkGroup(
 	secret map[string]string,
 	tableSuffix string) *sinkGroup {
 
-	// TODO: use builder pattern to construct the sink group
-	// refactor here plz
-	topicGroups, err := topicGroupBySinkGroup(
+	topicGroups := topicGroupBySinkGroup(
+		rsk,
 		name,
 		kafkaTopics,
-		rsk.Status.TopicGroup,
 		maskFileVersion,
 		rsk.Spec.KafkaLoaderTopicPrefix,
 	)
-	if err != nil {
-		klog.Fatalf("Error creating topic groups, err: %v", err)
-	}
 
 	consumerGroups, err := computeConsumerGroups(topicGroups, kafkaTopics)
 	if err != nil {
@@ -123,26 +116,34 @@ func newSinkGroup(
 	}
 }
 
+func topicGroup(rsk *tipocav1.RedshiftSink, topic string) *tipocav1.Group {
+	if rsk.Status.TopicGroup == nil {
+		rsk.Status.TopicGroup = make(map[string]tipocav1.Group)
+		return nil
+	}
+	group, ok := rsk.Status.TopicGroup[topic]
+	if ok {
+		return &group
+	}
+
+	return nil
+}
+
 func topicGroupBySinkGroup(
+	rsk *tipocav1.RedshiftSink,
 	sinkGroupName string,
 	topics []string,
-	topicGroups map[string]tipocav1.Group,
-	desiredVersion string,
+	version string,
 	prefix string,
-) (
-	map[string]tipocav1.Group,
-	error,
-) {
+) map[string]tipocav1.Group {
+
+	groups := make(map[string]tipocav1.Group)
+	groupID := groupIDFromVersion(version)
+
 	switch sinkGroupName {
-	case MainSinkGroup:
-		return topicGroups, nil
-	case ReloadDupeSinkGroup:
-		return topicGroups, nil
 	case ReloadSinkGroup:
-		groupID := groupIDFromVersion(desiredVersion)
-		reloadTopicGroup := make(map[string]tipocav1.Group)
 		for _, topic := range topics {
-			reloadTopicGroup[topic] = tipocav1.Group{
+			groups[topic] = tipocav1.Group{
 				ID: groupID,
 				LoaderTopicPrefix: loaderPrefixFromGroupID(
 					prefix,
@@ -150,10 +151,36 @@ func topicGroupBySinkGroup(
 				),
 			}
 		}
-		return reloadTopicGroup, nil
-	default:
-		return nil, fmt.Errorf("Invalid sink group: %s", sinkGroupName)
+		return groups
+	case ReloadDupeSinkGroup:
+		for _, topic := range topics {
+			group := topicGroup(rsk, topic)
+			if group == nil {
+				// do not sink topics which sinking for first time
+				continue
+			} else {
+				groups[topic] = *group
+			}
+		}
+		return groups
+	case MainSinkGroup:
+		for _, topic := range topics {
+			group := topicGroup(rsk, topic)
+			if group == nil {
+				groups[topic] = tipocav1.Group{
+					ID: groupID,
+					LoaderTopicPrefix: loaderPrefixFromGroupID(
+						prefix,
+						groupID,
+					),
+				}
+			} else {
+				groups[topic] = *group
+			}
+		}
+		return groups
 	}
+	return groups
 }
 
 func consumerGroupID(sinkPodName string, groupID string) string {
@@ -415,8 +442,8 @@ func (s *sinkGroup) realtimeTopics(
 			continue
 		}
 
-		klog.V(3).Infof("%v: lag=%v", batcherCGID)
-		klog.V(3).Infof("%v: lag=%v", loaderCGID)
+		klog.V(3).Infof("%v: lag=%v", batcherCGID, batcherLag)
+		klog.V(3).Infof("%v: lag=%v", loaderCGID, loaderLag)
 
 		if s.lagBelowThreshold(topic, batcherLag, loaderLag) {
 			realtimeTopics = append(realtimeTopics, topic)
@@ -495,8 +522,10 @@ func computeConsumerGroups(
 	for _, topic := range topics {
 		topicGroup, ok := topicGroups[topic]
 		if !ok {
-			return nil, fmt.Errorf(
-				"Group info missing for topic: %s in Status", topic)
+			klog.Warningf(
+				"Assuming first time sink for:%s, ignoring topic", topic,
+			)
+			continue
 		}
 
 		existingGroup, ok := consumerGroups[topicGroup.ID]
