@@ -132,6 +132,10 @@ func (r *RedshiftSinkReconciler) fetchLatestMaskFileVersion(
 	return cache.GetFileVersion(filePath)
 }
 
+func resultRequeueSeconds(seconds int) ctrl.Result {
+	return ctrl.Result{RequeueAfter: time.Second * time.Duration(seconds)}
+}
+
 func (r *RedshiftSinkReconciler) fetchLatestTopics(
 	regexes string) ([]string, error) {
 
@@ -183,7 +187,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	ReconcilerEvent,
 	error,
 ) {
-	result := ctrl.Result{RequeueAfter: time.Second * 1}
+	result := ctrl.Result{RequeueAfter: time.Second * 30}
 
 	kafkaTopics, err := r.fetchLatestTopics(rsk.Spec.KafkaTopicRegexes)
 	if err != nil {
@@ -260,6 +264,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setAllTopics(kafkaTopics).
 		setDiffTopics(diffTopics).
 		setReleased().
+		setRealtime().
 		computeReloading().
 		computeReloadingDupe().
 		build()
@@ -292,9 +297,17 @@ func (r *RedshiftSinkReconciler) reconcile(
 		buildLoader(secret, ReloadTableSuffix).
 		build()
 
-	status.realtime, err = reload.realtimeTopics(r.KafkaWatcher)
+	currentRealtime, err := reload.realtimeTopics(r.KafkaWatcher)
 	if err != nil {
 		return result, nil, err
+	}
+	if !subSetSlice(currentRealtime, status.realtime) {
+		for _, moreRealtime := range currentRealtime {
+			status.realtime = appendIfMissing(status.realtime, moreRealtime)
+		}
+		klog.V(2).Infof(
+			"Reconcile needed, realtime topics updated: %v", status.realtime)
+		return resultRequeueSeconds(3), nil, nil
 	}
 
 	reloadDupe = sgBuilder.
@@ -306,6 +319,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		buildBatcher(secret).
 		buildLoader(secret, "").
 		build()
+
 	main = sgBuilder.
 		setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).
 		setType(MainSinkGroup).
@@ -322,7 +336,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			return result, nil, err
 		}
 		if event != nil {
-			return result, event, nil
+			return resultRequeueSeconds(5), event, nil
 		}
 	}
 
@@ -353,6 +367,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			)
 		} else {
 			topicReleaseEvent = &TopicReleasedEvent{
+				Object:  rsk,
 				Topic:   releasingTopic,
 				Version: status.desiredVersion,
 			}
@@ -381,7 +396,7 @@ func (r *RedshiftSinkReconciler) Reconcile(
 	req ctrl.Request) (_ ctrl.Result, reterr error) {
 
 	klog.Infof("Reconciling %+v ---------------------", req)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
 	var redshiftsink tipocav1.RedshiftSink

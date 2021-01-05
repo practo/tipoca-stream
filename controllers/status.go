@@ -95,8 +95,13 @@ func (sb *buildStatus) computeReloading() statusBuilder {
 
 	reConstructingReloading := []string{}
 	releasedMap := toMap(sb.released)
+	realtimeMap := toMap(sb.realtime)
 	for _, topic := range sb.diffTopics {
 		_, ok := releasedMap[topic]
+		if ok {
+			continue
+		}
+		_, ok = realtimeMap[topic]
 		if ok {
 			continue
 		}
@@ -288,5 +293,4 @@ func (s *status) updateTopicGroup(topic string) {
 		LoaderTopicPrefix: prefix,
 		ID:                groupID,
 	}
-	klog.Infof("done")
 }

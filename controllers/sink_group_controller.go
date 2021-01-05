@@ -29,6 +29,15 @@ type sinkGroupInterface interface {
 	RealtimeTopics(watcher consumer.KafkaWatcher) ([]string, error)
 }
 
+type Deployment interface {
+	Name() string
+	Namespace() string
+	Deployment() *appsv1.Deployment
+	Config() *corev1.ConfigMap
+	UpdateConfig(current *corev1.ConfigMap) bool
+	UpdateDeployment(current *appsv1.Deployment) bool
+}
+
 type sinkGroup struct {
 	rsk         *tipocav1.RedshiftSink
 	client      client.Client
@@ -161,15 +170,6 @@ func (sb *buildSinkGroup) build() *sinkGroup {
 		batcher:     sb.batcher,
 		loader:      sb.loader,
 	}
-}
-
-type Deployment interface {
-	Name() string
-	Namespace() string
-	Deployment() *appsv1.Deployment
-	Config() *corev1.ConfigMap
-	UpdateConfig(current *corev1.ConfigMap) bool
-	UpdateDeployment(current *appsv1.Deployment) bool
 }
 
 func topicGroup(rsk *tipocav1.RedshiftSink, topic string) *tipocav1.Group {
@@ -497,10 +497,10 @@ func (s *sinkGroup) lagBelowThreshold(
 		maxBatcherRealtimeLag = DefaultmaxBatcherRealtimeLag
 		maxLoaderRealtimeLag = DefautmaxLoaderRealtimeLag
 	} else {
-		if s.rsk.Spec.ReleaseCondition.MaxBatcherLag == nil {
+		if s.rsk.Spec.ReleaseCondition.MaxBatcherLag != nil {
 			maxBatcherRealtimeLag = *s.rsk.Spec.ReleaseCondition.MaxBatcherLag
 		}
-		if s.rsk.Spec.ReleaseCondition.MaxLoaderLag == nil {
+		if s.rsk.Spec.ReleaseCondition.MaxLoaderLag != nil {
 			maxLoaderRealtimeLag = *s.rsk.Spec.ReleaseCondition.MaxLoaderLag
 		}
 		if s.rsk.Spec.TopicReleaseCondition != nil {
@@ -585,7 +585,7 @@ func (s *sinkGroup) reconcile(
 ) (
 	ctrl.Result, ReconcilerEvent, error,
 ) {
-	result := ctrl.Result{RequeueAfter: time.Second * 1}
+	result := ctrl.Result{RequeueAfter: time.Second * 30}
 
 	event, err := s.reconcileBatcher(ctx, s.batcher)
 	if err != nil {
