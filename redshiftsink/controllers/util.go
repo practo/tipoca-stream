@@ -236,6 +236,17 @@ func removeFromSlice(slice []string, elementToRemove string) []string {
 	return new
 }
 
+func subSetSlice(small, big []string) bool {
+	m := toMap(big)
+	for _, e := range small {
+		_, ok := m[e]
+		if !ok {
+			return false
+		}
+	}
+	return true
+}
+
 func getSecret(
 	ctx context.Context,
 	client client.Client,
