@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	klog "github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 )
@@ -177,12 +178,13 @@ func currentTopicStatus(rsk *tipocav1.RedshiftSink, topic string) *tipocav1.Topi
 }
 
 func (s *status) info() {
-	klog.V(3).Infof("allTopics:  %d", len(s.allTopics))
-	klog.V(3).Infof("diffTopics: %d", len(s.diffTopics))
-	klog.V(2).Infof("released:   %d", len(s.released))
-	klog.V(2).Infof("reloading:  %d %v", len(s.reloading), s.reloading)
-	klog.V(2).Infof("rDupe:      %d %v", len(s.reloadingDupe), s.reloadingDupe)
-	klog.V(3).Infof("realtime:   %d %v", len(s.realtime), s.realtime)
+	rskName := fmt.Sprintf("rsk/%s", s.rsk.Name)
+	klog.V(3).Infof("%s allTopics:  %d", rskName, len(s.allTopics))
+	klog.V(3).Infof("%s diffTopics: %d", rskName, len(s.diffTopics))
+	klog.V(2).Infof("%s released:   %d", rskName, len(s.released))
+	klog.V(2).Infof("%s reloading:  %d %v", rskName, len(s.reloading), s.reloading)
+	klog.V(2).Infof("%s rDupe:      %d %v", rskName, len(s.reloadingDupe), s.reloadingDupe)
+	klog.V(3).Infof("%s realtime:   %d %v", rskName, len(s.realtime), s.realtime)
 }
 
 func (s *status) updateTopicsOnRelease(releasedTopic string) {

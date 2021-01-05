@@ -330,13 +330,18 @@ func (r *RedshiftSinkReconciler) reconcile(
 		buildLoader(secret, "").
 		build()
 
-	for _, sinkGroup := range []*sinkGroup{reloadDupe, reload, main} {
+	sinkGroups := []*sinkGroup{reloadDupe, reload, main}
+	if len(status.reloadingDupe) > 0 {
+		sinkGroups = []*sinkGroup{main, reloadDupe, reload}
+	}
+
+	for _, sinkGroup := range sinkGroups {
 		result, event, err := sinkGroup.reconcile(ctx)
 		if err != nil {
 			return result, nil, err
 		}
 		if event != nil {
-			return resultRequeueSeconds(5), event, nil
+			return resultRequeueSeconds(3), event, nil
 		}
 	}
 
