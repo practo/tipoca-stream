@@ -104,6 +104,8 @@ func (r *releaser) release(
 		}
 	}
 
+	r.redshifter.DropTable(tx, schema, tempTable)
+
 	// release
 	err = tx.Commit()
 	if err != nil {
