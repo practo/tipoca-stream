@@ -13,6 +13,7 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 const (
@@ -321,12 +322,17 @@ func (s *sinkGroup) reconcileConfigMap(
 		return nil, nil
 	}
 
+	err = ctrlutil.SetOwnerReference(s.rsk, config, s.scheme)
+	if err != nil {
+		return nil, err
+	}
+
 	klog.V(2).Infof("Creating configMap: %v", config.Name)
 	event, err := createConfigMap(ctx, s.client, config, s.rsk)
 	if err != nil {
 		return nil, err
 	}
-	ctrl.SetControllerReference(s.rsk, config, s.scheme)
+
 	return event, nil
 }
 
@@ -422,13 +428,17 @@ func (s *sinkGroup) reconcileDeployment(
 		}
 	}
 
+	err = ctrlutil.SetOwnerReference(s.rsk, deployment, s.scheme)
+	if err != nil {
+		return nil, err
+	}
+
 	// create new deployment pointing to new config map
 	klog.V(2).Infof("Creating deployment: %v", deployment.Name)
 	event, err := createDeployment(ctx, s.client, deployment, s.rsk)
 	if err != nil {
 		return nil, err
 	}
-	ctrl.SetControllerReference(s.rsk, deployment, s.scheme)
 	return event, nil
 }
 
