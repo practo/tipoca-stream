@@ -348,22 +348,22 @@ func (r *RedshiftSinkReconciler) reconcile(
 	klog.V(4).Info("finding release candidates...")
 	var topicReleaseEvent *TopicReleasedEvent
 	var releaseError error
-	// var releaser *releaser
+	var releaser *releaser
 	if len(status.realtime) > 0 {
 		klog.V(2).Infof("release candidates: %v", status.realtime)
 		releasingTopic := status.realtime[0]
 
-		// releaser, releaseError = newReleaser(
-		// 	ctx, rsk.Spec.Loader.RedshiftSchema, secret)
-		// if releaseError != nil {
-		// 	return result, nil, releaseError
-		// }
-		// releaseError = releaser.release(
-		// 	rsk.Spec.Loader.RedshiftSchema,
-		// 	status.realtime[0],
-		// 	ReloadTableSuffix,
-		// 	rsk.Spec.Loader.RedshiftGroup,
-		// )
+		releaser, releaseError = newReleaser(
+			ctx, rsk.Spec.Loader.RedshiftSchema, secret)
+		if releaseError != nil {
+			return result, nil, releaseError
+		}
+		releaseError = releaser.release(
+			rsk.Spec.Loader.RedshiftSchema,
+			status.realtime[0],
+			ReloadTableSuffix,
+			rsk.Spec.Loader.RedshiftGroup,
+		)
 
 		releaseError = nil
 		if releaseError != nil {
