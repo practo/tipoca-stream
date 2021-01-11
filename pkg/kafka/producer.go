@@ -1,4 +1,4 @@
-package producer
+package kafka
 
 import (
 	"encoding/binary"
@@ -16,9 +16,12 @@ type AvroProducer struct {
 	registry schemaregistry.SchemaRegistry
 }
 
-func NewAvroProducer(brokers []string,
-	kafkaVersion string, schemaRegistryURL string) (*AvroProducer, error) {
-
+func NewAvroProducer(
+	brokers []string,
+	kafkaVersion string,
+	schemaRegistryURL string,
+	configTLS TLSConfig,
+) (*AvroProducer, error) {
 	version, err := sarama.ParseKafkaVersion(kafkaVersion)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing Kafka version: %v\n", err)
@@ -33,6 +36,14 @@ func NewAvroProducer(brokers []string,
 	config.Producer.MaxMessageBytes = 10000000
 	config.Producer.Retry.Max = 10
 	config.Producer.Retry.Backoff = 1000 * time.Millisecond
+	if configTLS.Enable {
+		config.Net.TLS.Enable = true
+		tlsConfig, err := NewTLSConfig(configTLS)
+		if err != nil {
+			return nil, fmt.Errorf("TLS init failed, err: %v", err)
+		}
+		config.Net.TLS.Config = tlsConfig
+	}
 
 	producer, err := sarama.NewSyncProducer(brokers, config)
 	if err != nil {

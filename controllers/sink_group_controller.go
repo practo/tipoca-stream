@@ -7,7 +7,7 @@ import (
 
 	klog "github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
-	consumer "github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
+	kafka "github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -27,7 +27,7 @@ const (
 
 type sinkGroupInterface interface {
 	Reconcile(ctx context.Context) (ctrl.Result, ReconcilerEvent, error)
-	RealtimeTopics(watcher consumer.KafkaWatcher) ([]string, error)
+	RealtimeTopics(watcher kafka.KafkaWatcher) ([]string, error)
 }
 
 type Deployment interface {
@@ -538,7 +538,7 @@ func (s *sinkGroup) lagBelowThreshold(
 // realtimeTopics gives back the list of topics whose consumer lags are
 // less than or equal to the specified thresholds to be considered realtime
 func (s *sinkGroup) realtimeTopics(
-	watcher consumer.KafkaWatcher,
+	watcher kafka.KafkaWatcher,
 ) (
 	[]string, error,
 ) {

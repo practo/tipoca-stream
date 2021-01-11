@@ -5,7 +5,7 @@ import (
 
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	"github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftloader/config"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftloader"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/s3sink"
@@ -75,10 +75,10 @@ func NewLoader(
 	}
 
 	totalTopics := 0
-	var groupConfigs []consumer.ConsumerGroupConfig
+	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
 		totalTopics += len(group.topics)
-		groupConfigs = append(groupConfigs, consumer.ConsumerGroupConfig{
+		groupConfigs = append(groupConfigs, kafka.ConsumerGroupConfig{
 			GroupID: consumerGroupID(name, groupID),
 			TopicRegexes: expandTopicsToRegex(
 				makeLoaderTopics(
@@ -86,10 +86,10 @@ func NewLoader(
 					group.topics,
 				),
 			),
-			Kafka: consumer.KafkaConfig{
+			Kafka: kafka.KafkaConfig{
 				Brokers: rsk.Spec.KafkaBrokers,
 			},
-			Sarama: consumer.SaramaConfig{
+			Sarama: kafka.SaramaConfig{
 				Assignor:   "range",
 				Oldest:     true,
 				Log:        false,

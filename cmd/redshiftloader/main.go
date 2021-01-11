@@ -16,7 +16,7 @@ import (
 
 	"github.com/practo/klog/v2"
 	conf "github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftloader/config"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftloader"
 )
@@ -51,13 +51,13 @@ func run(cmd *cobra.Command, args []string) {
 		klog.Fatalf("Error creating redshifter: %v\n", err)
 	}
 
-	var consumerGroups map[string]consumer.ConsumerGroupInterface
+	var consumerGroups map[string]kafka.ConsumerGroupInterface
 	var consumersReady []chan bool
 	wg := &sync.WaitGroup{}
 
 	for _, groupConfig := range config.ConsumerGroups {
 		ready := make(chan bool)
-		consumerGroup, err := consumer.NewConsumerGroup(
+		consumerGroup, err := kafka.NewConsumerGroup(
 			groupConfig,
 			redshiftloader.NewConsumer(ready, redshifter),
 		)
@@ -69,7 +69,7 @@ func run(cmd *cobra.Command, args []string) {
 		groupID := groupConfig.GroupID
 		consumerGroups[groupID] = consumerGroup
 		klog.Infof("Succesfully created kafka client for group: %s", groupID)
-		manager := consumer.NewManager(
+		manager := kafka.NewManager(
 			consumerGroup,
 			groupID,
 			groupConfig.TopicRegexes,
@@ -135,7 +135,7 @@ func run(cmd *cobra.Command, args []string) {
 
 // main/main.main()
 // => consumer/manager.Consume() => consumer/consumer_group.Consume()
-// => sarama/consumer_group.Consume() => redshfitbatcher/consumer.ConsumeClaim()
+// => sarama/consumer_group.Consume() => redshfitbatcher/kafka.ConsumeClaim()
 func main() {
 	rand.Seed(time.Now().UnixNano())
 

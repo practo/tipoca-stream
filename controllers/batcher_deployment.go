@@ -5,7 +5,7 @@ import (
 
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	"github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftbatcher/config"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftbatcher"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/s3sink"
 	yaml "gopkg.in/yaml.v2"
@@ -70,17 +70,17 @@ func NewBatcher(
 	}
 
 	totalTopics := 0
-	var groupConfigs []consumer.ConsumerGroupConfig
+	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
 		totalTopics += len(group.topics)
-		groupConfigs = append(groupConfigs, consumer.ConsumerGroupConfig{
+		groupConfigs = append(groupConfigs, kafka.ConsumerGroupConfig{
 			GroupID:           consumerGroupID(name, groupID),
 			TopicRegexes:      expandTopicsToRegex(group.topics),
 			LoaderTopicPrefix: group.loaderTopicPrefix,
-			Kafka: consumer.KafkaConfig{
+			Kafka: kafka.KafkaConfig{
 				Brokers: rsk.Spec.KafkaBrokers,
 			},
-			Sarama: consumer.SaramaConfig{
+			Sarama: kafka.SaramaConfig{
 				Assignor:   "range",
 				Oldest:     true,
 				Log:        false,

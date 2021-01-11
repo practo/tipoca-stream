@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/producer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	loader "github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftloader"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/s3sink"
@@ -93,13 +93,14 @@ type batchProcessor struct {
 
 	// signaler is a kafka producer signaling the load the batch uploaded data
 	// TODO: make the producer have interface
-	signaler *producer.AvroProducer
+	signaler *kafka.AvroProducer
 }
 
 func newBatchProcessor(
-	topic string, partition int32,
-	session sarama.ConsumerGroupSession) *batchProcessor {
-
+	topic string,
+	partition int32,
+	session sarama.ConsumerGroupSession,
+) *batchProcessor {
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
 		viper.GetString("s3sink.secretAccessKey"),
@@ -114,10 +115,19 @@ func newBatchProcessor(
 		loaderTopicPrefix = "loader-"
 	}
 
-	signaler, err := producer.NewAvroProducer(
+	tlsEnabled := viper.GetBool("kafka.tlsConfig.enable")
+	configTLS := kafka.TLSConfig{Enable: tlsEnabled}
+	if tlsEnabled {
+		configTLS.UserCert = viper.GetString("kafka.tlsConfig.userCert")
+		configTLS.UserKey = viper.GetString("kafka.tlsConfig.userKey")
+		configTLS.CACert = viper.GetString("kafka.tlsConfig.caCert")
+	}
+
+	signaler, err := kafka.NewAvroProducer(
 		strings.Split(viper.GetString("kafka.brokers"), ","),
 		viper.GetString("kafka.version"),
 		viper.GetString("schemaRegistryURL"),
+		configTLS,
 	)
 	if err != nil {
 		klog.Fatalf("unable to make signaler client, err:%v\n", err)
