@@ -1,4 +1,4 @@
-package consumer
+package kafka
 
 import (
 	"fmt"
@@ -26,7 +26,11 @@ type kafkaWatch struct {
 	topics []string
 }
 
-func NewKafkaWatcher(brokers []string, version string) (KafkaWatcher, error) {
+func NewKafkaWatcher(
+	brokers []string, version string, configTLS TLSConfig,
+) (
+	KafkaWatcher, error,
+) {
 	v, err := sarama.ParseKafkaVersion(version)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing Kafka version: %v\n", err)
@@ -34,6 +38,14 @@ func NewKafkaWatcher(brokers []string, version string) (KafkaWatcher, error) {
 
 	c := sarama.NewConfig()
 	c.Version = v
+	if configTLS.Enable {
+		c.Net.TLS.Enable = true
+		tlsConfig, err := NewTLSConfig(configTLS)
+		if err != nil {
+			return nil, fmt.Errorf("TLS init failed, err: %v", err)
+		}
+		c.Net.TLS.Config = tlsConfig
+	}
 
 	client, err := sarama.NewClient(brokers, c)
 	if err != nil {

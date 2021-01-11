@@ -17,11 +17,9 @@ package main
 import (
 	"flag"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/practo/klog/v2"
-	consumer "github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
 	pflag "github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -50,11 +48,9 @@ func init() {
 
 func main() {
 	var enableLeaderElection bool
-	var kafkaBrokers, kafkaVersion, homeDir, metricsAddr string
-	flag.StringVar(&kafkaBrokers, "kafka-brokers", "kafka-example.com", "command separated kafka hosts to watch.")
-	flag.StringVar(&kafkaVersion, "kafka-version", "2.5.0", "version of the kafka in use.")
+	var homeDir, metricsAddr string
 	flag.StringVar(&homeDir, "home-dir", "/", "directory in the pod or local system where mask files should be downloaded and kept")
-	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
+	flag.StringVar(&metricsAddr, "metrics-addr", ":8443", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -74,21 +70,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	kafkaWatcher, err := consumer.NewKafkaWatcher(
-		strings.Split(kafkaBrokers, ","), kafkaVersion,
-	)
-	if err != nil {
-		setupLog.Error(err, "err initializing kafka watcher")
-		os.Exit(1)
-	}
-
 	if err = (&controllers.RedshiftSinkReconciler{
 		Client:            mgr.GetClient(),
 		Log:               ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
 		Scheme:            mgr.GetScheme(),
 		Recorder:          mgr.GetEventRecorderFor("redshiftsink-reconciler"),
+		KafkaWatchers:     new(sync.Map),
 		KafkaTopicRegexes: new(sync.Map),
-		KafkaWatcher:      kafkaWatcher,
 		HomeDir:           homeDir,
 		GitCache:          new(sync.Map),
 	}).SetupWithManager(mgr); err != nil {
@@ -97,7 +85,7 @@ func main() {
 	}
 	// +kubebuilder:scaffold:builder
 
-	setupLog.Info("starting manager")
+	setupLog.Info("Starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)

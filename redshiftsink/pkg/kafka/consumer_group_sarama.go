@@ -1,4 +1,4 @@
-package consumer
+package kafka
 
 import (
 	"context"
@@ -54,6 +54,15 @@ func NewSaramaConsumerGroup(
 	default:
 		return nil, fmt.Errorf(
 			"Unknown group-partition assignor: %s", config.Sarama.Assignor)
+	}
+
+	if config.Kafka.TLSConfig.Enable {
+		c.Net.TLS.Enable = true
+		tlsConfig, err := NewTLSConfig(config.Kafka.TLSConfig)
+		if err != nil {
+			return nil, fmt.Errorf("TLS init failed, err: %v", err)
+		}
+		c.Net.TLS.Config = tlsConfig
 	}
 
 	if config.Sarama.Oldest {

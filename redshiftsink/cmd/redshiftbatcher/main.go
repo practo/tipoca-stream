@@ -17,7 +17,7 @@ import (
 
 	"github.com/practo/klog/v2"
 	conf "github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftbatcher/config"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftbatcher"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -56,14 +56,14 @@ func run(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	var consumerGroups map[string]consumer.ConsumerGroupInterface
+	var consumerGroups map[string]kafka.ConsumerGroupInterface
 	var consumersReady []chan bool
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
 	for _, groupConfig := range config.ConsumerGroups {
 		ready := make(chan bool)
-		consumerGroup, err := consumer.NewConsumerGroup(
+		consumerGroup, err := kafka.NewConsumerGroup(
 			groupConfig,
 			redshiftbatcher.NewConsumer(ready),
 		)
@@ -76,7 +76,7 @@ func run(cmd *cobra.Command, args []string) {
 		consumerGroups[groupID] = consumerGroup
 		klog.Infof("Succesfully created kafka client for group: %s", groupID)
 
-		manager := consumer.NewManager(
+		manager := kafka.NewManager(
 			consumerGroup,
 			groupID,
 			groupConfig.TopicRegexes,
@@ -142,7 +142,7 @@ func run(cmd *cobra.Command, args []string) {
 
 // main/main.main()
 // => consumer/manager.Consume() => consumer/consumer_group.Consume()
-// => sarama/consumer_group.Consume() => redshfitbatcher/consumer.ConsumeClaim()
+// => sarama/consumer_group.Consume() => redshfitbatcher/kafka.ConsumeClaim()
 func main() {
 	rand.Seed(time.Now().UnixNano())
 

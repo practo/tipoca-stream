@@ -6,18 +6,18 @@ import (
 	"strings"
 
 	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftloader"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/s3sink"
 )
 
 type Config struct {
-	Loader            redshiftloader.LoaderConfig    `yaml:"loader"`
-	ConsumerGroups    []consumer.ConsumerGroupConfig `yaml:"consumerGroups"`
-	S3Sink            s3sink.Config                  `yaml:"s3sink"`
-	SchemaRegistryURL string                         `yaml:"schemaRegistryURL"`
-	Redshift          redshift.RedshiftConfig        `yaml:"redshift"`
+	Loader            redshiftloader.LoaderConfig `yaml:"loader"`
+	ConsumerGroups    []kafka.ConsumerGroupConfig `yaml:"consumerGroups"`
+	S3Sink            s3sink.Config               `yaml:"s3sink"`
+	SchemaRegistryURL string                      `yaml:"schemaRegistryURL"`
+	Redshift          redshift.RedshiftConfig     `yaml:"redshift"`
 }
 
 func LoadConfig(cmd *cobra.Command) (Config, error) {

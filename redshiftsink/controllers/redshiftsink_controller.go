@@ -18,9 +18,11 @@ package controllers
 
 import (
 	"context"
+	"crypto/sha1"
 	"fmt"
 	"reflect"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -28,8 +30,8 @@ import (
 	logr "github.com/go-logr/logr"
 	klog "github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
-	consumer "github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
 	git "github.com/practo/tipoca-stream/redshiftsink/pkg/git"
+	kafka "github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -49,7 +51,7 @@ type RedshiftSinkReconciler struct {
 	Recorder record.EventRecorder
 
 	KafkaTopicRegexes *sync.Map
-	KafkaWatcher      consumer.KafkaWatcher
+	KafkaWatchers     *sync.Map
 	HomeDir           string
 
 	GitCache *sync.Map
@@ -137,7 +139,7 @@ func resultRequeueSeconds(seconds int) ctrl.Result {
 }
 
 func (r *RedshiftSinkReconciler) fetchLatestTopics(
-	regexes string) ([]string, error) {
+	kafkaWatcher kafka.KafkaWatcher, regexes string) ([]string, error) {
 
 	var topics []string
 	var err error
@@ -145,7 +147,7 @@ func (r *RedshiftSinkReconciler) fetchLatestTopics(
 	topicsAppended := make(map[string]bool)
 	expressions := strings.Split(regexes, ",")
 
-	allTopics, err := r.KafkaWatcher.Topics()
+	allTopics, err := kafkaWatcher.Topics()
 	if err != nil {
 		return topics, err
 	}
@@ -179,6 +181,65 @@ func (r *RedshiftSinkReconciler) fetchLatestTopics(
 	return topics, nil
 }
 
+func (r *RedshiftSinkReconciler) loadKafkaWatcher(
+	rsk *tipocav1.RedshiftSink,
+	secret map[string]string,
+) (
+	kafka.KafkaWatcher,
+	error,
+) {
+	values := ""
+	brokers := strings.Split(rsk.Spec.KafkaBrokers, ",")
+	for _, broker := range brokers {
+		values += broker
+	}
+	values += rsk.Spec.KafkaVersion
+	hash := fmt.Sprintf("%x", sha1.Sum([]byte(values)))
+
+	watcher, ok := r.KafkaWatchers.Load(hash)
+	if ok {
+		return watcher.(kafka.KafkaWatcher), nil
+	} else {
+		enabled, err := secretByKey(secret, "tlsEnable")
+		if err != nil {
+			return nil, fmt.Errorf("Could not find secret: tlsEnable")
+		}
+		tlsEnabled, err := strconv.ParseBool(enabled)
+		if err != nil {
+			return nil, err
+		}
+		configTLS := kafka.TLSConfig{Enable: tlsEnabled}
+		if tlsEnabled {
+			var tlsSecrets map[string]string
+			tlsSecretsKeys := []string{
+				"tlsUserCert",
+				"tlsUserCert",
+				"tlsCaCert",
+			}
+			for _, key := range tlsSecretsKeys {
+				value, err := secretByKey(secret, key)
+				if err != nil {
+					return nil, fmt.Errorf("Could not find secret: %s", key)
+				}
+				tlsSecrets[key] = value
+			}
+			configTLS.UserCert = tlsSecrets[tlsSecretsKeys[0]]
+			configTLS.UserKey = tlsSecrets[tlsSecretsKeys[1]]
+			configTLS.CACert = tlsSecrets[tlsSecretsKeys[2]]
+		}
+
+		watcher, err := kafka.NewKafkaWatcher(
+			brokers, rsk.Spec.KafkaVersion, configTLS,
+		)
+		if err != nil {
+			return nil, err
+		}
+		r.KafkaWatchers.Store(hash, watcher)
+
+		return watcher, nil
+	}
+}
+
 func (r *RedshiftSinkReconciler) reconcile(
 	ctx context.Context,
 	rsk *tipocav1.RedshiftSink,
@@ -189,15 +250,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 ) {
 	result := ctrl.Result{RequeueAfter: time.Second * 30}
 
-	kafkaTopics, err := r.fetchLatestTopics(rsk.Spec.KafkaTopicRegexes)
-	if err != nil {
-		return result, nil, fmt.Errorf("Error fetching topics, err: %v", err)
-	}
-	if len(kafkaTopics) == 0 {
-		klog.Warningf(
-			"Kafka topics not found for regex: %s", rsk.Spec.KafkaTopicRegexes)
-	}
-
 	secret, err := r.fetchSecretMap(
 		ctx,
 		rsk.Spec.SecretRefName,
@@ -205,6 +257,22 @@ func (r *RedshiftSinkReconciler) reconcile(
 	)
 	if err != nil {
 		return result, nil, err
+	}
+
+	kafkaWatcher, err := r.loadKafkaWatcher(rsk, secret)
+	if err != nil {
+		return result, nil, fmt.Errorf("Error fetching kafka watcher, %v", err)
+	}
+
+	kafkaTopics, err := r.fetchLatestTopics(
+		kafkaWatcher, rsk.Spec.KafkaTopicRegexes,
+	)
+	if err != nil {
+		return result, nil, fmt.Errorf("Error fetching topics, err: %v", err)
+	}
+	if len(kafkaTopics) == 0 {
+		klog.Warningf(
+			"Kafka topics not found for regex: %s", rsk.Spec.KafkaTopicRegexes)
 	}
 
 	sgBuilder := newSinkGroupBuilder()
@@ -297,7 +365,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		buildLoader(secret, ReloadTableSuffix).
 		build()
 
-	currentRealtime, err := reload.realtimeTopics(r.KafkaWatcher)
+	currentRealtime, err := reload.realtimeTopics(kafkaWatcher)
 	if err != nil {
 		return result, nil, err
 	}

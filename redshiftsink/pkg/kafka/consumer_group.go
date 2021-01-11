@@ -1,4 +1,4 @@
-package consumer
+package kafka
 
 import (
 	"context"
@@ -32,9 +32,10 @@ type ConsumerGroupConfig struct {
 }
 
 type KafkaConfig struct {
-	Brokers     string `yaml:"brokers"`
-	Version     string `yaml:"version"`     // default is there
-	KafkaClient string `yaml:"kafkaClient"` // default is there
+	Brokers     string    `yaml:"brokers"`
+	Version     string    `yaml:"version"`     // default is there
+	KafkaClient string    `yaml:"kafkaClient"` // default is there
+	TLSConfig   TLSConfig `yaml:"tlsConfig"`
 }
 
 type SaramaConfig struct {
