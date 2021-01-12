@@ -9,7 +9,7 @@ import (
 	"github.com/practo/klog/v2"
 )
 
-type KafkaWatcher interface {
+type Watcher interface {
 	Topics() ([]string, error)
 	ConsumerGroupLag(id string, topic string, partition int32) (int64, error)
 }
@@ -26,10 +26,12 @@ type kafkaWatch struct {
 	topics []string
 }
 
-func NewKafkaWatcher(
-	brokers []string, version string, configTLS TLSConfig,
+func NewWatcher(
+	brokers []string,
+	version string,
+	configTLS TLSConfig,
 ) (
-	KafkaWatcher, error,
+	Watcher, error,
 ) {
 	v, err := sarama.ParseKafkaVersion(version)
 	if err != nil {

@@ -27,7 +27,7 @@ const (
 
 type sinkGroupInterface interface {
 	Reconcile(ctx context.Context) (ctrl.Result, ReconcilerEvent, error)
-	RealtimeTopics(watcher kafka.KafkaWatcher) ([]string, error)
+	RealtimeTopics(watcher kafka.Watcher) ([]string, error)
 }
 
 type Deployment interface {
@@ -538,7 +538,7 @@ func (s *sinkGroup) lagBelowThreshold(
 // realtimeTopics gives back the list of topics whose consumer lags are
 // less than or equal to the specified thresholds to be considered realtime
 func (s *sinkGroup) realtimeTopics(
-	watcher kafka.KafkaWatcher,
+	watcher kafka.Watcher,
 ) (
 	[]string, error,
 ) {

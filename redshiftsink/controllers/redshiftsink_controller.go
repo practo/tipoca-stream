@@ -64,18 +64,22 @@ type RedshiftSinkReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
 // fetchSecretMap fetchs the k8s secret and returns it as a the map
-// also it expects the secret to be of
-// type as created from ../config/manager/kustomization_sample.yaml
+// also it expects the secret to be of type as created from
+// ../config/manager/kustomization_sample.yaml
 func (r *RedshiftSinkReconciler) fetchSecretMap(
-	ctx context.Context, name, namespace string) (map[string]string, error) {
-
+	ctx context.Context,
+	name string,
+	namespace string,
+) (
+	map[string]string,
+	error,
+) {
 	secret := make(map[string]string)
 
 	k8sSecret, err := getSecret(ctx, r.Client, name, namespace)
 	if err != nil {
 		return secret, fmt.Errorf("Error getting secret, %v", err)
 	}
-
 	for key, value := range k8sSecret.Data {
 		secret[key] = string(value)
 	}
@@ -92,13 +96,17 @@ func secretByKey(secret map[string]string, key string) (string, error) {
 	return value, nil
 }
 
-// fetchLatestMaskFileVersion gets the latest mask file from remote git repository.
-// It the git hash of the maskFile.
-// Supports only github at present as maskFile parsing is not handled
-// for all the types of url formats but with very few line of changes
-// it can support all the other git repository.
+// fetchLatestMaskFileVersion gets the latest mask file from remote
+// git repository. It the git hash of the maskFile. Supports only github at
+// present as maskFile parsing is not handled for all the types of url formats
+// but with very few line of changes it can support all the other git repository.
 func (r *RedshiftSinkReconciler) fetchLatestMaskFileVersion(
-	maskFile string, gitToken string) (string, error) {
+	maskFile string,
+	gitToken string,
+) (
+	string,
+	error,
+) {
 	url, err := git.ParseURL(maskFile)
 	if err != nil {
 		return "", err
@@ -139,8 +147,12 @@ func resultRequeueSeconds(seconds int) ctrl.Result {
 }
 
 func (r *RedshiftSinkReconciler) fetchLatestTopics(
-	kafkaWatcher kafka.KafkaWatcher, regexes string) ([]string, error) {
-
+	kafkaWatcher kafka.Watcher,
+	regexes string,
+) (
+	[]string,
+	error,
+) {
 	var topics []string
 	var err error
 	var rgx *regexp.Regexp
@@ -185,7 +197,7 @@ func (r *RedshiftSinkReconciler) loadKafkaWatcher(
 	rsk *tipocav1.RedshiftSink,
 	secret map[string]string,
 ) (
-	kafka.KafkaWatcher,
+	kafka.Watcher,
 	error,
 ) {
 	values := ""
@@ -198,7 +210,7 @@ func (r *RedshiftSinkReconciler) loadKafkaWatcher(
 
 	watcher, ok := r.KafkaWatchers.Load(hash)
 	if ok {
-		return watcher.(kafka.KafkaWatcher), nil
+		return watcher.(kafka.Watcher), nil
 	} else {
 		enabled, err := secretByKey(secret, "tlsEnable")
 		if err != nil {
@@ -228,7 +240,7 @@ func (r *RedshiftSinkReconciler) loadKafkaWatcher(
 			configTLS.CACert = tlsSecrets[tlsSecretsKeys[2]]
 		}
 
-		watcher, err := kafka.NewKafkaWatcher(
+		watcher, err := kafka.NewWatcher(
 			brokers, rsk.Spec.KafkaVersion, configTLS,
 		)
 		if err != nil {
