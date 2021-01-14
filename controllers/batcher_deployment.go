@@ -16,7 +16,6 @@ import (
 const (
 	BatcherSuffix        = "-batcher"
 	BatcherLabelInstance = "redshiftbatcher"
-	BatcherDefaultImage  = "practodev/redshiftbatcher:latest"
 )
 
 type Batcher struct {
@@ -60,6 +59,7 @@ func NewBatcher(
 	secret map[string]string,
 	sinkGroup string,
 	consumerGroups map[string]consumerGroup,
+	defaultImage string,
 ) (
 	Deployment,
 	error,
@@ -119,6 +119,13 @@ func NewBatcher(
 		totalTopics,
 	)
 
+	var image string
+	if rsk.Spec.Batcher.PodTemplate.Image != nil {
+		image = *rsk.Spec.Batcher.PodTemplate.Image
+	} else {
+		image = defaultImage
+	}
+
 	confString := string(confBytes)
 	objectName := getObjectName(name, confString)
 	labels := getDefaultLabels(BatcherLabelInstance, sinkGroup, objectName)
@@ -140,7 +147,7 @@ func NewBatcher(
 		replicas:    &replicas,
 		resources:   rsk.Spec.Batcher.PodTemplate.Resources,
 		tolerations: rsk.Spec.Batcher.PodTemplate.Tolerations,
-		image:       getImage(rsk.Spec.Batcher.PodTemplate.Image, true),
+		image:       image,
 	}
 
 	return &Batcher{

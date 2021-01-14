@@ -58,8 +58,8 @@ type sinkGroupBuilder interface {
 	setTopics(topics []string) sinkGroupBuilder
 	setMaskVersion(version string) sinkGroupBuilder
 	setTopicGroups() sinkGroupBuilder
-	buildBatcher(secret map[string]string) sinkGroupBuilder
-	buildLoader(secret map[string]string, tableSuffix string) sinkGroupBuilder
+	buildBatcher(secret map[string]string, defaultImage string) sinkGroupBuilder
+	buildLoader(secret map[string]string, defaultImage string, tableSuffix string) sinkGroupBuilder
 	build() *sinkGroup
 }
 
@@ -120,7 +120,7 @@ func (sb *buildSinkGroup) setTopicGroups() sinkGroupBuilder {
 	return sb
 }
 
-func (sb *buildSinkGroup) buildBatcher(secret map[string]string) sinkGroupBuilder {
+func (sb *buildSinkGroup) buildBatcher(secret map[string]string, defaultImage string) sinkGroupBuilder {
 	consumerGroups, err := computeConsumerGroups(sb.topicGroups, sb.topics)
 	if err != nil {
 		klog.Fatalf("Error computing consumer group from status, err: %v", err)
@@ -132,6 +132,7 @@ func (sb *buildSinkGroup) buildBatcher(secret map[string]string) sinkGroupBuilde
 		secret,
 		sb.sgType,
 		consumerGroups,
+		defaultImage,
 	)
 	if err != nil {
 		klog.Fatalf("Error making batcher: %v", err)
@@ -140,7 +141,7 @@ func (sb *buildSinkGroup) buildBatcher(secret map[string]string) sinkGroupBuilde
 	return sb
 }
 
-func (sb *buildSinkGroup) buildLoader(secret map[string]string, tableSuffix string) sinkGroupBuilder {
+func (sb *buildSinkGroup) buildLoader(secret map[string]string, defaultImage string, tableSuffix string) sinkGroupBuilder {
 	consumerGroups, err := computeConsumerGroups(sb.topicGroups, sb.topics)
 	if err != nil {
 		klog.Fatalf("Error computing consumer group from status, err: %v", err)
@@ -152,6 +153,7 @@ func (sb *buildSinkGroup) buildLoader(secret map[string]string, tableSuffix stri
 		secret,
 		sb.sgType,
 		consumerGroups,
+		defaultImage,
 	)
 	if err != nil {
 		klog.Fatalf("Error making loader: %v", err)

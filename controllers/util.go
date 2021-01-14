@@ -144,19 +144,6 @@ func getDefaultLabels(
 	}
 }
 
-// getImage gets the image based on the image passed otherwise default
-func getImage(image *string, batcher bool) string {
-	if image != nil {
-		return *image
-	}
-
-	if batcher {
-		return BatcherDefaultImage
-	} else {
-		return LoaderDefaultImage
-	}
-}
-
 // replicas for the crd resources batcher and loader are boolean, either 1 or 0
 func getReplicas(suspend bool, totalGroups, totalTopics int) int32 {
 	if suspend {

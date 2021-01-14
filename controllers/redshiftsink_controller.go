@@ -52,7 +52,9 @@ type RedshiftSinkReconciler struct {
 
 	KafkaTopicRegexes *sync.Map
 	KafkaWatchers     *sync.Map
-	HomeDir           string
+
+	DefaultBatcherImage string
+	DefaultLoaderImage  string
 
 	GitCache *sync.Map
 }
@@ -294,8 +296,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 			setType(MainSinkGroup).
 			setTopics(kafkaTopics).
 			setMaskVersion("").
-			buildBatcher(secret).
-			buildLoader(secret, "").
+			buildBatcher(secret, r.DefaultBatcherImage).
+			buildLoader(secret, r.DefaultLoaderImage, "").
 			build()
 		result, event, err := maskLessSinkGroup.reconcile(ctx)
 		return result, event, err
@@ -330,7 +332,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 		desiredMaskVersion,
 		currentMaskVersion,
 		gitToken,
-		r.HomeDir,
 	)
 	if err != nil {
 		return result, nil, fmt.Errorf("Error doing mask diff, err: %v", err)
@@ -373,8 +374,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopics(status.reloading).
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
-		buildBatcher(secret).
-		buildLoader(secret, ReloadTableSuffix).
+		buildBatcher(secret, r.DefaultBatcherImage).
+		buildLoader(secret, r.DefaultLoaderImage, ReloadTableSuffix).
 		build()
 
 	currentRealtime, err := reload.realtimeTopics(kafkaWatcher)
@@ -396,8 +397,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopics(status.reloadingDupe).
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
-		buildBatcher(secret).
-		buildLoader(secret, "").
+		buildBatcher(secret, r.DefaultBatcherImage).
+		buildLoader(secret, r.DefaultLoaderImage, "").
 		build()
 
 	main = sgBuilder.
@@ -406,8 +407,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopics(status.released).
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
-		buildBatcher(secret).
-		buildLoader(secret, "").
+		buildBatcher(secret, r.DefaultBatcherImage).
+		buildLoader(secret, r.DefaultLoaderImage, "").
 		build()
 
 	sinkGroups := []*sinkGroup{reloadDupe, reload, main}

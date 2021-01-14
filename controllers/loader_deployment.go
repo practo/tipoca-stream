@@ -17,7 +17,6 @@ import (
 const (
 	LoaderSuffix        = "-loader"
 	LoaderLabelInstance = "redshiftloader"
-	LoaderDefaultImage  = "practodev/redshiftloader:latest"
 )
 
 type Loader struct {
@@ -65,6 +64,7 @@ func NewLoader(
 	secret map[string]string,
 	sinkGroup string,
 	consumerGroups map[string]consumerGroup,
+	defaultImage string,
 ) (
 	Deployment,
 	error,
@@ -136,6 +136,13 @@ func NewLoader(
 		totalTopics,
 	)
 
+	var image string
+	if rsk.Spec.Loader.PodTemplate.Image != nil {
+		image = *rsk.Spec.Loader.PodTemplate.Image
+	} else {
+		image = defaultImage
+	}
+
 	confString := string(confBytes)
 	objectName := getObjectName(name, confString)
 	labels := getDefaultLabels(LoaderLabelInstance, sinkGroup, objectName)
@@ -157,7 +164,7 @@ func NewLoader(
 		replicas:    &replicas,
 		resources:   rsk.Spec.Loader.PodTemplate.Resources,
 		tolerations: rsk.Spec.Loader.PodTemplate.Tolerations,
-		image:       getImage(rsk.Spec.Loader.PodTemplate.Image, false),
+		image:       image,
 	}
 
 	return &Loader{
