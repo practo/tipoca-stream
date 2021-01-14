@@ -48,9 +48,10 @@ func init() {
 
 func main() {
 	var enableLeaderElection bool
-	var homeDir, metricsAddr string
-	flag.StringVar(&homeDir, "home-dir", "/", "directory in the pod or local system where mask files should be downloaded and kept")
-	flag.StringVar(&metricsAddr, "metrics-addr", ":8443", "The address the metric endpoint binds to.")
+	var batcherImage, loaderImage, metricsAddr string
+	flag.StringVar(&batcherImage, "default-batcher-image", "practodev/redshiftbatcher:latest", "image to use for the redshiftbatcher")
+	flag.StringVar(&loaderImage, "default-loader-image", "practodev/redshiftloader:latest", "image to use for the redshiftloader")
+	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -71,14 +72,15 @@ func main() {
 	}
 
 	if err = (&controllers.RedshiftSinkReconciler{
-		Client:            mgr.GetClient(),
-		Log:               ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
-		Scheme:            mgr.GetScheme(),
-		Recorder:          mgr.GetEventRecorderFor("redshiftsink-reconciler"),
-		KafkaWatchers:     new(sync.Map),
-		KafkaTopicRegexes: new(sync.Map),
-		HomeDir:           homeDir,
-		GitCache:          new(sync.Map),
+		Client:              mgr.GetClient(),
+		Log:                 ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
+		Scheme:              mgr.GetScheme(),
+		Recorder:            mgr.GetEventRecorderFor("redshiftsink-reconciler"),
+		KafkaWatchers:       new(sync.Map),
+		KafkaTopicRegexes:   new(sync.Map),
+		GitCache:            new(sync.Map),
+		DefaultBatcherImage: batcherImage,
+		DefaultLoaderImage:  loaderImage,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RedshiftSink")
 		os.Exit(1)

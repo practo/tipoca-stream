@@ -4,6 +4,8 @@ import (
 	klog "github.com/practo/klog/v2"
 	transformer "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	masker "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
+	"os"
+	"path/filepath"
 )
 
 // MaskDiff reads two database mask configurations and returns the list of
@@ -14,7 +16,6 @@ func MaskDiff(
 	desiredVersion string,
 	currentVersion string,
 	gitToken string,
-	homeDir string,
 ) (
 	[]string,
 	error,
@@ -27,14 +28,21 @@ func MaskDiff(
 		return []string{}, nil
 	}
 
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return []string{}, nil
+	}
+	maskDir := filepath.Join(currentDir, "maskdiff")
+	os.Mkdir(maskDir, 0755)
+
 	currentMaskConfig, err := masker.NewMaskConfig(
-		homeDir, maskFile, currentVersion, gitToken)
+		maskDir, maskFile, currentVersion, gitToken)
 	if err != nil {
 		return []string{}, err
 	}
 
 	desiredMaskConfig, err := masker.NewMaskConfig(
-		homeDir, maskFile, desiredVersion, gitToken)
+		maskDir, maskFile, desiredVersion, gitToken)
 	if err != nil {
 		return []string{}, err
 	}
