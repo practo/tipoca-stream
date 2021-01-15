@@ -20,6 +20,6 @@ secretGenerator:
   - s3SecretAccessKey=sample-secret-access-key
   - schemaRegistryURL=sample-reg-url
   - tlsEnable=true
-  - tlsUserCert=base64Encodedsample
-  - tlsUserKey=base64Encodedsample
-  - tlsCaCert=base64Encodedsample
+  - tlsUserCert=paste_the_complete_cert_as_a_string
+  - tlsUserKey=paste_the_complete_key_as_a_string
+  - tlsCaCert=paste_the_complete_cert_as_a_string
