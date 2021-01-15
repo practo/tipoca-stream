@@ -86,8 +86,8 @@ func (r *RedshiftSinkReconciler) fetchSecretMap(
 		secretRefName = *name
 	}
 	secretRefNamespace := r.DefaultSecretRefNamespace
-	if name != nil {
-		secretRefNamespace = *name
+	if namespace != nil {
+		secretRefNamespace = *namespace
 	}
 
 	k8sSecret, err := getSecret(ctx, r.Client, secretRefName, secretRefNamespace)

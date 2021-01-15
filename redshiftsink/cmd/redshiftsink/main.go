@@ -51,8 +51,8 @@ func main() {
 	var batcherImage, loaderImage, secretRefName, secretRefNamespace, kafkaVersion, metricsAddr string
 	flag.StringVar(&batcherImage, "default-batcher-image", "practodev/redshiftbatcher:latest", "image to use for the redshiftbatcher")
 	flag.StringVar(&loaderImage, "default-loader-image", "practodev/redshiftloader:latest", "image to use for the redshiftloader")
-	flag.StringVar(&loaderImage, "default-secret-ref-name", "redshiftsink-secret", "default secret name for all redshiftsink secret")
-	flag.StringVar(&loaderImage, "default-secret-ref-namespace", "ts-redshiftsink", "default namespace where redshiftsink secret is there")
+	flag.StringVar(&secretRefName, "default-secret-ref-name", "redshiftsink-secret", "default secret name for all redshiftsink secret")
+	flag.StringVar(&secretRefNamespace, "default-secret-ref-namespace", "ts-redshiftsink-latest", "default namespace where redshiftsink secret is there")
 	flag.StringVar(&kafkaVersion, "default-kafka-version", "2.6.0", "default kafka version")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
