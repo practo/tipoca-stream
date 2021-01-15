@@ -240,10 +240,10 @@ func (r *RedshiftSinkReconciler) loadKafkaWatcher(
 		}
 		configTLS := kafka.TLSConfig{Enable: tlsEnabled}
 		if tlsEnabled {
-			var tlsSecrets map[string]string
+			tlsSecrets := make(map[string]string)
 			tlsSecretsKeys := []string{
 				"tlsUserCert",
-				"tlsUserCert",
+				"tlsUserKey",
 				"tlsCaCert",
 			}
 			for _, key := range tlsSecretsKeys {
