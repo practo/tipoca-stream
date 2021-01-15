@@ -1,27 +1,27 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: redshiftsink-controller-manager
+  name: redshiftsink-operator
   namespace: kube-system
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
- name: redshiftsink-controller-manager
+ name: redshiftsink-operator
  namespace: kube-system
  labels:
-   app: redshiftsink-controller-manager
+   app: redshiftsink-operator
 spec:
  replicas: 1
  selector:
    matchLabels:
-     app: redshiftsink-controller-manager
+     app: redshiftsink-operator
  template:
    metadata:
      labels:
-       app: redshiftsink-controller-manager
+       app: redshiftsink-operator
    spec:
-     serviceAccountName: redshiftsink-controller-manager
+     serviceAccountName: redshiftsink-operator
      tolerations:
      - effect: NoExecute
        operator: Exists
