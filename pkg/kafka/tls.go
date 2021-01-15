@@ -3,11 +3,10 @@ package kafka
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"fmt"
 )
 
-// TLSConfig stores the base64 encoded string for all the certificate and keys
+// TLSConfig stores the string for all the certificate and keys
 // required for the TLS setup and authentication with kafka for the client
 type TLSConfig struct {
 	Enable   bool   `yaml:"enable"`
@@ -19,22 +18,10 @@ type TLSConfig struct {
 func NewTLSConfig(configTLS TLSConfig) (*tls.Config, error) {
 	tlsConfig := tls.Config{}
 
-	userCert, err := base64.StdEncoding.DecodeString(configTLS.UserCert)
-	if err != nil {
-		return &tlsConfig, err
-	}
-
-	userKey, err := base64.StdEncoding.DecodeString(configTLS.UserKey)
-	if err != nil {
-		return &tlsConfig, err
-	}
-
-	caCert, err := base64.StdEncoding.DecodeString(configTLS.CACert)
-	if err != nil {
-		return &tlsConfig, err
-	}
-
-	cert, err := tls.X509KeyPair([]byte(userCert), []byte(userKey))
+	cert, err := tls.X509KeyPair(
+		[]byte(configTLS.UserCert),
+		[]byte(configTLS.UserKey),
+	)
 	if err != nil {
 		return &tlsConfig, fmt.Errorf(
 			"Error making keyPair from userCert and userKey, err: %v",
@@ -44,7 +31,7 @@ func NewTLSConfig(configTLS TLSConfig) (*tls.Config, error) {
 	tlsConfig.Certificates = []tls.Certificate{cert}
 
 	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM([]byte(caCert))
+	caCertPool.AppendCertsFromPEM([]byte(configTLS.CACert))
 	tlsConfig.RootCAs = caCertPool
 	tlsConfig.BuildNameToCertificate()
 
