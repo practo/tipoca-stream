@@ -48,9 +48,12 @@ func init() {
 
 func main() {
 	var enableLeaderElection bool
-	var batcherImage, loaderImage, metricsAddr string
+	var batcherImage, loaderImage, secretRefName, secretRefNamespace, kafkaVersion, metricsAddr string
 	flag.StringVar(&batcherImage, "default-batcher-image", "practodev/redshiftbatcher:latest", "image to use for the redshiftbatcher")
 	flag.StringVar(&loaderImage, "default-loader-image", "practodev/redshiftloader:latest", "image to use for the redshiftloader")
+	flag.StringVar(&loaderImage, "default-secret-ref-name", "redshiftsink-secret", "default secret name for all redshiftsink secret")
+	flag.StringVar(&loaderImage, "default-secret-ref-namespace", "ts-redshiftsink", "default namespace where redshiftsink secret is there")
+	flag.StringVar(&kafkaVersion, "default-kafka-version", "2.6.0", "default kafka version")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. "+
@@ -72,15 +75,18 @@ func main() {
 	}
 
 	if err = (&controllers.RedshiftSinkReconciler{
-		Client:              mgr.GetClient(),
-		Log:                 ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
-		Scheme:              mgr.GetScheme(),
-		Recorder:            mgr.GetEventRecorderFor("redshiftsink-reconciler"),
-		KafkaWatchers:       new(sync.Map),
-		KafkaTopicRegexes:   new(sync.Map),
-		GitCache:            new(sync.Map),
-		DefaultBatcherImage: batcherImage,
-		DefaultLoaderImage:  loaderImage,
+		Client:                    mgr.GetClient(),
+		Log:                       ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
+		Scheme:                    mgr.GetScheme(),
+		Recorder:                  mgr.GetEventRecorderFor("redshiftsink-reconciler"),
+		KafkaWatchers:             new(sync.Map),
+		KafkaTopicRegexes:         new(sync.Map),
+		GitCache:                  new(sync.Map),
+		DefaultBatcherImage:       batcherImage,
+		DefaultLoaderImage:        loaderImage,
+		DefaultSecretRefName:      secretRefName,
+		DefaultSecretRefNamespace: secretRefNamespace,
+		DefaultKafkaVersion:       kafkaVersion,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RedshiftSink")
 		os.Exit(1)
