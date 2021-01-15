@@ -93,24 +93,22 @@ type RedshiftSinkSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Secrets to be used by the batcher pod
+	// Secrets to be used
 	// Default: the secret name and namespace provided in the controller flags
 	// +optional
-	// +kubebuilder:default:="redshiftsink-secret"
-	SecretRefName string `json:"secretRefName"`
+	SecretRefName *string `json:"secretRefName"`
 	// +optional
-	// +kubebuilder:default:="redshiftsink"
-	SecretRefNamespace string `json:"secretRefNamespace"`
+	// Secrets namespace to be used
+	// Default: the secret name and namespace provided in the controller flags
+	SecretRefNamespace *string `json:"secretRefNamespace"`
 
 	// Kafka configurations like consumer group and topics to watch
 	KafkaBrokers string `json:"kafkaBrokers"`
 	// +optional
-	// +kubebuilder:default:="2.6.0"
 	KafkaVersion      string `json:"kafkaVersion"`
 	KafkaTopicRegexes string `json:"kafkaTopicRegexes"`
 	// +optional
-	// +kubebuilder:default:="loader-"
-	KafkaLoaderTopicPrefix string `json:"kafkaLoaderTopicPrefix,omitempty"`
+	KafkaLoaderTopicPrefix string `json:"kafkaLoaderTopicPrefix"`
 
 	Batcher RedshiftBatcherSpec `json:"batcher"`
 	Loader  RedshiftLoaderSpec  `json:"loader"`

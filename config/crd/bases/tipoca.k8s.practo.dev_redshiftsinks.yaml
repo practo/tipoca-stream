@@ -144,12 +144,10 @@ spec:
                 watch
               type: string
             kafkaLoaderTopicPrefix:
-              default: loader-
               type: string
             kafkaTopicRegexes:
               type: string
             kafkaVersion:
-              default: 2.6.0
               type: string
             loader:
               description: RedshiftLoaderSpec defines the desired state of RedshifLoader
@@ -277,12 +275,12 @@ spec:
               - maxLoaderLag
               type: object
             secretRefName:
-              default: redshiftsink-secret
-              description: 'Secrets to be used by the batcher pod Default: the secret
-                name and namespace provided in the controller flags'
+              description: 'Secrets to be used Default: the secret name and namespace
+                provided in the controller flags'
               type: string
             secretRefNamespace:
-              default: redshiftsink
+              description: 'Secrets namespace to be used Default: the secret name
+                and namespace provided in the controller flags'
               type: string
             topicReleaseCondition:
               additionalProperties:

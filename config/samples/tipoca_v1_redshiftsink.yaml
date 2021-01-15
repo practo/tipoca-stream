@@ -6,6 +6,7 @@ spec:
   secretRefName: redshfitsink-secret-2bh89m59ct
   secretRefNamespace: kube-system
   kafkaBrokers: "kafka1.example.com,kafka2.example.com"
+  kafkaVersion: "2.6.0"
   kafkaTopicRegexes: "^db.inventory*"
   kafkaLoaderTopicPrefix: "loader-"
   releaseCondition:

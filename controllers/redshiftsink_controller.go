@@ -53,8 +53,11 @@ type RedshiftSinkReconciler struct {
 	KafkaTopicRegexes *sync.Map
 	KafkaWatchers     *sync.Map
 
-	DefaultBatcherImage string
-	DefaultLoaderImage  string
+	DefaultBatcherImage       string
+	DefaultLoaderImage        string
+	DefaultSecretRefName      string
+	DefaultSecretRefNamespace string
+	DefaultKafkaVersion       string
 
 	GitCache *sync.Map
 }
@@ -70,15 +73,24 @@ type RedshiftSinkReconciler struct {
 // ../config/manager/kustomization_sample.yaml
 func (r *RedshiftSinkReconciler) fetchSecretMap(
 	ctx context.Context,
-	name string,
-	namespace string,
+	name *string,
+	namespace *string,
 ) (
 	map[string]string,
 	error,
 ) {
 	secret := make(map[string]string)
 
-	k8sSecret, err := getSecret(ctx, r.Client, name, namespace)
+	secretRefName := r.DefaultSecretRefName
+	if name != nil {
+		secretRefName = *name
+	}
+	secretRefNamespace := r.DefaultSecretRefNamespace
+	if name != nil {
+		secretRefNamespace = *name
+	}
+
+	k8sSecret, err := getSecret(ctx, r.Client, secretRefName, secretRefNamespace)
 	if err != nil {
 		return secret, fmt.Errorf("Error getting secret, %v", err)
 	}
@@ -207,7 +219,11 @@ func (r *RedshiftSinkReconciler) loadKafkaWatcher(
 	for _, broker := range brokers {
 		values += broker
 	}
-	values += rsk.Spec.KafkaVersion
+	kafkaVersion := rsk.Spec.KafkaVersion
+	if kafkaVersion == "" {
+		kafkaVersion = r.DefaultKafkaVersion
+	}
+	values += kafkaVersion
 	hash := fmt.Sprintf("%x", sha1.Sum([]byte(values)))
 
 	watcher, ok := r.KafkaWatchers.Load(hash)
@@ -243,7 +259,7 @@ func (r *RedshiftSinkReconciler) loadKafkaWatcher(
 		}
 
 		watcher, err := kafka.NewWatcher(
-			brokers, rsk.Spec.KafkaVersion, configTLS,
+			brokers, kafkaVersion, configTLS,
 		)
 		if err != nil {
 			return nil, err
