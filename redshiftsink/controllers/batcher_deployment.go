@@ -60,6 +60,8 @@ func NewBatcher(
 	sinkGroup string,
 	consumerGroups map[string]consumerGroup,
 	defaultImage string,
+	defaultKafkaVersion string,
+	tlsConfig *kafka.TLSConfig,
 ) (
 	Deployment,
 	error,
@@ -70,6 +72,10 @@ func NewBatcher(
 	}
 
 	totalTopics := 0
+	kafkaVersion := rsk.Spec.KafkaVersion
+	if kafkaVersion == "" {
+		kafkaVersion = defaultKafkaVersion
+	}
 	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
 		totalTopics += len(group.topics)
@@ -78,7 +84,9 @@ func NewBatcher(
 			TopicRegexes:      expandTopicsToRegex(group.topics),
 			LoaderTopicPrefix: group.loaderTopicPrefix,
 			Kafka: kafka.KafkaConfig{
-				Brokers: rsk.Spec.KafkaBrokers,
+				Brokers:   rsk.Spec.KafkaBrokers,
+				Version:   kafkaVersion,
+				TLSConfig: *tlsConfig,
 			},
 			Sarama: kafka.SaramaConfig{
 				Assignor:   "range",
