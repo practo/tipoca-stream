@@ -117,11 +117,13 @@ type RedshiftSinkSpec struct {
 	// realtime and to consider the topci to be moved from reloading to released
 	// This is relevant only if masking is turned on in mask configuration.
 	// It is used for live mask reloading.
+	// +optional
 	ReleaseCondition *ReleaseCondition `json:"releaseCondition"`
 
 	// TopicReleaseCondition is considered instead of ReleaseCondition
 	// if it is defined for a topic. This is used for topics which
 	// does not work well with central ReleaseCondition for all topics
+	// +optional
 	TopicReleaseCondition map[string]ReleaseCondition `json:"topicReleaseCondition"`
 }
 

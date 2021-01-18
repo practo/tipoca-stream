@@ -310,8 +310,6 @@ spec:
           - kafkaBrokers
           - kafkaTopicRegexes
           - loader
-          - releaseCondition
-          - topicReleaseCondition
           type: object
         status:
           description: RedshiftSinkStatus defines the observed state of RedshiftSink
