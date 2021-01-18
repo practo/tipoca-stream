@@ -33,7 +33,7 @@ func NewMsgMasker(salt string, topic string,
 		"/",
 		maskFile,
 		maskFileVersion,
-		viper.GetString("batcher.gitAccessToken"),
+		viper.GetString("gitAccessToken"),
 	)
 	if err != nil {
 		return nil, err
