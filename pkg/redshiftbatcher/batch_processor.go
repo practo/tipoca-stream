@@ -114,7 +114,7 @@ func newBatchProcessor(
 	}
 
 	signaler, err := kafka.NewAvroProducer(
-		strings.Split(viper.GetString(kafkaConfig.Brokers), ","),
+		strings.Split(kafkaConfig.Brokers, ","),
 		kafkaConfig.Version,
 		viper.GetString("schemaRegistryURL"),
 		kafkaConfig.TLSConfig,
