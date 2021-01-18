@@ -51,6 +51,26 @@ func run(cmd *cobra.Command, args []string) {
 		klog.Fatalf("Error creating redshifter: %v\n", err)
 	}
 
+	schema := config.Redshift.Schema
+	schemaExist, err := redshifter.SchemaExist(schema)
+	if err != nil {
+		klog.Fatalf("Error querying schema exists, err: %v\n", err)
+	}
+	if !schemaExist {
+		err = redshifter.CreateSchema(schema)
+		if err != nil {
+			exist, err2 := redshifter.SchemaExist(schema)
+			if err2 != nil {
+				klog.Fatalf("Error checking schema exist, err: %v\n", err2)
+			}
+			if !exist {
+				klog.Fatalf("Error creating schema, err: %v\n", err)
+			}
+		} else {
+			klog.Infof("Created Redshift schema: %s", schema)
+		}
+	}
+
 	var consumerGroups map[string]kafka.ConsumerGroupInterface
 	var consumersReady []chan bool
 	wg := &sync.WaitGroup{}
