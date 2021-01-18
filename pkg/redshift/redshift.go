@@ -229,6 +229,11 @@ func (r *Redshift) CreateSchema(schema string) error {
 		tx.Rollback()
 	}
 
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("Error committing tx, err:%v\n", err)
+	}
+
 	return err
 }
 
