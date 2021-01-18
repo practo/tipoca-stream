@@ -56,7 +56,7 @@ func run(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	var consumerGroups map[string]kafka.ConsumerGroupInterface
+	consumerGroups := make(map[string]kafka.ConsumerGroupInterface)
 	var consumersReady []chan bool
 	ctx, cancel := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
@@ -65,7 +65,11 @@ func run(cmd *cobra.Command, args []string) {
 		ready := make(chan bool)
 		consumerGroup, err := kafka.NewConsumerGroup(
 			groupConfig,
-			redshiftbatcher.NewConsumer(ready),
+			redshiftbatcher.NewConsumer(
+				ready,
+				groupConfig.Kafka,
+				groupConfig.LoaderTopicPrefix,
+			),
 		)
 		if err != nil {
 			klog.Errorf("Error making kafka consumer group, exiting: %v\n", err)

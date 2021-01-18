@@ -71,7 +71,7 @@ func run(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	var consumerGroups map[string]kafka.ConsumerGroupInterface
+	consumerGroups := make(map[string]kafka.ConsumerGroupInterface)
 	var consumersReady []chan bool
 	wg := &sync.WaitGroup{}
 
