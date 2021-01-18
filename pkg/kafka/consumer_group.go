@@ -54,7 +54,7 @@ func NewConsumerGroup(
 ) {
 	// set defaults
 	if config.Kafka.Version == "" {
-		config.Kafka.Version = "2.5.0"
+		config.Kafka.Version = "2.6.0"
 	}
 	if config.Kafka.KafkaClient == "" {
 		config.Kafka.KafkaClient = "sarama"

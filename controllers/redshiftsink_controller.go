@@ -207,9 +207,41 @@ func (r *RedshiftSinkReconciler) fetchLatestTopics(
 	return topics, nil
 }
 
+func (r *RedshiftSinkReconciler) makeTLSConfig(secret map[string]string) (*kafka.TLSConfig, error) {
+	enabled, err := secretByKey(secret, "tlsEnable")
+	if err != nil {
+		return nil, fmt.Errorf("Could not find secret: tlsEnable")
+	}
+	tlsEnabled, err := strconv.ParseBool(enabled)
+	if err != nil {
+		return nil, err
+	}
+	configTLS := kafka.TLSConfig{Enable: tlsEnabled}
+	if tlsEnabled {
+		tlsSecrets := make(map[string]string)
+		tlsSecretsKeys := []string{
+			"tlsUserCert",
+			"tlsUserKey",
+			"tlsCaCert",
+		}
+		for _, key := range tlsSecretsKeys {
+			value, err := secretByKey(secret, key)
+			if err != nil {
+				return nil, fmt.Errorf("Could not find secret: %s", key)
+			}
+			tlsSecrets[key] = value
+		}
+		configTLS.UserCert = tlsSecrets[tlsSecretsKeys[0]]
+		configTLS.UserKey = tlsSecrets[tlsSecretsKeys[1]]
+		configTLS.CACert = tlsSecrets[tlsSecretsKeys[2]]
+	}
+
+	return &configTLS, nil
+}
+
 func (r *RedshiftSinkReconciler) loadKafkaWatcher(
 	rsk *tipocav1.RedshiftSink,
-	secret map[string]string,
+	tlsConfig *kafka.TLSConfig,
 ) (
 	kafka.Watcher,
 	error,
@@ -230,36 +262,8 @@ func (r *RedshiftSinkReconciler) loadKafkaWatcher(
 	if ok {
 		return watcher.(kafka.Watcher), nil
 	} else {
-		enabled, err := secretByKey(secret, "tlsEnable")
-		if err != nil {
-			return nil, fmt.Errorf("Could not find secret: tlsEnable")
-		}
-		tlsEnabled, err := strconv.ParseBool(enabled)
-		if err != nil {
-			return nil, err
-		}
-		configTLS := kafka.TLSConfig{Enable: tlsEnabled}
-		if tlsEnabled {
-			tlsSecrets := make(map[string]string)
-			tlsSecretsKeys := []string{
-				"tlsUserCert",
-				"tlsUserKey",
-				"tlsCaCert",
-			}
-			for _, key := range tlsSecretsKeys {
-				value, err := secretByKey(secret, key)
-				if err != nil {
-					return nil, fmt.Errorf("Could not find secret: %s", key)
-				}
-				tlsSecrets[key] = value
-			}
-			configTLS.UserCert = tlsSecrets[tlsSecretsKeys[0]]
-			configTLS.UserKey = tlsSecrets[tlsSecretsKeys[1]]
-			configTLS.CACert = tlsSecrets[tlsSecretsKeys[2]]
-		}
-
 		watcher, err := kafka.NewWatcher(
-			brokers, kafkaVersion, configTLS,
+			brokers, kafkaVersion, *tlsConfig,
 		)
 		if err != nil {
 			return nil, err
@@ -289,7 +293,12 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, err
 	}
 
-	kafkaWatcher, err := r.loadKafkaWatcher(rsk, secret)
+	tlsConfig, err := r.makeTLSConfig(secret)
+	if err != nil {
+		return result, nil, err
+	}
+
+	kafkaWatcher, err := r.loadKafkaWatcher(rsk, tlsConfig)
 	if err != nil {
 		return result, nil, fmt.Errorf("Error fetching kafka watcher, %v", err)
 	}
@@ -312,8 +321,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 			setType(MainSinkGroup).
 			setTopics(kafkaTopics).
 			setMaskVersion("").
-			buildBatcher(secret, r.DefaultBatcherImage).
-			buildLoader(secret, r.DefaultLoaderImage, "").
+			buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
+			buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig).
 			build()
 		result, event, err := maskLessSinkGroup.reconcile(ctx)
 		return result, event, err
@@ -390,8 +399,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopics(status.reloading).
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
-		buildBatcher(secret, r.DefaultBatcherImage).
-		buildLoader(secret, r.DefaultLoaderImage, ReloadTableSuffix).
+		buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
+		buildLoader(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig).
 		build()
 
 	currentRealtime, err := reload.realtimeTopics(kafkaWatcher)
@@ -413,8 +422,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopics(status.reloadingDupe).
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
-		buildBatcher(secret, r.DefaultBatcherImage).
-		buildLoader(secret, r.DefaultLoaderImage, "").
+		buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
+		buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig).
 		build()
 
 	main = sgBuilder.
@@ -423,8 +432,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopics(status.released).
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
-		buildBatcher(secret, r.DefaultBatcherImage).
-		buildLoader(secret, r.DefaultLoaderImage, "").
+		buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
+		buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig).
 		build()
 
 	sinkGroups := []*sinkGroup{reloadDupe, reload, main}

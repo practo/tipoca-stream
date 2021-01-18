@@ -58,8 +58,8 @@ type sinkGroupBuilder interface {
 	setTopics(topics []string) sinkGroupBuilder
 	setMaskVersion(version string) sinkGroupBuilder
 	setTopicGroups() sinkGroupBuilder
-	buildBatcher(secret map[string]string, defaultImage string) sinkGroupBuilder
-	buildLoader(secret map[string]string, defaultImage string, tableSuffix string) sinkGroupBuilder
+	buildBatcher(secret map[string]string, defaultImage, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig) sinkGroupBuilder
+	buildLoader(secret map[string]string, defaultImage, tableSuffix string, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig) sinkGroupBuilder
 	build() *sinkGroup
 }
 
@@ -120,7 +120,12 @@ func (sb *buildSinkGroup) setTopicGroups() sinkGroupBuilder {
 	return sb
 }
 
-func (sb *buildSinkGroup) buildBatcher(secret map[string]string, defaultImage string) sinkGroupBuilder {
+func (sb *buildSinkGroup) buildBatcher(
+	secret map[string]string,
+	defaultImage string,
+	defaultKafkaVersion string,
+	tlsConfig *kafka.TLSConfig,
+) sinkGroupBuilder {
 	consumerGroups, err := computeConsumerGroups(sb.topicGroups, sb.topics)
 	if err != nil {
 		klog.Fatalf("Error computing consumer group from status, err: %v", err)
@@ -133,6 +138,8 @@ func (sb *buildSinkGroup) buildBatcher(secret map[string]string, defaultImage st
 		sb.sgType,
 		consumerGroups,
 		defaultImage,
+		defaultKafkaVersion,
+		tlsConfig,
 	)
 	if err != nil {
 		klog.Fatalf("Error making batcher: %v", err)
@@ -141,7 +148,13 @@ func (sb *buildSinkGroup) buildBatcher(secret map[string]string, defaultImage st
 	return sb
 }
 
-func (sb *buildSinkGroup) buildLoader(secret map[string]string, defaultImage string, tableSuffix string) sinkGroupBuilder {
+func (sb *buildSinkGroup) buildLoader(
+	secret map[string]string,
+	defaultImage string,
+	tableSuffix string,
+	defaultKafkaVersion string,
+	tlsConfig *kafka.TLSConfig,
+) sinkGroupBuilder {
 	consumerGroups, err := computeConsumerGroups(sb.topicGroups, sb.topics)
 	if err != nil {
 		klog.Fatalf("Error computing consumer group from status, err: %v", err)
@@ -154,6 +167,8 @@ func (sb *buildSinkGroup) buildLoader(secret map[string]string, defaultImage str
 		sb.sgType,
 		consumerGroups,
 		defaultImage,
+		defaultKafkaVersion,
+		tlsConfig,
 	)
 	if err != nil {
 		klog.Fatalf("Error making loader: %v", err)
