@@ -100,6 +100,8 @@ func newBatchProcessor(
 	topic string,
 	partition int32,
 	session sarama.ConsumerGroupSession,
+	kafkaConfig kafka.KafkaConfig,
+	kafkaLoaderTopicPrefix string,
 ) *batchProcessor {
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
@@ -110,24 +112,12 @@ func newBatchProcessor(
 	if err != nil {
 		klog.Fatalf("Error creating s3 client: %v\n", err)
 	}
-	loaderTopicPrefix := viper.GetString("kafka.loaderTopicPrefix")
-	if loaderTopicPrefix == "" {
-		loaderTopicPrefix = "loader-"
-	}
-
-	tlsEnabled := viper.GetBool("kafka.tlsConfig.enable")
-	configTLS := kafka.TLSConfig{Enable: tlsEnabled}
-	if tlsEnabled {
-		configTLS.UserCert = viper.GetString("kafka.tlsConfig.userCert")
-		configTLS.UserKey = viper.GetString("kafka.tlsConfig.userKey")
-		configTLS.CACert = viper.GetString("kafka.tlsConfig.caCert")
-	}
 
 	signaler, err := kafka.NewAvroProducer(
-		strings.Split(viper.GetString("kafka.brokers"), ","),
-		viper.GetString("kafka.version"),
+		strings.Split(viper.GetString(kafkaConfig.Brokers), ","),
+		kafkaConfig.Version,
 		viper.GetString("schemaRegistryURL"),
-		configTLS,
+		kafkaConfig.TLSConfig,
 	)
 	if err != nil {
 		klog.Fatalf("unable to make signaler client, err:%v\n", err)
@@ -149,7 +139,7 @@ func newBatchProcessor(
 
 	return &batchProcessor{
 		topic:              topic,
-		loaderTopicPrefix:  loaderTopicPrefix,
+		loaderTopicPrefix:  kafkaLoaderTopicPrefix,
 		partition:          partition,
 		autoCommit:         viper.GetBool("sarama.autoCommit"),
 		session:            session,

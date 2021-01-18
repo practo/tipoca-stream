@@ -3,11 +3,14 @@ package redshiftbatcher
 import (
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 )
 
-func NewConsumer(ready chan bool) consumer {
+func NewConsumer(ready chan bool, kafkaConfig kafka.KafkaConfig, loaderPrefix string) consumer {
 	return consumer{
-		ready: ready,
+		ready:                  ready,
+		kafkaConfig:            kafkaConfig,
+		kafkaLoaderTopicPrefix: loaderPrefix,
 		// batcher is initliazed in ConsumeClaim based on the topic it gets
 		batcher: nil,
 	}
@@ -17,9 +20,10 @@ func NewConsumer(ready chan bool) consumer {
 // it is actually consumerGroupHandler, kept the name consumer to hide details
 type consumer struct {
 	// Ready is used to signal the main thread about the readiness
-	ready chan bool
-
-	batcher *batcher
+	ready                  chan bool
+	kafkaConfig            kafka.KafkaConfig
+	kafkaLoaderTopicPrefix string
+	batcher                *batcher
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
@@ -50,7 +54,12 @@ func (c consumer) processMessage(
 
 	if c.batcher.processor == nil {
 		c.batcher.processor = newBatchProcessor(
-			message.Topic, message.Partition, session)
+			message.Topic,
+			message.Partition,
+			session,
+			c.kafkaConfig,
+			c.kafkaLoaderTopicPrefix,
+		)
 	}
 	// TODO: not sure added below for safety, it may not be required
 	c.batcher.processor.session = session
