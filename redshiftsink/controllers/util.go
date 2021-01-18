@@ -81,8 +81,9 @@ func deploymentFromSpec(
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						corev1.Container{
-							Name:  deploySpec.name,
-							Image: deploySpec.image,
+							Name:            deploySpec.name,
+							Image:           deploySpec.image,
+							ImagePullPolicy: corev1.PullAlways, // PullIfNotPresent
 							VolumeMounts: []corev1.VolumeMount{
 								corev1.VolumeMount{
 									MountPath: configSpec.mountPath,
