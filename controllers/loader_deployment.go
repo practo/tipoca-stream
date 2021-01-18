@@ -151,7 +151,7 @@ func NewLoader(
 		name:       objectName,
 		namespace:  rsk.Namespace,
 		labels:     labels,
-		volumeName: name,
+		volumeName: objectName,
 		mountPath:  "/config.yaml",
 		subPath:    "config.yaml",
 		data:       map[string]string{"config.yaml": confString},
@@ -165,6 +165,7 @@ func NewLoader(
 		resources:   rsk.Spec.Loader.PodTemplate.Resources,
 		tolerations: rsk.Spec.Loader.PodTemplate.Tolerations,
 		image:       image,
+		args:        []string{"-v=2", "--config=/config.yaml"},
 	}
 
 	return &Loader{
