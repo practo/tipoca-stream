@@ -504,30 +504,6 @@ func (b *loadProcessor) migrateTable(
 func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 	// TODO: add cache here based on schema id and return
 	// save some database calls.
-	schemaExist, err := b.redshifter.SchemaExist(inputTable.Meta.Schema)
-	if err != nil {
-		klog.Fatalf("Error querying schema exists, err: %v\n", err)
-	}
-	if !schemaExist {
-		err = b.redshifter.CreateSchema(inputTable.Meta.Schema)
-		if err != nil {
-			exist, err2 := b.redshifter.SchemaExist(inputTable.Meta.Schema)
-			if err2 != nil {
-				klog.Fatalf("Error checking schema exist, err: %v\n", err2)
-			}
-			if !exist {
-				klog.Fatalf("Error creating schema, err: %v\n", err)
-			}
-		} else {
-			klog.Infof(
-				"topic:%s, schemaId:%d: Schema %s created",
-				b.topic,
-				schemaId,
-				inputTable.Meta.Schema,
-			)
-		}
-	}
-
 	tableExist, err := b.redshifter.TableExist(
 		inputTable.Meta.Schema, inputTable.Name,
 	)
