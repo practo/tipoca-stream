@@ -31,6 +31,7 @@ type deploymentSpec struct {
 	resources   *corev1.ResourceRequirements
 	tolerations *[]corev1.Toleration
 	image       string
+	args        []string
 }
 
 type configMapSpec struct {
@@ -84,6 +85,7 @@ func deploymentFromSpec(
 							Name:            deploySpec.name,
 							Image:           deploySpec.image,
 							ImagePullPolicy: corev1.PullAlways, // PullIfNotPresent
+							Args:            deploySpec.args,
 							VolumeMounts: []corev1.VolumeMount{
 								corev1.VolumeMount{
 									MountPath: configSpec.mountPath,

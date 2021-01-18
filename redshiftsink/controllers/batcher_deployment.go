@@ -134,7 +134,7 @@ func NewBatcher(
 		name:       objectName,
 		namespace:  rsk.Namespace,
 		labels:     labels,
-		volumeName: name,
+		volumeName: objectName,
 		mountPath:  "/config.yaml",
 		subPath:    "config.yaml",
 		data:       map[string]string{"config.yaml": confString},
@@ -148,6 +148,7 @@ func NewBatcher(
 		resources:   rsk.Spec.Batcher.PodTemplate.Resources,
 		tolerations: rsk.Spec.Batcher.PodTemplate.Tolerations,
 		image:       image,
+		args:        []string{"-v=2", "--config=/config.yaml"},
 	}
 
 	return &Batcher{
