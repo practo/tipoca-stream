@@ -420,7 +420,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).
 		setType(ReloadDupeSinkGroup).
 		setTopics(status.reloadingDupe).
-		setMaskVersion(status.desiredVersion).
+		setMaskVersion(status.currentVersion).
 		setTopicGroups().
 		buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
 		buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig).
