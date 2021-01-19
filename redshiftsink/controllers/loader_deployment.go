@@ -116,7 +116,8 @@ func NewLoader(
 			Region:          secret["s3Region"],
 			AccessKeyId:     secret["s3AccessKeyId"],
 			SecretAccessKey: secret["s3SecretAccessKey"],
-			Bucket:          secret["s3BatcherBucketDir"],
+			Bucket:          secret["s3BucketDir"],
+			BucketDir:       secret["s3LoaderBucketDir"],
 		},
 		SchemaRegistryURL: secret["schemaRegistryURL"],
 		Redshift: redshift.RedshiftConfig{
