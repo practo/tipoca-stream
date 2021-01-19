@@ -68,15 +68,29 @@ func (sb *buildStatus) setAllTopics(topics []string) statusBuilder {
 	return sb
 }
 
-func (sb *buildStatus) setDiffTopics(topics []string) statusBuilder {
-	sb.diffTopics = topics
-	return sb
-}
-
 func (sb *buildStatus) setReleased() statusBuilder {
 	sb.released = currentTopicsByMaskStatus(
 		sb.rsk, tipocav1.MaskActive, sb.desiredVersion,
 	)
+	return sb
+}
+
+func (sb *buildStatus) setDiffTopics(topics []string) statusBuilder {
+	m := toMap(topics)
+	// add new topics to diff so that they get live by reloading channel
+	for _, topic := range sb.allTopics {
+		if sb.rsk.Status.MaskStatus != nil &&
+			sb.rsk.Status.MaskStatus.CurrentMaskStatus != nil {
+			_, ok := sb.rsk.Status.MaskStatus.CurrentMaskStatus[topic]
+			if !ok {
+				_, ok = m[topic]
+				if !ok {
+					topics = append(topics, topic)
+				}
+			}
+		}
+	}
+	sb.diffTopics = topics
 	return sb
 }
 
