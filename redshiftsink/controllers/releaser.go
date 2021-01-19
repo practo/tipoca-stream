@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	// tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	klog "github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
@@ -24,7 +23,7 @@ func newReleaser(
 	error,
 ) {
 
-	var redshiftSecret map[string]string
+	redshiftSecret := make(map[string]string)
 	redshiftSecretKeys := []string{
 		"redshiftHost",
 		"redshiftPort",
@@ -44,7 +43,7 @@ func newReleaser(
 		Schema:       schema,
 		Host:         redshiftSecret["redshiftHost"],
 		Port:         redshiftSecret["redshiftPort"],
-		Database:     redshiftSecret["redshiftDatabases"],
+		Database:     redshiftSecret["redshiftDatabase"],
 		User:         redshiftSecret["redshiftUser"],
 		Password:     redshiftSecret["redshiftPassword"],
 		Timeout:      10,
@@ -55,17 +54,14 @@ func newReleaser(
 
 	redshifter, err := redshift.NewRedshift(ctx, config)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf(
+			"Error creating redshift connecton, err: %v", err)
 	}
 
 	return &releaser{
 		schema:     schema,
 		redshifter: redshifter,
 	}, nil
-}
-
-func tempTableName(table string) string {
-	return table + "_ts_temp"
 }
 
 func (r *releaser) release(
@@ -76,7 +72,6 @@ func (r *releaser) release(
 ) error {
 	klog.Infof("releasing topic: %s", topic)
 	_, _, table := transformer.ParseTopic(topic)
-	tempTable := tempTableName(table)
 	reloadedTable := table + tableSuffix
 
 	tx, err := r.redshifter.Begin()
@@ -84,27 +79,31 @@ func (r *releaser) release(
 		return fmt.Errorf("Error creating database tx, err: %v\n", err)
 	}
 
-	// can ignore errors in dropping table
-	r.redshifter.DropTable(tx, schema, tempTable)
-
-	err = r.redshifter.RenameTable(tx, schema, table, tempTable)
+	tableExist, err := r.redshifter.TableExist(schema, table)
 	if err != nil {
 		return err
 	}
+	if tableExist {
+		klog.V(3).Infof("drop table %v", table)
+		err = r.redshifter.DropTable(tx, schema, table)
+		if err != nil {
+			return err
+		}
+	}
 
+	klog.V(3).Infof("move table %v -> %v", reloadedTable, table)
 	err = r.redshifter.RenameTable(tx, schema, reloadedTable, table)
 	if err != nil {
 		return err
 	}
 
 	if group != nil {
+		klog.V(3).Infof("granting schema access for table: %v to group: %v", table, *group)
 		err = r.redshifter.GrantSchemaAccess(tx, schema, table, *group)
 		if err != nil {
 			return err
 		}
 	}
-
-	r.redshifter.DropTable(tx, schema, tempTable)
 
 	// release
 	err = tx.Commit()
