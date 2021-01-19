@@ -116,7 +116,7 @@ func NewLoader(
 			Region:          secret["s3Region"],
 			AccessKeyId:     secret["s3AccessKeyId"],
 			SecretAccessKey: secret["s3SecretAccessKey"],
-			Bucket:          secret["s3BucketDir"],
+			Bucket:          secret["s3Bucket"],
 			BucketDir:       secret["s3LoaderBucketDir"],
 		},
 		SchemaRegistryURL: secret["schemaRegistryURL"],

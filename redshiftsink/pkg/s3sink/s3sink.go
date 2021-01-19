@@ -34,6 +34,7 @@ type Config struct {
 	AccessKeyId     string `yaml:"accessKeyId"`
 	SecretAccessKey string `yaml:"secretAccessKey"`
 	Bucket          string `yaml:"bucket"`
+	BucketDir       string `yaml:"bucketDir"`
 }
 
 // NewS3Sink is the factory method constructing a new S3Sink
