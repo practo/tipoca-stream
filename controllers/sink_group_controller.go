@@ -583,7 +583,7 @@ func (s *sinkGroup) realtimeTopics(
 		loaderCGID := consumerGroupID(s.loader.Name(), group.ID)
 		loaderLag, err := watcher.ConsumerGroupLag(
 			loaderCGID,
-			s.rsk.Spec.KafkaLoaderTopicPrefix+"-"+group.ID+"-"+topic,
+			s.rsk.Spec.KafkaLoaderTopicPrefix+group.ID+"-"+topic,
 			0,
 		)
 		if err != nil {
