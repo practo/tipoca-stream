@@ -368,8 +368,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setCurrentVersion(currentMaskVersion).
 		setDesiredVersion(desiredMaskVersion).
 		setAllTopics(kafkaTopics).
-		setDiffTopics(diffTopics).
 		setReleased().
+		setDiffTopics(diffTopics).
 		setRealtime().
 		computeReloading().
 		computeReloadingDupe().
