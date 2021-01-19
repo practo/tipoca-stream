@@ -30,6 +30,7 @@ func batcherSecret(secret map[string]string) (map[string]string, error) {
 	secretKeys := []string{
 		"maskSalt",
 		"s3Region",
+		"s3Bucket",
 		"s3BatcherBucketDir",
 		"s3AccessKeyId",
 		"s3SecretAccessKey",
