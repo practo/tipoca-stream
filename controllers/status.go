@@ -76,20 +76,6 @@ func (sb *buildStatus) setReleased() statusBuilder {
 }
 
 func (sb *buildStatus) setDiffTopics(topics []string) statusBuilder {
-	m := toMap(topics)
-	// add new topics to diff so that they get live by reloading channel
-	for _, topic := range sb.allTopics {
-		if sb.rsk.Status.MaskStatus != nil &&
-			sb.rsk.Status.MaskStatus.CurrentMaskStatus != nil {
-			_, ok := sb.rsk.Status.MaskStatus.CurrentMaskStatus[topic]
-			if !ok {
-				_, ok = m[topic]
-				if !ok {
-					topics = append(topics, topic)
-				}
-			}
-		}
-	}
 	sb.diffTopics = topics
 	return sb
 }
@@ -121,6 +107,21 @@ func (sb *buildStatus) computeReloading() statusBuilder {
 			continue
 		}
 		reConstructingReloading = append(reConstructingReloading, topic)
+	}
+
+	// this is required to add newly created topics as reloading always
+	for _, topic := range sb.allTopics {
+		if sb.rsk.Status.MaskStatus != nil &&
+			sb.rsk.Status.MaskStatus.CurrentMaskStatus != nil {
+			curr, ok := sb.rsk.Status.MaskStatus.CurrentMaskStatus[topic]
+			if !ok {
+				reConstructingReloading = appendIfMissing(reConstructingReloading, topic)
+			} else {
+				if curr.Phase == tipocav1.MaskReloading {
+					reConstructingReloading = appendIfMissing(reConstructingReloading, topic)
+				}
+			}
+		}
 	}
 
 	sb.reloading = reConstructingReloading
