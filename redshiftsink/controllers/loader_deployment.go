@@ -31,7 +31,7 @@ func loaderSecret(secret map[string]string) (map[string]string, error) {
 	secretKeys := []string{
 		"s3Region",
 		"s3Bucket",
-		"s3BatcherBucketDir",
+		"s3LoaderBucketDir",
 		"s3AccessKeyId",
 		"s3SecretAccessKey",
 		"schemaRegistryURL",

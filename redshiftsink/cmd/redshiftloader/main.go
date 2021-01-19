@@ -45,6 +45,14 @@ func run(cmd *cobra.Command, args []string) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Defaults s3 credentials to same as provided for the loader s3sink
+	if config.Redshift.S3AccessKeyId == "" {
+		config.Redshift.S3AccessKeyId = config.S3Sink.AccessKeyId
+	}
+	if config.Redshift.S3SecretAccessKey == "" {
+		config.Redshift.S3SecretAccessKey = config.S3Sink.SecretAccessKey
+	}
+
 	// Redshift connections is shared by all topics in all routines
 	redshifter, err := redshift.NewRedshift(ctx, config.Redshift)
 	if err != nil {
