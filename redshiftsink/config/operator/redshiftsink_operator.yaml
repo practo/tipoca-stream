@@ -41,8 +41,8 @@ spec:
        command:
        - /redshiftsink
        args:
-       - --default-batcher-image="746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftbatcher:latest"
-       - --default-loader-image="746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftloader:latest"
+       - --default-batcher-image=746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftbatcher:latest
+       - --default-loader-image=746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftloader:latest
        - -v=2
        resources:
          limits:
