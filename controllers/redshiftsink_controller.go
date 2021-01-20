@@ -70,7 +70,7 @@ type RedshiftSinkReconciler struct {
 
 // fetchSecretMap fetchs the k8s secret and returns it as a the map
 // also it expects the secret to be of type as created from
-// ../config/manager/kustomization_sample.yaml
+// ../config/operator/kustomization_sample.yaml
 func (r *RedshiftSinkReconciler) fetchSecretMap(
 	ctx context.Context,
 	name *string,

@@ -1,5 +1,5 @@
 resources:
-- operator.yaml
+- redshiftsink_operator.yaml
 generatorOptions:
  disableNameSuffixHash: true
 secretGenerator:
