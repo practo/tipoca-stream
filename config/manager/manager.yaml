@@ -33,13 +33,17 @@ spec:
          secretName: redshiftsink-secret
      containers:
      - name: manager
-       image: practodev/redshiftsink:latest
+       image: 746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftsink:latest
        imagePullPolicy: Always
        volumeMounts:
        - name: redshiftsink-secret-volume
          mountPath: /secret.yaml
        command:
        - /redshiftsink
+       args:
+       - --default-batcher-image="746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftbatcher:latest"
+       - --default-loader-image="746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftloader:latest"
+       - -v=2
        resources:
          limits:
            cpu: 100m
