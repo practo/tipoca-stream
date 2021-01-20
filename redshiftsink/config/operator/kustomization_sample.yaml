@@ -1,5 +1,5 @@
 resources:
-- manager.yaml
+- operator.yaml
 generatorOptions:
  disableNameSuffixHash: true
 secretGenerator:

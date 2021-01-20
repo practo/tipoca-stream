@@ -32,7 +32,7 @@ spec:
        secret:
          secretName: redshiftsink-secret
      containers:
-     - name: manager
+     - name: rsk-operator
        image: 746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftsink:latest
        imagePullPolicy: Always
        volumeMounts:
