@@ -7,7 +7,7 @@ metadata:
   name: redshfitsink-operator-role
 rules:
 - apiGroups:
-  - ""
+  - "*"
   resources:
   - configmaps
   verbs:
@@ -19,7 +19,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ""
+  - "*"
   resources:
   - deployments
   verbs:
@@ -31,7 +31,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ""
+  - "*"
   resources:
   - secrets
   verbs:
