@@ -10,8 +10,8 @@ RedshiftSink reads the debezium events from Kafka and loads them to Redshift. It
 
 * Add the secrets in a file.
 ```bash
-cp config/manager/kustomization_sample.yaml config/manager/kustomization.yaml
-vim config/manager/kustomization.yaml #fill in ur secrets
+cp config/operator/kustomization_sample.yaml config/operator/kustomization.yaml
+vim config/operator/kustomization.yaml #fill in ur secrets
 ```
 
 * Generate manifests, verify and install.
