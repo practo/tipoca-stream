@@ -11,12 +11,13 @@ import (
 )
 
 type releaser struct {
-	schema     string
-	repo       string
-	filePath   string
-	version    string
-	redshifter *redshift.Redshift
-	notifier   notify.Notifier
+	schema         string
+	repo           string
+	filePath       string
+	currentVersion string
+	desiredVersion string
+	redshifter     *redshift.Redshift
+	notifier       notify.Notifier
 }
 
 func newReleaser(
@@ -24,7 +25,8 @@ func newReleaser(
 	schema string,
 	repo string,
 	filePath string,
-	version string,
+	currentVersion string,
+	desiredVersion string,
 	secret map[string]string,
 ) (
 	*releaser,
@@ -68,12 +70,13 @@ func newReleaser(
 	}
 
 	return &releaser{
-		schema:     schema,
-		redshifter: redshifter,
-		repo:       repo,
-		filePath:   filePath,
-		version:    version,
-		notifier:   makeNotifier(secret),
+		schema:         schema,
+		redshifter:     redshifter,
+		repo:           repo,
+		filePath:       filePath,
+		currentVersion: currentVersion,
+		desiredVersion: desiredVersion,
+		notifier:       makeNotifier(secret),
 	}, nil
 }
 
@@ -142,18 +145,21 @@ func (r *releaser) release(
 	// notify
 	// TODO: make it generic for all git repos
 	if r.notifier != nil {
-		sha := r.version
-		if len(r.version) >= 6 {
-			sha = r.version[:6]
+		sha := r.desiredVersion
+		if len(r.desiredVersion) >= 6 {
+			sha = r.desiredVersion[:6]
 		}
 		message := fmt.Sprintf(
-			"Released table *%s.%s* with mask version: <https://github.com/%s/blob/%s/%s | %s>",
+			"Released table *%s.%s* with mask version: <https://github.com/%s/blob/%s/%s | %s> <https://github.com/%s/compare/%s...%s | changes>",
 			schema,
 			table,
 			r.repo,
-			r.version,
+			r.desiredVersion,
 			r.filePath,
 			sha,
+			r.repo,
+			r.currentVersion,
+			r.desiredVersion,
 		)
 		err = r.notifier.Notify(message)
 		if err != nil {
