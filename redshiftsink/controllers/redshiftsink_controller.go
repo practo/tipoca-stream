@@ -471,6 +471,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			rsk.Spec.Loader.RedshiftSchema,
 			repo,
 			filePath,
+			currentMaskVersion,
 			desiredMaskVersion,
 			secret,
 		)
