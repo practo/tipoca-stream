@@ -119,15 +119,17 @@ func (r *RedshiftSinkReconciler) fetchLatestMaskFileVersion(
 	gitToken string,
 ) (
 	string,
+	string,
+	string,
 	error,
 ) {
 	url, err := git.ParseURL(maskFile)
 	if err != nil {
-		return "", err
+		return "", "", "", err
 	}
 
 	if url.Scheme != "https" {
-		return "", fmt.Errorf("scheme: %s not supported.\n", url.Scheme)
+		return "", "", "", fmt.Errorf("scheme: %s not supported.\n", url.Scheme)
 	}
 
 	var repo, filePath string
@@ -136,7 +138,7 @@ func (r *RedshiftSinkReconciler) fetchLatestMaskFileVersion(
 	case "github.com":
 		repo, filePath = git.ParseGithubURL(url.Path)
 	default:
-		return "", fmt.Errorf("parsing not supported for: %s\n", url.Host)
+		return "", "", "", fmt.Errorf("parsing not supported for: %s\n", url.Host)
 	}
 
 	var cache git.GitCacheInterface
@@ -148,12 +150,17 @@ func (r *RedshiftSinkReconciler) fetchLatestMaskFileVersion(
 		repoURL := strings.ReplaceAll(maskFile, filePath, "")
 		cache, err = git.NewGitCache(repoURL, gitToken)
 		if err != nil {
-			return "", err
+			return "", "", "", err
 		}
 		r.GitCache.Store(repo, cache)
 	}
 
-	return cache.GetFileVersion(filePath)
+	latestVersion, err := cache.GetFileVersion(filePath)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	return latestVersion, repo, filePath, nil
 }
 
 func resultRequeueSeconds(seconds int) ctrl.Result {
@@ -333,7 +340,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, err
 	}
 
-	desiredMaskVersion, err := r.fetchLatestMaskFileVersion(
+	desiredMaskVersion, repo, filePath, err := r.fetchLatestMaskFileVersion(
 		rsk.Spec.Batcher.MaskFile,
 		gitToken,
 	)
@@ -460,7 +467,13 @@ func (r *RedshiftSinkReconciler) reconcile(
 		releasingTopic := status.realtime[0]
 
 		releaser, releaseError = newReleaser(
-			ctx, rsk.Spec.Loader.RedshiftSchema, secret)
+			ctx,
+			rsk.Spec.Loader.RedshiftSchema,
+			repo,
+			filePath,
+			desiredMaskVersion,
+			secret,
+		)
 		if releaseError != nil {
 			return result, nil, releaseError
 		}

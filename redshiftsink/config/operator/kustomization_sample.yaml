@@ -23,3 +23,5 @@ secretGenerator:
   - tlsUserCert=base64Encodedsample
   - tlsUserKey=base64Encodedsample
   - tlsCaCert=base64Encodedsample
+  - slackBotToken=optional-if-set-sends-notification-on-mask-release
+  - slackChannelID=slackChannelID-to-send-notifications

@@ -4,19 +4,27 @@ import (
 	"context"
 	"fmt"
 
-	klog "github.com/practo/klog/v2"
+	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/notify"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 )
 
 type releaser struct {
 	schema     string
+	repo       string
+	filePath   string
+	version    string
 	redshifter *redshift.Redshift
+	notifier   notify.Notifier
 }
 
 func newReleaser(
 	ctx context.Context,
 	schema string,
+	repo string,
+	filePath string,
+	version string,
 	secret map[string]string,
 ) (
 	*releaser,
@@ -61,7 +69,25 @@ func newReleaser(
 	return &releaser{
 		schema:     schema,
 		redshifter: redshifter,
+		repo:       repo,
+		filePath:   filePath,
+		version:    version,
+		notifier:   makeNotifier(secret),
 	}, nil
+}
+
+func makeNotifier(secret map[string]string) notify.Notifier {
+	slackBotToken, err := secretByKey(secret, "slackBotToken")
+	if err != nil {
+		return nil
+	}
+
+	slackChannelID, err := secretByKey(secret, "slackChannelID")
+	if err != nil {
+		return nil
+	}
+
+	return notify.New(slackBotToken, slackChannelID)
 }
 
 func (r *releaser) release(
@@ -111,6 +137,23 @@ func (r *releaser) release(
 		return fmt.Errorf("Error committing tx, err:%v\n", err)
 	}
 	klog.Infof("released topic in redshift: %s", topic)
+
+	// notify
+	// TODO: make it generic for all git repos
+	if r.notifier != nil {
+		message := fmt.Sprintf(
+			"Released *%s.%s*, <https://github.com/%s/blob/%s/%s | mask version>",
+			schema,
+			table,
+			r.repo,
+			r.version,
+			r.filePath,
+		)
+		err = r.notifier.Notify(message)
+		if err != nil {
+			klog.Errorf("Error notifying, err: %v", err)
+		}
+	}
 
 	return nil
 }
