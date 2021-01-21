@@ -142,13 +142,18 @@ func (r *releaser) release(
 	// notify
 	// TODO: make it generic for all git repos
 	if r.notifier != nil {
+		sha := r.version
+		if len(r.version) >= 6 {
+			sha = r.version[:6]
+		}
 		message := fmt.Sprintf(
-			"Released *%s.%s*, <https://github.com/%s/blob/%s/%s | mask version>",
+			"Released table *%s.%s* with mask version: <https://github.com/%s/blob/%s/%s | %s>",
 			schema,
 			table,
 			r.repo,
 			r.version,
 			r.filePath,
+			sha,
 		)
 		err = r.notifier.Notify(message)
 		if err != nil {
