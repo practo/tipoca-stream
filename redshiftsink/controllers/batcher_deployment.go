@@ -81,7 +81,7 @@ func NewBatcher(
 	for groupID, group := range consumerGroups {
 		totalTopics += len(group.topics)
 		groupConfigs = append(groupConfigs, kafka.ConsumerGroupConfig{
-			GroupID:           consumerGroupID(name, groupID),
+			GroupID:           consumerGroupID(rsk.Name, rsk.Namespace, groupID),
 			TopicRegexes:      expandTopicsToRegex(group.topics),
 			LoaderTopicPrefix: group.loaderTopicPrefix,
 			Kafka: kafka.KafkaConfig{

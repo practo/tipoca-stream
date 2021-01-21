@@ -257,8 +257,8 @@ func topicGroupBySinkGroup(
 	return groups
 }
 
-func consumerGroupID(sinkPodName string, groupID string) string {
-	return sinkPodName + "-" + groupID
+func consumerGroupID(rskName, rskNamespace, groupID string) string {
+	return rskNamespace + "-" + rskName + "-" + groupID
 }
 
 func groupIDFromVersion(version string) string {
@@ -566,7 +566,7 @@ func (s *sinkGroup) realtimeTopics(
 			return realtimeTopics, fmt.Errorf("groupID not found for %s", topic)
 		}
 
-		batcherCGID := consumerGroupID(s.batcher.Name(), group.ID)
+		batcherCGID := consumerGroupID(s.rsk.Name, s.rsk.Namespace, group.ID)
 		batcherLag, err := watcher.ConsumerGroupLag(
 			batcherCGID,
 			topic,
@@ -580,7 +580,7 @@ func (s *sinkGroup) realtimeTopics(
 			continue
 		}
 
-		loaderCGID := consumerGroupID(s.loader.Name(), group.ID)
+		loaderCGID := consumerGroupID(s.rsk.Name, s.rsk.Namespace, group.ID)
 		loaderLag, err := watcher.ConsumerGroupLag(
 			loaderCGID,
 			s.rsk.Spec.KafkaLoaderTopicPrefix+group.ID+"-"+topic,
