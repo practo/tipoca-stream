@@ -485,7 +485,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 			rsk.Spec.Loader.RedshiftGroup,
 		)
 
-		releaseError = nil
 		if releaseError != nil {
 			klog.Errorf(
 				"Error releasing topic: %s, err: %v",
