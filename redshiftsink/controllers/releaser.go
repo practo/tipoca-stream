@@ -63,7 +63,8 @@ func newReleaser(
 	redshifter, err := redshift.NewRedshift(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"Error creating redshift connecton, err: %v", err)
+			"Error creating redshift connecton, config: %+v, err: %v",
+			config, err)
 	}
 
 	return &releaser{
