@@ -150,7 +150,7 @@ func (r *releaser) release(
 			sha = r.desiredVersion[:6]
 		}
 		message := fmt.Sprintf(
-			"Released table *%s.%s* with mask version: <https://github.com/%s/blob/%s/%s | %s> <https://github.com/%s/compare/%s...%s | changes>",
+			"Released table *%s.%s* with mask-version: <https://github.com/%s/blob/%s/%s | %s> and <https://github.com/%s/compare/%s...%s | mask-changes>.",
 			schema,
 			table,
 			r.repo,
