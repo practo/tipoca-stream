@@ -12,6 +12,8 @@ metadata:
  labels:
    app: redshiftsink-operator
 spec:
+ strategy:
+   type: Recreate
  replicas: 1
  selector:
    matchLabels:
@@ -21,8 +23,6 @@ spec:
      labels:
        app: redshiftsink-operator
    spec:
-     strategy:
-       type: Recreate
      serviceAccountName: redshiftsink-operator
      tolerations:
      - effect: NoExecute
