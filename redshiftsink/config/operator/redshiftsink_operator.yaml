@@ -21,6 +21,8 @@ spec:
      labels:
        app: redshiftsink-operator
    spec:
+     strategy:
+       type: Recreate
      serviceAccountName: redshiftsink-operator
      tolerations:
      - effect: NoExecute
@@ -46,8 +48,8 @@ spec:
        - -v=2
        resources:
          limits:
-           cpu: 100m
-           memory: 100Mi
+           cpu: 300m
+           memory: 300Mi
          requests:
-           cpu: 10m
-           memory: 20Mi
+           cpu: 100m
+           memory: 200Mi
