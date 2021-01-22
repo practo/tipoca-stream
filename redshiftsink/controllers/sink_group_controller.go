@@ -377,6 +377,12 @@ func (s *sinkGroup) reconcileDeployment(
 		if !d.UpdateDeployment(current) {
 			return nil, nil
 		}
+
+		err = ctrlutil.SetOwnerReference(s.rsk, deployment, s.scheme)
+		if err != nil {
+			return nil, err
+		}
+
 		klog.V(2).Infof("Updating deployment: %v", deployment.Name)
 		event, err := updateDeployment(ctx, s.client, deployment, s.rsk)
 		if err != nil {
