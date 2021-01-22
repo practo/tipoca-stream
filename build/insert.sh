@@ -21,4 +21,4 @@ fi
 set -e
 
 echo "Inserting"
-kubectl --context=${records} get pods -n kafka | grep inventory-mysql | awk '{print $1}' | xargs -I {} kubectl --context=${records} exec {} -n kafka -- bash /usr/local/bin/load.sh ${records}
+kubectl --context=${context} get pods -n kafka | grep inventory-mysql | awk '{print $1}' | xargs -I {} kubectl --context=${context} exec {} -n kafka -- bash /usr/local/bin/load.sh ${records}
