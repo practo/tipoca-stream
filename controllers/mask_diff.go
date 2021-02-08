@@ -10,6 +10,7 @@ import (
 
 // MaskDiff reads two database mask configurations and returns the list of
 // topics whose mask values has changed.
+// also returns the updated list of kafka topics
 func MaskDiff(
 	topics []string,
 	maskFile string,
@@ -18,19 +19,20 @@ func MaskDiff(
 	gitToken string,
 ) (
 	[]string,
+	[]string,
 	error,
 ) {
 	if currentVersion == "" {
-		return topics, nil
+		return topics, topics, nil
 	}
 
 	if currentVersion == desiredVersion {
-		return []string{}, nil
+		return []string{}, topics, nil
 	}
 
 	currentDir, err := os.Getwd()
 	if err != nil {
-		return []string{}, nil
+		return []string{}, topics, nil
 	}
 	maskDir := filepath.Join(currentDir, "maskdiff")
 	os.Mkdir(maskDir, 0755)
@@ -38,20 +40,46 @@ func MaskDiff(
 	currentMaskConfig, err := masker.NewMaskConfig(
 		maskDir, maskFile, currentVersion, gitToken)
 	if err != nil {
-		return []string{}, err
+		return []string{}, topics, err
 	}
 
 	desiredMaskConfig, err := masker.NewMaskConfig(
 		maskDir, maskFile, desiredVersion, gitToken)
 	if err != nil {
-		return []string{}, err
+		return []string{}, topics, err
 	}
 
 	differ := masker.NewMaskDiffer(currentMaskConfig, desiredMaskConfig)
 	differ.Diff()
 	tablesModified := differ.ModifiedTables()
 	if len(tablesModified) == 0 {
-		return []string{}, nil
+		return []string{}, topics, nil
+	}
+
+	if desiredMaskConfig.IncludeTables != nil {
+		// ignore the tables which aer not part of include tables
+		includedTabesMap := toMap(*desiredMaskConfig.IncludeTables)
+		newTablesModified := make(map[string]bool)
+		for table, _ := range tablesModified {
+			_, ok := includedTabesMap[table]
+			if !ok {
+				klog.Warningf("Excluding table: %v", table)
+			} else {
+				newTablesModified[table] = true
+			}
+		}
+		tablesModified = newTablesModified
+
+		// shrink the total topics by include tables specification
+		shrinkedTopics := []string{}
+		for _, topic := range topics {
+			_, _, table := transformer.ParseTopic(topic)
+			_, ok := includedTabesMap[table]
+			if ok {
+				shrinkedTopics = append(shrinkedTopics, topic)
+			}
+		}
+		topics = shrinkedTopics
 	}
 
 	modifiedTopics := []string{}
@@ -70,5 +98,5 @@ func MaskDiff(
 		)
 	}
 
-	return modifiedTopics, nil
+	return modifiedTopics, topics, nil
 }

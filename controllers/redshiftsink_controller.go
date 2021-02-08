@@ -358,7 +358,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 
 	// TODO: add cache to prevent multiple pull from github and diff
-	diffTopics, err := MaskDiff(
+	diffTopics, kafkaTopics, err := MaskDiff(
 		kafkaTopics,
 		rsk.Spec.Batcher.MaskFile,
 		desiredMaskVersion,

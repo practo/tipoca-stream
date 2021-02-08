@@ -47,6 +47,9 @@ type MaskConfig struct {
 	// DistKeys sets the Redshift column to use the column as the DistKey
 	DistKeys map[string][]string `yaml:"dist_keys,omitempty"`
 
+	// IncludeTables restrict tables that are allowed to be sinked.
+	IncludeTables *[]string `yaml:"include_tables,omitempty"`
+
 	// regexes cache is used to prevent regex Compile on everytime computations.
 	regexes map[string]*regexp.Regexp
 }
@@ -59,6 +62,18 @@ func loweredKeys(keys map[string][]string) {
 		}
 		keys[table] = loweredColumns
 	}
+}
+
+func loweredList(items *[]string) *[]string {
+	if items == nil {
+		return nil
+	}
+	lower := []string{}
+	for _, item := range *items {
+		lower = append(lower, strings.ToLower(item))
+	}
+
+	return &lower
 }
 
 func downloadMaskFile(
@@ -161,6 +176,7 @@ func NewMaskConfig(
 	loweredKeys(maskConfig.SortKeys)
 	loweredKeys(maskConfig.DistKeys)
 
+	maskConfig.IncludeTables = loweredList(maskConfig.IncludeTables)
 	maskConfig.regexes = make(map[string]*regexp.Regexp)
 
 	return maskConfig, nil
