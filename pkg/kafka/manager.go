@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/practo/klog/v2"
@@ -159,6 +160,8 @@ func (c *Manager) SyncTopics(
 		if len(inactiveTopics) > 0 && c.topicsInitialized {
 			klog.Warningf("Inactive topics: %v. restart required!\n",
 				inactiveTopics)
+			klog.Infof("Sending SIGTERM to reload")
+			syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 		}
 
 		select {
