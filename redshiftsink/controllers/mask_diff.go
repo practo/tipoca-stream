@@ -22,10 +22,6 @@ func MaskDiff(
 	[]string,
 	error,
 ) {
-	if currentVersion == "" {
-		return topics, topics, nil
-	}
-
 	if currentVersion == desiredVersion {
 		return []string{}, topics, nil
 	}
@@ -37,14 +33,33 @@ func MaskDiff(
 	maskDir := filepath.Join(currentDir, "maskdiff")
 	os.Mkdir(maskDir, 0755)
 
-	currentMaskConfig, err := masker.NewMaskConfig(
-		maskDir, maskFile, currentVersion, gitToken)
+	desiredMaskConfig, err := masker.NewMaskConfig(
+		maskDir, maskFile, desiredVersion, gitToken)
 	if err != nil {
 		return []string{}, topics, err
 	}
 
-	desiredMaskConfig, err := masker.NewMaskConfig(
-		maskDir, maskFile, desiredVersion, gitToken)
+	var includedTabesMap map[string]bool
+	if desiredMaskConfig.IncludeTables != nil {
+		includedTabesMap = toMap(*desiredMaskConfig.IncludeTables)
+		// shrink the total topics by include tables specification
+		shrinkedTopics := []string{}
+		for _, topic := range topics {
+			_, _, table := transformer.ParseTopic(topic)
+			_, ok := includedTabesMap[table]
+			if ok {
+				shrinkedTopics = append(shrinkedTopics, topic)
+			}
+		}
+		topics = shrinkedTopics
+	}
+
+	if currentVersion == "" {
+		return topics, topics, nil
+	}
+
+	currentMaskConfig, err := masker.NewMaskConfig(
+		maskDir, maskFile, currentVersion, gitToken)
 	if err != nil {
 		return []string{}, topics, err
 	}
@@ -58,7 +73,6 @@ func MaskDiff(
 
 	if desiredMaskConfig.IncludeTables != nil {
 		// ignore the tables which aer not part of include tables
-		includedTabesMap := toMap(*desiredMaskConfig.IncludeTables)
 		newTablesModified := make(map[string]bool)
 		for table, _ := range tablesModified {
 			_, ok := includedTabesMap[table]
@@ -69,17 +83,6 @@ func MaskDiff(
 			}
 		}
 		tablesModified = newTablesModified
-
-		// shrink the total topics by include tables specification
-		shrinkedTopics := []string{}
-		for _, topic := range topics {
-			_, _, table := transformer.ParseTopic(topic)
-			_, ok := includedTabesMap[table]
-			if ok {
-				shrinkedTopics = append(shrinkedTopics, topic)
-			}
-		}
-		topics = shrinkedTopics
 	}
 
 	modifiedTopics := []string{}
