@@ -52,6 +52,7 @@ type RedshiftSinkReconciler struct {
 
 	KafkaTopicRegexes *sync.Map
 	KafkaWatchers     *sync.Map
+	KafkaTopicsCache  *sync.Map
 
 	DefaultBatcherImage       string
 	DefaultLoaderImage        string
@@ -357,13 +358,13 @@ func (r *RedshiftSinkReconciler) reconcile(
 		currentMaskVersion = ""
 	}
 
-	// TODO: add cache to prevent multiple pull from github and diff
 	diffTopics, kafkaTopics, err := MaskDiff(
 		kafkaTopics,
 		rsk.Spec.Batcher.MaskFile,
 		desiredMaskVersion,
 		currentMaskVersion,
 		gitToken,
+		r.KafkaTopicsCache,
 	)
 	if err != nil {
 		return result, nil, fmt.Errorf("Error doing mask diff, err: %v", err)

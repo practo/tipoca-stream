@@ -6,6 +6,7 @@ import (
 	masker "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // MaskDiff reads two database mask configurations and returns the list of
@@ -17,12 +18,22 @@ func MaskDiff(
 	desiredVersion string,
 	currentVersion string,
 	gitToken string,
+	kafkaTopicsCache *sync.Map,
 ) (
 	[]string,
 	[]string,
 	error,
 ) {
 	if currentVersion == desiredVersion {
+		// this is required to prevent network IO: git pull and computations
+		// but would eat up some memory, but keep opeartor fast
+		key := maskFile + desiredVersion
+		cacheLoaded, ok := kafkaTopicsCache.Load(key)
+		if ok {
+			topics = cacheLoaded.([]string)
+			kafkaTopicsCache.Store(key, topics)
+		}
+
 		return []string{}, topics, nil
 	}
 
