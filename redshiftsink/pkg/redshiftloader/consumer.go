@@ -31,6 +31,12 @@ type consumer struct {
 func (c consumer) Setup(sarama.ConsumerGroupSession) error {
 	klog.V(3).Info("Setting up consumer")
 
+	// Mark the consumer as ready
+	select {
+	case <-c.ready:
+		return nil
+	default:
+	}
 	close(c.ready)
 
 	return nil
@@ -86,7 +92,9 @@ func (c consumer) ConsumeClaim(session sarama.ConsumerGroupSession,
 		select {
 		case <-session.Context().Done():
 			klog.Infof(
-				"Gracefully shutdown. Stopped taking new messages.")
+				"%s: Gracefully shutdown. Stopped taking new messages.",
+				claim.Topic(),
+			)
 			return nil
 		default:
 			err := c.processMessage(session, message)
@@ -100,7 +108,7 @@ func (c consumer) ConsumeClaim(session sarama.ConsumerGroupSession,
 	}
 
 	klog.V(4).Infof(
-		"ConsumeClaim shut down for topic: %s, partition: %d\n",
+		"ConsumeClaim ended for topic: %s, partition: %d\n",
 		claim.Topic(),
 		claim.Partition(),
 	)
