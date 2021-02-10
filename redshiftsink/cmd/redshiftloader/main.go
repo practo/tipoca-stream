@@ -96,7 +96,7 @@ func run(cmd *cobra.Command, args []string) {
 		consumersReady = append(consumersReady, ready)
 		groupID := groupConfig.GroupID
 		consumerGroups[groupID] = consumerGroup
-		klog.Infof("Succesfully created kafka client for group: %s", groupID)
+		klog.V(2).Infof("Kafka client created for group: %s", groupID)
 		manager := kafka.NewManager(
 			consumerGroup,
 			groupID,
@@ -159,7 +159,7 @@ func run(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	klog.V(2).Info("Goodbye!")
+	klog.V(1).Info("Goodbye!")
 }
 
 // main/main.main()
