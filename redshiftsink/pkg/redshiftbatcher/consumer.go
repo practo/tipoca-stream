@@ -30,12 +30,6 @@ type consumer struct {
 func (c consumer) Setup(sarama.ConsumerGroupSession) error {
 	klog.V(3).Info("Setting up consumer")
 
-	// Mark the consumer as ready
-	select {
-	case <-c.ready:
-		return nil
-	default:
-	}
 	close(c.ready)
 
 	return nil

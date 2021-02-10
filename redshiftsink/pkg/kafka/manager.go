@@ -168,7 +168,7 @@ func (c *Manager) SyncTopics(
 				inactiveTopics,
 			)
 			time.Sleep(180 * time.Second)
-			klog.Info("Triggering shutdown to reload inactive topics")
+			klog.V(2).Info("Triggering shutdown to reload inactive topics")
 			// c.cancel()
 			syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 			return
@@ -224,9 +224,9 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 
 		c.setActiveTopics(topics)
 		klog.V(2).Infof(
-			"Manager: %s, Consume for %d topic(s)\n",
-			c.consumerGroupID,
+			"Manager triggering consume for %d topic(s) (%s)\n",
 			len(topics),
+			c.consumerGroupID,
 		)
 		err := c.consumerGroup.Consume(ctx, topics)
 		if err != nil {
