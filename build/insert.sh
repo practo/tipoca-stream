@@ -1,6 +1,6 @@
 #!/bin/bash
 
-## Example: ./insert.sh 10
+## Example: ./insert.sh example.cluster.com 10
 ## this inserts 10 new rows in inventory.customers table
 
 if [ -z "$1" ]; then
