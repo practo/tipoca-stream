@@ -101,6 +101,7 @@ func run(cmd *cobra.Command, args []string) {
 			consumerGroup,
 			groupID,
 			groupConfig.TopicRegexes,
+			// cancel,
 		)
 		wg.Add(1)
 		go manager.SyncTopics(ctx, 15, wg)
@@ -115,7 +116,7 @@ func run(cmd *cobra.Command, args []string) {
 	for ready >= 0 {
 		select {
 		case <-sigterm:
-			klog.Info("Sigterm signal received")
+			klog.V(2).Info("SIGTERM signal received")
 			ready = -1
 		}
 
@@ -127,19 +128,19 @@ func run(cmd *cobra.Command, args []string) {
 			select {
 			case <-channel:
 				ready += 1
-				klog.Infof("ConsumerGroup: %d is up and running", ready)
+				klog.V(2).Infof("ConsumerGroup: %d is up and running", ready)
 			}
 		}
-		klog.Info("Waiting for ConsumerGroups to come up...")
+		klog.V(2).Info("Waiting for ConsumerGroups to come up...")
 	}
 
-	klog.Info("Cancelling context to trigger graceful shutdown...")
+	klog.V(2).Info("Cancelling context to trigger graceful shutdown...")
 	cancel()
 
 	// TODO: the processing function should signal back
 	// It does not at present
 	// https://github.com/practo/tipoca-stream/issues/18
-	klog.Info("Waiting the some routines to gracefully shutdown (some don't)")
+	klog.V(2).Info("Waiting the some routines to gracefully shutdown (some don't)")
 	time.Sleep(10 * time.Second)
 
 	// routines which works with wait groups will shutdown gracefully
@@ -147,7 +148,7 @@ func run(cmd *cobra.Command, args []string) {
 
 	var closeErr error
 	for groupID, consumerGroup := range consumerGroups {
-		klog.Infof("Closing consumerGroup: %s", groupID)
+		klog.V(2).Infof("Closing consumerGroup: %s", groupID)
 		closeErr = consumerGroup.Close()
 		if closeErr != nil {
 			klog.Errorf(
@@ -158,7 +159,7 @@ func run(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	klog.Info("Goodbye!")
+	klog.V(2).Info("Goodbye!")
 }
 
 // main/main.main()
