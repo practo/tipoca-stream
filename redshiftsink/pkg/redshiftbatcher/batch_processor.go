@@ -294,8 +294,8 @@ func (b *batchProcessor) signalLoad() {
 	if err != nil {
 		klog.Fatalf("Error sending the signal to the loader, err:%v\n", err)
 	}
-	klog.V(3).Infof(
-		"topic:%s, batchId:%d: Signalled the loader.\n",
+	klog.V(2).Infof(
+		"topic:%s, batchId:%d: Signalled loader.\n",
 		b.topic, b.batchId,
 	)
 }
