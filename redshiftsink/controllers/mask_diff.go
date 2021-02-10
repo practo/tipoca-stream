@@ -24,14 +24,13 @@ func MaskDiff(
 	[]string,
 	error,
 ) {
+	cacheKey := maskFile + desiredVersion
 	if currentVersion == desiredVersion {
 		// this is required to prevent network IO: git pull and computations
 		// but would eat up some memory, but keep opeartor fast
-		key := maskFile + desiredVersion
-		cacheLoaded, ok := kafkaTopicsCache.Load(key)
+		cacheLoaded, ok := kafkaTopicsCache.Load(cacheKey)
 		if ok {
 			topics = cacheLoaded.([]string)
-			kafkaTopicsCache.Store(key, topics)
 		}
 
 		return []string{}, topics, nil
@@ -63,6 +62,7 @@ func MaskDiff(
 			}
 		}
 		topics = shrinkedTopics
+		kafkaTopicsCache.Store(cacheKey, topics)
 	}
 
 	if currentVersion == "" {
