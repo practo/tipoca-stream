@@ -158,7 +158,7 @@ func NewBatcher(
 		resources:   rsk.Spec.Batcher.PodTemplate.Resources,
 		tolerations: rsk.Spec.Batcher.PodTemplate.Tolerations,
 		image:       image,
-		args:        []string{"-v=2", "--config=/config.yaml"},
+		args:        []string{"-v=4", "--config=/config.yaml"},
 	}
 
 	return &Batcher{
