@@ -21,6 +21,9 @@ type Manager struct {
 	// topicRegexes is the list of topics to monitor
 	topicRegexes []*regexp.Regexp
 
+	// used for gracefully shutting down
+	// cancel context.CancelFunc
+
 	// ready is used to signal the main thread about the readiness of
 	// the manager
 	Ready chan bool
@@ -42,6 +45,7 @@ func NewManager(
 	consumerGroup ConsumerGroupInterface,
 	consumerGroupID string,
 	regexes string,
+	// cancel context.CancelFunc,
 ) *Manager {
 	var topicRegexes []*regexp.Regexp
 	expressions := strings.Split(regexes, ",")
@@ -55,9 +59,10 @@ func NewManager(
 	klog.Infof("Manager %s is managing: %s", consumerGroupID, topicRegexes)
 
 	return &Manager{
-		consumerGroup:     consumerGroup,
-		consumerGroupID:   consumerGroupID,
-		topicRegexes:      topicRegexes,
+		consumerGroup:   consumerGroup,
+		consumerGroupID: consumerGroupID,
+		topicRegexes:    topicRegexes,
+		// cancel:            cancel,
 		Ready:             make(chan bool),
 		activeTopics:      make(map[string]bool),
 		topicsInitialized: false,
@@ -158,10 +163,15 @@ func (c *Manager) SyncTopics(
 
 		inactiveTopics := c.topicInActive(topics)
 		if len(inactiveTopics) > 0 && c.topicsInitialized {
-			klog.Warningf("Inactive topics: %v. restart required!\n",
-				inactiveTopics)
-			klog.Infof("Sending SIGTERM to reload")
+			klog.Warningf(
+				"Inactive topics: %v. triggering shutdown in 3m...",
+				inactiveTopics,
+			)
+			time.Sleep(180 * time.Second)
+			klog.Info("Triggering shutdown to reload inactive topics")
+			// c.cancel()
 			syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+			return
 		}
 
 		select {
