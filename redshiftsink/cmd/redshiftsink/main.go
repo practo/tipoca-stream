@@ -81,6 +81,7 @@ func main() {
 		Recorder:                  mgr.GetEventRecorderFor("redshiftsink-reconciler"),
 		KafkaWatchers:             new(sync.Map),
 		KafkaTopicRegexes:         new(sync.Map),
+		KafkaTopicsCache:          new(sync.Map),
 		GitCache:                  new(sync.Map),
 		DefaultBatcherImage:       batcherImage,
 		DefaultLoaderImage:        loaderImage,
