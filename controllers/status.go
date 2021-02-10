@@ -25,7 +25,7 @@ type statusBuilder interface {
 	setDesiredVersion(version string) statusBuilder
 	setAllTopics(topics []string) statusBuilder
 	setDiffTopics(topics []string) statusBuilder
-	setReleased() statusBuilder
+	computeReleased() statusBuilder
 	setRealtime() statusBuilder
 	computeReloading() statusBuilder
 	computeReloadingDupe() statusBuilder
@@ -68,10 +68,36 @@ func (sb *buildStatus) setAllTopics(topics []string) statusBuilder {
 	return sb
 }
 
-func (sb *buildStatus) setReleased() statusBuilder {
-	sb.released = currentTopicsByMaskStatus(
+func (sb *buildStatus) computeReleased() statusBuilder {
+	released := currentTopicsByMaskStatus(
 		sb.rsk, tipocav1.MaskActive, sb.desiredVersion,
 	)
+
+	// directly move topics not having mask diff to released
+	if sb.rsk.Status.MaskStatus != nil &&
+		sb.rsk.Status.MaskStatus.CurrentMaskStatus != nil {
+
+		releasedMap := toMap(released)
+		diffMap := toMap(sb.diffTopics)
+
+		for topic, status := range sb.rsk.Status.MaskStatus.CurrentMaskStatus {
+			_, ok := releasedMap[topic]
+			if ok {
+				continue
+			}
+
+			_, ok = diffMap[topic]
+			if ok {
+				continue
+			}
+
+			if status.Phase == tipocav1.MaskActive && status.Version != sb.desiredVersion {
+				released = appendIfMissing(released, topic)
+			}
+		}
+	}
+	sb.released = released
+
 	return sb
 }
 
