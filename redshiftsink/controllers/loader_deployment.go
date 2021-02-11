@@ -85,7 +85,7 @@ func NewLoader(
 	for groupID, group := range consumerGroups {
 		totalTopics += len(group.topics)
 		groupConfigs = append(groupConfigs, kafka.ConsumerGroupConfig{
-			GroupID: consumerGroupID(rsk.Name, rsk.Namespace, groupID),
+			GroupID: consumerGroupID(rsk.Name, rsk.Namespace, groupID, "-loader"),
 			TopicRegexes: expandTopicsToRegex(
 				makeLoaderTopics(
 					group.loaderTopicPrefix,
