@@ -31,9 +31,9 @@ func MaskDiff(
 		cacheLoaded, ok := kafkaTopicsCache.Load(cacheKey)
 		if ok {
 			topics = cacheLoaded.([]string)
+			return []string{}, topics, nil
 		}
-
-		return []string{}, topics, nil
+		klog.V(3).Info("Cache miss for shrinking topics, computing...")
 	}
 
 	currentDir, err := os.Getwd()
