@@ -138,7 +138,8 @@ func NewBatcher(
 
 	confString := string(confBytes)
 	objectName := getObjectName(name, confString)
-	labels := getDefaultLabels(BatcherLabelInstance, sinkGroup, objectName)
+	labels := getDefaultLabels(
+		BatcherLabelInstance, sinkGroup, objectName, rsk.Name)
 
 	configSpec := configMapSpec{
 		name:       objectName,
