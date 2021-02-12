@@ -1,0 +1,15 @@
+[
+  {
+    "directory": "/",
+    "command": "/redshiftloader",
+    "args": ["--config=/config.yaml"],
+    "name": "redshiftloader0",
+    "deploymentStrategy": "recreate",
+    "resources": {
+      "requestCpu": "1024m",
+      "requestMemory": "2048Mi",
+      "limitCpu": "2048m",
+      "limitMemory": "2048Mi"
+    }
+  }
+]
