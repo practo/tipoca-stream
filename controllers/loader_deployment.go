@@ -154,7 +154,8 @@ func NewLoader(
 
 	confString := string(confBytes)
 	objectName := getObjectName(name, confString)
-	labels := getDefaultLabels(LoaderLabelInstance, sinkGroup, objectName)
+	labels := getDefaultLabels(
+		LoaderLabelInstance, sinkGroup, objectName, rsk.Name)
 
 	configSpec := configMapSpec{
 		name:       objectName,

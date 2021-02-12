@@ -21,6 +21,7 @@ const (
 	InstanceLabel  = "app.kubernetes.io/instance"
 	InstanceName   = "practo.dev/name"
 	SinkGroupLabel = "practo.dev/sinkgroup"
+	RskResource    = "practo.dev/resource"
 )
 
 type deploymentSpec struct {
@@ -135,7 +136,8 @@ func getObjectName(prefix, data string) string {
 
 // getDefaultLabels gives back the default labels for the crd resources
 func getDefaultLabels(
-	instance, sinkGroup, objectName string) map[string]string {
+	instance, sinkGroup, objectName string,
+	rskResource string) map[string]string {
 
 	return map[string]string{
 		"app":                          "redshiftsink",
@@ -329,6 +331,7 @@ func listDeployments(
 	instance string,
 	sinkGroup string,
 	namespace string,
+	rskName string,
 ) (
 	*appsv1.DeploymentList,
 	error,
@@ -339,6 +342,7 @@ func listDeployments(
 		client.MatchingLabels{
 			InstanceLabel:  instance,
 			SinkGroupLabel: sinkGroup,
+			RskResource:    rskName,
 		},
 	}
 	err := clientCrudder.List(ctx, list, options...)
@@ -440,6 +444,7 @@ func listConfigMaps(
 	instance string,
 	sinkGroup string,
 	namespace string,
+	rskName string,
 ) (
 	*corev1.ConfigMapList,
 	error,
@@ -450,6 +455,7 @@ func listConfigMaps(
 		client.MatchingLabels{
 			InstanceLabel:  instance,
 			SinkGroupLabel: sinkGroup,
+			RskResource:    rskName,
 		},
 	}
 	err := clientCrudder.List(ctx, list, options...)

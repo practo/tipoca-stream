@@ -401,6 +401,7 @@ func (s *sinkGroup) reconcileDeployment(
 		labelInstance,
 		s.sgType,
 		d.Namespace(),
+		s.rsk.Name,
 	)
 	if err != nil {
 		return nil, err
@@ -429,6 +430,7 @@ func (s *sinkGroup) reconcileDeployment(
 		labelInstance,
 		s.sgType,
 		d.Namespace(),
+		s.rsk.Name,
 	)
 	if err != nil {
 		return nil, err
