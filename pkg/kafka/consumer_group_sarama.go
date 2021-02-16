@@ -78,6 +78,7 @@ func NewSaramaConsumerGroup(
 	// c.Consumer.Fetch.Max = 10
 	brokers := strings.Split(config.Kafka.Brokers, ",")
 
+	klog.V(2).Infof("ConsumerGroup config: %v", c)
 	consumerGroup, err := sarama.NewConsumerGroup(
 		brokers, config.GroupID, c)
 	if err != nil {
