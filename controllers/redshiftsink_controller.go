@@ -526,7 +526,7 @@ func (r *RedshiftSinkReconciler) Reconcile(
 	_ ctrl.Result,
 	reterr error,
 ) {
-	klog.Infof("Reconciling %+v ---------------------", req)
+	klog.V(2).Infof("Reconciling %+v ...", req)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
@@ -571,6 +571,7 @@ func (r *RedshiftSinkReconciler) Reconcile(
 		event.Record(r.Recorder)
 	}
 
+	klog.V(2).Infof("Reconciled %+v", req)
 	return result, err
 }
 
