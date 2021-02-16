@@ -154,7 +154,7 @@ func NewMaskConfig(
 	if err != nil {
 		return maskConfig, err
 	}
-	klog.V(2).Infof("Using mask config file: %s\n", configFilePath)
+	klog.V(4).Infof("Using mask config file: %s\n", configFilePath)
 
 	yamlFile, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
