@@ -144,6 +144,7 @@ func getDefaultLabels(
 		InstanceLabel:                  instance,
 		InstanceName:                   objectName,
 		SinkGroupLabel:                 sinkGroup,
+		RskResource:                    rskResource,
 		"app.kubernetes.io/managed-by": "redshiftsink-operator",
 		"practo.dev/kind":              "RedshiftSink",
 	}
