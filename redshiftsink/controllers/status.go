@@ -167,7 +167,7 @@ func (sb *buildStatus) computeReloadingDupe() statusBuilder {
 		topicStatus := topicGroup(sb.rsk, reloadingTopic)
 		// never dupe a topic which is releasing for the first time
 		if topicStatus == nil {
-			klog.V(2).Infof(
+			klog.V(4).Infof(
 				"topic: %s is a new topic (reload-dupe not needed for this)",
 				reloadingTopic,
 			)
