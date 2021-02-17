@@ -4,7 +4,7 @@ RedshiftSink reads the debezium events from Kafka and loads them to Redshift. It
 
 ----
 
-<img src="arch-redshiftsink.png">
+<img src="arch-operator.png">
 
 # Install Redshiftsink
 
