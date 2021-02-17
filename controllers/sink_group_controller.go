@@ -394,6 +394,7 @@ func (s *sinkGroup) reconcileDeployment(
 		return nil, nil
 	}
 
+	klog.V(3).Infof("[Cleanup] Attempt deploy, current: %v", deployment.Name)
 	// find and cleanup dead deployments
 	deploymentList, err := listDeployments(
 		ctx,
@@ -407,12 +408,13 @@ func (s *sinkGroup) reconcileDeployment(
 		return nil, err
 	}
 	for _, deploy := range deploymentList.Items {
+		klog.V(3).Infof("[Cleanup] Attempting deploy: %v", deploy.Name)
 		labelValue, ok := deploy.Labels[InstanceName]
 		if !ok {
 			continue
 		}
 		if labelValue != deployment.Name {
-			klog.V(2).Infof("[Cleanup] Deleting deployment %s", labelValue)
+			klog.V(2).Infof("[Cleanup] Deleting deploy: %s", labelValue)
 			event, err := deleteDeployment(ctx, s.client, &deploy, s.rsk)
 			if err != nil {
 				return nil, err
@@ -423,6 +425,7 @@ func (s *sinkGroup) reconcileDeployment(
 		}
 	}
 
+	klog.V(3).Infof("[Cleanup] Attempt cm, current: %v", configMap.Name)
 	// find and cleanup dead config maps
 	configMapList, err := listConfigMaps(
 		ctx,
@@ -435,14 +438,15 @@ func (s *sinkGroup) reconcileDeployment(
 	if err != nil {
 		return nil, err
 	}
-	klog.V(5).Infof("[Cleanup] ConfigMapList: %+v", len(configMapList.Items))
+
 	for _, config := range configMapList.Items {
+		klog.V(3).Infof("[Cleanup] Attempting cm: %v", config.Name)
 		labelValue, ok := config.Labels[InstanceName]
 		if !ok {
 			continue
 		}
 		if labelValue != configMap.Name {
-			klog.V(2).Infof("[Cleanup] Deleting configMap %s", labelValue)
+			klog.V(2).Infof("[Cleanup] Deleting cm: %s", labelValue)
 			event, err := deleteConfigMap(ctx, s.client, &config, s.rsk)
 			if err != nil {
 				return nil, err
