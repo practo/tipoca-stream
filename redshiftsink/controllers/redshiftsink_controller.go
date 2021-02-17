@@ -349,7 +349,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, fmt.Errorf(
 			"Error fetching latest mask file version, err: %v\n", err)
 	}
-	klog.V(2).Infof("%s desiredMaskVersion=%v", rsk.Name, desiredMaskVersion)
+	klog.V(2).Infof("rsk/%s desiredMaskVersion=%v", rsk.Name, desiredMaskVersion)
 
 	var currentMaskVersion string
 	if rsk.Status.MaskStatus != nil &&
@@ -360,7 +360,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		klog.V(2).Infof("rsk/%s, Status empty, currentVersion=''", rsk.Name)
 		currentMaskVersion = ""
 	}
-	klog.V(2).Infof("%s currentMaskVersion=%v", rsk.Name, currentMaskVersion)
+	klog.V(2).Infof("rsk/%s currentMaskVersion=%v", rsk.Name, currentMaskVersion)
 
 	diffTopics, kafkaTopics, err := MaskDiff(
 		kafkaTopics,
