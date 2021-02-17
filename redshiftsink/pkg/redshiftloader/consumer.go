@@ -3,16 +3,18 @@ package redshiftloader
 import (
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 )
 
-func NewConsumer(ready chan bool, redshifter *redshift.Redshift) consumer {
+func NewConsumer(ready chan bool, saramaConfig kafka.SaramaConfig, redshifter *redshift.Redshift) consumer {
 	return consumer{
-		ready: ready,
+		ready:        ready,
+		saramaConfig: saramaConfig,
+		redshifter:   redshifter,
 
 		// loader is initliazed in ConsumeClaim based on the topic it gets
-		loader:     nil,
-		redshifter: redshifter,
+		loader: nil,
 	}
 }
 
@@ -20,11 +22,10 @@ func NewConsumer(ready chan bool, redshifter *redshift.Redshift) consumer {
 // it is actually consumerGroupHandler, kept the name consumer to hide details
 type consumer struct {
 	// Ready is used to signal the main thread about the readiness
-	ready chan bool
-
-	loader *loader
-
-	redshifter *redshift.Redshift
+	ready        chan bool
+	loader       *loader
+	saramaConfig kafka.SaramaConfig
+	redshifter   *redshift.Redshift
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
@@ -55,7 +56,9 @@ func (c consumer) processMessage(
 
 	if c.loader.processor == nil {
 		c.loader.processor = newLoadProcessor(
-			message.Topic, message.Partition, session, c.redshifter)
+			message.Topic, message.Partition,
+			session, c.saramaConfig, c.redshifter,
+		)
 	}
 	// TODO: not sure added below for safety, it may not be required
 	c.loader.processor.session = session

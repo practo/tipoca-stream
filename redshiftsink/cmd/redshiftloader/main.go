@@ -87,7 +87,11 @@ func run(cmd *cobra.Command, args []string) {
 		ready := make(chan bool)
 		consumerGroup, err := kafka.NewConsumerGroup(
 			groupConfig,
-			redshiftloader.NewConsumer(ready, redshifter),
+			redshiftloader.NewConsumer(
+				ready,
+				groupConfig.Sarama,
+				redshifter,
+			),
 		)
 		if err != nil {
 			klog.Errorf("Error making kafka consumer group, exiting: %v\n", err)

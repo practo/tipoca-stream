@@ -6,11 +6,13 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 )
 
-func NewConsumer(ready chan bool, kafkaConfig kafka.KafkaConfig, loaderPrefix string) consumer {
+func NewConsumer(ready chan bool, kafkaConfig kafka.KafkaConfig, saramaConfig kafka.SaramaConfig, loaderPrefix string) consumer {
 	return consumer{
 		ready:                  ready,
 		kafkaConfig:            kafkaConfig,
+		saramaConfig:           saramaConfig,
 		kafkaLoaderTopicPrefix: loaderPrefix,
+
 		// batcher is initliazed in ConsumeClaim based on the topic it gets
 		batcher: nil,
 	}
@@ -22,6 +24,7 @@ type consumer struct {
 	// Ready is used to signal the main thread about the readiness
 	ready                  chan bool
 	kafkaConfig            kafka.KafkaConfig
+	saramaConfig           kafka.SaramaConfig
 	kafkaLoaderTopicPrefix string
 	batcher                *batcher
 }
@@ -58,6 +61,7 @@ func (c consumer) processMessage(
 			message.Partition,
 			session,
 			c.kafkaConfig,
+			c.saramaConfig,
 			c.kafkaLoaderTopicPrefix,
 		)
 	}
