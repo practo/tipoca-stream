@@ -101,6 +101,7 @@ func newBatchProcessor(
 	partition int32,
 	session sarama.ConsumerGroupSession,
 	kafkaConfig kafka.KafkaConfig,
+	saramaConfig kafka.SaramaConfig,
 	kafkaLoaderTopicPrefix string,
 ) *batchProcessor {
 	sink, err := s3sink.NewS3Sink(
@@ -137,11 +138,13 @@ func newBatchProcessor(
 		}
 	}
 
+	klog.Infof("AutoCommit: %v", saramaConfig.AutoCommit)
+
 	return &batchProcessor{
 		topic:              topic,
 		loaderTopicPrefix:  kafkaLoaderTopicPrefix,
 		partition:          partition,
-		autoCommit:         viper.GetBool("sarama.autoCommit"),
+		autoCommit:         saramaConfig.AutoCommit,
 		session:            session,
 		s3sink:             sink,
 		s3BucketDir:        viper.GetString("s3sink.bucketDir"),
@@ -237,6 +240,7 @@ func (b *batchProcessor) markOffset(datas []interface{}) {
 		// just overwrite the same data.
 		// commit only when autoCommit is Off
 		if b.autoCommit == false {
+			klog.V(2).Infof("topic:%s, Committing (autoCommit=false)", message.Topic)
 			b.session.Commit()
 		}
 		b.lastCommittedOffset = message.Offset

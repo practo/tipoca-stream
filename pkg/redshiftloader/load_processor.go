@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/s3sink"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
@@ -81,6 +82,7 @@ type loadProcessor struct {
 
 func newLoadProcessor(
 	topic string, partition int32, session sarama.ConsumerGroupSession,
+	saramaConfig kafka.SaramaConfig,
 	redshifter *redshift.Redshift) *loadProcessor {
 
 	sink, err := s3sink.NewS3Sink(
@@ -93,10 +95,12 @@ func newLoadProcessor(
 		klog.Fatalf("Error creating s3 client: %v\n", err)
 	}
 
+	klog.Infof("AutoCommit: %v", saramaConfig.AutoCommit)
+
 	return &loadProcessor{
 		topic:              topic,
 		partition:          partition,
-		autoCommit:         viper.GetBool("sarama.autoCommit"),
+		autoCommit:         saramaConfig.AutoCommit,
 		session:            session,
 		s3sink:             sink,
 		messageTransformer: debezium.NewMessageTransformer(),
@@ -151,6 +155,7 @@ func (b *loadProcessor) markOffset(datas []interface{}) {
 		// the duplication is prevented by the merge and order is maintained
 		// by kafka.
 		if b.autoCommit == false {
+			klog.V(2).Infof("topic:%s, Committing (autoCommit=false)", message.Topic)
 			b.session.Commit()
 		}
 		b.lastCommittedOffset = message.Offset

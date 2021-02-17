@@ -72,14 +72,12 @@ func NewSaramaConsumerGroup(
 	// disable auto commits of offsets
 	// https://github.com/Shopify/sarama/issues/1570#issuecomment-574908417
 	c.Consumer.Offsets.AutoCommit.Enable = config.Sarama.AutoCommit
-	klog.V(2).Infof("Autocommit %+v", c.Consumer.Offsets.AutoCommit.Enable)
 
 	// TODO: find the correct values and make it confiurable
 	// c.Consumer.Fetch.Min = 3
 	// c.Consumer.Fetch.Max = 10
 	brokers := strings.Split(config.Kafka.Brokers, ",")
 
-	klog.V(3).Infof("ConsumerGroup config: %+v", c)
 	consumerGroup, err := sarama.NewConsumerGroup(
 		brokers, config.GroupID, c)
 	if err != nil {
