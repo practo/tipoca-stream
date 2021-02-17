@@ -174,7 +174,7 @@ func (t *kafkaWatch) consumerGroupLag(
 			// Kafka will return -1 if there is no offset associated
 			// with a topic-partition under that consumer group
 			if offsetFetchResponseBlock.Offset == -1 {
-				klog.V(3).Infof("%s not consumed by group: %v", topic, id)
+				klog.V(4).Infof("%s not consumed by group: %v", topic, id)
 				return defaultLag, nil
 			}
 			if offsetFetchResponseBlock.Err != sarama.ErrNoError {

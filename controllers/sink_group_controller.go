@@ -588,7 +588,7 @@ func (s *sinkGroup) realtimeTopics(
 			return realtimeTopics, err
 		}
 		if batcherLag == -1 {
-			klog.V(3).Infof("%v: lag=-1, condition unmet", batcherCGID)
+			klog.V(4).Infof("%v: lag=-1, condition unmet", batcherCGID)
 			continue
 		}
 
@@ -602,7 +602,7 @@ func (s *sinkGroup) realtimeTopics(
 			return realtimeTopics, err
 		}
 		if loaderLag == -1 {
-			klog.V(3).Infof("%v: lag=-1, condition unmet", loaderCGID)
+			klog.V(4).Infof("%v: lag=-1, condition unmet", loaderCGID)
 			continue
 		}
 
