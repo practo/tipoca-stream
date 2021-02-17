@@ -353,8 +353,10 @@ func (r *RedshiftSinkReconciler) reconcile(
 	var currentMaskVersion string
 	if rsk.Status.MaskStatus != nil &&
 		rsk.Status.MaskStatus.CurrentMaskVersion != nil {
+
 		currentMaskVersion = *rsk.Status.MaskStatus.CurrentMaskVersion
 	} else {
+		klog.V(2).Infof("rsk/%s, Status empty, currentVersion=''", rsk.Name)
 		currentMaskVersion = ""
 	}
 
