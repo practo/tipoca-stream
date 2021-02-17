@@ -68,6 +68,11 @@ func (sb *buildStatus) setAllTopics(topics []string) statusBuilder {
 	return sb
 }
 
+func (sb *buildStatus) setDiffTopics(topics []string) statusBuilder {
+	sb.diffTopics = topics
+	return sb
+}
+
 func (sb *buildStatus) computeReleased() statusBuilder {
 	released := currentTopicsByMaskStatus(
 		sb.rsk, tipocav1.MaskActive, sb.desiredVersion,
@@ -91,18 +96,16 @@ func (sb *buildStatus) computeReleased() statusBuilder {
 				continue
 			}
 
+			// directly move topics not having mask diff to released
 			if status.Phase == tipocav1.MaskActive && status.Version != sb.desiredVersion {
 				released = appendIfMissing(released, topic)
 			}
 		}
+	} else {
+		klog.V(2).Infof("rsk/%s, Status empty, released=0 ", sb.rsk.Name)
 	}
 	sb.released = released
 
-	return sb
-}
-
-func (sb *buildStatus) setDiffTopics(topics []string) statusBuilder {
-	sb.diffTopics = topics
 	return sb
 }
 
@@ -116,6 +119,7 @@ func (sb *buildStatus) setRealtime() statusBuilder {
 func (sb *buildStatus) computeReloading() statusBuilder {
 	if sb.rsk.Status.MaskStatus == nil ||
 		sb.rsk.Status.MaskStatus.CurrentMaskStatus == nil {
+		klog.V(2).Infof("rsk/%s, Status empty, reloading=diffTopics ", sb.rsk.Name)
 		sb.reloading = sb.diffTopics
 		return sb
 	}
@@ -147,6 +151,8 @@ func (sb *buildStatus) computeReloading() statusBuilder {
 					reConstructingReloading = appendIfMissing(reConstructingReloading, topic)
 				}
 			}
+		} else {
+			klog.V(2).Infof("rsk/%s, Status empty, newly created topics left", sb.rsk.Name)
 		}
 	}
 
@@ -161,8 +167,8 @@ func (sb *buildStatus) computeReloadingDupe() statusBuilder {
 		topicStatus := topicGroup(sb.rsk, reloadingTopic)
 		// never dupe a topic which is releasing for the first time
 		if topicStatus == nil {
-			klog.V(3).Infof(
-				"topic: %s is a new topic, it was never released before",
+			klog.V(2).Infof(
+				"topic: %s is a new topic (reload-dupe not needed for this)",
 				reloadingTopic,
 			)
 			continue
