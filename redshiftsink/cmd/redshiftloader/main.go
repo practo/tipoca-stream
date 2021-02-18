@@ -89,6 +89,7 @@ func run(cmd *cobra.Command, args []string) {
 			groupConfig,
 			redshiftloader.NewConsumer(
 				ready,
+				ctx,
 				groupConfig.Sarama,
 				redshifter,
 			),

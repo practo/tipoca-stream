@@ -28,6 +28,8 @@ type loadProcessor struct {
 	// session is required to commit the offsets on succesfull processing
 	session sarama.ConsumerGroupSession
 
+	mainContext context.Context
+
 	// s3Sink
 	s3sink *s3sink.S3Sink
 
@@ -82,6 +84,7 @@ type loadProcessor struct {
 
 func newLoadProcessor(
 	topic string, partition int32, session sarama.ConsumerGroupSession,
+	mainContext context.Context,
 	saramaConfig kafka.SaramaConfig,
 	redshifter *redshift.Redshift) *loadProcessor {
 
@@ -102,6 +105,7 @@ func newLoadProcessor(
 		partition:          partition,
 		autoCommit:         saramaConfig.AutoCommit,
 		session:            session,
+		mainContext:        mainContext,
 		s3sink:             sink,
 		messageTransformer: debezium.NewMessageTransformer(),
 		schemaTransformer: debezium.NewSchemaTransformer(
@@ -118,7 +122,7 @@ func newLoadProcessor(
 // TODO: get rid of this https://github.com/herryg91/gobatch/issues/2
 func (b *loadProcessor) ctxCancelled() bool {
 	select {
-	case <-b.session.Context().Done():
+	case <-b.mainContext.Done():
 		klog.Infof(
 			"topic:%s, batchId:%d, lastCommittedOffset:%d: Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,

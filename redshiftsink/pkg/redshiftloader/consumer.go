@@ -1,15 +1,17 @@
 package redshiftloader
 
 import (
+	"context"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 )
 
-func NewConsumer(ready chan bool, saramaConfig kafka.SaramaConfig, redshifter *redshift.Redshift) consumer {
+func NewConsumer(ready chan bool, mainContext context.Context, saramaConfig kafka.SaramaConfig, redshifter *redshift.Redshift) consumer {
 	return consumer{
 		ready:        ready,
+		mainContext:  mainContext,
 		saramaConfig: saramaConfig,
 		redshifter:   redshifter,
 
@@ -23,6 +25,7 @@ func NewConsumer(ready chan bool, saramaConfig kafka.SaramaConfig, redshifter *r
 type consumer struct {
 	// Ready is used to signal the main thread about the readiness
 	ready        chan bool
+	mainContext  context.Context
 	loader       *loader
 	saramaConfig kafka.SaramaConfig
 	redshifter   *redshift.Redshift
@@ -57,14 +60,14 @@ func (c consumer) processMessage(
 	if c.loader.processor == nil {
 		c.loader.processor = newLoadProcessor(
 			message.Topic, message.Partition,
-			session, c.saramaConfig, c.redshifter,
+			session, c.mainContext, c.saramaConfig, c.redshifter,
 		)
 	}
 	// TODO: not sure added below for safety, it may not be required
 	c.loader.processor.session = session
 
 	select {
-	case <-c.loader.processor.session.Context().Done():
+	case <-c.mainContext.Done():
 		klog.Info("Graceful shutdown requested, not inserting in batch")
 		return nil
 	default:
@@ -93,7 +96,7 @@ func (c consumer) ConsumeClaim(session sarama.ConsumerGroupSession,
 	// https://github.com/Shopify/sarama/blob/master/consumer_group.go#L27-L29
 	for message := range claim.Messages() {
 		select {
-		case <-session.Context().Done():
+		case <-c.mainContext.Done():
 			klog.Infof(
 				"%s: Gracefully shutdown. Stopped taking new messages.",
 				claim.Topic(),
