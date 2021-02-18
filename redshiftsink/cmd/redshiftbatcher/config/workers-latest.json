@@ -2,19 +2,6 @@
     {
         "directory": "/",
         "command": "/redshiftbatcher",
-        "args": ["-v=2", "--config=/config1.yaml"],
-        "name": "redshiftbatcher1",
-        "deploymentStrategy": "recreate",
-        "resources": {
-            "requestCpu": "100m",
-            "requestMemory": "100Mi",
-            "limitCpu": "1048m",
-            "limitMemory": "1548Mi"
-        }
-    },
-    {
-        "directory": "/",
-        "command": "/redshiftbatcher",
         "args": ["-v=2", "--config=/config2.yaml"],
         "name": "redshiftbatcher2",
         "deploymentStrategy": "recreate",
