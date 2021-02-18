@@ -417,16 +417,21 @@ func (r *RedshiftSinkReconciler) reconcile(
 
 	currentRealtime, err := reload.realtimeTopics(kafkaWatcher)
 	if err != nil {
-		return resultRequeueMilliSeconds(1), nil, fmt.Errorf(
-			"Error fetching realtime stats for: %v, err: %v", rsk.Name, err)
-	}
-	if !subSetSlice(currentRealtime, status.realtime) {
-		for _, moreRealtime := range currentRealtime {
-			status.realtime = appendIfMissing(status.realtime, moreRealtime)
+		klog.Errorf("Error fetching realtime stats for: %v, err: %v (existing realtime would continue releasing)", rsk.Name, err)
+		// #140 causes too many failures here so instead of
+		// breaking and hanging behaviour is stopped to
+		// make existing realtimes get released quickly
+		// return resultRequeueMilliSeconds(1), nil, fmt.Errorf(
+		// 	"Error fetching realtime stats for: %v, err: %v", rsk.Name, err)
+	} else {
+		if !subSetSlice(currentRealtime, status.realtime) {
+			for _, moreRealtime := range currentRealtime {
+				status.realtime = appendIfMissing(status.realtime, moreRealtime)
+			}
+			klog.V(2).Infof(
+				"Reconcile needed, realtime topics updated: %v", status.realtime)
+			return resultRequeueMilliSeconds(100), nil, nil
 		}
-		klog.V(2).Infof(
-			"Reconcile needed, realtime topics updated: %v", status.realtime)
-		return resultRequeueMilliSeconds(100), nil, nil
 	}
 
 	reloadDupe = sgBuilder.
