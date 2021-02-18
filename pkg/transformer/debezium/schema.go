@@ -235,7 +235,7 @@ type schemaTransformer struct {
 }
 
 func (c *schemaTransformer) TransformKey(topic string) ([]string, error) {
-	s, err := schemaregistry.GetLatestSchemaWithRetry(c.registry, topic, true, 10)
+	s, err := schemaregistry.GetLatestSchemaWithRetry(c.registry, topic, true, 3)
 	if err != nil {
 		return []string{}, err
 	}
