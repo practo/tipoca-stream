@@ -459,7 +459,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			return result, nil, err
 		}
 		if event != nil {
-			return resultRequeueSeconds(3), event, nil
+			return resultRequeueSeconds(1), event, nil
 		}
 	}
 
@@ -515,7 +515,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, releaseError
 	}
 	if topicReleaseEvent != nil {
-		return result, topicReleaseEvent, nil
+		return resultRequeueSeconds(1), topicReleaseEvent, nil
 	}
 
 	klog.V(5).Info("Nothing done in reconcile.")
