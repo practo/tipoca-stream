@@ -531,7 +531,7 @@ func (r *RedshiftSinkReconciler) Reconcile(
 	reterr error,
 ) {
 	klog.V(2).Infof("Reconciling %+v ...", req)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*240)
 	defer cancel()
 
 	var redshiftsink tipocav1.RedshiftSink
