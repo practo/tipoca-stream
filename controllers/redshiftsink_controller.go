@@ -417,7 +417,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 
 	currentRealtime, err := reload.realtimeTopics(kafkaWatcher)
 	if err != nil {
-		return result, nil, err
+		return resultRequeueMilliSeconds(1), nil, fmt.Errorf(
+			"Error fetching realtime stats for: %v, err: %v", rsk.Name, err)
 	}
 	if !subSetSlice(currentRealtime, status.realtime) {
 		for _, moreRealtime := range currentRealtime {
