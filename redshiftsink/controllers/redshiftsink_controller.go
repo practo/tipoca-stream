@@ -164,8 +164,8 @@ func (r *RedshiftSinkReconciler) fetchLatestMaskFileVersion(
 	return latestVersion, repo, filePath, nil
 }
 
-func resultRequeueSeconds(seconds int) ctrl.Result {
-	return ctrl.Result{RequeueAfter: time.Second * time.Duration(seconds)}
+func resultRequeueMilliSeconds(ms int) ctrl.Result {
+	return ctrl.Result{RequeueAfter: time.Millisecond * time.Duration(ms)}
 }
 
 func (r *RedshiftSinkReconciler) fetchLatestTopics(
@@ -425,7 +425,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		}
 		klog.V(2).Infof(
 			"Reconcile needed, realtime topics updated: %v", status.realtime)
-		return resultRequeueSeconds(3), nil, nil
+		return resultRequeueMilliSeconds(100), nil, nil
 	}
 
 	reloadDupe = sgBuilder.
@@ -459,7 +459,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			return result, nil, err
 		}
 		if event != nil {
-			return resultRequeueSeconds(1), event, nil
+			return resultRequeueMilliSeconds(10), event, nil
 		}
 	}
 
@@ -515,7 +515,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, releaseError
 	}
 	if topicReleaseEvent != nil {
-		return resultRequeueSeconds(1), topicReleaseEvent, nil
+		return resultRequeueMilliSeconds(5), topicReleaseEvent, nil
 	}
 
 	klog.V(5).Info("Nothing done in reconcile.")
@@ -583,7 +583,7 @@ func (r *RedshiftSinkReconciler) Reconcile(
 func (r *RedshiftSinkReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&tipocav1.RedshiftSink{}).
-		WithOptions(controller.Options{MaxConcurrentReconciles: 1}).
+		WithOptions(controller.Options{MaxConcurrentReconciles: 10}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&corev1.Secret{}).
