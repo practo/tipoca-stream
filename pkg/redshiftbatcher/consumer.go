@@ -1,14 +1,16 @@
 package redshiftbatcher
 
 import (
+	"context"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 )
 
-func NewConsumer(ready chan bool, kafkaConfig kafka.KafkaConfig, saramaConfig kafka.SaramaConfig, loaderPrefix string) consumer {
+func NewConsumer(ready chan bool, mainContext context.Context, kafkaConfig kafka.KafkaConfig, saramaConfig kafka.SaramaConfig, loaderPrefix string) consumer {
 	return consumer{
 		ready:                  ready,
+		mainContext:            mainContext,
 		kafkaConfig:            kafkaConfig,
 		saramaConfig:           saramaConfig,
 		kafkaLoaderTopicPrefix: loaderPrefix,
@@ -23,6 +25,7 @@ func NewConsumer(ready chan bool, kafkaConfig kafka.KafkaConfig, saramaConfig ka
 type consumer struct {
 	// Ready is used to signal the main thread about the readiness
 	ready                  chan bool
+	mainContext            context.Context
 	kafkaConfig            kafka.KafkaConfig
 	saramaConfig           kafka.SaramaConfig
 	kafkaLoaderTopicPrefix string
@@ -60,6 +63,7 @@ func (c consumer) processMessage(
 			message.Topic,
 			message.Partition,
 			session,
+			c.mainContext,
 			c.kafkaConfig,
 			c.saramaConfig,
 			c.kafkaLoaderTopicPrefix,
@@ -69,8 +73,9 @@ func (c consumer) processMessage(
 	c.batcher.processor.session = session
 
 	select {
-	case <-c.batcher.processor.session.Context().Done():
-		klog.Info("Graceful shutdown requested, not inserting in batch")
+	case <-c.mainContext.Done():
+		err := c.mainContext.Err()
+		klog.Warningf("Batch insert stopped, mainContext done, ctxErr: %v", err)
 		return nil
 	default:
 		c.batcher.Insert(message)
@@ -98,7 +103,7 @@ func (c consumer) ConsumeClaim(session sarama.ConsumerGroupSession,
 	// https://github.com/Shopify/sarama/blob/master/consumer_group.go#L27-L29
 	for message := range claim.Messages() {
 		select {
-		case <-session.Context().Done():
+		case <-c.mainContext.Done():
 			klog.Infof(
 				"%s: Gracefully shutdown. Stopped taking new messages.",
 				claim.Topic(),

@@ -68,6 +68,7 @@ func run(cmd *cobra.Command, args []string) {
 			groupConfig,
 			redshiftbatcher.NewConsumer(
 				ready,
+				ctx,
 				groupConfig.Kafka,
 				groupConfig.Sarama,
 				groupConfig.LoaderTopicPrefix,

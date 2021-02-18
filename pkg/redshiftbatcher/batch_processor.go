@@ -33,6 +33,9 @@ type batchProcessor struct {
 	// session is required to commit the offsets on succesfull processing
 	session sarama.ConsumerGroupSession
 
+	// mainContext for cancellations
+	mainContext context.Context
+
 	// s3Sink
 	s3sink *s3sink.S3Sink
 
@@ -100,6 +103,7 @@ func newBatchProcessor(
 	topic string,
 	partition int32,
 	session sarama.ConsumerGroupSession,
+	mainContext context.Context,
 	kafkaConfig kafka.KafkaConfig,
 	saramaConfig kafka.SaramaConfig,
 	kafkaLoaderTopicPrefix string,
@@ -146,6 +150,7 @@ func newBatchProcessor(
 		partition:          partition,
 		autoCommit:         saramaConfig.AutoCommit,
 		session:            session,
+		mainContext:        mainContext,
 		s3sink:             sink,
 		s3BucketDir:        viper.GetString("s3sink.bucketDir"),
 		bodyBuf:            bytes.NewBuffer(make([]byte, 0, 4096)),
@@ -179,8 +184,10 @@ func removeEmptyNullValues(value map[string]*string) map[string]*string {
 // TODO: get rid of this https://github.com/herryg91/gobatch/issues/2
 func (b *batchProcessor) ctxCancelled() bool {
 	select {
-	case <-b.session.Context().Done():
-		klog.Infof(
+	case <-b.mainContext.Done():
+		err := b.mainContext.Err()
+		klog.Warningf("Batch processing stopped, mainContext done, ctxErr: %v", err)
+		klog.V(2).Infof(
 			"topic:%s, batchId:%d, lastCommittedOffset:%d: Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,
 		)
@@ -393,12 +400,12 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 // otherwise return false in case of gracefull shutdown signals being captured,
 // this helps in cleanly shutting down the batch processing.
 func (b *batchProcessor) processBatch(
-	ctx context.Context, datas []interface{}) bool {
+	mainContext context.Context, datas []interface{}) bool {
 
 	b.s3Key = ""
 	for id, data := range datas {
 		select {
-		case <-ctx.Done():
+		case <-mainContext.Done():
 			return false
 		default:
 			b.processMessage(data.(*serializer.Message), id)
@@ -423,7 +430,7 @@ func (b *batchProcessor) process(workerID int, datas []interface{}) {
 		b.topic, b.batchId, len(datas),
 	)
 
-	done := b.processBatch(b.session.Context(), datas)
+	done := b.processBatch(b.mainContext, datas)
 	if !done {
 		b.handleShutdown()
 		return
