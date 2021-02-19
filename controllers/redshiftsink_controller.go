@@ -426,14 +426,14 @@ func (r *RedshiftSinkReconciler) reconcile(
 			if cacheValid(time.Second*time.Duration(r.ReleaseWaitSeconds), cache.lastCacheRefresh) {
 				allowShuffle = false
 			}
-		} else {
-			klog.V(2).Infof("rsk/%v init release cache", rsk.Name)
-			now := time.Now().UnixNano()
-			r.ReleaseCache.Store(
-				rsk.Namespace+rsk.Name,
-				releaseCache{lastCacheRefresh: &now},
-			)
-			return resultRequeueMilliSeconds(100), nil, nil
+			// } else {
+			// 	klog.V(2).Infof("rsk/%v init release cache", rsk.Name)
+			// 	now := time.Now().UnixNano()
+			// 	r.ReleaseCache.Store(
+			// 		rsk.Namespace+rsk.Name,
+			// 		releaseCache{lastCacheRefresh: &now},
+			// 	)
+			// 	return resultRequeueMilliSeconds(100), nil, nil
 		}
 	}
 	klog.V(2).Infof("rsk/%v allowShuffle=%v, reloadingRatio=%v", rsk.Name, allowShuffle, reloadingRatio)
@@ -486,7 +486,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			return result, nil, err
 		}
 		if event != nil {
-			return resultRequeueMilliSeconds(10), event, nil
+			return resultRequeueMilliSeconds(100), event, nil
 		}
 	}
 
@@ -577,7 +577,7 @@ func (r *RedshiftSinkReconciler) Reconcile(
 	reterr error,
 ) {
 	klog.V(2).Infof("Reconciling %+v ...", req)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*900)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*1800)
 	defer cancel()
 
 	var redshiftsink tipocav1.RedshiftSink
