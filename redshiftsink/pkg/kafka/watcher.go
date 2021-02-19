@@ -162,6 +162,11 @@ func (t *kafkaWatch) consumerGroupLag(
 	}
 	offsetFetchRequest.AddPartition(topic, partition)
 
+	err = broker.Open(t.client.Config())
+	if err != nil && err != sarama.ErrAlreadyConnected {
+		return defaultLag, fmt.Errorf("Error opening broker connection again, err: %v", err)
+	}
+
 	offsetFetchResponse, err := broker.FetchOffset(&offsetFetchRequest)
 	if err != nil {
 		return defaultLag, fmt.Errorf(
