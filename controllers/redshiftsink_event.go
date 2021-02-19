@@ -86,15 +86,15 @@ func (d ConfigMapDeletedEvent) Record(recorder record.EventRecorder) {
 		fmt.Sprintf("Updated configMap: %s", d.Name))
 }
 
-type TopicReleasedEvent struct {
+type TopicsReleasedEvent struct {
 	Object  runtime.Object
-	Topic   string
+	Topics  []string
 	Version string
 }
 
-func (d TopicReleasedEvent) Record(recorder record.EventRecorder) {
+func (d TopicsReleasedEvent) Record(recorder record.EventRecorder) {
 	recorder.Event(d.Object,
 		K8sEventTypeNormal,
-		"TopicReleased",
-		fmt.Sprintf("Released topic: %s, maskVersion: %s", d.Topic, d.Version))
+		"TopicsReleased",
+		fmt.Sprintf("Released topics: %s, maskVersion: %s", d.Topics, d.Version))
 }
