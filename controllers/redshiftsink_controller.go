@@ -62,6 +62,7 @@ type RedshiftSinkReconciler struct {
 	DefaultSecretRefName      string
 	DefaultSecretRefNamespace string
 	DefaultKafkaVersion       string
+	ReleaseWaitSeconds        int64
 }
 
 // +kubebuilder:rbac:groups=tipoca.k8s.practo.dev,resources=redshiftsinks,verbs=get;list;watch;create;update;patch;delete
@@ -422,7 +423,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		rcloaded, ok := r.ReleaseCache.Load(rsk.Namespace + rsk.Name)
 		if ok {
 			cache := rcloaded.(releaseCache)
-			if cacheValid(time.Second*time.Duration(1800), cache.lastCacheRefresh) {
+			if cacheValid(time.Second*time.Duration(r.ReleaseWaitSeconds), cache.lastCacheRefresh) {
 				allowShuffle = false
 			}
 		} else {
