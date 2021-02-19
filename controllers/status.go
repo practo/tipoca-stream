@@ -234,6 +234,22 @@ func (s *status) info() {
 	klog.V(2).Infof("%s realtime:   %d %v", rskName, len(s.realtime), s.realtime)
 }
 
+// manyReloading checks the percentage of reloading topics of the total topics
+func (s *status) reloadingRatio() float32 {
+	reloading := len(s.reloading)
+	if reloading == 0 {
+		return 0
+	}
+
+	allTopics := len(s.allTopics)
+	if allTopics == 0 {
+		s.info()
+		klog.Fatalf("All topics should not have been zero, exiting")
+	}
+
+	return float32(reloading) / float32(allTopics)
+}
+
 func (s *status) updateTopicsOnRelease(releasedTopic string) {
 	s.released = appendIfMissing(s.released, releasedTopic)
 	s.reloading = removeFromSlice(s.reloading, releasedTopic)

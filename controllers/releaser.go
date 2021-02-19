@@ -168,3 +168,7 @@ func (r *releaser) release(
 
 	return nil
 }
+
+type releaseCache struct {
+	lastCacheRefresh *int64
+}
