@@ -560,8 +560,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, topicReleaseEvent, releaseError
 	}
 	if topicReleaseEvent != nil {
-		klog.V(2).Infof("rsk/%v: all topics were released succesfully!")
-		return resultRequeueMilliSeconds(5), topicReleaseEvent, nil
+		klog.V(2).Infof("rsk/%v: all topics were released succesfully!", rsk.Name)
+		return result, topicReleaseEvent, nil
 	}
 
 	// not possible to reach here
