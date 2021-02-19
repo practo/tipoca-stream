@@ -435,6 +435,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		}
 	}
 
+	klog.V(2).Infof("rsk/%v reconciling all sinkGroups", rsk.Name)
+
 	reloadDupe = sgBuilder.
 		setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).
 		setType(ReloadDupeSinkGroup).
