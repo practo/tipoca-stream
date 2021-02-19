@@ -54,14 +54,14 @@ type RedshiftSinkReconciler struct {
 	KafkaWatchers      *sync.Map
 	KafkaTopicsCache   *sync.Map
 	KafkaRealtimeCache *sync.Map
+	ReleaseCache       *sync.Map
+	GitCache           *sync.Map
 
 	DefaultBatcherImage       string
 	DefaultLoaderImage        string
 	DefaultSecretRefName      string
 	DefaultSecretRefNamespace string
 	DefaultKafkaVersion       string
-
-	GitCache *sync.Map
 }
 
 // +kubebuilder:rbac:groups=tipoca.k8s.practo.dev,resources=redshiftsinks,verbs=get;list;watch;create;update;patch;delete
@@ -416,14 +416,31 @@ func (r *RedshiftSinkReconciler) reconcile(
 		buildLoader(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig).
 		build()
 
-	currentRealtime := reload.realtimeTopics(status.realtime, kafkaWatcher, r.KafkaRealtimeCache)
-	if !subSetSlice(currentRealtime, status.realtime) {
-		for _, moreRealtime := range currentRealtime {
-			status.realtime = appendIfMissing(status.realtime, moreRealtime)
+	reloadingRatio := status.reloadingRatio()
+	allowShuffle := true
+	if reloadingRatio > 0.2 {
+		rcloaded, ok := r.ReleaseCache.Load(rsk.Namespace + rsk.Name)
+		if ok {
+			cache := rcloaded.(releaseCache)
+			if cacheValid(time.Second*time.Duration(1800), cache.lastCacheRefresh) {
+				allowShuffle = false
+			}
 		}
-		klog.V(2).Infof(
-			"Reconcile needed, realtime topics updated: %v", status.realtime)
-		return resultRequeueMilliSeconds(100), nil, nil
+	}
+
+	// moving topics from reloading to realtime causes shuffling of sinkgroups
+	// which is expensive, so to minimize
+	// this we do it every 1800 second if reloadingRatio is > 0.2
+	if allowShuffle {
+		currentRealtime := reload.realtimeTopics(status.realtime, kafkaWatcher, r.KafkaRealtimeCache)
+		if !subSetSlice(currentRealtime, status.realtime) {
+			for _, moreRealtime := range currentRealtime {
+				status.realtime = appendIfMissing(status.realtime, moreRealtime)
+			}
+			klog.V(2).Infof(
+				"Reconcile needed, realtime topics updated: %v", status.realtime)
+			return resultRequeueMilliSeconds(100), nil, nil
+		}
 	}
 
 	klog.V(2).Infof("rsk/%v reconciling all sinkGroups", rsk.Name)
@@ -522,6 +539,11 @@ func (r *RedshiftSinkReconciler) reconcile(
 			Topics:  releasedTopics,
 			Version: status.desiredVersion,
 		}
+		now := time.Now().UnixNano()
+		r.ReleaseCache.Store(
+			rsk.Namespace+rsk.Name,
+			releaseCache{lastCacheRefresh: &now},
+		)
 	}
 	if releaseError != nil {
 		return result, topicReleaseEvent, releaseError

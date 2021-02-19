@@ -196,7 +196,7 @@ func (t *kafkaWatch) consumerGroupLag(
 			}
 			if offsetFetchResponseBlock.Err != sarama.ErrNoError {
 				return defaultLag, fmt.Errorf(
-					"Error since %s offsetFetchResponseBlock.Err != sarama.ErrNoError for offsetFetchResponseBlock.Err: %+v",
+					"Error since offsetFetchResponseBlock.Err != sarama.ErrNoError for offsetFetchResponseBlock.Err: %+v",
 					offsetFetchResponseBlock.Err)
 			}
 			return lastOffset - offsetFetchResponseBlock.Offset, nil
