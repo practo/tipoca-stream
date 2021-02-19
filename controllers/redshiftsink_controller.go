@@ -502,8 +502,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 	var releaseError error
 	var releaser *releaser
 	releasedTopics := []string{}
-	for _, releasingTopic := range status.realtime {
-		klog.V(2).Infof("rsk/%v releasing topic: %v", rsk.Name, releasingTopic)
+	for id, releasingTopic := range status.realtime {
+		klog.V(2).Infof("rsk/%v releasing #%d topic: %v", rsk.Name, id, releasingTopic)
 		releaser, releaseError = newReleaser(
 			ctx,
 			rsk.Spec.Loader.RedshiftSchema,
@@ -519,6 +519,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 				releasingTopic,
 				releaseError,
 			)
+			klog.Error(releaseError)
 			break
 		}
 		releaseError = releaser.release(
@@ -533,10 +534,11 @@ func (r *RedshiftSinkReconciler) reconcile(
 				releasingTopic,
 				releaseError,
 			)
+			klog.Error(releaseError)
 			break
 		} else {
 			releasedTopics = append(releasedTopics, releasingTopic)
-			klog.V(2).Infof("rsk/%v released topic: %v", rsk.Name, releasingTopic)
+			klog.V(2).Infof("rsk/%v released #%d topic: %v", rsk.Name, id, releasingTopic)
 			status.updateTopicsOnRelease(releasingTopic)
 			status.updateTopicGroup(releasingTopic)
 		}
