@@ -46,6 +46,7 @@ spec:
        - --default-batcher-image=746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftbatcher:latest
        - --default-loader-image=746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftloader:latest
        - -v=2
+       - --release-wait-seconds=1800
        resources:
          limits:
            cpu: 300m
