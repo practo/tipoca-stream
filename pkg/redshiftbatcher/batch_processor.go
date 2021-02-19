@@ -139,7 +139,7 @@ func newBatchProcessor(
 		)
 	}
 
-	klog.Infof("AutoCommit: %v", saramaConfig.AutoCommit)
+	klog.Infof("topic: %v, autoCommit: %v", topic, saramaConfig.AutoCommit)
 
 	return &batchProcessor{
 		topic:              topic,

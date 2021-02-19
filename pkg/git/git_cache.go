@@ -1,6 +1,7 @@
 package git
 
 import (
+	klog "github.com/practo/klog/v2"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -46,10 +47,11 @@ func NewGitCache(repoURL string, accessToken string) (GitCacheInterface, error) 
 // it fetches the latest version every cacheValidity seconds and keeps a cache
 func (g *GitCache) GetFileVersion(filePath string) (string, error) {
 	if cacheValid(g.cacheValidity, g.lastCacheRefresh) {
+		klog.V(5).Infof("Git cache valid for: %s", filePath)
 		version, ok := g.fileVersion[filePath]
 		if ok {
+			klog.V(5).Infof("Git cache hit for: %s", filePath)
 			return version, nil
-		} else {
 		}
 	}
 	now := time.Now().UnixNano()
