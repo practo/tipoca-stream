@@ -661,7 +661,7 @@ func (b *loadProcessor) process(workerID int, datas []interface{}) {
 		b.topic, b.batchId, len(datas),
 	)
 
-	done := b.processBatch(b.session.Context(), datas)
+	done := b.processBatch(b.mainContext, datas)
 	if !done {
 		b.handleShutdown()
 		return
