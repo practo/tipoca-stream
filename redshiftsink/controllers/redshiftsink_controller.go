@@ -470,7 +470,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 
 	if len(status.realtime) == 0 {
-		klog.V(2).Info("Nothing done in reconcile.")
+		klog.V(2).Info("rsk/%s Nothing done in reconcile", rsk.Name)
 		return result, nil, nil
 	}
 
