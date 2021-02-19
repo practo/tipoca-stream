@@ -597,9 +597,9 @@ func (s *sinkGroup) topicRealtime(
 		realtimeCache = cacheLoaded.(kafkaRealtimeCache)
 		// 30 to 180 seconds
 		validitySeconds := rand.Intn(180-30) + 30
-		klog.V(2).Infof("rsk/%s validity seconds: %v topic: %s", s.rsk.Name, validitySeconds, topic)
+		klog.V(5).Infof("rsk/%s validity seconds: %v topic: %s", s.rsk.Name, validitySeconds, topic)
 		if cacheValid(time.Second*time.Duration(validitySeconds), realtimeCache.lastCacheRefresh) {
-			klog.V(2).Infof("rsk/%s (realtime cache hit) topic: %s", s.rsk.Name, topic)
+			klog.V(5).Infof("rsk/%s (realtime cache hit) topic: %s", s.rsk.Name, topic)
 			if realtimeCache.realtime {
 				return true, realtimeCache.lastCacheRefresh, nil
 			}
@@ -611,7 +611,7 @@ func (s *sinkGroup) topicRealtime(
 	// reduces the request to Kafka by big factor
 	now := time.Now().UnixNano()
 
-	klog.V(2).Infof("rsk/%s (fetching realtime stats) topic: %s", s.rsk.Name, topic)
+	klog.V(4).Infof("rsk/%s (fetching realtime stats) topic: %s", s.rsk.Name, topic)
 	group, ok := s.topicGroups[topic]
 	if !ok {
 		return false, &now, fmt.Errorf("groupID not found for %s", topic)
