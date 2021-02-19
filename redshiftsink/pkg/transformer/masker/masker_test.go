@@ -52,11 +52,11 @@ func testMasker(t *testing.T, salt, topic, cName string,
 		t.Fatal(err)
 	}
 	configFilePath := filepath.Join(dir, "database.yaml")
-
-	masker, err := NewMsgMasker(salt, topic, configFilePath, "")
+	maskConfig, err := NewMaskConfig("/", configFilePath, "", "")
 	if err != nil {
-		t.Fatalf("Error making masker, err: %v\n", err)
+		t.Fatalf("Error making mask config: %v", err)
 	}
+	masker := NewMsgMasker(salt, topic, maskConfig)
 
 	message := &serializer.Message{
 		SchemaId:   int(1),
