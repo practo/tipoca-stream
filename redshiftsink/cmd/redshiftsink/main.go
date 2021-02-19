@@ -82,6 +82,7 @@ func main() {
 		KafkaWatchers:             new(sync.Map),
 		KafkaTopicRegexes:         new(sync.Map),
 		KafkaTopicsCache:          new(sync.Map),
+		KafkaRealtimeCache:        new(sync.Map),
 		GitCache:                  new(sync.Map),
 		DefaultBatcherImage:       batcherImage,
 		DefaultLoaderImage:        loaderImage,

@@ -104,22 +104,22 @@ func (t *kafkaWatch) ConsumerGroupLag(
 
 	err := t.client.RefreshBrokers(t.brokers)
 	if err != nil {
-		return lag, err
+		return lag, fmt.Errorf("Error refreshing kafka brokers, err: %v", err)
 	}
 	err = t.client.RefreshMetadata(topic)
 	if err != nil {
-		return lag, err
+		return lag, fmt.Errorf("Error refreshing kafka metadata, err: %v", err)
 	}
 
 	for _, broker := range t.client.Brokers() {
 		err = broker.Open(t.client.Config())
 		if err != nil && err != sarama.ErrAlreadyConnected {
-			return lag, err
+			return lag, fmt.Errorf("Error opening broker connection, err: %v", err)
 		}
 
 		lag, err = t.consumerGroupLag(id, topic, 0, broker)
 		if err != nil {
-			return lag, err
+			return lag, fmt.Errorf("Error calculating consumerGroupLag, err: %v", err)
 		}
 
 		if lag != -1 {
@@ -143,7 +143,7 @@ func (t *kafkaWatch) consumerGroupLag(
 
 	lastOffset, err := t.client.GetOffset(topic, partition, sarama.OffsetNewest)
 	if err != nil {
-		return defaultLag, err
+		return defaultLag, fmt.Errorf("Error getting offset for topic partition: %s, err: %v", topic, err)
 	}
 
 	offsetFetchRequest := sarama.OffsetFetchRequest{
@@ -154,7 +154,9 @@ func (t *kafkaWatch) consumerGroupLag(
 
 	offsetFetchResponse, err := broker.FetchOffset(&offsetFetchRequest)
 	if err != nil {
-		return defaultLag, err
+		return defaultLag, fmt.Errorf(
+			"Error fetching offset for offsetFetchRequest: %s %v, err: %v",
+			topic, offsetFetchRequest, err)
 	}
 	if offsetFetchResponse == nil {
 		return defaultLag, fmt.Errorf(
@@ -178,7 +180,9 @@ func (t *kafkaWatch) consumerGroupLag(
 				return defaultLag, nil
 			}
 			if offsetFetchResponseBlock.Err != sarama.ErrNoError {
-				return defaultLag, err
+				return defaultLag, fmt.Errorf(
+					"Error since %s offsetFetchResponseBlock.Err != sarama.ErrNoError for offsetFetchResponseBlock.Err: %+v",
+					offsetFetchResponseBlock.Err)
 			}
 			return lastOffset - offsetFetchResponseBlock.Offset, nil
 		}

@@ -50,9 +50,10 @@ type RedshiftSinkReconciler struct {
 	Scheme   *runtime.Scheme
 	Recorder record.EventRecorder
 
-	KafkaTopicRegexes *sync.Map
-	KafkaWatchers     *sync.Map
-	KafkaTopicsCache  *sync.Map
+	KafkaTopicRegexes  *sync.Map
+	KafkaWatchers      *sync.Map
+	KafkaTopicsCache   *sync.Map
+	KafkaRealtimeCache *sync.Map
 
 	DefaultBatcherImage       string
 	DefaultLoaderImage        string
@@ -415,9 +416,9 @@ func (r *RedshiftSinkReconciler) reconcile(
 		buildLoader(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig).
 		build()
 
-	currentRealtime, err := reload.realtimeTopics(kafkaWatcher)
+	currentRealtime, err := reload.realtimeTopics(kafkaWatcher, r.KafkaRealtimeCache)
 	if err != nil {
-		klog.Errorf("Error fetching realtime stats for: %v, err: %v (existing realtime would continue releasing)", rsk.Name, err)
+		klog.Errorf("Error fetching realtime stats for rsk/%s, existing realtime would continue releasing, err: %v", rsk.Name, err)
 		// #140 causes too many failures here so instead of
 		// breaking and hanging behaviour is stopped to
 		// make existing realtimes get released quickly
@@ -470,7 +471,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 
 	if len(status.realtime) == 0 {
-		klog.V(2).Infof("rsk/%s Nothing done in reconcile", rsk.Name)
+		klog.V(2).Infof("rsk/%s nothing done in reconcile", rsk.Name)
 		return result, nil, nil
 	}
 

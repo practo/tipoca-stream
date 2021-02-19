@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	klog "github.com/practo/klog/v2"
@@ -27,7 +28,7 @@ const (
 
 type sinkGroupInterface interface {
 	Reconcile(ctx context.Context) (ctrl.Result, ReconcilerEvent, error)
-	RealtimeTopics(watcher kafka.Watcher) ([]string, error)
+	RealtimeTopics(watcher kafka.Watcher, cache *sync.Map) ([]string, error)
 }
 
 type Deployment interface {
@@ -564,20 +565,55 @@ func (s *sinkGroup) lagBelowThreshold(
 	return false
 }
 
+func cacheValid(validity time.Duration, lastCachedTime *int64) bool {
+	if lastCachedTime == nil {
+		return false
+	}
+
+	if (*lastCachedTime + validity.Nanoseconds()) > time.Now().UnixNano() {
+		return true
+	}
+
+	return false
+}
+
+type kafkaRealtimeCache struct {
+	lastCacheRefresh *int64
+	realtime         bool
+}
+
 // realtimeTopics gives back the list of topics whose consumer lags are
 // less than or equal to the specified thresholds to be considered realtime
 func (s *sinkGroup) realtimeTopics(
 	watcher kafka.Watcher,
+	cache *sync.Map,
 ) (
 	[]string, error,
 ) {
 	realtimeTopics := []string{}
+	now := time.Now().UnixNano()
+
 	for _, topic := range s.topics {
-		group, ok := s.topicGroups[topic]
-		if !ok {
-			return realtimeTopics, fmt.Errorf("groupID not found for %s", topic)
+		// use cache to prevent calls to kafka
+		var realtimeCache kafkaRealtimeCache
+		cacheLoaded, ok := cache.Load(topic)
+		if ok {
+			realtimeCache = cacheLoaded.(kafkaRealtimeCache)
+			if cacheValid(time.Second*time.Duration(30), realtimeCache.lastCacheRefresh) {
+				klog.V(4).Infof("topic: %s (realtime cache hit)", topic)
+				if realtimeCache.realtime {
+					realtimeTopics = append(realtimeTopics, topic)
+				}
+				continue
+			}
 		}
 
+		klog.V(4).Infof("topic: %s (fetching realtime stats)", topic)
+		group, ok := s.topicGroups[topic]
+		if !ok {
+			cache.Store(topic, kafkaRealtimeCache{lastCacheRefresh: &now, realtime: false})
+			return realtimeTopics, fmt.Errorf("groupID not found for %s", topic)
+		}
 		batcherCGID := consumerGroupID(s.rsk.Name, s.rsk.Namespace, group.ID, "-batcher")
 		batcherLag, err := watcher.ConsumerGroupLag(
 			batcherCGID,
@@ -588,6 +624,7 @@ func (s *sinkGroup) realtimeTopics(
 			return realtimeTopics, err
 		}
 		if batcherLag == -1 {
+			cache.Store(topic, kafkaRealtimeCache{lastCacheRefresh: &now, realtime: false})
 			klog.V(4).Infof("%v: lag=-1, condition unmet", batcherCGID)
 			continue
 		}
@@ -602,16 +639,19 @@ func (s *sinkGroup) realtimeTopics(
 			return realtimeTopics, err
 		}
 		if loaderLag == -1 {
+			cache.Store(topic, kafkaRealtimeCache{lastCacheRefresh: &now, realtime: false})
 			klog.V(4).Infof("%v: lag=-1, condition unmet", loaderCGID)
 			continue
 		}
 
-		klog.V(3).Infof("%v: lag=%v", batcherCGID, batcherLag)
-		klog.V(3).Infof("%v: lag=%v", loaderCGID, loaderLag)
+		klog.V(4).Infof("lag=%v for %v", batcherLag, batcherCGID)
+		klog.V(4).Infof("lag=%v for %v", loaderLag, loaderCGID)
 
 		if s.lagBelowThreshold(topic, batcherLag, loaderLag) {
 			realtimeTopics = append(realtimeTopics, topic)
+			cache.Store(topic, kafkaRealtimeCache{lastCacheRefresh: &now, realtime: true})
 		} else {
+			cache.Store(topic, kafkaRealtimeCache{lastCacheRefresh: &now, realtime: false})
 			klog.V(2).Infof("%v: waiting to reach realtime", topic)
 		}
 	}
