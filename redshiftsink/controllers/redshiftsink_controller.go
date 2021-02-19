@@ -435,6 +435,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			return resultRequeueMilliSeconds(100), nil, nil
 		}
 	}
+	klog.V(2).Infof("rsk/%v allowShuffle=%v, reloadingRatio=%v", rsk.Name, allowShuffle, reloadingRatio)
 
 	// moving topics from reloading to realtime causes shuffling of sinkgroups
 	// which is expensive, so to minimize
