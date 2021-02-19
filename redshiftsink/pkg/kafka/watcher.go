@@ -112,9 +112,19 @@ func (t *kafkaWatch) ConsumerGroupLag(
 	}
 
 	for _, broker := range t.client.Brokers() {
+		defer broker.Close()
+
 		err = broker.Open(t.client.Config())
 		if err != nil && err != sarama.ErrAlreadyConnected {
 			return lag, fmt.Errorf("Error opening broker connection, err: %v", err)
+		}
+
+		connected, err := broker.Connected()
+		if err != nil {
+			return lag, fmt.Errorf("Error checking broker connection, err:%v", err)
+		}
+		if !connected {
+			return lag, fmt.Errorf("Could not connect broker: %+v", broker)
 		}
 
 		lag, err = t.consumerGroupLag(id, topic, 0, broker)
