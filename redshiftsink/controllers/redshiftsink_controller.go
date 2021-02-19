@@ -469,14 +469,21 @@ func (r *RedshiftSinkReconciler) reconcile(
 		}
 	}
 
-	klog.V(4).Info("finding release candidates...")
-	var topicReleaseEvent *TopicReleasedEvent
+	if len(status.realtime) == 0 {
+		klog.V(2).Info("Nothing done in reconcile.")
+		return result, nil, nil
+	}
+
+	// release the realtime topics, all topics in realtime are
+	// taken as a group and is tried to release in single reconcile
+	// to reduce the time spent on rebalance of sink groups (optimization)
+	// #141
+	klog.V(2).Infof("release candidates: %v", status.realtime)
 	var releaseError error
 	var releaser *releaser
-	if len(status.realtime) > 0 {
-		klog.V(2).Infof("release candidates: %v", status.realtime)
-		releasingTopic := status.realtime[0]
-
+	releasedTopics := []string{}
+	for _, releasingTopic := range status.realtime {
+		klog.V(2).Infof("rsk/%v releasing topic: %v", rsk.Name, releasingTopic)
 		releaser, releaseError = newReleaser(
 			ctx,
 			rsk.Spec.Loader.RedshiftSchema,
@@ -487,45 +494,50 @@ func (r *RedshiftSinkReconciler) reconcile(
 			secret,
 		)
 		if releaseError != nil {
-			return result, nil, releaseError
+			releaseError = fmt.Errorf(
+				"Error making release connection for topic: %s, err: %v",
+				releasingTopic,
+				releaseError,
+			)
+			break
 		}
 		releaseError = releaser.release(
 			rsk.Spec.Loader.RedshiftSchema,
-			status.realtime[0],
+			releasingTopic,
 			ReloadTableSuffix,
 			rsk.Spec.Loader.RedshiftGroup,
 		)
-
 		if releaseError != nil {
-			klog.Errorf(
+			releaseError = fmt.Errorf(
 				"Error releasing topic: %s, err: %v",
 				releasingTopic,
 				releaseError,
 			)
+			break
 		} else {
-			topicReleaseEvent = &TopicReleasedEvent{
-				Object:  rsk,
-				Topic:   releasingTopic,
-				Version: status.desiredVersion,
-			}
-			klog.V(2).Infof(
-				"released topic: %v, version: %v",
-				releasingTopic, status.desiredVersion,
-			)
+			releasedTopics = append(releasedTopics, releasingTopic)
+			klog.V(2).Infof("rsk/%v released topic: %v", rsk.Name, releasingTopic)
 			status.updateTopicsOnRelease(releasingTopic)
 			status.updateTopicGroup(releasingTopic)
 		}
 	}
-
+	var topicReleaseEvent *TopicsReleasedEvent
+	if len(releasedTopics) > 0 {
+		topicReleaseEvent = &TopicsReleasedEvent{
+			Object:  rsk,
+			Topics:  releasedTopics,
+			Version: status.desiredVersion,
+		}
+	}
 	if releaseError != nil {
-		return result, nil, releaseError
+		return result, topicReleaseEvent, releaseError
 	}
 	if topicReleaseEvent != nil {
+		klog.V(2).Infof("rsk/%v: all topics were released succesfully!")
 		return resultRequeueMilliSeconds(5), topicReleaseEvent, nil
 	}
 
-	klog.V(5).Info("Nothing done in reconcile.")
-
+	// not possible to reach here
 	return result, nil, nil
 }
 

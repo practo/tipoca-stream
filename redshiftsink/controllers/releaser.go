@@ -100,7 +100,6 @@ func (r *releaser) release(
 	tableSuffix string,
 	group *string,
 ) error {
-	klog.V(1).Infof("releasing topic: %s", topic)
 	_, _, table := transformer.ParseTopic(topic)
 	reloadedTable := table + tableSuffix
 
@@ -114,21 +113,21 @@ func (r *releaser) release(
 		return err
 	}
 	if tableExist {
-		klog.V(2).Infof("drop table %v", table)
+		klog.V(4).Infof("drop table %v", table)
 		err = r.redshifter.DropTable(tx, schema, table)
 		if err != nil {
 			return err
 		}
 	}
 
-	klog.V(2).Infof("move table %v -> %v", reloadedTable, table)
+	klog.V(4).Infof("move table %v -> %v", reloadedTable, table)
 	err = r.redshifter.RenameTable(tx, schema, reloadedTable, table)
 	if err != nil {
 		return err
 	}
 
 	if group != nil {
-		klog.V(2).Infof("granting schema access for table: %v to group: %v", table, *group)
+		klog.V(4).Infof("granting schema access for table: %v to group: %v", table, *group)
 		err = r.redshifter.GrantSchemaAccess(tx, schema, table, *group)
 		if err != nil {
 			return err
