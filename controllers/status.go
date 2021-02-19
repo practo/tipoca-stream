@@ -343,7 +343,7 @@ func (s *status) updateMaskStatus() {
 }
 
 func (s *status) updateTopicGroup(topic string) {
-	klog.Infof("updating topic group: %s %+v", topic, s.rsk.Status)
+	klog.V(5).Infof("updating topic group: %s %+v", topic, s.rsk.Status)
 	if s.rsk.Status.TopicGroup == nil {
 		s.rsk.Status.TopicGroup = make(map[string]tipocav1.Group)
 	}
