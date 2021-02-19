@@ -89,7 +89,7 @@ func downloadMaskFile(
 
 	switch url.Scheme {
 	case "file":
-		klog.V(4).Info("Mask file is of file type, nothing to download")
+		klog.V(5).Info("Mask file is of file type, nothing to download")
 		return maskFile, nil
 	default:
 		if maskFileVersion == "" {
@@ -117,7 +117,7 @@ func downloadMaskFile(
 			gitToken,
 		)
 
-		klog.V(4).Infof("Downloading git repo: %s", repo)
+		klog.V(5).Infof("Downloading git repo: %s", repo)
 		err = g.Clone()
 		if err != nil {
 			return "", err
@@ -126,7 +126,7 @@ func downloadMaskFile(
 		if err != nil {
 			return "", err
 		}
-		klog.V(4).Infof("Downloaded git repo at: %s", dir)
+		klog.V(5).Infof("Downloaded git repo at: %s", dir)
 
 		sourceFile := filepath.Join(dir, configFilePath)
 		destFile := filepath.Join(homeDir, filepath.Base(sourceFile))
@@ -136,7 +136,7 @@ func downloadMaskFile(
 				"Error copying! src: %s, dest: %s, err:%v\n",
 				sourceFile, destFile, err)
 		}
-		klog.V(4).Info("Copied the mask file at the read location")
+		klog.V(5).Info("Copied the mask file at the read location")
 
 		return destFile, nil
 	}
@@ -167,6 +167,7 @@ func NewMaskConfig(
 		return maskConfig, fmt.Errorf(
 			"Unable to unmarshal: %v, err: %v", configFilePath, err)
 	}
+	klog.V(3).Infof("Loaded mask configuration from: %s\n", maskFile)
 
 	// convert to lower case, redshift works with lowercase
 	loweredKeys(maskConfig.NonPiiKeys)

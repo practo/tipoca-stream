@@ -5,14 +5,23 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
 )
 
-func NewConsumer(ready chan bool, mainContext context.Context, kafkaConfig kafka.KafkaConfig, saramaConfig kafka.SaramaConfig, loaderPrefix string) consumer {
+func NewConsumer(
+	ready chan bool,
+	mainContext context.Context,
+	kafkaConfig kafka.KafkaConfig,
+	saramaConfig kafka.SaramaConfig,
+	maskConfig masker.MaskConfig,
+	loaderPrefix string,
+) consumer {
 	return consumer{
 		ready:                  ready,
 		mainContext:            mainContext,
 		kafkaConfig:            kafkaConfig,
 		saramaConfig:           saramaConfig,
+		maskConfig:             maskConfig,
 		kafkaLoaderTopicPrefix: loaderPrefix,
 
 		// batcher is initliazed in ConsumeClaim based on the topic it gets
@@ -28,6 +37,7 @@ type consumer struct {
 	mainContext            context.Context
 	kafkaConfig            kafka.KafkaConfig
 	saramaConfig           kafka.SaramaConfig
+	maskConfig             masker.MaskConfig
 	kafkaLoaderTopicPrefix string
 	batcher                *batcher
 }
@@ -66,6 +76,7 @@ func (c consumer) processMessage(
 			c.mainContext,
 			c.kafkaConfig,
 			c.saramaConfig,
+			c.maskConfig,
 			c.kafkaLoaderTopicPrefix,
 		)
 	}

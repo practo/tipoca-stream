@@ -6,7 +6,6 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
-	"github.com/spf13/viper"
 	"strconv"
 	"strings"
 )
@@ -24,27 +23,15 @@ type masker struct {
 	config MaskConfig
 }
 
-func NewMsgMasker(salt string, topic string,
-	maskFile string,
-	maskFileVersion string) (transformer.MessageTransformer, error) {
-
+func NewMsgMasker(salt string, topic string, config MaskConfig) transformer.MessageTransformer {
 	_, database, table := transformer.ParseTopic(topic)
-	maskConfig, err := NewMaskConfig(
-		"/",
-		maskFile,
-		maskFileVersion,
-		viper.GetString("gitAccessToken"),
-	)
-	if err != nil {
-		return nil, err
-	}
 
 	return &masker{
 		salt:     salt,
 		database: database,
 		table:    table,
-		config:   maskConfig,
-	}, nil
+		config:   config,
+	}
 }
 
 func Mask(data string, salt string) *string {

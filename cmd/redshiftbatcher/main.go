@@ -7,6 +7,7 @@ import (
 	"flag"
 	"github.com/spf13/cobra"
 	pflag "github.com/spf13/pflag"
+	"github.com/spf13/viper"
 	"math/rand"
 	"net/http"
 
@@ -19,6 +20,7 @@ import (
 	conf "github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftbatcher/config"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftbatcher"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -56,12 +58,25 @@ func run(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	// maskConfig is central to all the topics in the redshiftsink resource
+	// since the maskFile is at database level. Also centralizing
+	// it to keep it clean and make the git pull be a centarl one time activity
+	maskConfig, err := masker.NewMaskConfig(
+		"/",
+		viper.GetString("batcher.maskFile"),
+		viper.GetString("batcher.maskFileVersion"),
+		viper.GetString("gitAccessToken"),
+	)
+	if err != nil {
+		klog.Errorf("Error loading mask config: %v", err)
+		os.Exit(1)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	consumerGroups := make(map[string]kafka.ConsumerGroupInterface)
 	var consumersReady []chan bool
 	wg := &sync.WaitGroup{}
-
 	for _, groupConfig := range config.ConsumerGroups {
 		ready := make(chan bool)
 		consumerGroup, err := kafka.NewConsumerGroup(
@@ -71,6 +86,7 @@ func run(cmd *cobra.Command, args []string) {
 				ctx,
 				groupConfig.Kafka,
 				groupConfig.Sarama,
+				maskConfig,
 				groupConfig.LoaderTopicPrefix,
 			),
 		)

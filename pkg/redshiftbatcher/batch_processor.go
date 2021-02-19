@@ -106,6 +106,7 @@ func newBatchProcessor(
 	mainContext context.Context,
 	kafkaConfig kafka.KafkaConfig,
 	saramaConfig kafka.SaramaConfig,
+	maskConfig masker.MaskConfig,
 	kafkaLoaderTopicPrefix string,
 ) *batchProcessor {
 	sink, err := s3sink.NewS3Sink(
@@ -131,15 +132,11 @@ func newBatchProcessor(
 	var msgMasker transformer.MessageTransformer
 	maskMessages := viper.GetBool("batcher.mask")
 	if maskMessages {
-		msgMasker, err = masker.NewMsgMasker(
+		msgMasker = masker.NewMsgMasker(
 			viper.GetString("batcher.maskSalt"),
 			topic,
-			viper.GetString("batcher.maskFile"),
-			viper.GetString("batcher.maskFileVersion"),
+			maskConfig,
 		)
-		if err != nil && maskMessages {
-			klog.Fatalf("unable to create the masker, err:%v", err)
-		}
 	}
 
 	klog.Infof("AutoCommit: %v", saramaConfig.AutoCommit)
