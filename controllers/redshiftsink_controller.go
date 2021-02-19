@@ -416,23 +416,14 @@ func (r *RedshiftSinkReconciler) reconcile(
 		buildLoader(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig).
 		build()
 
-	currentRealtime, err := reload.realtimeTopics(kafkaWatcher, r.KafkaRealtimeCache)
-	if err != nil {
-		klog.Errorf("Error fetching realtime stats for rsk/%s, existing realtime would continue releasing, err: %v", rsk.Name, err)
-		// #140 causes too many failures here so instead of
-		// breaking and hanging behaviour is stopped to
-		// make existing realtimes get released quickly
-		// return resultRequeueMilliSeconds(1), nil, fmt.Errorf(
-		// 	"Error fetching realtime stats for: %v, err: %v", rsk.Name, err)
-	} else {
-		if !subSetSlice(currentRealtime, status.realtime) {
-			for _, moreRealtime := range currentRealtime {
-				status.realtime = appendIfMissing(status.realtime, moreRealtime)
-			}
-			klog.V(2).Infof(
-				"Reconcile needed, realtime topics updated: %v", status.realtime)
-			return resultRequeueMilliSeconds(100), nil, nil
+	currentRealtime := reload.realtimeTopics(status.realtime, kafkaWatcher, r.KafkaRealtimeCache)
+	if !subSetSlice(currentRealtime, status.realtime) {
+		for _, moreRealtime := range currentRealtime {
+			status.realtime = appendIfMissing(status.realtime, moreRealtime)
 		}
+		klog.V(2).Infof(
+			"Reconcile needed, realtime topics updated: %v", status.realtime)
+		return resultRequeueMilliSeconds(100), nil, nil
 	}
 
 	klog.V(2).Infof("rsk/%v reconciling all sinkGroups", rsk.Name)
