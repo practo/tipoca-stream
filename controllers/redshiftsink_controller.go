@@ -425,6 +425,14 @@ func (r *RedshiftSinkReconciler) reconcile(
 			if cacheValid(time.Second*time.Duration(1800), cache.lastCacheRefresh) {
 				allowShuffle = false
 			}
+		} else {
+			klog.V(2).Infof("rsk/%v init release cache", rsk.Name)
+			now := time.Now().UnixNano()
+			r.ReleaseCache.Store(
+				rsk.Namespace+rsk.Name,
+				releaseCache{lastCacheRefresh: &now},
+			)
+			return resultRequeueMilliSeconds(100), nil, nil
 		}
 	}
 
