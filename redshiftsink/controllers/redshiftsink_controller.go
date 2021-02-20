@@ -388,6 +388,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		computeReloading().
 		computeReloadingDupe().
 		build()
+	status.notifyRelease(secret, repo, filePath)
 	status.info()
 	defer status.updateMaskStatus()
 
