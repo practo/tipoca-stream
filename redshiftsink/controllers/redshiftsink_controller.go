@@ -449,7 +449,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			}
 			klog.V(2).Infof(
 				"Reconcile needed, realtime topics updated: %v", status.realtime)
-			return resultRequeueMilliSeconds(100), nil, nil
+			return resultRequeueMilliSeconds(500), nil, nil
 		}
 	}
 
@@ -486,7 +486,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			return result, nil, err
 		}
 		if event != nil {
-			return resultRequeueMilliSeconds(100), event, nil
+			return resultRequeueMilliSeconds(500), event, nil
 		}
 	}
 
