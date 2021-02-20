@@ -346,7 +346,7 @@ func (s *status) notifyRelease(
 			sha = s.desiredVersion[:6]
 		}
 		message := fmt.Sprintf(
-			"%s has %d topics live",
+			"%s has %d tables live",
 			s.rsk.Name,
 			len(s.released),
 		)
