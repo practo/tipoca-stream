@@ -101,7 +101,7 @@ func NewLoader(
 				Assignor:   "range",
 				Oldest:     true,
 				Log:        false,
-				AutoCommit: true,
+				AutoCommit: false,
 			},
 		})
 	}
