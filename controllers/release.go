@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"database/sql"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/notify"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
@@ -94,7 +95,8 @@ func makeNotifier(secret map[string]string) notify.Notifier {
 	return notify.New(slackBotToken, slackChannelID)
 }
 
-func (r *releaser) release(
+func (r *releaser) releaseTopic(
+	tx *sql.Tx,
 	schema string,
 	topic string,
 	tableSuffix string,
@@ -102,11 +104,6 @@ func (r *releaser) release(
 ) error {
 	_, _, table := transformer.ParseTopic(topic)
 	reloadedTable := table + tableSuffix
-
-	tx, err := r.redshifter.Begin()
-	if err != nil {
-		return fmt.Errorf("Error creating database tx, err: %v\n", err)
-	}
 
 	tableExist, err := r.redshifter.TableExist(schema, table)
 	if err != nil {
@@ -141,32 +138,69 @@ func (r *releaser) release(
 	}
 	klog.V(5).Infof("released topic in redshift: %s", topic)
 
-	// notify
-	// TODO: make it generic for all git repos
-	if r.notifier != nil {
-		sha := r.desiredVersion
-		if len(r.desiredVersion) >= 6 {
-			sha = r.desiredVersion[:6]
+	return nil
+}
+
+func (r *releaser) release(
+	schema string,
+	topic string,
+	tableSuffix string,
+	group *string,
+) error {
+	tx, err := r.redshifter.Begin()
+	if err != nil {
+		return fmt.Errorf("Error creating database tx, err: %v\n", err)
+	}
+
+	err = r.releaseTopic(tx, schema, topic, tableSuffix, group)
+	if err != nil {
+		rollbackErr := tx.Rollback()
+		if rollbackErr != nil {
+			klog.Errorf(
+				"Error rolling back failed release tx for topic: %s, rollbackErr: %v",
+				topic,
+				rollbackErr,
+			)
 		}
-		message := fmt.Sprintf(
-			"Released table *%s.%s* with mask-version: <https://github.com/%s/blob/%s/%s | %s> and <https://github.com/%s/compare/%s...%s | mask-changes>.",
-			schema,
-			table,
-			r.repo,
-			r.desiredVersion,
-			r.filePath,
-			sha,
-			r.repo,
-			r.currentVersion,
-			r.desiredVersion,
-		)
-		err = r.notifier.Notify(message)
-		if err != nil {
-			klog.Errorf("release notification failed, err: %v", err)
-		}
+		return fmt.Errorf("Error releasing topic: %s err: %v\n", topic, err)
 	}
 
 	return nil
+}
+
+func (r *releaser) notifyTopicRelease(
+	schema string,
+	topic string,
+	tableSuffix string,
+) {
+	_, _, table := transformer.ParseTopic(topic)
+
+	// notify
+	// TODO: make it generic for all git repos
+	if r.notifier == nil {
+		return
+	}
+	sha := r.desiredVersion
+	if len(r.desiredVersion) >= 6 {
+		sha = r.desiredVersion[:6]
+	}
+	message := fmt.Sprintf(
+		"Released table *%s.%s* with mask-version: <https://github.com/%s/blob/%s/%s | %s> and <https://github.com/%s/compare/%s...%s | mask-changes>.",
+		schema,
+		table,
+		r.repo,
+		r.desiredVersion,
+		r.filePath,
+		sha,
+		r.repo,
+		r.currentVersion,
+		r.desiredVersion,
+	)
+
+	err := r.notifier.Notify(message)
+	if err != nil {
+		klog.Errorf("release notification failed, err: %v", err)
+	}
 }
 
 type releaseCache struct {

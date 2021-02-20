@@ -499,11 +499,16 @@ func (r *RedshiftSinkReconciler) reconcile(
 	// taken as a group and is tried to release in single reconcile
 	// to reduce the time spent on rebalance of sink groups (optimization)
 	// #141
-	klog.V(2).Infof("release candidates: %v", status.realtime)
+	maxTopicRelease := 10
+	releaseCandidates := status.realtime
+	if len(status.realtime) >= maxTopicRelease {
+		releaseCandidates = status.realtime[:maxTopicRelease]
+	}
+	klog.V(2).Infof("release candidates: %v", releaseCandidates)
 	var releaseError error
 	var releaser *releaser
 	releasedTopics := []string{}
-	for id, releasingTopic := range status.realtime {
+	for id, releasingTopic := range releaseCandidates {
 		klog.V(2).Infof("rsk/%v releasing #%d topic: %v", rsk.Name, id+1, releasingTopic)
 		releaser, releaseError = newReleaser(
 			ctx,
@@ -542,6 +547,11 @@ func (r *RedshiftSinkReconciler) reconcile(
 			klog.V(2).Infof("rsk/%v released #%d topic: %v", rsk.Name, id+1, releasingTopic)
 			status.updateTopicsOnRelease(releasingTopic)
 			status.updateTopicGroup(releasingTopic)
+			releaser.notifyTopicRelease(
+				rsk.Spec.Loader.RedshiftSchema,
+				releasingTopic,
+				ReloadTableSuffix,
+			)
 		}
 	}
 	var topicReleaseEvent *TopicsReleasedEvent
