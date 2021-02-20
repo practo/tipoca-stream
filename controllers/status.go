@@ -326,10 +326,55 @@ func (s *status) computeDesiredMaskStatus() map[string]tipocav1.TopicMaskStatus 
 	return status
 }
 
+func (s *status) notifyRelease(
+	secret map[string]string,
+	repo string,
+	filePath string,
+) {
+	if len(s.allTopics) == len(s.released) &&
+		len(s.reloading) == 0 && len(s.realtime) == 0 {
+
+		if s.desiredVersion == "" {
+			return
+		}
+		if s.currentVersion == s.desiredVersion {
+			return
+		}
+
+		sha := s.desiredVersion
+		if len(s.desiredVersion) >= 6 {
+			sha = s.desiredVersion[:6]
+		}
+		message := fmt.Sprintf(
+			"%s has %d topics live",
+			s.rsk.Name,
+			len(s.released),
+		)
+		klog.V(2).Infof("rsk/%s with %s", message, sha)
+		notifier := makeNotifier(secret)
+		if notifier == nil {
+			return
+		}
+		releaseMessage := fmt.Sprintf(
+			"%s with mask-version: <https://github.com/%s/blob/%s/%s | %s>",
+			message,
+			repo,
+			s.desiredVersion,
+			filePath,
+			sha,
+		)
+		err := notifier.Notify(releaseMessage)
+		if err != nil {
+			klog.Errorf("release notification failed, err: %v", err)
+		}
+	}
+}
+
 func (s *status) updateMaskStatus() {
 	currentVersion := &s.currentVersion
 	if len(s.allTopics) == len(s.released) &&
 		len(s.reloading) == 0 && len(s.realtime) == 0 {
+
 		currentVersion = &s.desiredVersion
 	}
 
