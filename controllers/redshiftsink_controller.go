@@ -388,7 +388,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 		computeReloading().
 		computeReloadingDupe().
 		build()
-	status.notifyRelease(secret, repo, filePath)
 	status.info()
 	defer status.updateMaskStatus()
 
@@ -557,6 +556,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			rsk.Namespace+rsk.Name,
 			releaseCache{lastCacheRefresh: &now},
 		)
+		status.notifyRelease(secret, repo, filePath)
 	}
 	if releaseError != nil {
 		return result, topicReleaseEvent, releaseError
