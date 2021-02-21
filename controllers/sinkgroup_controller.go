@@ -19,12 +19,12 @@ import (
 )
 
 const (
-	MainSinkGroup                = "main"
-	ReloadSinkGroup              = "reload"
-	ReloadDupeSinkGroup          = "reload-dupe"
-	DefaultmaxBatcherRealtimeLag = int64(100)
-	DefautmaxLoaderRealtimeLag   = int64(10)
-	ReloadTableSuffix            = "_ts_adx_reload"
+	MainSinkGroup        = "main"
+	ReloadSinkGroup      = "reload"
+	ReloadDupeSinkGroup  = "reload-dupe"
+	DefaultMaxBatcherLag = int64(100)
+	DefautMaxLoaderLag   = int64(10)
+	ReloadTableSuffix    = "_ts_adx_reload"
 )
 
 type sinkGroupInterface interface {
@@ -528,36 +528,42 @@ func (s *sinkGroup) reconcileLoader(
 	return nil, nil
 }
 
-func (s *sinkGroup) lagBelowThreshold(
-	topic string,
-	batcherLag,
-	loaderLag int64,
-) bool {
-	var maxBatcherRealtimeLag, maxLoaderRealtimeLag int64
-	if s.rsk.Spec.ReleaseCondition == nil {
-		maxBatcherRealtimeLag = DefaultmaxBatcherRealtimeLag
-		maxLoaderRealtimeLag = DefautmaxLoaderRealtimeLag
+func maxLag(rsk *tipocav1.RedshiftSink, topic string) (int64, int64) {
+	var maxBatcherLag, maxLoaderLag int64
+	if rsk.Spec.ReleaseCondition == nil {
+		maxBatcherLag = DefaultMaxBatcherLag
+		maxLoaderLag = DefautMaxLoaderLag
 	} else {
-		if s.rsk.Spec.ReleaseCondition.MaxBatcherLag != nil {
-			maxBatcherRealtimeLag = *s.rsk.Spec.ReleaseCondition.MaxBatcherLag
+		if rsk.Spec.ReleaseCondition.MaxBatcherLag != nil {
+			maxBatcherLag = *rsk.Spec.ReleaseCondition.MaxBatcherLag
 		}
-		if s.rsk.Spec.ReleaseCondition.MaxLoaderLag != nil {
-			maxLoaderRealtimeLag = *s.rsk.Spec.ReleaseCondition.MaxLoaderLag
+		if rsk.Spec.ReleaseCondition.MaxLoaderLag != nil {
+			maxLoaderLag = *rsk.Spec.ReleaseCondition.MaxLoaderLag
 		}
-		if s.rsk.Spec.TopicReleaseCondition != nil {
-			d, ok := s.rsk.Spec.TopicReleaseCondition[topic]
+		if rsk.Spec.TopicReleaseCondition != nil {
+			d, ok := rsk.Spec.TopicReleaseCondition[topic]
 			if ok {
 				if d.MaxBatcherLag != nil {
-					maxBatcherRealtimeLag = *d.MaxBatcherLag
+					maxBatcherLag = *d.MaxBatcherLag
 				}
 				if d.MaxLoaderLag != nil {
-					maxLoaderRealtimeLag = *d.MaxLoaderLag
+					maxLoaderLag = *d.MaxLoaderLag
 				}
 			}
 		}
 	}
 
-	if batcherLag <= maxBatcherRealtimeLag && loaderLag == -1 {
+	return maxBatcherLag, maxLoaderLag
+}
+
+func (s *sinkGroup) lagBelowThreshold(
+	topic string,
+	batcherLag,
+	loaderLag,
+	maxBatcherLag,
+	maxLoaderLag int64,
+) bool {
+	if batcherLag <= maxBatcherLag && loaderLag == -1 {
 		// TODO: this might lead to false positives, solve it
 		// but without it some very low throughput topics wont go live.
 		// may need to plugin prometheus time series data for analysis later
@@ -566,8 +572,8 @@ func (s *sinkGroup) lagBelowThreshold(
 		return true
 	}
 
-	if batcherLag <= maxBatcherRealtimeLag &&
-		loaderLag <= maxLoaderRealtimeLag {
+	if batcherLag <= maxBatcherLag &&
+		loaderLag <= maxLoaderLag {
 
 		return true
 	}
@@ -596,6 +602,7 @@ func (s *sinkGroup) topicRealtime(
 	watcher kafka.Watcher,
 	topic string,
 	cache *sync.Map,
+	allTopics map[string]bool,
 ) (
 	bool, *int64, error,
 ) {
@@ -619,11 +626,22 @@ func (s *sinkGroup) topicRealtime(
 	// new cache refresh time so that topics are only checked after an interval
 	// reduces the request to Kafka by big factor
 	now := time.Now().UnixNano()
+	maxBatcherLag, maxLoaderLag := maxLag(s.rsk, topic)
 
 	klog.V(4).Infof("rsk/%s (fetching realtime stats) topic: %s", s.rsk.Name, topic)
 	group, ok := s.topicGroups[topic]
 	if !ok {
-		return false, &now, fmt.Errorf("groupID not found for %s", topic)
+		return false, &now, fmt.Errorf("consumerGroupID not found for %s", topic)
+	}
+
+	// batcher's lag analysis
+	batcherCurrentOffset, err := watcher.TopicCurrentOffset(topic, 0)
+	if err != nil {
+		return false, &now, fmt.Errorf("Error getting current offset for %s", topic)
+	}
+	if batcherCurrentOffset < maxBatcherLag {
+		klog.V(4).Infof("topic: %s, current offset is below max lag, considering not realtime", topic)
+		return false, &now, nil
 	}
 	batcherCGID := consumerGroupID(s.rsk.Name, s.rsk.Namespace, group.ID, "-batcher")
 	batcherLag, err := watcher.ConsumerGroupLag(
@@ -635,14 +653,29 @@ func (s *sinkGroup) topicRealtime(
 		return false, &now, err
 	}
 	if batcherLag == -1 {
-		klog.V(4).Infof("topic: %s, lag=-1, (%v), condition unmet", topic, batcherCGID)
+		klog.V(4).Infof("topic: %s, lag=-1, (%v), group not active or found", topic, batcherCGID)
 		return false, &now, nil
 	}
 
+	// loader's lag analysis
+	loaderTopic := s.rsk.Spec.KafkaLoaderTopicPrefix + group.ID + "-" + topic
+	_, ok = allTopics[loaderTopic]
+	if !ok {
+		klog.V(4).Infof("topic: %s not created yet, not realtime.", loaderTopic)
+		return false, &now, nil
+	}
+	loaderCurrentOffset, err := watcher.TopicCurrentOffset(loaderTopic, 0)
+	if err != nil {
+		return false, &now, fmt.Errorf("Error getting current offset for %s", loaderTopic)
+	}
+	if loaderCurrentOffset < maxLoaderLag {
+		klog.V(4).Infof("topic: %s, current offset is below max lag, considering not realtime", loaderTopic)
+		return false, &now, nil
+	}
 	loaderCGID := consumerGroupID(s.rsk.Name, s.rsk.Namespace, group.ID, "-loader")
 	loaderLag, err := watcher.ConsumerGroupLag(
 		loaderCGID,
-		s.rsk.Spec.KafkaLoaderTopicPrefix+group.ID+"-"+topic,
+		loaderTopic,
 		0,
 	)
 	if err != nil {
@@ -650,9 +683,10 @@ func (s *sinkGroup) topicRealtime(
 	}
 
 	klog.V(4).Infof("topic: %s lag=%v for %v", topic, batcherLag, batcherCGID)
-	klog.V(4).Infof("topic: %s lag=%v for %v", topic, loaderLag, loaderCGID)
+	klog.V(4).Infof("topic: %s lag=%v for %v", loaderTopic, loaderLag, loaderCGID)
 
-	if s.lagBelowThreshold(topic, batcherLag, loaderLag) {
+	// check realtime
+	if s.lagBelowThreshold(topic, batcherLag, loaderLag, maxBatcherLag, maxLoaderLag) {
 		return true, &now, nil
 	} else {
 		klog.V(2).Infof("%v: waiting to reach realtime", topic)
@@ -670,8 +704,19 @@ func (s *sinkGroup) realtimeTopics(
 	current := toMap(currentRealtime)
 	realtimeTopics := []string{}
 
+	allTopics, err := watcher.Topics()
+	if err != nil {
+		klog.Errorf(
+			"Ignoring realtime update. Error fetching all topics, err:%v",
+			err,
+		)
+		return currentRealtime
+	}
+
 	for _, topic := range s.topics {
-		realtime, lastRefresh, err := s.topicRealtime(watcher, topic, cache)
+		realtime, lastRefresh, err := s.topicRealtime(
+			watcher, topic, cache, toMap(allTopics),
+		)
 		if err != nil {
 			klog.Errorf(
 				"rsk/%s Error getting realtime for topic: %s, err: %v",
