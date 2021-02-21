@@ -563,14 +563,14 @@ func (s *sinkGroup) lagBelowThreshold(
 	maxBatcherLag,
 	maxLoaderLag int64,
 ) bool {
-	if batcherLag <= maxBatcherLag && loaderLag == -1 {
-		// TODO: this might lead to false positives, solve it
-		// but without it some very low throughput topics wont go live.
-		// may need to plugin prometheus time series data for analysis later
-		// to solve it
-		klog.Warningf("topic: %s assumed to have reached realtime as batcherLag<=threshold and loaderLag=-1 (consumer group not active)", topic)
-		return true
-	}
+	// if batcherLag <= maxBatcherLag && loaderLag == -1 {
+	// 	// TODO: this might lead to false positives, solve it
+	// 	// but without it some very low throughput topics wont go live.
+	// 	// may need to plugin prometheus time series data for analysis later
+	// 	// to solve it
+	// 	klog.Warningf("topic: %s assumed to have reached realtime as batcherLag<=threshold and loaderLag=-1 (consumer group not active)", topic)
+	// 	return true
+	// }
 
 	if batcherLag <= maxBatcherLag &&
 		loaderLag <= maxLoaderLag {
@@ -653,7 +653,7 @@ func (s *sinkGroup) topicRealtime(
 		return false, &now, err
 	}
 	if batcherLag == -1 {
-		klog.V(4).Infof("topic: %s, lag=-1, (%v), group not active or found", topic, batcherCGID)
+		klog.V(4).Infof("topic: %s, lag=-1, (%v), group inactive or does not exist", topic, batcherCGID)
 		return false, &now, nil
 	}
 
@@ -680,6 +680,10 @@ func (s *sinkGroup) topicRealtime(
 	)
 	if err != nil {
 		return false, &now, err
+	}
+	if loaderLag == -1 {
+		klog.V(2).Infof("topic: %s, lag=-1, (%v), group inactive or does not exist", topic, batcherCGID)
+		return false, &now, nil
 	}
 
 	klog.V(4).Infof("topic: %s lag=%v for %v", topic, batcherLag, batcherCGID)
