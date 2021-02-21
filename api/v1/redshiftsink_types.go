@@ -192,6 +192,16 @@ type Group struct {
 	// LoaderTopicPrefix stores the name of the loader topic prefix
 	LoaderTopicPrefix string `json:"loaderTopicPrefix"`
 
+	// LoaderCurrentOffset stores the last read current offset of the consumer group
+	// This is required to determine if the consumer group has performed any
+	// processing in the past. As for low throughput topics,
+	// the consumer group disappears and distinguishing between never created
+	// and inactive consumer groups become difficult. Which leads to low
+	// throughput consumer groups not getting moved to realtime from reloading.
+	// TODO: This is not dead field once a group moves to released and
+	// should be cleaned after that(status needs to be updated)
+	LoaderCurrentOffset *int64 `json:"currentOffset"`
+
 	// ID stores the name of the consumer group for the topic
 	// based on this batcher and loader consumer groups are made
 	ID string `json:"id"`

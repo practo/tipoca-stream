@@ -404,3 +404,11 @@ func (s *status) updateTopicGroup(topic string) {
 		ID:                groupID,
 	}
 }
+
+func updateTopicGroup(rsk *tipocav1.RedshiftSink, topic string, group tipocav1.Group) {
+	if rsk.Status.TopicGroup == nil {
+		rsk.Status.TopicGroup = make(map[string]tipocav1.Group)
+	}
+
+	rsk.Status.TopicGroup[topic] = group
+}

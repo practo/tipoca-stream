@@ -362,6 +362,18 @@ spec:
             topicGroups:
               additionalProperties:
                 properties:
+                  currentOffset:
+                    description: 'LoaderCurrentOffset stores the last read current
+                      offset of the consumer group This is required to determine if
+                      the consumer group has performed any processing in the past.
+                      As for low throughput topics, the consumer group disappears
+                      and distinguishing between never created and inactive consumer
+                      groups become difficult. Which leads to low throughput consumer
+                      groups not getting moved to realtime from reloading. TODO: This
+                      is not dead field once a group moves to released and should
+                      be cleaned after that(status needs to be updated)'
+                    format: int64
+                    type: integer
                   id:
                     description: ID stores the name of the consumer group for the
                       topic based on this batcher and loader consumer groups are made
@@ -371,6 +383,7 @@ spec:
                       prefix
                     type: string
                 required:
+                - currentOffset
                 - id
                 - loaderTopicPrefix
                 type: object
