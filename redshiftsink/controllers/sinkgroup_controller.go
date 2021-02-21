@@ -682,7 +682,7 @@ func (s *sinkGroup) topicRealtime(
 		return false, &now, err
 	}
 	if loaderLag == -1 {
-		klog.V(2).Infof("topic: %s, lag=-1, (%v), group inactive or does not exist", topic, batcherCGID)
+		klog.V(2).Infof("topic: %s, lag=-1, (%v), group inactive or does not exist", loaderTopic, batcherCGID)
 		return false, &now, nil
 	}
 
