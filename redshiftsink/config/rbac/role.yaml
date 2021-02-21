@@ -4,10 +4,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: redshfitsink-operator-role
+  name: operator-role
 rules:
 - apiGroups:
-  - "*"
+  - '*'
   resources:
   - configmaps
   verbs:
@@ -19,7 +19,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - "*"
+  - '*'
   resources:
   - deployments
   verbs:
@@ -31,9 +31,9 @@ rules:
   - update
   - watch
 - apiGroups:
-  - "*"
+  - '*'
   resources:
-  - secrets
+  - events
   verbs:
   - create
   - delete
@@ -43,9 +43,9 @@ rules:
   - update
   - watch
 - apiGroups:
-  - "*"
+  - '*'
   resources:
-  - events
+  - secrets
   verbs:
   - create
   - delete

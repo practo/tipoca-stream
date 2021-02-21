@@ -572,6 +572,9 @@ func (s *sinkGroup) lagBelowThreshold(
 	// 	return true
 	// }
 
+	klog.V(4).Infof("topic: %s lag=%v for %v", topic, batcherLag)
+	klog.V(4).Infof("topic: %s lag=%v for %v", topic, loaderLag)
+
 	if batcherLag <= maxBatcherLag &&
 		loaderLag <= maxLoaderLag {
 
@@ -635,16 +638,16 @@ func (s *sinkGroup) topicRealtime(
 	}
 
 	// batcher's lag analysis
-	batcherCurrentOffset, err := watcher.TopicCurrentOffset(topic, 0)
+	batcherLastOffset, err := watcher.LastOffset(topic, 0)
 	if err != nil {
 		return false, &now, fmt.Errorf("Error getting current offset for %s", topic)
 	}
-	if batcherCurrentOffset < maxBatcherLag {
+	if batcherLastOffset < maxBatcherLag {
 		klog.V(4).Infof("topic: %s, current offset is below max lag, considering not realtime", topic)
 		return false, &now, nil
 	}
 	batcherCGID := consumerGroupID(s.rsk.Name, s.rsk.Namespace, group.ID, "-batcher")
-	batcherLag, err := watcher.ConsumerGroupLag(
+	batcherCurrentOffset, err := watcher.CurrentOffset(
 		batcherCGID,
 		topic,
 		0,
@@ -652,7 +655,7 @@ func (s *sinkGroup) topicRealtime(
 	if err != nil {
 		return false, &now, err
 	}
-	if batcherLag == -1 {
+	if batcherCurrentOffset == -1 {
 		klog.V(4).Infof("topic: %s, lag=-1, (%v), group inactive or does not exist", topic, batcherCGID)
 		return false, &now, nil
 	}
@@ -664,16 +667,16 @@ func (s *sinkGroup) topicRealtime(
 		klog.V(4).Infof("topic: %s not created yet, not realtime.", loaderTopic)
 		return false, &now, nil
 	}
-	loaderCurrentOffset, err := watcher.TopicCurrentOffset(loaderTopic, 0)
+	loaderLastOffset, err := watcher.LastOffset(loaderTopic, 0)
 	if err != nil {
 		return false, &now, fmt.Errorf("Error getting current offset for %s", loaderTopic)
 	}
-	if loaderCurrentOffset < maxLoaderLag {
+	if loaderLastOffset < maxLoaderLag {
 		klog.V(4).Infof("topic: %s, current offset is below max lag, considering not realtime", loaderTopic)
 		return false, &now, nil
 	}
 	loaderCGID := consumerGroupID(s.rsk.Name, s.rsk.Namespace, group.ID, "-loader")
-	loaderLag, err := watcher.ConsumerGroupLag(
+	loaderCurrentOffset, err := watcher.CurrentOffset(
 		loaderCGID,
 		loaderTopic,
 		0,
@@ -681,16 +684,36 @@ func (s *sinkGroup) topicRealtime(
 	if err != nil {
 		return false, &now, err
 	}
-	if loaderLag == -1 {
-		klog.V(2).Infof("topic: %s, lag=-1, (%v), group inactive or does not exist", loaderTopic, batcherCGID)
-		return false, &now, nil
+	if loaderCurrentOffset == -1 {
+		// CurrentOffset can be -1 in two cases
+		// 1. When the Consumer Group was never created in that case we return and consider the topic not realtime
+		// 2. When the Consumer Group had processed before but now is showing -1 currentOffset as it is inactive due to less throughput,
+		//    On such a scenario, we consider it realtime.
+		//    we find this case by saving the currentOffset for the loader topcics in RedshiftSink Topic Group Status
+		if group.LoaderCurrentOffset == nil {
+			klog.V(2).Infof("topic: %s, currentOffset=-1, cg missing", loaderTopic)
+			// lastRefresh is sent nil(second arg return) to check this
+			// topic again quickly for the realtime info.
+			return false, nil, nil
+		}
+		klog.V(2).Infof("topic: %s, currentOffset=%v, cg missing", loaderTopic, *group.LoaderCurrentOffset)
+		// give the topic the opportunity to release based on its last found currentOffset
+		loaderCurrentOffset = *group.LoaderCurrentOffset
+	} else {
+		group.LoaderCurrentOffset = &loaderCurrentOffset
+		// updates the new queried lodaer offset
+		klog.V(2).Infof("topic: %s, currentOffset=%v, cg found", loaderTopic, *group.LoaderCurrentOffset)
+		updateTopicGroup(s.rsk, topic, group)
 	}
 
-	klog.V(4).Infof("topic: %s lag=%v for %v", topic, batcherLag, batcherCGID)
-	klog.V(4).Infof("topic: %s lag=%v for %v", loaderTopic, loaderLag, loaderCGID)
-
 	// check realtime
-	if s.lagBelowThreshold(topic, batcherLag, loaderLag, maxBatcherLag, maxLoaderLag) {
+	if s.lagBelowThreshold(
+		topic,
+		batcherCurrentOffset-batcherLastOffset, // batcher lag
+		loaderCurrentOffset-loaderLastOffset,   // loader lag
+		maxBatcherLag,
+		maxLoaderLag,
+	) {
 		return true, &now, nil
 	} else {
 		klog.V(2).Infof("%v: waiting to reach realtime", topic)
