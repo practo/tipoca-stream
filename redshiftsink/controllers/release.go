@@ -101,6 +101,7 @@ func (r *releaser) releaseTopic(
 	topic string,
 	tableSuffix string,
 	group *string,
+	status *status,
 ) error {
 	_, _, table := transformer.ParseTopic(topic)
 	reloadedTable := table + tableSuffix
@@ -131,6 +132,9 @@ func (r *releaser) releaseTopic(
 		}
 	}
 
+	status.updateTopicsOnRelease(topic)
+	status.updateTopicGroup(topic)
+
 	// release
 	err = tx.Commit()
 	if err != nil {
@@ -146,13 +150,14 @@ func (r *releaser) release(
 	topic string,
 	tableSuffix string,
 	group *string,
+	status *status,
 ) error {
 	tx, err := r.redshifter.Begin()
 	if err != nil {
 		return fmt.Errorf("Error creating database tx, err: %v\n", err)
 	}
 
-	err = r.releaseTopic(tx, schema, topic, tableSuffix, group)
+	err = r.releaseTopic(tx, schema, topic, tableSuffix, group, status)
 	if err != nil {
 		rollbackErr := tx.Rollback()
 		if rollbackErr != nil {
