@@ -1,9 +1,12 @@
 package controllers
 
 import (
+	"context"
 	"fmt"
 	klog "github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
+	"reflect"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type status struct {
@@ -414,4 +417,22 @@ func updateTopicGroup(rsk *tipocav1.RedshiftSink, topic string, group tipocav1.G
 	}
 
 	rsk.Status.TopicGroup[topic] = group
+}
+
+// statusPatcher is used to update the status of rsk
+type statusPatcher struct {
+	client   client.Client
+	original *tipocav1.RedshiftSink
+}
+
+func (s *statusPatcher) Patch(ctx context.Context, new *tipocav1.RedshiftSink) error {
+	if reflect.DeepEqual(s.original.Status, new.Status) {
+		return nil
+	}
+
+	return s.client.Status().Patch(
+		ctx,
+		new,
+		client.MergeFrom(s.original),
+	)
 }

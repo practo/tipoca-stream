@@ -6,12 +6,14 @@ import (
 
 	"database/sql"
 	"github.com/practo/klog/v2"
+	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/notify"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 )
 
 type releaser struct {
+	rsk            *tipocav1.RedshiftSink
 	schema         string
 	repo           string
 	filePath       string
@@ -23,6 +25,7 @@ type releaser struct {
 
 func newReleaser(
 	ctx context.Context,
+	rsk *tipocav1.RedshiftSink,
 	schema string,
 	repo string,
 	filePath string,
@@ -33,7 +36,6 @@ func newReleaser(
 	*releaser,
 	error,
 ) {
-
 	redshiftSecret := make(map[string]string)
 	redshiftSecretKeys := []string{
 		"redshiftHost",
@@ -71,6 +73,7 @@ func newReleaser(
 	}
 
 	return &releaser{
+		rsk:            rsk,
 		schema:         schema,
 		redshifter:     redshifter,
 		repo:           repo,
@@ -96,12 +99,14 @@ func makeNotifier(secret map[string]string) notify.Notifier {
 }
 
 func (r *releaser) releaseTopic(
+	ctx context.Context,
 	tx *sql.Tx,
 	schema string,
 	topic string,
 	tableSuffix string,
 	group *string,
 	status *status,
+	patcher *statusPatcher,
 ) error {
 	_, _, table := transformer.ParseTopic(topic)
 	reloadedTable := table + tableSuffix
@@ -134,6 +139,18 @@ func (r *releaser) releaseTopic(
 
 	status.updateTopicsOnRelease(topic)
 	status.updateTopicGroup(topic)
+	status.info()
+
+	rskCopy := r.rsk.DeepCopy()
+	err = patcher.Patch(ctx, r.rsk)
+	if err != nil {
+		// revert (patched later)
+		r.rsk.Status = rskCopy.Status
+		return fmt.Errorf("Error patching rsk status, err: %v", err)
+	}
+	// make the new status as original so that patch in the end do not run again
+	patcher.original = r.rsk
+	klog.V(2).Infof("rsk/%s patched status: %+v", r.rsk.Name, r.rsk.Status)
 
 	// release
 	err = tx.Commit()
@@ -146,18 +163,20 @@ func (r *releaser) releaseTopic(
 }
 
 func (r *releaser) release(
+	ctx context.Context,
 	schema string,
 	topic string,
 	tableSuffix string,
 	group *string,
 	status *status,
+	patcher *statusPatcher,
 ) error {
 	tx, err := r.redshifter.Begin()
 	if err != nil {
 		return fmt.Errorf("Error creating database tx, err: %v\n", err)
 	}
 
-	err = r.releaseTopic(tx, schema, topic, tableSuffix, group, status)
+	err = r.releaseTopic(ctx, tx, schema, topic, tableSuffix, group, status, patcher)
 	if err != nil {
 		rollbackErr := tx.Rollback()
 		if rollbackErr != nil {

@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
-	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -288,6 +287,7 @@ func (r *RedshiftSinkReconciler) loadKafkaWatcher(
 func (r *RedshiftSinkReconciler) reconcile(
 	ctx context.Context,
 	rsk *tipocav1.RedshiftSink,
+	patcher *statusPatcher,
 ) (
 	ctrl.Result,
 	ReconcilerEvent,
@@ -506,13 +506,12 @@ func (r *RedshiftSinkReconciler) reconcile(
 		releaseCandidates = status.realtime[:maxTopicRelease]
 	}
 	klog.V(2).Infof("release candidates: %v", releaseCandidates)
-	var releaseError error
+
 	var releaser *releaser
-	releasedTopics := []string{}
-	for id, releasingTopic := range releaseCandidates {
-		klog.V(2).Infof("rsk/%v releasing #%d topic: %v", rsk.Name, id+1, releasingTopic)
-		releaser, releaseError = newReleaser(
+	if len(releaseCandidates) > 0 {
+		releaser, err = newReleaser(
 			ctx,
+			rsk,
 			rsk.Spec.Loader.RedshiftSchema,
 			repo,
 			filePath,
@@ -520,21 +519,23 @@ func (r *RedshiftSinkReconciler) reconcile(
 			desiredMaskVersion,
 			secret,
 		)
-		if releaseError != nil {
-			releaseError = fmt.Errorf(
-				"Error making release connection for topic: %s, err: %v",
-				releasingTopic,
-				releaseError,
-			)
-			klog.Error(releaseError)
-			break
+		if err != nil {
+			return result, nil, fmt.Errorf("Error making releaser, err: %v", err)
 		}
+	}
+
+	releasedTopics := []string{}
+	var releaseError error
+	for id, releasingTopic := range releaseCandidates {
+		klog.V(2).Infof("rsk/%v releasing #%d topic: %v", rsk.Name, id+1, releasingTopic)
 		releaseError = releaser.release(
+			ctx,
 			rsk.Spec.Loader.RedshiftSchema,
 			releasingTopic,
 			ReloadTableSuffix,
 			rsk.Spec.Loader.RedshiftGroup,
 			status,
+			patcher,
 		)
 		if releaseError != nil {
 			releaseError = fmt.Errorf(
@@ -598,17 +599,13 @@ func (r *RedshiftSinkReconciler) Reconcile(
 			RequeueAfter: time.Second * 30}, client.IgnoreNotFound(err)
 	}
 
-	original := redshiftsink.DeepCopy()
+	patcher := &statusPatcher{
+		client:   r.Client,
+		original: redshiftsink.DeepCopy()}
+
 	// Always attempt to patch the status after each reconciliation.
 	defer func() {
-		if reflect.DeepEqual(original.Status, redshiftsink.Status) {
-			return
-		}
-		err := r.Client.Status().Patch(
-			ctx,
-			&redshiftsink,
-			client.MergeFrom(original),
-		)
+		err := patcher.Patch(ctx, &redshiftsink)
 		if err != nil {
 			reterr = kerrors.NewAggregate(
 				[]error{
@@ -621,7 +618,7 @@ func (r *RedshiftSinkReconciler) Reconcile(
 	}()
 
 	// Perform a reconcile, getting back the desired result, any utilerrors
-	result, event, err := r.reconcile(ctx, &redshiftsink)
+	result, event, err := r.reconcile(ctx, &redshiftsink, patcher)
 	if err != nil {
 		err = fmt.Errorf("Failed to reconcile: %s", err)
 	}
