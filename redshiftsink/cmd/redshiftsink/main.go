@@ -26,6 +26,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	"github.com/practo/tipoca-stream/redshiftsink/controllers"
@@ -76,8 +77,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	uncachedClient, err := client.New(
+		mgr.GetConfig(),
+		client.Options{Scheme: mgr.GetScheme()},
+	)
+	if err != nil {
+		setupLog.Error(err, "unable to make uncached client")
+		os.Exit(1)
+	}
+
 	if err = (&controllers.RedshiftSinkReconciler{
-		Client:                    mgr.GetClient(),
+		Client:                    uncachedClient,
 		Log:                       ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
 		Scheme:                    mgr.GetScheme(),
 		Recorder:                  mgr.GetEventRecorderFor("redshiftsink-reconciler"),
