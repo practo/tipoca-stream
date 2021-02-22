@@ -162,13 +162,13 @@ func (sb *buildStatus) computeReloading() statusBuilder {
 
 func (sb *buildStatus) computeReloadingDupe() statusBuilder {
 	reloadDupeTopics := []string{}
+	releasedMap := toMap(sb.released)
 
 	for _, reloadingTopic := range sb.reloading {
-		topicStatus := topicGroup(sb.rsk, reloadingTopic)
-		// never dupe a topic which is releasing for the first time
-		if topicStatus == nil {
+		_, ok := releasedMap[reloadingTopic]
+		if !ok {
 			klog.V(4).Infof(
-				"topic: %s is a new topic (reload-dupe not needed for this)",
+				"%s is a new topic (reload-dupe not required)",
 				reloadingTopic,
 			)
 			continue
