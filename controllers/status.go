@@ -389,20 +389,23 @@ func (s *status) updateMaskStatus() {
 
 func (s *status) updateTopicGroup(topic string) {
 	klog.V(5).Infof("updating topic group: %s %+v", topic, s.rsk.Status)
-	if s.rsk.Status.TopicGroup == nil {
-		s.rsk.Status.TopicGroup = make(map[string]tipocav1.Group)
-	}
 
 	groupID := groupIDFromVersion(s.desiredVersion)
-	prefix := loaderPrefixFromGroupID(
-		s.rsk.Spec.KafkaLoaderTopicPrefix,
-		groupID,
-	)
-
-	s.rsk.Status.TopicGroup[topic] = tipocav1.Group{
-		LoaderTopicPrefix: prefix,
-		ID:                groupID,
+	prefix := loaderPrefixFromGroupID(s.rsk.Spec.KafkaLoaderTopicPrefix, groupID)
+	var currentOffset *int64
+	if s.rsk.Status.TopicGroup != nil {
+		existingGroup, ok := s.rsk.Status.TopicGroup[topic]
+		if ok {
+			currentOffset = existingGroup.LoaderCurrentOffset
+		}
 	}
+
+	group := tipocav1.Group{
+		LoaderCurrentOffset: currentOffset,
+		LoaderTopicPrefix:   prefix,
+		ID:                  groupID,
+	}
+	updateTopicGroup(s.rsk, topic, group)
 }
 
 func updateTopicGroup(rsk *tipocav1.RedshiftSink, topic string, group tipocav1.Group) {

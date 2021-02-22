@@ -534,6 +534,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			releasingTopic,
 			ReloadTableSuffix,
 			rsk.Spec.Loader.RedshiftGroup,
+			status,
 		)
 		if releaseError != nil {
 			releaseError = fmt.Errorf(
@@ -546,8 +547,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 		} else {
 			releasedTopics = append(releasedTopics, releasingTopic)
 			klog.V(2).Infof("rsk/%v released #%d topic: %v", rsk.Name, id+1, releasingTopic)
-			status.updateTopicsOnRelease(releasingTopic)
-			status.updateTopicGroup(releasingTopic)
 			releaser.notifyTopicRelease(
 				rsk.Spec.Loader.RedshiftSchema,
 				releasingTopic,
