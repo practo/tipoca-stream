@@ -714,8 +714,8 @@ func (s *sinkGroup) topicRealtime(
 	// check realtime
 	if s.lagBelowThreshold(
 		topic,
-		batcherCurrentOffset-batcherLastOffset, // batcher lag
-		loaderCurrentOffset-loaderLastOffset,   // loader lag
+		batcherLastOffset-batcherCurrentOffset, // batcher lag
+		loaderLastOffset-loaderCurrentOffset,   // loader lag
 		maxBatcherLag,
 		maxLoaderLag,
 	) {
