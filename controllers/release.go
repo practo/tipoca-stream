@@ -139,6 +139,7 @@ func (r *releaser) releaseTopic(
 
 	status.updateTopicsOnRelease(topic)
 	status.updateTopicGroup(topic)
+	status.updateMaskStatus()
 	status.info()
 
 	rskCopy := r.rsk.DeepCopy()
