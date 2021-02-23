@@ -3,17 +3,16 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"database/sql"
 	"github.com/practo/klog/v2"
-	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/notify"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 )
 
 type releaser struct {
-	rsk            *tipocav1.RedshiftSink
 	schema         string
 	repo           string
 	filePath       string
@@ -25,7 +24,6 @@ type releaser struct {
 
 func newReleaser(
 	ctx context.Context,
-	rsk *tipocav1.RedshiftSink,
 	schema string,
 	repo string,
 	filePath string,
@@ -73,7 +71,6 @@ func newReleaser(
 	}
 
 	return &releaser{
-		rsk:            rsk,
 		schema:         schema,
 		redshifter:     redshifter,
 		repo:           repo,
@@ -137,21 +134,24 @@ func (r *releaser) releaseTopic(
 		}
 	}
 
+	statusCopy := status.deepCopy()
+
 	status.updateTopicsOnRelease(topic)
 	status.updateTopicGroup(topic)
 	status.updateMaskStatus()
 	status.info()
 
-	rskCopy := r.rsk.DeepCopy()
-	err = patcher.Patch(ctx, r.rsk)
+	err = patcher.Patch(ctx, status.rsk, fmt.Sprintf("release %s", topic))
 	if err != nil {
 		// revert (patched later)
-		r.rsk.Status = rskCopy.Status
-		return fmt.Errorf("Error patching rsk status, err: %v", err)
+		status.overwrite(statusCopy)
+		klog.V(2).Infof("rsk/%s reverted release for %s", status.rsk.Name, topic)
+		return fmt.Errorf("Error patching rsk status, err: %v, release failed for :%s", err, topic)
 	}
+
 	// make the new status as original so that patch in the end do not run again
-	patcher.original = r.rsk
-	klog.V(2).Infof("rsk/%s patched status: %+v", r.rsk.Name, r.rsk.Status)
+	patcher.original = status.rsk
+	patcher.allowMain = false
 
 	// release
 	err = tx.Commit()
@@ -159,6 +159,7 @@ func (r *releaser) releaseTopic(
 		return fmt.Errorf("Error committing tx, err:%v\n", err)
 	}
 	klog.V(5).Infof("released topic in redshift: %s", topic)
+	time.Sleep(3 * time.Second)
 
 	return nil
 }

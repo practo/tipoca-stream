@@ -227,6 +227,34 @@ func currentTopicStatus(rsk *tipocav1.RedshiftSink, topic string) *tipocav1.Topi
 	return nil
 }
 
+func (s *status) overwrite(copyStatus *status) {
+	s.rsk = copyStatus.rsk
+	s.currentVersion = copyStatus.currentVersion
+	s.desiredVersion = copyStatus.desiredVersion
+	s.allTopics = copyStatus.allTopics
+	s.diffTopics = copyStatus.diffTopics
+	s.released = copyStatus.released
+	s.realtime = copyStatus.realtime
+	s.reloading = copyStatus.reloading
+	s.reloadingDupe = copyStatus.reloadingDupe
+}
+
+func (s *status) deepCopy() *status {
+	copy := &status{
+		rsk:            s.rsk.DeepCopy(),
+		currentVersion: s.currentVersion,
+		desiredVersion: s.desiredVersion,
+		allTopics:      s.allTopics,
+		diffTopics:     s.diffTopics,
+		released:       s.released,
+		realtime:       s.realtime,
+		reloading:      s.reloading,
+		reloadingDupe:  s.reloadingDupe,
+	}
+
+	return copy
+}
+
 func (s *status) info() {
 	rskName := fmt.Sprintf("rsk/%s", s.rsk.Name)
 	klog.V(2).Infof("%s allTopics:  %d", rskName, len(s.allTopics))
@@ -423,13 +451,23 @@ func updateTopicGroup(rsk *tipocav1.RedshiftSink, topic string, group tipocav1.G
 type statusPatcher struct {
 	client   client.Client
 	original *tipocav1.RedshiftSink
+	// allowMain determines if the main Reconcile defer func is allowed
+	// to update status or not. Whenever a release happens, we expect
+	// the status to be updated only by the patcher calls in the release func
+	// this is to prevent overwriting of status from an old object
+	allowMain bool
 }
 
-func (s *statusPatcher) Patch(ctx context.Context, new *tipocav1.RedshiftSink) error {
+func (s *statusPatcher) Patch(ctx context.Context, new *tipocav1.RedshiftSink, caller string) error {
 	if reflect.DeepEqual(s.original.Status, new.Status) {
+		klog.V(2).Infof("rsk/%s caller:%s no patch", caller, new.Name)
 		return nil
 	}
 
+	klog.V(2).Infof("rsk/%s patching status...", new.Name)
+	if new.Status.MaskStatus != nil {
+		klog.V(2).Infof("rsk/%s caller:%s patching, currentMaskStatus: %+v", caller, new.Name, new.Status.MaskStatus.CurrentMaskStatus)
+	}
 	return s.client.Status().Patch(
 		ctx,
 		new,
