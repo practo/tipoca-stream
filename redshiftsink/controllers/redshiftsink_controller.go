@@ -598,10 +598,11 @@ func (r *RedshiftSinkReconciler) Reconcile(
 			RequeueAfter: time.Second * 30}, client.IgnoreNotFound(err)
 	}
 
+	original := redshiftsink.DeepCopy()
 	patcher := &statusPatcher{
 		client:    r.Client,
 		allowMain: true,
-		original:  redshiftsink.DeepCopy()}
+	}
 
 	// Always attempt to patch the status after each reconciliation.
 	defer func() {
@@ -610,7 +611,7 @@ func (r *RedshiftSinkReconciler) Reconcile(
 			return
 		}
 
-		err := patcher.Patch(ctx, &redshiftsink, "main")
+		err := patcher.Patch(ctx, original, &redshiftsink, "main")
 		if err != nil {
 			reterr = kerrors.NewAggregate(
 				[]error{

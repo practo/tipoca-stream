@@ -141,7 +141,7 @@ func (r *releaser) releaseTopic(
 	status.updateMaskStatus()
 	status.info()
 
-	err = patcher.Patch(ctx, status.rsk, fmt.Sprintf("release %s", topic))
+	err = patcher.Patch(ctx, statusCopy.rsk, status.rsk, fmt.Sprintf("release %s", topic))
 	if err != nil {
 		// revert (patched later)
 		status.overwrite(statusCopy)
@@ -149,8 +149,6 @@ func (r *releaser) releaseTopic(
 		return fmt.Errorf("Error patching rsk status, err: %v, release failed for :%s", err, topic)
 	}
 
-	// make the new status as original so that patch in the end do not run again
-	patcher.original = status.rsk
 	patcher.allowMain = false
 
 	// release

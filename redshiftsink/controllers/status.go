@@ -449,8 +449,7 @@ func updateTopicGroup(rsk *tipocav1.RedshiftSink, topic string, group tipocav1.G
 
 // statusPatcher is used to update the status of rsk
 type statusPatcher struct {
-	client   client.Client
-	original *tipocav1.RedshiftSink
+	client client.Client
 	// allowMain determines if the main Reconcile defer func is allowed
 	// to update status or not. Whenever a release happens, we expect
 	// the status to be updated only by the patcher calls in the release func
@@ -458,8 +457,8 @@ type statusPatcher struct {
 	allowMain bool
 }
 
-func (s *statusPatcher) Patch(ctx context.Context, new *tipocav1.RedshiftSink, caller string) error {
-	if reflect.DeepEqual(s.original.Status, new.Status) {
+func (s *statusPatcher) Patch(ctx context.Context, original *tipocav1.RedshiftSink, new *tipocav1.RedshiftSink, caller string) error {
+	if reflect.DeepEqual(original.Status, new.Status) {
 		klog.V(2).Infof("rsk/%s caller:%s no patch", new.Name, caller)
 		return nil
 	}
@@ -471,6 +470,6 @@ func (s *statusPatcher) Patch(ctx context.Context, new *tipocav1.RedshiftSink, c
 	return s.client.Status().Patch(
 		ctx,
 		new,
-		client.MergeFrom(s.original),
+		client.MergeFrom(original),
 	)
 }
