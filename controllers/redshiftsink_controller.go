@@ -511,7 +511,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 	if len(releaseCandidates) > 0 {
 		releaser, err = newReleaser(
 			ctx,
-			rsk,
 			rsk.Spec.Loader.RedshiftSchema,
 			repo,
 			filePath,
@@ -600,12 +599,18 @@ func (r *RedshiftSinkReconciler) Reconcile(
 	}
 
 	patcher := &statusPatcher{
-		client:   r.Client,
-		original: redshiftsink.DeepCopy()}
+		client:    r.Client,
+		allowMain: true,
+		original:  redshiftsink.DeepCopy()}
 
 	// Always attempt to patch the status after each reconciliation.
 	defer func() {
-		err := patcher.Patch(ctx, &redshiftsink)
+		if !patcher.allowMain {
+			klog.V(2).Infof("rsk/%s patching is not allowed for main", redshiftsink.Name)
+			return
+		}
+
+		err := patcher.Patch(ctx, &redshiftsink, "main")
 		if err != nil {
 			reterr = kerrors.NewAggregate(
 				[]error{
