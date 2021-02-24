@@ -456,7 +456,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		}
 		klog.V(2).Infof("rsk/%v reconciling all sinkGroups", rsk.Name)
 	} else {
-		klog.V(2).Infof("%s realtime (waiting):   %d %v", rsk.Name, len(currentRealtime), currentRealtime)
+		klog.V(2).Infof("rsk/%s realtime (waiting): %d %v", rsk.Name, len(currentRealtime), currentRealtime)
 	}
 
 	reloadDupe = sgBuilder.

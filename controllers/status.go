@@ -459,13 +459,13 @@ type statusPatcher struct {
 
 func (s *statusPatcher) Patch(ctx context.Context, original *tipocav1.RedshiftSink, new *tipocav1.RedshiftSink, caller string) error {
 	if reflect.DeepEqual(original.Status, new.Status) {
-		klog.V(2).Infof("rsk/%s caller:%s no patch", new.Name, caller)
+		klog.V(4).Infof("rsk/%s caller:%s no patch", new.Name, caller)
 		return nil
 	}
 
-	klog.V(2).Infof("rsk/%s patching status...", new.Name)
+	klog.V(4).Infof("rsk/%s patching status...", new.Name)
 	if new.Status.MaskStatus != nil {
-		klog.V(2).Infof("rsk/%s caller:%s patching, currentMaskStatus: %+v", new.Name, caller, new.Status.MaskStatus.CurrentMaskStatus)
+		klog.V(4).Infof("rsk/%s caller:%s patching, currentMaskStatus: %+v", new.Name, caller, new.Status.MaskStatus.CurrentMaskStatus)
 	}
 	return s.client.Status().Patch(
 		ctx,
