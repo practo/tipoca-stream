@@ -439,11 +439,13 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 	klog.V(2).Infof("rsk/%v allowShuffle=%v, reloadingRatio=%v", rsk.Name, allowShuffle, reloadingRatio)
 
-	// moving topics from reloading to realtime causes shuffling of sinkgroups
-	// which is expensive, so to minimize
-	// this we do it every 1800 second if reloadingRatio is > 0.2
+	// Realtime status is always calculated to keep the CurrentOffset
+	// info updated in the rsk status. This is required so that low throughput
+	// release do not get blocked due to missing consumer group currentOffset.
+	currentRealtime := reload.realtimeTopics(status.realtime, kafkaWatcher, r.KafkaRealtimeCache)
+
+	// Allow realtime update only during release window, to minimize shuffle
 	if allowShuffle {
-		currentRealtime := reload.realtimeTopics(status.realtime, kafkaWatcher, r.KafkaRealtimeCache)
 		if !subSetSlice(currentRealtime, status.realtime) {
 			for _, moreRealtime := range currentRealtime {
 				status.realtime = appendIfMissing(status.realtime, moreRealtime)
@@ -452,9 +454,10 @@ func (r *RedshiftSinkReconciler) reconcile(
 				"Reconcile needed, realtime topics updated: %v", status.realtime)
 			return resultRequeueMilliSeconds(1500), nil, nil
 		}
+		klog.V(2).Infof("rsk/%v reconciling all sinkGroups", rsk.Name)
+	} else {
+		klog.V(2).Infof("%s realtime (waiting):   %d %v", rskName, len(currentRealtime), currentRealtime)
 	}
-
-	klog.V(2).Infof("rsk/%v reconciling all sinkGroups", rsk.Name)
 
 	reloadDupe = sgBuilder.
 		setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).
