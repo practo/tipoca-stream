@@ -503,7 +503,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	// taken as a group and is tried to release in single reconcile
 	// to reduce the time spent on rebalance of sink groups (optimization)
 	// #141
-	maxTopicRelease := 10
+	maxTopicRelease := 50
 	releaseCandidates := status.realtime
 	if len(status.realtime) >= maxTopicRelease {
 		releaseCandidates = status.realtime[:maxTopicRelease]
