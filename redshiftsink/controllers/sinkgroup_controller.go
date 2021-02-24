@@ -643,10 +643,14 @@ func (s *sinkGroup) topicRealtime(
 		return false, &now, fmt.Errorf("Error getting current offset for %s", topic)
 	}
 	klog.V(2).Infof("%s, lastOffset=%v", topic, batcherLastOffset)
-	if batcherLastOffset < maxBatcherLag {
-		klog.V(2).Infof("%s, lastOffset < %v, not realtime", topic, maxBatcherLag)
-		return false, &now, nil
-	}
+
+	// This won't work for topics which have lastOffset less than lag
+	// klog.V(2).Infof("%s, lastOffset=%v", topic, batcherLastOffset)
+	// if batcherLastOffset < maxBatcherLag {
+	// 	klog.V(2).Infof("%s, lastOffset < %v, not realtime", topic, maxBatcherLag)
+	// 	return false, &now, nil
+	// }
+
 	batcherCGID := consumerGroupID(s.rsk.Name, s.rsk.Namespace, group.ID, "-batcher")
 	batcherCurrentOffset, err := watcher.CurrentOffset(
 		batcherCGID,
@@ -658,7 +662,7 @@ func (s *sinkGroup) topicRealtime(
 	}
 	klog.V(2).Infof("%s, currentOffset=%v", topic, batcherCurrentOffset)
 	if batcherCurrentOffset == -1 {
-		klog.V(2).Infof("%s, cg 404, not realtime", topic)
+		klog.V(2).Infof("%s, batcher cg 404, not realtime", topic)
 		return false, &now, nil
 	}
 
@@ -674,10 +678,12 @@ func (s *sinkGroup) topicRealtime(
 		return false, &now, fmt.Errorf("Error getting current offset for %s", loaderTopic)
 	}
 	klog.V(2).Infof("%s, lastOffset=%v", loaderTopic, loaderLastOffset)
-	if loaderLastOffset < maxLoaderLag {
-		klog.V(2).Infof("%s, lastOffset < %v, not realtime", loaderTopic, maxLoaderLag)
-		return false, &now, nil
-	}
+
+	// This won't work for topics which have lastOffset less than lag
+	// if loaderLastOffset < maxLoaderLag {
+	// 	klog.V(2).Infof("%s, lastOffset < %v, not realtime", loaderTopic, maxLoaderLag)
+	// 	return false, &now, nil
+	// }
 	loaderCGID := consumerGroupID(s.rsk.Name, s.rsk.Namespace, group.ID, "-loader")
 	loaderCurrentOffset, err := watcher.CurrentOffset(
 		loaderCGID,
@@ -695,7 +701,7 @@ func (s *sinkGroup) topicRealtime(
 		//    On such a scenario, we consider it realtime.
 		//    we find this case by saving the currentOffset for the loader topcics in RedshiftSink Topic Group Status
 		if group.LoaderCurrentOffset == nil {
-			klog.V(2).Infof("%s, cg 404, not realtime", loaderTopic)
+			klog.V(2).Infof("%s, loader cg 404, not realtime", loaderTopic)
 			// lastRefresh is sent nil(second arg return) to check this
 			// topic again quickly for the realtime info.
 			return false, nil, nil
