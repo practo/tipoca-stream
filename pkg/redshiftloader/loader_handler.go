@@ -85,10 +85,19 @@ func (h *loaderHandler) Cleanup(sarama.ConsumerGroupSession) error {
 }
 
 // process calls the load processor to process the batch
-func (h *loaderHandler) process(processor *loadProcessor) {
+func (h *loaderHandler) process(topic string, processor *loadProcessor) {
 	if len(h.msgBuf) > 0 {
+		klog.V(2).Infof(
+			"topic:%s: starting batch processing",
+			topic,
+		)
 		processor.process(h.ctx, h.msgBuf)
 		h.msgBuf = make([]*serializer.Message, 0, h.maxSize)
+	} else {
+		klog.V(2).Infof(
+			"topic:%s: no msgs",
+			topic,
+		)
 	}
 }
 
@@ -103,10 +112,10 @@ func (h *loaderHandler) insert(
 	h.msgBuf = append(h.msgBuf, msg)
 	if len(h.msgBuf) >= h.maxSize {
 		klog.V(2).Infof(
-			"topic:%s: batched by time",
+			"topic:%s: maxSize hit",
 			msg.Topic,
 		)
-		h.process(processor)
+		h.process(msg.Topic, processor)
 	}
 }
 
@@ -182,12 +191,12 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				lastSchemaId = new(int)
 			} else if *lastSchemaId != upstreamJobSchemaId {
 				klog.V(2).Infof(
-					"topic:%s: batched by schema, schema changed from %d => %d\n",
+					"topic:%s: schema changed, %d => %d\n",
 					claim.Topic(),
 					*lastSchemaId,
 					upstreamJobSchemaId,
 				)
-				h.process(processor)
+				h.process(claim.Topic(), processor)
 			} else {
 			}
 			// Process the batch by size or insert in batch
@@ -197,10 +206,10 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			h.mu.Lock()
 			// Process the batch by time
 			klog.V(2).Infof(
-				"topic:%s: batched by time",
+				"topic:%s: maxWaitSeconds hit",
 				claim.Topic(),
 			)
-			h.process(processor)
+			h.process(claim.Topic(), processor)
 			h.mu.Unlock()
 		}
 	}
