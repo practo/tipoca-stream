@@ -46,9 +46,9 @@ func NewHandler(
 	loaderConfig LoaderConfig,
 	saramaConfig kafka.SaramaConfig,
 	redshifter *redshift.Redshift,
-) loaderHandler {
+) *loaderHandler {
 
-	return loaderHandler{
+	return &loaderHandler{
 		ready:   ready,
 		context: context,
 
@@ -64,51 +64,51 @@ func NewHandler(
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
-func (c loaderHandler) Setup(sarama.ConsumerGroupSession) error {
+func (h *loaderHandler) Setup(sarama.ConsumerGroupSession) error {
 	klog.V(3).Info("Setting up consumer")
 
 	// Mark the consumer as ready
 	select {
-	case <-c.ready:
+	case <-h.ready:
 		return nil
 	default:
 	}
-	close(c.ready)
+	close(h.ready)
 
 	return nil
 }
 
 // Cleanup is run at the end of a session, once all ConsumeClaim goroutines have exited
-func (c loaderHandler) Cleanup(sarama.ConsumerGroupSession) error {
+func (h *loaderHandler) Cleanup(sarama.ConsumerGroupSession) error {
 	klog.V(3).Info("Cleaning up consumer")
 	return nil
 }
 
 // process calls the load processor to process the batch
-func (c loaderHandler) process(processor *loadProcessor) {
-	if len(c.msgBuf) > 0 {
-		processor.process(c.context, c.msgBuf)
-		c.msgBuf = make([]*serializer.Message, 0, c.maxSize)
+func (h *loaderHandler) process(processor *loadProcessor) {
+	if len(h.msgBuf) > 0 {
+		processor.process(h.context, h.msgBuf)
+		h.msgBuf = make([]*serializer.Message, 0, h.maxSize)
 	}
 }
 
 // insert makes the batch and also calls the processor if batchSize >= maxSize
-func (c loaderHandler) insert(
+func (h *loaderHandler) insert(
 	msg *serializer.Message,
 	processor *loadProcessor,
 ) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
-	c.msgBuf = append(c.msgBuf, msg)
-	if len(c.msgBuf) >= c.maxSize {
-		c.process(processor)
+	h.msgBuf = append(h.msgBuf, msg)
+	if len(h.msgBuf) >= h.maxSize {
+		h.process(processor)
 	}
 }
 
 // ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages().
 // ConsumeClaim is managed by the consumer.manager routine
-func (c loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
+func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 	claim sarama.ConsumerGroupClaim) error {
 
 	klog.V(2).Infof(
@@ -123,8 +123,8 @@ func (c loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		session,
 		claim.Topic(),
 		claim.Partition(),
-		c.saramaConfig,
-		c.redshifter,
+		h.saramaConfig,
+		h.redshifter,
 	)
 
 	// NOTE:
@@ -135,7 +135,7 @@ func (c loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 
 	for {
 		select {
-		case <-c.context.Done():
+		case <-h.context.Done():
 			klog.Infof(
 				"ConsumeClaim gracefully shutdown for topic: %s",
 				claim.Topic(),
@@ -143,10 +143,15 @@ func (c loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			return nil
 		case message, ok := <-claimMsgChan:
 			if !ok {
+				klog.V(2).Infof(
+					"ConsumeClaim ended for topic: %s, partition: %d (would rerun by manager)\n",
+					claim.Topic(),
+					claim.Partition(),
+				)
 				return nil
 			}
 			// Deserialize the message
-			msg, err := c.serializer.Deserialize(message)
+			msg, err := h.serializer.Deserialize(message)
 			if err != nil {
 				klog.Fatalf("Error deserializing binary, err: %s\n", err)
 			}
@@ -166,23 +171,16 @@ func (c loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 					*lastSchemaId,
 					schemaID,
 				)
-				c.process(processor)
+				h.process(processor)
 			} else {
 			}
 			// Process the batch by size or insert in batch
-			c.insert(msg, processor)
-		case <-c.maxWaitTicker.C:
-			c.mu.Lock()
+			h.insert(msg, processor)
+		case <-h.maxWaitTicker.C:
+			h.mu.Lock()
 			// Process the batch by time
-			c.process(processor)
-			c.mu.Unlock()
+			h.process(processor)
+			h.mu.Unlock()
 		}
 	}
-
-	klog.V(2).Infof(
-		"ConsumeClaim ended for topic: %s, partition: %d (would rerun)\n",
-		claim.Topic(),
-		claim.Partition(),
-	)
-	return nil
 }
