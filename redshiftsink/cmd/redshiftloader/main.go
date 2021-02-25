@@ -146,7 +146,7 @@ func run(cmd *cobra.Command, args []string) {
 	// TODO: the processing function should signal back
 	// It does not at present
 	// https://github.com/practo/tipoca-stream/issues/18
-	klog.V(2).Info("Waiting the some routines to gracefully shutdown (some don't)")
+	klog.V(2).Info("Waiting the more routines to gracefully shutdown")
 	time.Sleep(10 * time.Second)
 
 	// routines which works with wait groups will shutdown gracefully
