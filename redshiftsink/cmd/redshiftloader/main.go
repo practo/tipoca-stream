@@ -87,9 +87,10 @@ func run(cmd *cobra.Command, args []string) {
 		ready := make(chan bool)
 		consumerGroup, err := kafka.NewConsumerGroup(
 			groupConfig,
-			redshiftloader.NewConsumer(
-				ready,
+			redshiftloader.NewHandler(
 				ctx,
+				ready,
+				config.Loader,
 				groupConfig.Sarama,
 				redshifter,
 			),

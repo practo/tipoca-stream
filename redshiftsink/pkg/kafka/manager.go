@@ -224,10 +224,12 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 
 		c.setActiveTopics(topics)
 		klog.V(2).Infof(
-			"Manager triggering consume for %d topic(s) (%s)\n",
+			"Calling ConsumeClaim for %d topic(s) (%s)\n",
 			len(topics),
 			c.consumerGroupID,
 		)
+
+		// Consume ultimately calls ConsumeClaim for every topic partition
 		err := c.consumerGroup.Consume(ctx, topics)
 		if err != nil {
 			klog.Fatalf("Error from consumer: %v", err)
@@ -238,7 +240,7 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 			return
 		}
 		klog.V(2).Infof(
-			"Manager: %s, Consume completed loop, will re run",
+			"Completed ConsumeClaim for (%s), I will rerun\n",
 			c.consumerGroupID,
 		)
 	}
