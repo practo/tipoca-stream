@@ -101,7 +101,7 @@ func newLoadProcessor(
 		klog.Fatalf("Error creating s3 client: %v\n", err)
 	}
 
-	klog.Infof("AutoCommit: %v", saramaConfig.AutoCommit)
+	klog.V(3).Infof("%s: auto-commit: %v", topic, saramaConfig.AutoCommit)
 
 	return &loadProcessor{
 		session:            session,
