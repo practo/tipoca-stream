@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/Shopify/sarama"
-	"github.com/riferrei/srclient"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/schemaregistry"
 )
 
 const (
@@ -40,19 +40,23 @@ type Serializer interface {
 
 func NewSerializer(schemaRegistryURL string) Serializer {
 	return &avroSerializer{
-		srclient: srclient.CreateSchemaRegistryClient(schemaRegistryURL),
+		registry: schemaregistry.NewRegistry(schemaRegistryURL),
 	}
 }
 
 type avroSerializer struct {
-	srclient *srclient.SchemaRegistryClient
+	registry schemaregistry.SchemaRegistry
 }
 
 func (c *avroSerializer) Deserialize(
 	message *sarama.ConsumerMessage) (*Message, error) {
 
 	schemaId := binary.BigEndian.Uint32(message.Value[1:5])
-	schema, err := GetSchemaWithRetry(c.srclient, int(schemaId), 10)
+	schema, err := schemaregistry.GetSchemaWithRetry(
+		c.registry,
+		int(schemaId),
+		10,
+	)
 	if err != nil {
 		return nil, err
 	}

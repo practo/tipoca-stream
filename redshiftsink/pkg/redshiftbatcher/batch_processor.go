@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/producer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	loader "github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftloader"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/s3sink"
@@ -32,6 +32,9 @@ type batchProcessor struct {
 
 	// session is required to commit the offsets on succesfull processing
 	session sarama.ConsumerGroupSession
+
+	// mainContext for cancellations
+	mainContext context.Context
 
 	// s3Sink
 	s3sink *s3sink.S3Sink
@@ -93,13 +96,19 @@ type batchProcessor struct {
 
 	// signaler is a kafka producer signaling the load the batch uploaded data
 	// TODO: make the producer have interface
-	signaler *producer.AvroProducer
+	signaler *kafka.AvroProducer
 }
 
 func newBatchProcessor(
-	topic string, partition int32,
-	session sarama.ConsumerGroupSession) *batchProcessor {
-
+	topic string,
+	partition int32,
+	session sarama.ConsumerGroupSession,
+	mainContext context.Context,
+	kafkaConfig kafka.KafkaConfig,
+	saramaConfig kafka.SaramaConfig,
+	maskConfig masker.MaskConfig,
+	kafkaLoaderTopicPrefix string,
+) *batchProcessor {
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
 		viper.GetString("s3sink.secretAccessKey"),
@@ -109,15 +118,12 @@ func newBatchProcessor(
 	if err != nil {
 		klog.Fatalf("Error creating s3 client: %v\n", err)
 	}
-	loaderTopicPrefix := viper.GetString("kafka.loaderTopicPrefix")
-	if loaderTopicPrefix == "" {
-		loaderTopicPrefix = "loader-"
-	}
 
-	signaler, err := producer.NewAvroProducer(
-		strings.Split(viper.GetString("kafka.brokers"), ","),
-		viper.GetString("kafka.version"),
+	signaler, err := kafka.NewAvroProducer(
+		strings.Split(kafkaConfig.Brokers, ","),
+		kafkaConfig.Version,
 		viper.GetString("schemaRegistryURL"),
+		kafkaConfig.TLSConfig,
 	)
 	if err != nil {
 		klog.Fatalf("unable to make signaler client, err:%v\n", err)
@@ -126,23 +132,22 @@ func newBatchProcessor(
 	var msgMasker transformer.MessageTransformer
 	maskMessages := viper.GetBool("batcher.mask")
 	if maskMessages {
-		msgMasker, err = masker.NewMsgMasker(
+		msgMasker = masker.NewMsgMasker(
 			viper.GetString("batcher.maskSalt"),
 			topic,
-			viper.GetString("batcher.maskFile"),
-			viper.GetString("batcher.maskFileVersion"),
+			maskConfig,
 		)
-		if err != nil && maskMessages {
-			klog.Fatalf("unable to create the masker, err:%v", err)
-		}
 	}
+
+	klog.Infof("topic: %v, autoCommit: %v", topic, saramaConfig.AutoCommit)
 
 	return &batchProcessor{
 		topic:              topic,
-		loaderTopicPrefix:  loaderTopicPrefix,
+		loaderTopicPrefix:  kafkaLoaderTopicPrefix,
 		partition:          partition,
-		autoCommit:         viper.GetBool("sarama.autoCommit"),
+		autoCommit:         saramaConfig.AutoCommit,
 		session:            session,
+		mainContext:        mainContext,
 		s3sink:             sink,
 		s3BucketDir:        viper.GetString("s3sink.bucketDir"),
 		bodyBuf:            bytes.NewBuffer(make([]byte, 0, 4096)),
@@ -176,8 +181,10 @@ func removeEmptyNullValues(value map[string]*string) map[string]*string {
 // TODO: get rid of this https://github.com/herryg91/gobatch/issues/2
 func (b *batchProcessor) ctxCancelled() bool {
 	select {
-	case <-b.session.Context().Done():
-		klog.Infof(
+	case <-b.mainContext.Done():
+		err := b.mainContext.Err()
+		klog.Warningf("Batch processing stopped, mainContext done, ctxErr: %v", err)
+		klog.V(2).Infof(
 			"topic:%s, batchId:%d, lastCommittedOffset:%d: Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,
 		)
@@ -197,14 +204,27 @@ func (b *batchProcessor) setBatchId() {
 }
 
 func (b *batchProcessor) setS3key(topic string, partition int32, offset int64) {
-	b.s3Key = filepath.Join(
-		b.s3BucketDir,
-		topic,
-		fmt.Sprintf(
-			"%d_offset_%d_partition.json",
-			offset,
-			partition),
+	s3FileName := fmt.Sprintf(
+		"%d_offset_%d_partition.json",
+		offset,
+		partition,
 	)
+
+	maskFileVersion := viper.GetString("batcher.maskFileVersion")
+	if maskFileVersion != "" {
+		b.s3Key = filepath.Join(
+			b.s3BucketDir,
+			topic,
+			maskFileVersion,
+			s3FileName,
+		)
+	} else {
+		b.s3Key = filepath.Join(
+			b.s3BucketDir,
+			topic,
+			s3FileName,
+		)
+	}
 }
 
 func (b *batchProcessor) markOffset(datas []interface{}) {
@@ -224,6 +244,7 @@ func (b *batchProcessor) markOffset(datas []interface{}) {
 		// just overwrite the same data.
 		// commit only when autoCommit is Off
 		if b.autoCommit == false {
+			klog.V(2).Infof("topic:%s, Committing (autoCommit=false)", message.Topic)
 			b.session.Commit()
 		}
 		b.lastCommittedOffset = message.Offset
@@ -259,7 +280,7 @@ func (b *batchProcessor) handleShutdown() {
 
 func (b *batchProcessor) signalLoad() {
 	downstreamTopic := b.loaderTopicPrefix + b.topic
-	klog.V(2).Infof("topic:%s, batchId: %d, skipMerge: %v\n",
+	klog.V(2).Infof("topic:%s, batchId:%d, skipMerge:%v\n",
 		b.topic, b.batchId, b.skipMerge)
 	job := loader.NewJob(
 		b.topic,
@@ -281,8 +302,8 @@ func (b *batchProcessor) signalLoad() {
 	if err != nil {
 		klog.Fatalf("Error sending the signal to the loader, err:%v\n", err)
 	}
-	klog.V(3).Infof(
-		"topic:%s, batchId:%d: Signalled the loader.\n",
+	klog.V(2).Infof(
+		"topic:%s, batchId:%d: Signalled loader.\n",
 		b.topic, b.batchId,
 	)
 }
@@ -376,12 +397,12 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 // otherwise return false in case of gracefull shutdown signals being captured,
 // this helps in cleanly shutting down the batch processing.
 func (b *batchProcessor) processBatch(
-	ctx context.Context, datas []interface{}) bool {
+	mainContext context.Context, datas []interface{}) bool {
 
 	b.s3Key = ""
 	for id, data := range datas {
 		select {
-		case <-ctx.Done():
+		case <-mainContext.Done():
 			return false
 		default:
 			b.processMessage(data.(*serializer.Message), id)
@@ -406,7 +427,7 @@ func (b *batchProcessor) process(workerID int, datas []interface{}) {
 		b.topic, b.batchId, len(datas),
 	)
 
-	done := b.processBatch(b.session.Context(), datas)
+	done := b.processBatch(b.mainContext, datas)
 	if !done {
 		b.handleShutdown()
 		return

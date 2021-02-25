@@ -13,7 +13,7 @@ VERSION ?= $(shell git describe --tags --always --dirty)
 ### These variables should not need tweaking.
 ###
 
-SRC_DIRS := cmd pkg # directories which hold app source (not vendored)
+SRC_DIRS := cmd pkg # dirs which hold app source (not vendored)
 
 ALL_PLATFORMS := linux/amd64 linux/arm linux/arm64 linux/ppc64le linux/s390x
 
@@ -25,7 +25,7 @@ BASEIMAGE ?= gcr.io/distroless/static
 
 TAG := $(VERSION)
 
-BUILD_IMAGE ?= golang:1.15.6-alpine
+BUILD_IMAGE ?= golang:1.15.7-alpine
 
 # If you want to build all binaries, see the 'all-build' rule.
 # If you want to build all containers, see the 'all-container' rule.
@@ -278,7 +278,7 @@ CONTROLLER_GEN=$(shell which controller-gen)
 endif
 
 manifests: controller-gen
-	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=operator-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 # Install CRDs into a cluster
 install: manifests
@@ -286,8 +286,7 @@ install: manifests
 
 # Deploy controller in the configured Kubernetes cluster in ~/.kube/config
 deploy: manifests
-	cd config/manager #&& kustomize edit set image controller=${CONTROLLER_MANAGER_IMAGE}
-	kustomize build config/default | kubectl apply -f -
+	kubectl kustomize config/default | kubectl apply -f -
 
 # Generate code
 generate: controller-gen

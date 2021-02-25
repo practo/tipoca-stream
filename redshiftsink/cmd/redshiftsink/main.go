@@ -17,17 +17,16 @@ package main
 import (
 	"flag"
 	"os"
-	"strings"
 	"sync"
 
 	"github.com/practo/klog/v2"
-	consumer "github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
 	pflag "github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/klog/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	"github.com/practo/tipoca-stream/redshiftsink/controllers"
@@ -50,17 +49,21 @@ func init() {
 
 func main() {
 	var enableLeaderElection bool
-	var kafkaBrokers, kafkaVersion, homeDir, metricsAddr string
-	flag.StringVar(&kafkaBrokers, "kafka-brokers", "kafka-example.com", "command separated kafka hosts to watch.")
-	flag.StringVar(&kafkaVersion, "kafka-version", "2.5.0", "version of the kafka in use.")
-	flag.StringVar(&homeDir, "home-dir", "/", "directory in the pod or local system where mask files should be downloaded and kept")
+	var releaseWaitSeconds int64
+	var batcherImage, loaderImage, secretRefName, secretRefNamespace, kafkaVersion, metricsAddr string
+	flag.StringVar(&batcherImage, "default-batcher-image", "746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftbatcher:latest", "image to use for the redshiftbatcher")
+	flag.StringVar(&loaderImage, "default-loader-image", "746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftloader:latest", "image to use for the redshiftloader")
+	flag.StringVar(&secretRefName, "default-secret-ref-name", "redshiftsink-secret", "default secret name for all redshiftsink secret")
+	flag.StringVar(&secretRefNamespace, "default-secret-ref-namespace", "ts-redshiftsink-latest", "default namespace where redshiftsink secret is there")
+	flag.StringVar(&kafkaVersion, "default-kafka-version", "2.6.0", "default kafka version")
+	flag.Int64Var(&releaseWaitSeconds, "release-wait-seconds", 1800, "time to wait after a release to prevent repeated sinkgroup shuffle, takes effect after reloadingRatio is above limit.")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseDevMode(true)))
+	ctrl.SetLogger(klogr.New())
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
@@ -74,30 +77,39 @@ func main() {
 		os.Exit(1)
 	}
 
-	kafkaWatcher, err := consumer.NewKafkaWatcher(
-		strings.Split(kafkaBrokers, ","), kafkaVersion,
+	uncachedClient, err := client.New(
+		mgr.GetConfig(),
+		client.Options{Scheme: mgr.GetScheme()},
 	)
 	if err != nil {
-		setupLog.Error(err, "err initializing kafka watcher")
+		setupLog.Error(err, "unable to make uncached client")
 		os.Exit(1)
 	}
 
 	if err = (&controllers.RedshiftSinkReconciler{
-		Client:            mgr.GetClient(),
-		Log:               ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
-		Scheme:            mgr.GetScheme(),
-		Recorder:          mgr.GetEventRecorderFor("redshiftsink-reconciler"),
-		KafkaTopicRegexes: new(sync.Map),
-		KafkaWatcher:      kafkaWatcher,
-		HomeDir:           homeDir,
-		GitCache:          new(sync.Map),
+		Client:                    uncachedClient,
+		Log:                       ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
+		Scheme:                    mgr.GetScheme(),
+		Recorder:                  mgr.GetEventRecorderFor("redshiftsink-reconciler"),
+		KafkaWatchers:             new(sync.Map),
+		KafkaTopicRegexes:         new(sync.Map),
+		KafkaTopicsCache:          new(sync.Map),
+		KafkaRealtimeCache:        new(sync.Map),
+		ReleaseCache:              new(sync.Map),
+		GitCache:                  new(sync.Map),
+		DefaultBatcherImage:       batcherImage,
+		DefaultLoaderImage:        loaderImage,
+		DefaultSecretRefName:      secretRefName,
+		DefaultSecretRefNamespace: secretRefNamespace,
+		DefaultKafkaVersion:       kafkaVersion,
+		ReleaseWaitSeconds:        releaseWaitSeconds,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RedshiftSink")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
 
-	setupLog.Info("starting manager")
+	setupLog.Info("Starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)

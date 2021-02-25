@@ -6,8 +6,12 @@ spec:
   secretRefName: redshfitsink-secret-2bh89m59ct
   secretRefNamespace: kube-system
   kafkaBrokers: "kafka1.example.com,kafka2.example.com"
+  kafkaVersion: "2.6.0"
   kafkaTopicRegexes: "^db.inventory*"
   kafkaLoaderTopicPrefix: "loader-"
+  releaseCondition:
+    maxBatcherLag: 100
+    maxLoaderLag: 10
   batcher:
     suspend: false
     maxSize: 10
@@ -24,6 +28,7 @@ spec:
     maxSize: 10
     maxWaitSeconds: 30
     redshiftSchema: "inventory"
+    redshiftGroup:  "sales"
     podTemplate:
       resources:
         requests:

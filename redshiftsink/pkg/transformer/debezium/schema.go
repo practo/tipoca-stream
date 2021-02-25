@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/schemaregistry"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
-	"github.com/riferrei/srclient"
 	"strings"
 )
 
@@ -44,7 +44,7 @@ type SourceType struct {
 func NewSchemaTransformer(url string) transformer.SchemaTransformer {
 	return &schemaTransformer{
 		maskConfig: make(map[int]masker.MaskConfig),
-		srclient:   srclient.CreateSchemaRegistryClient(url),
+		registry:   schemaregistry.NewRegistry(url),
 	}
 }
 
@@ -231,11 +231,11 @@ func (d *schemaParser) columnsBefore() []ColInfo {
 type schemaTransformer struct {
 	mask       bool
 	maskConfig map[int]masker.MaskConfig
-	srclient   *srclient.SchemaRegistryClient
+	registry   schemaregistry.SchemaRegistry
 }
 
 func (c *schemaTransformer) TransformKey(topic string) ([]string, error) {
-	s, err := serializer.GetLatestSchemaWithRetry(c.srclient, topic, true, 10)
+	s, err := schemaregistry.GetLatestSchemaWithRetry(c.registry, topic, true, 10)
 	if err != nil {
 		return []string{}, err
 	}
@@ -292,7 +292,7 @@ func isPrimaryKey(columnName string, primaryKeys []string) bool {
 func (c *schemaTransformer) TransformValue(topic string, schemaId int,
 	maskSchema map[string]serializer.MaskInfo) (interface{}, error) {
 
-	s, err := serializer.GetSchemaWithRetry(c.srclient, schemaId, 10)
+	s, err := schemaregistry.GetSchemaWithRetry(c.registry, schemaId, 10)
 	if err != nil {
 		return nil, err
 	}

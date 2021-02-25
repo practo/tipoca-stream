@@ -7,6 +7,7 @@ import (
 	"flag"
 	"github.com/spf13/cobra"
 	pflag "github.com/spf13/pflag"
+	"github.com/spf13/viper"
 	"math/rand"
 	"net/http"
 
@@ -17,8 +18,9 @@ import (
 
 	"github.com/practo/klog/v2"
 	conf "github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftbatcher/config"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/consumer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftbatcher"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -56,69 +58,115 @@ func run(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	ready := make(chan bool)
-	consumerGroup, err := consumer.NewConsumerGroup(
-		config.Kafka, config.Sarama, redshiftbatcher.NewConsumer(ready),
+	// maskConfig is central to all the topics in the redshiftsink resource
+	// since the maskFile is at database level. Also centralizing
+	// it to keep it clean and make the git pull be a centarl one time activity
+	maskConfig, err := masker.NewMaskConfig(
+		"/",
+		viper.GetString("batcher.maskFile"),
+		viper.GetString("batcher.maskFileVersion"),
+		viper.GetString("gitAccessToken"),
 	)
 	if err != nil {
-		klog.Errorf("Error creating kafka consumer group, exiting: %v\n", err)
+		klog.Errorf("Error loading mask config: %v", err)
 		os.Exit(1)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	klog.Info("Succesfully created kafka client")
 
-	manager := consumer.NewManager(
-		consumerGroup,
-		config.Kafka.TopicRegexes,
-		cancel,
-		config.Reload,
-	)
+	consumerGroups := make(map[string]kafka.ConsumerGroupInterface)
+	var consumersReady []chan bool
 	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go manager.SyncTopics(ctx, 15, wg)
-	wg.Add(1)
-	go manager.Consume(ctx, wg)
+	for _, groupConfig := range config.ConsumerGroups {
+		ready := make(chan bool)
+		consumerGroup, err := kafka.NewConsumerGroup(
+			groupConfig,
+			redshiftbatcher.NewConsumer(
+				ready,
+				ctx,
+				groupConfig.Kafka,
+				groupConfig.Sarama,
+				maskConfig,
+				groupConfig.LoaderTopicPrefix,
+			),
+		)
+		if err != nil {
+			klog.Errorf("Error making kafka consumer group, exiting: %v\n", err)
+			os.Exit(1)
+		}
+		consumersReady = append(consumersReady, ready)
+		groupID := groupConfig.GroupID
+		consumerGroups[groupID] = consumerGroup
+		klog.V(2).Infof("Kafka client created for group: %s", groupID)
+		manager := kafka.NewManager(
+			consumerGroup,
+			groupID,
+			groupConfig.TopicRegexes,
+		)
+		wg.Add(1)
+		go manager.SyncTopics(ctx, 15, wg)
+		wg.Add(1)
+		go manager.Consume(ctx, wg)
+	}
 
 	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
+	ready := 0
 
-	select {
-	case <-ctx.Done():
-		klog.Info("Context cancelled, bye bye!")
-	case <-sigterm:
-		klog.Info("Sigterm signal received")
-		cancel()
-	case <-ready:
-		klog.Info("Consumer is up and running")
+	klog.V(2).Infof("ConsumerGroups: %v", len(consumersReady))
+	for ready >= 0 {
+		select {
+		default:
+		case <-sigterm:
+			klog.V(2).Info("SIGTERM signal received")
+			ready = -1
+		}
+
+		if ready == -1 || ready == len(consumersReady) {
+			time.Sleep(3 * time.Second)
+			continue
+		}
+
+		for _, channel := range consumersReady {
+			select {
+			case <-channel:
+				ready += 1
+				klog.V(2).Infof("ConsumerGroup #%d is up and running", ready)
+			}
+		}
 	}
 
-	select {
-	case <-ctx.Done():
-		klog.Info("Context cancelled, bye bye!")
-	case <-sigterm:
-		klog.Info("Sigterm signal received")
-		cancel()
-	}
+	klog.V(2).Info("Cancelling context to trigger graceful shutdown...")
+	cancel()
 
-	// TODO: the processing batching function should signal back
+	// TODO: the processing function should signal back
 	// It does not at present
 	// https://github.com/practo/tipoca-stream/issues/18
-	klog.Info("Waiting the batcher goroutines to gracefully shutdown")
-	time.Sleep(5 * time.Second)
+	klog.V(2).Info("Waiting the some routines to gracefully shutdown (some don't)")
+	time.Sleep(10 * time.Second)
 
+	// routines which works with wait groups will shutdown gracefully
 	wg.Wait()
-	if err = consumerGroup.Close(); err != nil {
-		klog.Errorf("Error closing group: %v", err)
+
+	var closeErr error
+	for groupID, consumerGroup := range consumerGroups {
+		klog.V(2).Infof("Closing consumerGroup: %s", groupID)
+		closeErr = consumerGroup.Close()
+		if closeErr != nil {
+			klog.Errorf(
+				"Error closing consumer group: %s, err: %v", groupID, err)
+		}
+	}
+	if closeErr != nil {
 		os.Exit(1)
 	}
 
-	klog.Info("Goodbye!")
+	klog.V(1).Info("Goodbye!")
 }
 
 // main/main.main()
 // => consumer/manager.Consume() => consumer/consumer_group.Consume()
-// => sarama/consumer_group.Consume() => redshfitbatcher/consumer.ConsumeClaim()
+// => sarama/consumer_group.Consume() => redshfitbatcher/kafka.ConsumeClaim()
 func main() {
 	rand.Seed(time.Now().UnixNano())
 

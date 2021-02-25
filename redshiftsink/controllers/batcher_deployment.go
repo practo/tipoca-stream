@@ -1,134 +1,173 @@
 package controllers
 
-//ctrl.SetControllerReference(redshiftsink, deployment, r.Scheme)
-
 import (
 	"fmt"
+
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
+	"github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftbatcher/config"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftbatcher"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/s3sink"
+	yaml "gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	client "sigs.k8s.io/controller-runtime/pkg/client"
-	// ctrl "sigs.k8s.io/controller-runtime"
 )
 
 const (
-	BatcherSuffix       = "-batcher"
-	BatcherEnvPrefix    = "BATCHER_"
-	BatcherDefaultImage = "practodev/redshiftbatcher:latest"
+	BatcherSuffix        = "-batcher"
+	BatcherLabelInstance = "redshiftbatcher"
 )
 
 type Batcher struct {
 	name       string
 	namespace  string
-	client     client.Client
 	deployment *appsv1.Deployment
+	config     *corev1.ConfigMap
+}
+
+func batcherSecret(secret map[string]string) (map[string]string, error) {
+	s := make(map[string]string)
+	secretKeys := []string{
+		"maskSalt",
+		"s3Region",
+		"s3Bucket",
+		"s3BatcherBucketDir",
+		"s3AccessKeyId",
+		"s3SecretAccessKey",
+		"schemaRegistryURL",
+		"gitAccessToken",
+	}
+
+	for _, key := range secretKeys {
+		value, err := secretByKey(secret, key)
+		if err != nil {
+			return nil, fmt.Errorf("batcher secret: %s not found, %v", key, err)
+		}
+		s[key] = value
+	}
+
+	return s, nil
+}
+
+func batcherName(rskName, sinkGroup string) string {
+	return fmt.Sprintf("%s-%s%s", rskName, sinkGroup, BatcherSuffix)
 }
 
 func NewBatcher(
 	name string,
-	client client.Client,
 	rsk *tipocav1.RedshiftSink,
-	topics string) Deployment {
-
-	uniqueName := rsk.Name + "-" + name + BatcherSuffix
-	secretRefName := rsk.Spec.SecretRefName
-	envs := []corev1.EnvVar{
-		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "BATCHER_MASK",
-			Value: fmt.Sprintf("%v", rsk.Spec.Batcher.Mask),
-		},
-		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "BATCHER_MASKFILE",
-			Value: rsk.Spec.Batcher.MaskFile,
-		},
-		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "BATCHER_MAXSIZE",
-			Value: fmt.Sprintf("%v", rsk.Spec.Batcher.MaxSize),
-		},
-		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "BATCHER_MAXWAITSECONDS",
-			Value: fmt.Sprintf("%v", rsk.Spec.Batcher.MaxWaitSeconds),
-		},
-		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "KAFKA_BROKERS",
-			Value: rsk.Spec.KafkaBrokers,
-		},
-		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "KAFKA_GROUP",
-			Value: uniqueName,
-		},
-		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "KAFKA_TOPICREGEXES",
-			Value: topics,
-		},
-		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "KAFKA_LOADERTOPICPREFIX",
-			Value: rsk.Spec.KafkaLoaderTopicPrefix,
-		},
-		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "SARAMA_OLDEST",
-			Value: "true",
-		},
-		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "SARAMA_LOG",
-			Value: "false",
-		},
-		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "SARAMA_AUTOCOMMIT",
-			Value: "true",
-		},
-		corev1.EnvVar{
-			Name:  BatcherEnvPrefix + "RELOAD",
-			Value: "false",
-		},
-		secretEnvVar(
-			BatcherEnvPrefix+"BATCHER_MASKSALT", "maskSalt", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"S3SINK_REGION", "s3Region", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"S3SINK_BUCKET", "s3Bucket", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"S3SINK_BUCKETDIR",
-			"s3BatcherBucketDir", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"S3SINK_ACCESSKEYID",
-			"s3AccessKeyId", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"S3SINK_SECRETACCESSKEY",
-			"s3SecretAccessKey", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"SCHEMAREGISTRYURL",
-			"schemaRegistryURL", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"GITACCESSTOKEN",
-			"gitAccessToken", secretRefName),
+	maskFileVersion string,
+	secret map[string]string,
+	sinkGroup string,
+	consumerGroups map[string]consumerGroup,
+	defaultImage string,
+	defaultKafkaVersion string,
+	tlsConfig *kafka.TLSConfig,
+) (
+	Deployment,
+	error,
+) {
+	secret, err := batcherSecret(secret)
+	if err != nil {
+		return nil, err
 	}
 
-	var replicas int32
-	if topics != "" {
-		replicas = getReplicas(rsk.Spec.Batcher.Suspend)
+	totalTopics := 0
+	kafkaVersion := rsk.Spec.KafkaVersion
+	if kafkaVersion == "" {
+		kafkaVersion = defaultKafkaVersion
+	}
+	var groupConfigs []kafka.ConsumerGroupConfig
+	for groupID, group := range consumerGroups {
+		totalTopics += len(group.topics)
+		groupConfigs = append(groupConfigs, kafka.ConsumerGroupConfig{
+			GroupID:           consumerGroupID(rsk.Name, rsk.Namespace, groupID, "-batcher"),
+			TopicRegexes:      expandTopicsToRegex(group.topics),
+			LoaderTopicPrefix: group.loaderTopicPrefix,
+			Kafka: kafka.KafkaConfig{
+				Brokers:   rsk.Spec.KafkaBrokers,
+				Version:   kafkaVersion,
+				TLSConfig: *tlsConfig,
+			},
+			Sarama: kafka.SaramaConfig{
+				Assignor:   "range",
+				Oldest:     true,
+				Log:        false,
+				AutoCommit: true,
+			},
+		})
+	}
+
+	conf := config.Config{
+		Batcher: redshiftbatcher.BatcherConfig{
+			Mask:            rsk.Spec.Batcher.Mask,
+			MaskSalt:        secret["maskSalt"],
+			MaskFile:        rsk.Spec.Batcher.MaskFile,
+			MaskFileVersion: maskFileVersion,
+			MaxSize:         rsk.Spec.Batcher.MaxSize,
+			MaxWaitSeconds:  rsk.Spec.Batcher.MaxWaitSeconds,
+		},
+		ConsumerGroups: groupConfigs,
+		S3Sink: s3sink.Config{
+			Region:          secret["s3Region"],
+			AccessKeyId:     secret["s3AccessKeyId"],
+			SecretAccessKey: secret["s3SecretAccessKey"],
+			Bucket:          secret["s3Bucket"],
+			BucketDir:       secret["s3BatcherBucketDir"],
+		},
+		SchemaRegistryURL: secret["schemaRegistryURL"],
+		GitAccessToken:    secret["gitAccessToken"],
+	}
+	confBytes, err := yaml.Marshal(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	replicas := getReplicas(
+		rsk.Spec.Batcher.Suspend,
+		len(consumerGroups),
+		totalTopics,
+	)
+
+	var image string
+	if rsk.Spec.Batcher.PodTemplate.Image != nil {
+		image = *rsk.Spec.Batcher.PodTemplate.Image
 	} else {
-		replicas = 0
+		image = defaultImage
+	}
+
+	confString := string(confBytes)
+	objectName := getObjectName(name, confString)
+	labels := getDefaultLabels(
+		BatcherLabelInstance, sinkGroup, objectName, rsk.Name)
+
+	configSpec := configMapSpec{
+		name:       objectName,
+		namespace:  rsk.Namespace,
+		labels:     labels,
+		volumeName: objectName,
+		mountPath:  "/config.yaml",
+		subPath:    "config.yaml",
+		data:       map[string]string{"config.yaml": confString},
 	}
 
 	deploySpec := deploymentSpec{
-		name:           uniqueName,
-		namespace:      rsk.Namespace,
-		labels:         getDefaultLabels("redshiftbatcher"),
-		replicas:       &replicas,
-		deploymentName: uniqueName,
-		envs:           envs,
-		resources:      rsk.Spec.Batcher.PodTemplate.Resources,
-		tolerations:    rsk.Spec.Batcher.PodTemplate.Tolerations,
-		image:          getImage(rsk.Spec.Batcher.PodTemplate.Image, true),
+		name:        objectName,
+		namespace:   rsk.Namespace,
+		labels:      labels,
+		replicas:    &replicas,
+		resources:   rsk.Spec.Batcher.PodTemplate.Resources,
+		tolerations: rsk.Spec.Batcher.PodTemplate.Tolerations,
+		image:       image,
+		args:        []string{"-v=4", "--config=/config.yaml"},
 	}
 
 	return &Batcher{
-		name:       uniqueName,
-		client:     client,
+		name:       name,
 		namespace:  rsk.Namespace,
-		deployment: deploymentForRedshiftSink(deploySpec),
-	}
+		deployment: deploymentFromSpec(deploySpec, configSpec),
+		config:     configFromSpec(configSpec),
+	}, nil
 }
 
 func (b Batcher) Name() string {
@@ -139,14 +178,18 @@ func (b Batcher) Namespace() string {
 	return b.namespace
 }
 
-func (b Batcher) Client() client.Client {
-	return b.client
-}
-
 func (b Batcher) Deployment() *appsv1.Deployment {
 	return b.deployment
 }
 
-func (b Batcher) UpdateRequired(current *appsv1.Deployment) bool {
+func (b Batcher) Config() *corev1.ConfigMap {
+	return b.config
+}
+
+func (b Batcher) UpdateDeployment(current *appsv1.Deployment) bool {
 	return !deploymentSpecEqual(current, b.Deployment())
+}
+
+func (b Batcher) UpdateConfig(current *corev1.ConfigMap) bool {
+	return !configSpecEqual(current, b.Config())
 }

@@ -91,3 +91,14 @@ dist_keys:
     customers:
     - account_id
 ```    
+
+### Include Tables
+restrict tables that are allowed to be sinked. The operator shrinks the `kafkaTopicRegex` listed tables further using include tables. This feature is supported only if you are using RedshiftSink operator.
+
+For example: if `kafkaTopicRegex: ts.inventory.*` lists 10 tables, then `include_tables` will shrink it to two tables.
+
+```yaml
+include_tables:
+- customers
+- orders
+```
