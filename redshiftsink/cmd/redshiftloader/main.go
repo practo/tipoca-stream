@@ -119,14 +119,17 @@ func run(cmd *cobra.Command, args []string) {
 	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
 	ready := 0
 
+	klog.V(2).Infof("ConsumerGroups: %v", len(consumersReady))
 	for ready >= 0 {
 		select {
+		default:
 		case <-sigterm:
 			klog.V(2).Info("SIGTERM signal received")
 			ready = -1
 		}
 
 		if ready == -1 || ready == len(consumersReady) {
+			time.Sleep(3 * time.Second)
 			continue
 		}
 
@@ -134,10 +137,9 @@ func run(cmd *cobra.Command, args []string) {
 			select {
 			case <-channel:
 				ready += 1
-				klog.V(2).Infof("ConsumerGroup: %d is up and running", ready)
+				klog.V(2).Infof("ConsumerGroup #%d is up and running", ready)
 			}
 		}
-		klog.V(2).Info("Waiting for ConsumerGroups to come up...")
 	}
 
 	klog.V(2).Info("Cancelling context to trigger graceful shutdown...")
