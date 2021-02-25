@@ -1,34 +1,33 @@
-# redshiftsink
+# RedshiftSink
 
-redshiftsink reads the debezium events from Kafka and loads them to Redshift. It supports [masking](../MASKING.MD).
+RedshiftSink reads the debezium events from Kafka and loads them to Redshift. It has rich support for [masking](../MASKING.MD).
 
 ----
 
+<img src="arch-operator.png">
+
 # Install Redshiftsink
 
-### Install CRD
-This installs the redshiftsink CRD in the cluster.
+* Add the secrets in a file.
 ```bash
-make install
+cp config/operator/kustomization_sample.yaml config/operator/kustomization.yaml
+vim config/operator/kustomization.yaml #fill in ur secrets
 ```
+
+* Generate manifests, verify and install.
+```bash
+cd config/default
+kubectl kustomize . > manifest.yaml
+kubectl apply -f manifest.yaml
+```
+
+or `make deploy`
 
 ### Verify Installation
 Check the redshiftsink resource is accessible using kubectl
 ```bash
 kubectl get redshiftsink
-```
-
-### Deploy Controller Manager
-* Create redshiftsink secret containing aws secrets, redshift secrets and mask salt:
-```bash
-cp config/manager/kustomization_sample.yaml config/manager/kustomization.yaml
-vim config/manager/kustomization.yaml #fill in ur secrets
-NAME=redshfitsink-secret SECRETFILE=./config/manager/secret.txt make create-secret (TODO)
-```
-
-* Install the controller. This creates service-account, secret and the controller manager deployment:
-```bash
-make deploy
+kubectl get deploy | redshiftsink-operator
 ```
 
 # Example
@@ -46,6 +45,9 @@ spec:
   kafkaBrokers: "kafka1.example.com,kafka2.example.com"
   kafkaTopicRegexes: "^db.inventory*"
   kafkaLoaderTopicPrefix: "loader-"
+  releaseCondition:
+    maxBatcherLag: 100
+    maxLoaderLag: 10
   batcher:
     suspend: false
     maxSize: 10
@@ -62,6 +64,7 @@ spec:
     maxSize: 10
     maxWaitSeconds: 30
     redshiftSchema: "inventory"
+    redshiftGroup:  "sales"
     podTemplate:
       resources:
         requests:
@@ -115,6 +118,9 @@ cp config.sample.yaml config.yaml
 ```
 
 ## Redshift Loader
+
+<img src="arch-loader.png">
+
 ```bash
 $ bin/darwin_amd64/redshiftloader --help
 Loads the uploaded batch of debezium events to redshift.

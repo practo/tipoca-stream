@@ -4,10 +4,10 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: manager-role
+  name: operator-role
 rules:
 - apiGroups:
-  - ""
+  - '*'
   resources:
   - configmaps
   verbs:
@@ -19,7 +19,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ""
+  - '*'
   resources:
   - deployments
   verbs:
@@ -31,7 +31,19 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ""
+  - '*'
+  resources:
+  - events
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - '*'
   resources:
   - secrets
   verbs:

@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+var _ ISchemaRegistryClient = MockSchemaRegistryClient{}
+
 type MockSchemaRegistryClient struct {
 	schemaRegistryURL    string
 	credentials          *credentials
@@ -162,6 +164,12 @@ func (mck MockSchemaRegistryClient) GetSubjects() ([]string, error) {
 	return allSubjects, nil
 }
 
+// DeleteSubject removes given subject from cache
+func (mck MockSchemaRegistryClient) DeleteSubject(subject string, _ bool) error {
+	delete(mck.schemaCache, subject)
+	return nil
+}
+
 /*
 The classes below are implemented to accommodate ISchemaRegistryClient; However, they do nothing.
 */
@@ -179,6 +187,10 @@ func (mck MockSchemaRegistryClient) CachingEnabled(value bool) {
 
 func (mck MockSchemaRegistryClient) CodecCreationEnabled(value bool) {
 	// Nothing because codecs do not matter in the inMem storage of schemas
+}
+
+func (mck MockSchemaRegistryClient) IsSchemaCompatible(subject, schema, version string, schemaType SchemaType, isKey bool) (bool, error) {
+	return false, errors.New("mock schema registry client can't check for schema compatibility")
 }
 
 /*

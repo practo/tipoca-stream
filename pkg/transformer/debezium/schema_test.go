@@ -54,7 +54,7 @@ func TestSchemaMysqlDataType(t *testing.T) {
 	for _, tc := range tests {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			c := &schemaTransformer{srclient: nil}
+			c := &schemaTransformer{registry: nil}
 
 			resp, err := c.transformSchemaValue(
 				tc.jobSchema, []string{"id"}, tc.maskSchema)

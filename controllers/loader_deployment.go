@@ -1,141 +1,189 @@
 package controllers
 
-//ctrl.SetControllerReference(redshiftsink, deployment, r.Scheme)
-
 import (
 	"fmt"
+
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
+	"github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftloader/config"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftloader"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/s3sink"
+	yaml "gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	client "sigs.k8s.io/controller-runtime/pkg/client"
-	// ctrl "sigs.k8s.io/controller-runtime"
 )
 
 const (
-	LoaderSuffix       = "-loader"
-	LoaderEnvPrefix    = "LOADER_"
-	LoaderDefaultImage = "practodev/redshiftloader:latest"
+	LoaderSuffix        = "-loader"
+	LoaderLabelInstance = "redshiftloader"
 )
 
 type Loader struct {
 	name       string
 	namespace  string
-	client     client.Client
 	deployment *appsv1.Deployment
+	config     *corev1.ConfigMap
+}
+
+func loaderSecret(secret map[string]string) (map[string]string, error) {
+	s := make(map[string]string)
+	secretKeys := []string{
+		"s3Region",
+		"s3Bucket",
+		"s3LoaderBucketDir",
+		"s3AccessKeyId",
+		"s3SecretAccessKey",
+		"schemaRegistryURL",
+		"redshiftHost",
+		"redshiftPort",
+		"redshiftDatabase",
+		"redshiftUser",
+		"redshiftPassword",
+	}
+
+	for _, key := range secretKeys {
+		value, err := secretByKey(secret, key)
+		if err != nil {
+			return nil, fmt.Errorf("loader secret: %s not found, %v", key, err)
+		}
+		s[key] = value
+	}
+
+	return s, nil
+}
+
+func loaderName(rskName, sinkGroup string) string {
+	return fmt.Sprintf("%s-%s%s", rskName, sinkGroup, LoaderSuffix)
 }
 
 func NewLoader(
 	name string,
-	client client.Client,
 	rsk *tipocav1.RedshiftSink,
-	loaderTopics string,
-	tableSuffix string) Deployment {
-
-	uniqueName := rsk.Name + "-" + name + LoaderSuffix
-	secretRefName := rsk.Spec.SecretRefName
-	envs := []corev1.EnvVar{
-		corev1.EnvVar{
-			Name:  LoaderEnvPrefix + "LOADER_MAXSIZE",
-			Value: fmt.Sprintf("%v", rsk.Spec.Loader.MaxSize),
-		},
-		corev1.EnvVar{
-			Name:  LoaderEnvPrefix + "LOADER_MAXWAITSECONDS",
-			Value: fmt.Sprintf("%v", rsk.Spec.Loader.MaxWaitSeconds),
-		},
-		corev1.EnvVar{
-			Name:  LoaderEnvPrefix + "KAFKA_BROKERS",
-			Value: rsk.Spec.KafkaBrokers,
-		},
-		corev1.EnvVar{
-			Name:  LoaderEnvPrefix + "KAFKA_GROUP",
-			Value: uniqueName,
-		},
-		corev1.EnvVar{
-			Name:  LoaderEnvPrefix + "KAFKA_TOPICREGEXES",
-			Value: loaderTopics,
-		},
-		corev1.EnvVar{
-			Name:  LoaderEnvPrefix + "SARAMA_OLDEST",
-			Value: "true",
-		},
-		corev1.EnvVar{
-			Name:  LoaderEnvPrefix + "SARAMA_LOG",
-			Value: "false",
-		},
-		corev1.EnvVar{
-			Name:  LoaderEnvPrefix + "SARAMA_AUTOCOMMIT",
-			Value: "false",
-		},
-		corev1.EnvVar{
-			Name:  LoaderEnvPrefix + "REDSHIFT_SCHEMA",
-			Value: rsk.Spec.Loader.RedshiftSchema,
-		},
-		corev1.EnvVar{
-			Name:  LoaderEnvPrefix + "RELOAD",
-			Value: "false",
-		},
-		corev1.EnvVar{
-			Name:  LoaderEnvPrefix + "REDSHIFT_TARGETTABLESUFFIX",
-			Value: "", // to be passed later.
-		},
-		secretEnvVar(
-			BatcherEnvPrefix+"S3SINK_REGION", "s3Region", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"S3SINK_BUCKET", "s3Bucket", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"S3SINK_BUCKETDIR",
-			"s3LoaderBucketDir", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"S3SINK_ACCESSKEYID",
-			"s3AccessKeyId", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"S3SINK_SECRETACCESSKEY",
-			"s3SecretAccessKey", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"SCHEMAREGISTRYURL",
-			"schemaRegistryURL", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"REDSHIFT_HOST",
-			"redshiftHost", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"REDSHIFT_PORT",
-			"redshiftPort", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"REDSHIFT_DATABASE",
-			"redshiftDatabase", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"REDSHIFT_USER",
-			"redshiftUser", secretRefName),
-		secretEnvVar(
-			BatcherEnvPrefix+"REDSHIFT_PASSWORD",
-			"redshiftPassword", secretRefName),
+	tableSuffix string,
+	secret map[string]string,
+	sinkGroup string,
+	consumerGroups map[string]consumerGroup,
+	defaultImage string,
+	defaultKafkaVersion string,
+	tlsConfig *kafka.TLSConfig,
+) (
+	Deployment,
+	error,
+) {
+	secret, err := loaderSecret(secret)
+	if err != nil {
+		return nil, err
 	}
 
-	var replicas int32
-	if loaderTopics != "" {
-		replicas = getReplicas(rsk.Spec.Batcher.Suspend)
+	totalTopics := 0
+	kafkaVersion := rsk.Spec.KafkaVersion
+	if kafkaVersion == "" {
+		kafkaVersion = defaultKafkaVersion
+	}
+	var groupConfigs []kafka.ConsumerGroupConfig
+	for groupID, group := range consumerGroups {
+		totalTopics += len(group.topics)
+		groupConfigs = append(groupConfigs, kafka.ConsumerGroupConfig{
+			GroupID: consumerGroupID(rsk.Name, rsk.Namespace, groupID, "-loader"),
+			TopicRegexes: expandTopicsToRegex(
+				makeLoaderTopics(
+					group.loaderTopicPrefix,
+					group.topics,
+				),
+			),
+			Kafka: kafka.KafkaConfig{
+				Brokers:   rsk.Spec.KafkaBrokers,
+				Version:   kafkaVersion,
+				TLSConfig: *tlsConfig,
+			},
+			Sarama: kafka.SaramaConfig{
+				Assignor:   "range",
+				Oldest:     true,
+				Log:        false,
+				AutoCommit: false,
+			},
+		})
+	}
+
+	conf := config.Config{
+		Loader: redshiftloader.LoaderConfig{
+			MaxSize:        rsk.Spec.Loader.MaxSize,
+			MaxWaitSeconds: rsk.Spec.Loader.MaxWaitSeconds,
+		},
+		ConsumerGroups: groupConfigs,
+		S3Sink: s3sink.Config{
+			Region:          secret["s3Region"],
+			AccessKeyId:     secret["s3AccessKeyId"],
+			SecretAccessKey: secret["s3SecretAccessKey"],
+			Bucket:          secret["s3Bucket"],
+			BucketDir:       secret["s3LoaderBucketDir"],
+		},
+		SchemaRegistryURL: secret["schemaRegistryURL"],
+		Redshift: redshift.RedshiftConfig{
+			Schema:       rsk.Spec.Loader.RedshiftSchema,
+			TableSuffix:  tableSuffix,
+			Host:         secret["redshiftHost"],
+			Port:         secret["redshiftPort"],
+			Database:     secret["redshiftDatabase"],
+			User:         secret["redshiftUser"],
+			Password:     secret["redshiftPassword"],
+			Timeout:      10,
+			Stats:        true,
+			MaxOpenConns: 3,
+			MaxIdleConns: 3,
+		},
+	}
+	confBytes, err := yaml.Marshal(conf)
+	if err != nil {
+		return nil, err
+	}
+
+	replicas := getReplicas(
+		rsk.Spec.Loader.Suspend,
+		len(consumerGroups),
+		totalTopics,
+	)
+
+	var image string
+	if rsk.Spec.Loader.PodTemplate.Image != nil {
+		image = *rsk.Spec.Loader.PodTemplate.Image
 	} else {
-		replicas = 0
+		image = defaultImage
+	}
+
+	confString := string(confBytes)
+	objectName := getObjectName(name, confString)
+	labels := getDefaultLabels(
+		LoaderLabelInstance, sinkGroup, objectName, rsk.Name)
+
+	configSpec := configMapSpec{
+		name:       objectName,
+		namespace:  rsk.Namespace,
+		labels:     labels,
+		volumeName: objectName,
+		mountPath:  "/config.yaml",
+		subPath:    "config.yaml",
+		data:       map[string]string{"config.yaml": confString},
 	}
 
 	deploySpec := deploymentSpec{
-		name:           uniqueName,
-		namespace:      rsk.Namespace,
-		labels:         getDefaultLabels("redshiftloader"),
-		replicas:       &replicas,
-		deploymentName: uniqueName,
-		envs:           envs,
-		resources:      rsk.Spec.Loader.PodTemplate.Resources,
-		tolerations:    rsk.Spec.Loader.PodTemplate.Tolerations,
-		image:          getImage(rsk.Spec.Loader.PodTemplate.Image, false),
+		name:        objectName,
+		namespace:   rsk.Namespace,
+		labels:      labels,
+		replicas:    &replicas,
+		resources:   rsk.Spec.Loader.PodTemplate.Resources,
+		tolerations: rsk.Spec.Loader.PodTemplate.Tolerations,
+		image:       image,
+		args:        []string{"-v=2", "--config=/config.yaml"},
 	}
 
 	return &Loader{
-		name:       uniqueName,
-		client:     client,
+		name:       name,
 		namespace:  rsk.Namespace,
-		deployment: deploymentForRedshiftSink(deploySpec),
-	}
+		deployment: deploymentFromSpec(deploySpec, configSpec),
+		config:     configFromSpec(configSpec),
+	}, nil
 }
 
 func (l Loader) Name() string {
@@ -146,14 +194,18 @@ func (l Loader) Namespace() string {
 	return l.namespace
 }
 
-func (l Loader) Client() client.Client {
-	return l.client
-}
-
 func (l Loader) Deployment() *appsv1.Deployment {
 	return l.deployment
 }
 
-func (l Loader) UpdateRequired(current *appsv1.Deployment) bool {
+func (l Loader) Config() *corev1.ConfigMap {
+	return l.config
+}
+
+func (l Loader) UpdateDeployment(current *appsv1.Deployment) bool {
 	return !deploymentSpecEqual(current, l.Deployment())
+}
+
+func (l Loader) UpdateConfig(current *corev1.ConfigMap) bool {
+	return !configSpecEqual(current, l.Config())
 }

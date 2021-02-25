@@ -79,6 +79,9 @@ type RedshiftLoaderSpec struct {
 	// RedshiftSchema to sink the data in
 	RedshiftSchema string `json:"redshiftSchema"`
 
+	// RedshiftGroup to give the access to when new topics gets released
+	RedshiftGroup *string `json:"redshiftGroup"`
+
 	// Template describes the pods that will be created.
 	// if this is not specifed, a default pod template is created
 	// +optional
@@ -90,19 +93,50 @@ type RedshiftSinkSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Secrets to be used by the batcher pod
+	// Secrets to be used
 	// Default: the secret name and namespace provided in the controller flags
-	SecretRefName      string `json:"secretRefName"`
-	SecretRefNamespace string `json:"secretRefNamespace"`
+	// +optional
+	SecretRefName *string `json:"secretRefName"`
+	// +optional
+	// Secrets namespace to be used
+	// Default: the secret name and namespace provided in the controller flags
+	SecretRefNamespace *string `json:"secretRefNamespace"`
 
 	// Kafka configurations like consumer group and topics to watch
-	KafkaBrokers      string `json:"kafkaBrokers"`
+	KafkaBrokers string `json:"kafkaBrokers"`
+	// +optional
+	KafkaVersion      string `json:"kafkaVersion"`
 	KafkaTopicRegexes string `json:"kafkaTopicRegexes"`
 	// +optional
-	KafkaLoaderTopicPrefix string `json:"kafkaLoaderTopicPrefix,omitempty"`
+	KafkaLoaderTopicPrefix string `json:"kafkaLoaderTopicPrefix"`
 
 	Batcher RedshiftBatcherSpec `json:"batcher"`
 	Loader  RedshiftLoaderSpec  `json:"loader"`
+
+	// ReleaseCondition specifies the release condition to consider a topic
+	// realtime and to consider the topci to be moved from reloading to released
+	// This is relevant only if masking is turned on in mask configuration.
+	// It is used for live mask reloading.
+	// +optional
+	ReleaseCondition *ReleaseCondition `json:"releaseCondition"`
+
+	// TopicReleaseCondition is considered instead of ReleaseCondition
+	// if it is defined for a topic. This is used for topics which
+	// does not work well with central ReleaseCondition for all topics
+	// +optional
+	TopicReleaseCondition map[string]ReleaseCondition `json:"topicReleaseCondition"`
+}
+
+type ReleaseCondition struct {
+	// MaxBatcherLag is the maximum lag the batcher consumer group
+	// shoud have to be be considered to be operating in realtime and
+	// to be considered for release.
+	MaxBatcherLag *int64 `json:"maxBatcherLag"`
+
+	// MaxLoaderLag is the maximum lag the loader consumer group
+	// shoud have to be be considered to be operating in realtime and
+	// to be considered for release.
+	MaxLoaderLag *int64 `json:"maxLoaderLag"`
 }
 
 // MaskPhase is a label for the condition of a masking at the current time.
@@ -118,6 +152,10 @@ const (
 	// phase of transition to the new mask configuration. At the end of
 	// transition the MaskFileVersion in the status is updated to the spec.
 	MaskReloading MaskPhase = "Reloading"
+
+	// MaskRealtime tells the SinkGroup has been reloaded with new mask
+	// version and is realtime and it is waiting to be released
+	MaskRealtime MaskPhase = "Realtime"
 )
 
 // TopicMaskStatus store the mask status of a single topic
@@ -150,6 +188,25 @@ type MaskStatus struct {
 	DesiredMaskVersion *string `json:"desiredMaskedVersion,omitempty"`
 }
 
+type Group struct {
+	// LoaderTopicPrefix stores the name of the loader topic prefix
+	LoaderTopicPrefix string `json:"loaderTopicPrefix"`
+
+	// LoaderCurrentOffset stores the last read current offset of the consumer group
+	// This is required to determine if the consumer group has performed any
+	// processing in the past. As for low throughput topics,
+	// the consumer group disappears and distinguishing between never created
+	// and inactive consumer groups become difficult. Which leads to low
+	// throughput consumer groups not getting moved to realtime from reloading.
+	// TODO: This is not dead field once a group moves to released and
+	// should be cleaned after that(status needs to be updated)
+	LoaderCurrentOffset *int64 `json:"currentOffset"`
+
+	// ID stores the name of the consumer group for the topic
+	// based on this batcher and loader consumer groups are made
+	ID string `json:"id"`
+}
+
 // RedshiftSinkStatus defines the observed state of RedshiftSink
 type RedshiftSinkStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
@@ -158,6 +215,10 @@ type RedshiftSinkStatus struct {
 	// MaskStatus stores the status of masking for topics if masking is enabled
 	// +optional
 	MaskStatus *MaskStatus `json:"maskStatus"`
+
+	// TopicGroup stores the group info for the topic
+	// +optional
+	TopicGroup map[string]Group `json:"topicGroups"`
 }
 
 // +kubebuilder:resource:path=redshiftsinks,shortName=rsk;rsks

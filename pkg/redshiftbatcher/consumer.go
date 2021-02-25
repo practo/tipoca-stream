@@ -1,24 +1,45 @@
 package redshiftbatcher
 
 import (
+	"context"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
 )
 
-func NewConsumer(ready chan bool) consumer {
+func NewConsumer(
+	ready chan bool,
+	mainContext context.Context,
+	kafkaConfig kafka.KafkaConfig,
+	saramaConfig kafka.SaramaConfig,
+	maskConfig masker.MaskConfig,
+	loaderPrefix string,
+) consumer {
 	return consumer{
-		ready: ready,
+		ready:                  ready,
+		mainContext:            mainContext,
+		kafkaConfig:            kafkaConfig,
+		saramaConfig:           saramaConfig,
+		maskConfig:             maskConfig,
+		kafkaLoaderTopicPrefix: loaderPrefix,
+
 		// batcher is initliazed in ConsumeClaim based on the topic it gets
 		batcher: nil,
 	}
 }
 
 // consumer represents a Sarama consumer group consumer
+// it is actually consumerGroupHandler, kept the name consumer to hide details
 type consumer struct {
 	// Ready is used to signal the main thread about the readiness
-	ready chan bool
-
-	batcher *batcher
+	ready                  chan bool
+	mainContext            context.Context
+	kafkaConfig            kafka.KafkaConfig
+	saramaConfig           kafka.SaramaConfig
+	maskConfig             masker.MaskConfig
+	kafkaLoaderTopicPrefix string
+	batcher                *batcher
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
@@ -49,14 +70,23 @@ func (c consumer) processMessage(
 
 	if c.batcher.processor == nil {
 		c.batcher.processor = newBatchProcessor(
-			message.Topic, message.Partition, session)
+			message.Topic,
+			message.Partition,
+			session,
+			c.mainContext,
+			c.kafkaConfig,
+			c.saramaConfig,
+			c.maskConfig,
+			c.kafkaLoaderTopicPrefix,
+		)
 	}
 	// TODO: not sure added below for safety, it may not be required
 	c.batcher.processor.session = session
 
 	select {
-	case <-c.batcher.processor.session.Context().Done():
-		klog.Info("Graceful shutdown requested, not inserting in batch")
+	case <-c.mainContext.Done():
+		err := c.mainContext.Err()
+		klog.Warningf("Batch insert stopped, mainContext done, ctxErr: %v", err)
 		return nil
 	default:
 		c.batcher.Insert(message)
@@ -84,9 +114,11 @@ func (c consumer) ConsumeClaim(session sarama.ConsumerGroupSession,
 	// https://github.com/Shopify/sarama/blob/master/consumer_group.go#L27-L29
 	for message := range claim.Messages() {
 		select {
-		case <-session.Context().Done():
+		case <-c.mainContext.Done():
 			klog.Infof(
-				"Gracefully shutdown. Stopped taking new messages.")
+				"%s: Gracefully shutdown. Stopped taking new messages.",
+				claim.Topic(),
+			)
 			return nil
 		default:
 			err := c.processMessage(session, message)
@@ -100,7 +132,7 @@ func (c consumer) ConsumeClaim(session sarama.ConsumerGroupSession,
 	}
 
 	klog.V(4).Infof(
-		"ConsumeClaim shut down for topic: %s, partition: %d\n",
+		"ConsumeClaim ended for topic: %s, partition: %d\n",
 		claim.Topic(),
 		claim.Partition(),
 	)

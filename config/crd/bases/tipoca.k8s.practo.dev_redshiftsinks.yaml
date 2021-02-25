@@ -147,6 +147,8 @@ spec:
               type: string
             kafkaTopicRegexes:
               type: string
+            kafkaVersion:
+              type: string
             loader:
               description: RedshiftLoaderSpec defines the desired state of RedshifLoader
               properties:
@@ -233,6 +235,10 @@ spec:
                         type: object
                       type: array
                   type: object
+                redshiftGroup:
+                  description: RedshiftGroup to give the access to when new topics
+                    gets released
+                  type: string
                 redshiftSchema:
                   description: RedshiftSchema to sink the data in
                   type: string
@@ -243,21 +249,67 @@ spec:
               required:
               - maxSize
               - maxWaitSeconds
+              - redshiftGroup
               - redshiftSchema
               type: object
+            releaseCondition:
+              description: ReleaseCondition specifies the release condition to consider
+                a topic realtime and to consider the topci to be moved from reloading
+                to released This is relevant only if masking is turned on in mask
+                configuration. It is used for live mask reloading.
+              properties:
+                maxBatcherLag:
+                  description: MaxBatcherLag is the maximum lag the batcher consumer
+                    group shoud have to be be considered to be operating in realtime
+                    and to be considered for release.
+                  format: int64
+                  type: integer
+                maxLoaderLag:
+                  description: MaxLoaderLag is the maximum lag the loader consumer
+                    group shoud have to be be considered to be operating in realtime
+                    and to be considered for release.
+                  format: int64
+                  type: integer
+              required:
+              - maxBatcherLag
+              - maxLoaderLag
+              type: object
             secretRefName:
-              description: 'Secrets to be used by the batcher pod Default: the secret
-                name and namespace provided in the controller flags'
+              description: 'Secrets to be used Default: the secret name and namespace
+                provided in the controller flags'
               type: string
             secretRefNamespace:
+              description: 'Secrets namespace to be used Default: the secret name
+                and namespace provided in the controller flags'
               type: string
+            topicReleaseCondition:
+              additionalProperties:
+                properties:
+                  maxBatcherLag:
+                    description: MaxBatcherLag is the maximum lag the batcher consumer
+                      group shoud have to be be considered to be operating in realtime
+                      and to be considered for release.
+                    format: int64
+                    type: integer
+                  maxLoaderLag:
+                    description: MaxLoaderLag is the maximum lag the loader consumer
+                      group shoud have to be be considered to be operating in realtime
+                      and to be considered for release.
+                    format: int64
+                    type: integer
+                required:
+                - maxBatcherLag
+                - maxLoaderLag
+                type: object
+              description: TopicReleaseCondition is considered instead of ReleaseCondition
+                if it is defined for a topic. This is used for topics which does not
+                work well with central ReleaseCondition for all topics
+              type: object
           required:
           - batcher
           - kafkaBrokers
           - kafkaTopicRegexes
           - loader
-          - secretRefName
-          - secretRefNamespace
           type: object
         status:
           description: RedshiftSinkStatus defines the observed state of RedshiftSink
@@ -306,6 +358,36 @@ spec:
                   description: DesiredMaskVersion stores the latest mask version which
                     should be completely rolled out in all the topics.
                   type: string
+              type: object
+            topicGroups:
+              additionalProperties:
+                properties:
+                  currentOffset:
+                    description: 'LoaderCurrentOffset stores the last read current
+                      offset of the consumer group This is required to determine if
+                      the consumer group has performed any processing in the past.
+                      As for low throughput topics, the consumer group disappears
+                      and distinguishing between never created and inactive consumer
+                      groups become difficult. Which leads to low throughput consumer
+                      groups not getting moved to realtime from reloading. TODO: This
+                      is not dead field once a group moves to released and should
+                      be cleaned after that(status needs to be updated)'
+                    format: int64
+                    type: integer
+                  id:
+                    description: ID stores the name of the consumer group for the
+                      topic based on this batcher and loader consumer groups are made
+                    type: string
+                  loaderTopicPrefix:
+                    description: LoaderTopicPrefix stores the name of the loader topic
+                      prefix
+                    type: string
+                required:
+                - currentOffset
+                - id
+                - loaderTopicPrefix
+                type: object
+              description: TopicGroup stores the group info for the topic
               type: object
           type: object
       type: object

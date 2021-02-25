@@ -6,7 +6,6 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
-	"github.com/spf13/viper"
 	"strconv"
 	"strings"
 )
@@ -24,30 +23,18 @@ type masker struct {
 	config MaskConfig
 }
 
-func NewMsgMasker(salt string, topic string,
-	maskFile string,
-	maskFileVersion string) (transformer.MessageTransformer, error) {
-
+func NewMsgMasker(salt string, topic string, config MaskConfig) transformer.MessageTransformer {
 	_, database, table := transformer.ParseTopic(topic)
-	maskConfig, err := NewMaskConfig(
-		"/",
-		maskFile,
-		maskFileVersion,
-		viper.GetString("batcher.githubAccessToken"),
-	)
-	if err != nil {
-		return nil, err
-	}
 
 	return &masker{
 		salt:     salt,
 		database: database,
 		table:    table,
-		config:   maskConfig,
-	}, nil
+		config:   config,
+	}
 }
 
-func mask(data string, salt string) *string {
+func Mask(data string, salt string) *string {
 	val := fmt.Sprintf("%x", sha1.Sum(
 		[]byte(data+salt),
 	))
@@ -131,7 +118,7 @@ func (m *masker) Transform(
 			if cVal == nil || strings.TrimSpace(*cVal) == "" {
 				hashedValue = nil
 			} else {
-				hashedValue = mask(*cVal, m.salt)
+				hashedValue = Mask(*cVal, m.salt)
 			}
 
 			extraColumns[transformer.MappingPIIColumnPrefix+cName] = hashedValue
@@ -148,7 +135,7 @@ func (m *masker) Transform(
 		} else if unmasked {
 			columns[cName] = cVal
 		} else {
-			columns[cName] = mask(*cVal, m.salt)
+			columns[cName] = Mask(*cVal, m.salt)
 		}
 
 		// This determines the type of the mask schema, the value is taken care

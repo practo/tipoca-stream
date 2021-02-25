@@ -2,15 +2,16 @@ package masker
 
 import (
 	"fmt"
-	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/git"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/git"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -46,6 +47,9 @@ type MaskConfig struct {
 	// DistKeys sets the Redshift column to use the column as the DistKey
 	DistKeys map[string][]string `yaml:"dist_keys,omitempty"`
 
+	// IncludeTables restrict tables that are allowed to be sinked.
+	IncludeTables *[]string `yaml:"include_tables,omitempty"`
+
 	// regexes cache is used to prevent regex Compile on everytime computations.
 	regexes map[string]*regexp.Regexp
 }
@@ -58,6 +62,18 @@ func loweredKeys(keys map[string][]string) {
 		}
 		keys[table] = loweredColumns
 	}
+}
+
+func loweredList(items *[]string) *[]string {
+	if items == nil {
+		return nil
+	}
+	lower := []string{}
+	for _, item := range *items {
+		lower = append(lower, strings.ToLower(item))
+	}
+
+	return &lower
 }
 
 func downloadMaskFile(
@@ -73,7 +89,7 @@ func downloadMaskFile(
 
 	switch url.Scheme {
 	case "file":
-		klog.V(2).Info("Mask file is of file type, nothing to download")
+		klog.V(5).Info("Mask file is of file type, nothing to download")
 		return maskFile, nil
 	default:
 		if maskFileVersion == "" {
@@ -101,7 +117,7 @@ func downloadMaskFile(
 			gitToken,
 		)
 
-		klog.V(2).Infof("Downloading git repo: %s", repo)
+		klog.V(5).Infof("Downloading git repo: %s", repo)
 		err = g.Clone()
 		if err != nil {
 			return "", err
@@ -110,7 +126,7 @@ func downloadMaskFile(
 		if err != nil {
 			return "", err
 		}
-		klog.V(2).Infof("Downloaded git repo at: %s", dir)
+		klog.V(5).Infof("Downloaded git repo at: %s", dir)
 
 		sourceFile := filepath.Join(dir, configFilePath)
 		destFile := filepath.Join(homeDir, filepath.Base(sourceFile))
@@ -120,7 +136,7 @@ func downloadMaskFile(
 				"Error copying! src: %s, dest: %s, err:%v\n",
 				sourceFile, destFile, err)
 		}
-		klog.V(2).Info("Copied the mask file at the read location")
+		klog.V(5).Info("Copied the mask file at the read location")
 
 		return destFile, nil
 	}
@@ -138,7 +154,7 @@ func NewMaskConfig(
 	if err != nil {
 		return maskConfig, err
 	}
-	klog.V(2).Infof("Using mask config file: %s\n", configFilePath)
+	klog.V(4).Infof("Using mask config file: %s\n", configFilePath)
 
 	yamlFile, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
@@ -151,6 +167,7 @@ func NewMaskConfig(
 		return maskConfig, fmt.Errorf(
 			"Unable to unmarshal: %v, err: %v", configFilePath, err)
 	}
+	klog.V(3).Infof("Loaded mask configuration from: %s\n", maskFile)
 
 	// convert to lower case, redshift works with lowercase
 	loweredKeys(maskConfig.NonPiiKeys)
@@ -160,6 +177,7 @@ func NewMaskConfig(
 	loweredKeys(maskConfig.SortKeys)
 	loweredKeys(maskConfig.DistKeys)
 
+	maskConfig.IncludeTables = loweredList(maskConfig.IncludeTables)
 	maskConfig.regexes = make(map[string]*regexp.Regexp)
 
 	return maskConfig, nil

@@ -5,14 +5,20 @@ import (
 	"database/sql"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/s3sink"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/debezium"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/util"
 	"github.com/spf13/viper"
 	"path/filepath"
 	"strings"
+)
+
+const (
+	maxBatchId = 99
 )
 
 type loadProcessor struct {
@@ -79,9 +85,12 @@ type loadProcessor struct {
 }
 
 func newLoadProcessor(
-	topic string, partition int32, session sarama.ConsumerGroupSession,
-	redshifter *redshift.Redshift) *loadProcessor {
-
+	session sarama.ConsumerGroupSession,
+	topic string,
+	partition int32,
+	saramaConfig kafka.SaramaConfig,
+	redshifter *redshift.Redshift,
+) *loadProcessor {
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
 		viper.GetString("s3sink.secretAccessKey"),
@@ -92,11 +101,13 @@ func newLoadProcessor(
 		klog.Fatalf("Error creating s3 client: %v\n", err)
 	}
 
+	klog.V(3).Infof("%s: auto-commit: %v", topic, saramaConfig.AutoCommit)
+
 	return &loadProcessor{
+		session:            session,
 		topic:              topic,
 		partition:          partition,
-		autoCommit:         viper.GetBool("sarama.autoCommit"),
-		session:            session,
+		autoCommit:         saramaConfig.AutoCommit,
 		s3sink:             sink,
 		messageTransformer: debezium.NewMessageTransformer(),
 		schemaTransformer: debezium.NewSchemaTransformer(
@@ -111,9 +122,9 @@ func newLoadProcessor(
 }
 
 // TODO: get rid of this https://github.com/herryg91/gobatch/issues/2
-func (b *loadProcessor) ctxCancelled() bool {
+func (b *loadProcessor) ctxCancelled(ctx context.Context) bool {
 	select {
-	case <-b.session.Context().Done():
+	case <-ctx.Done():
 		klog.Infof(
 			"topic:%s, batchId:%d, lastCommittedOffset:%d: Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,
@@ -134,26 +145,26 @@ func (b *loadProcessor) setBatchId() {
 	b.batchId += 1
 }
 
-func (b *loadProcessor) markOffset(datas []interface{}) {
-	for i, data := range datas {
-		message := data.(*serializer.Message)
-
+func (b *loadProcessor) markOffset(msgBuf []*serializer.Message) {
+	for i, message := range msgBuf {
 		b.session.MarkOffset(
 			message.Topic,
 			message.Partition,
 			message.Offset+1,
 			"",
 		)
-		// TODO: not sure how to avoid any failure when the process restarts
-		// while doing this But if the system is idempotent we do not
-		// need to worry about this. Since the write to s3 again will
-		// just overwrite the same data.
+
+		// By default operator sets autoCommit as false but it is not a
+		// problem even if it is set to true because
+		// the duplication is prevented by the merge and order is maintained
+		// by kafka.
 		if b.autoCommit == false {
+			klog.V(2).Infof("topic:%s, Committing (autoCommit=false)", message.Topic)
 			b.session.Commit()
 		}
 		b.lastCommittedOffset = message.Offset
 		var verbosity klog.Level = 5
-		if len(datas)-1 == i {
+		if len(msgBuf)-1 == i {
 			verbosity = 3
 		}
 		klog.V(verbosity).Infof(
@@ -285,7 +296,11 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 	}
 
 	s3CopyDir := filepath.Join(
-		viper.GetString("s3sink.bucketDir"), b.topic, "unload_")
+		viper.GetString("s3sink.bucketDir"),
+		b.topic,
+		util.NewUUIDString(),
+		"unload_",
+	)
 	err = b.redshifter.Unload(tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
@@ -462,6 +477,7 @@ func (b *loadProcessor) migrateTable(
 	s3CopyDir := filepath.Join(
 		viper.GetString("s3sink.bucketDir"),
 		b.topic,
+		util.NewUUIDString(),
 		"migrating_unload_",
 	)
 	unLoadS3Key := b.s3sink.GetKeyURI(s3CopyDir)
@@ -497,30 +513,6 @@ func (b *loadProcessor) migrateTable(
 func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 	// TODO: add cache here based on schema id and return
 	// save some database calls.
-	schemaExist, err := b.redshifter.SchemaExist(inputTable.Meta.Schema)
-	if err != nil {
-		klog.Fatalf("Error querying schema exists, err: %v\n", err)
-	}
-	if !schemaExist {
-		err = b.redshifter.CreateSchema(inputTable.Meta.Schema)
-		if err != nil {
-			exist, err2 := b.redshifter.SchemaExist(inputTable.Meta.Schema)
-			if err2 != nil {
-				klog.Fatalf("Error checking schema exist, err: %v\n", err2)
-			}
-			if !exist {
-				klog.Fatalf("Error creating schema, err: %v\n", err)
-			}
-		} else {
-			klog.Infof(
-				"topic:%s, schemaId:%d: Schema %s created",
-				b.topic,
-				schemaId,
-				inputTable.Meta.Schema,
-			)
-		}
-	}
-
 	tableExist, err := b.redshifter.TableExist(
 		inputTable.Meta.Schema, inputTable.Name,
 	)
@@ -543,7 +535,7 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 		if err != nil {
 			klog.Fatalf("Error committing tx, err:%v\n", err)
 		}
-		klog.Infof(
+		klog.V(2).Infof(
 			"topic:%s, schemaId:%d: Table %s created",
 			b.topic,
 			schemaId,
@@ -576,7 +568,9 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 // otherwise return false in case of gracefull shutdown signals being captured,
 // this helps in cleanly shutting down the batch processing.
 func (b *loadProcessor) processBatch(
-	ctx context.Context, datas []interface{}) bool {
+	ctx context.Context,
+	msgBuf []*serializer.Message,
+) bool {
 
 	if b.redshiftStats {
 		klog.V(2).Infof("startbatch dbstats: %+v\n", b.redshifter.Stats())
@@ -589,12 +583,11 @@ func (b *loadProcessor) processBatch(
 	b.upstreamTopic = ""
 
 	var entries []s3sink.S3ManifestEntry
-	for id, data := range datas {
+	for id, message := range msgBuf {
 		select {
 		case <-ctx.Done():
 			return false
 		default:
-			message := data.(*serializer.Message)
 			job := StringMapToJob(message.Value.(map[string]interface{}))
 			schemaId = job.SchemaId
 			b.batchEndOffset = message.Offset
@@ -632,9 +625,11 @@ func (b *loadProcessor) processBatch(
 	}
 
 	// upload s3 manifest file to bulk copy data to staging table
-	// this is an overwrite operation
 	s3ManifestKey := filepath.Join(
-		viper.GetString("s3sink.bucketDir"), b.topic, "manifest.json")
+		viper.GetString("s3sink.bucketDir"),
+		b.topic,
+		util.NewUUIDString(),
+		"manifest.json")
 	err := b.s3sink.UploadS3Manifest(s3ManifestKey, entries)
 	if err != nil {
 		klog.Fatalf("Error uploading manifest: %s to s3, err:%v\n",
@@ -657,23 +652,23 @@ func (b *loadProcessor) processBatch(
 	return true
 }
 
-func (b *loadProcessor) process(workerID int, datas []interface{}) {
+func (b *loadProcessor) process(ctx context.Context, msgBuf []*serializer.Message) {
 	b.setBatchId()
-	if b.ctxCancelled() {
+	if b.ctxCancelled(ctx) {
 		return
 	}
 
 	klog.Infof("topic:%s, batchId:%d, size:%d: Processing...\n",
-		b.topic, b.batchId, len(datas),
+		b.topic, b.batchId, len(msgBuf),
 	)
 
-	done := b.processBatch(b.session.Context(), datas)
+	done := b.processBatch(ctx, msgBuf)
 	if !done {
 		b.handleShutdown()
 		return
 	}
 
-	b.markOffset(datas)
+	b.markOffset(msgBuf)
 
 	klog.Infof(
 		"topic:%s, batchId:%d, startOffset:%d, endOffset:%d: Processed",
