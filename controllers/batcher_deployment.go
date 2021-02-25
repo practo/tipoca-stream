@@ -124,7 +124,7 @@ func NewBatcher(
 	}
 
 	replicas := getReplicas(
-		rsk.Spec.Loader.Suspend,
+		rsk.Spec.Batcher.Suspend,
 		len(consumerGroups),
 		totalTopics,
 	)

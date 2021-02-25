@@ -140,7 +140,7 @@ func NewLoader(
 	}
 
 	replicas := getReplicas(
-		rsk.Spec.Batcher.Suspend,
+		rsk.Spec.Loader.Suspend,
 		len(consumerGroups),
 		totalTopics,
 	)
