@@ -143,13 +143,7 @@ func run(cmd *cobra.Command, args []string) {
 	klog.V(2).Info("Cancelling context to trigger graceful shutdown...")
 	cancel()
 
-	// TODO: the processing function should signal back
-	// It does not at present
-	// https://github.com/practo/tipoca-stream/issues/18
-	klog.V(2).Info("Waiting the more routines to gracefully shutdown")
-	time.Sleep(10 * time.Second)
-
-	// routines which works with wait groups will shutdown gracefully
+	klog.V(2).Info("Waiting for waitgroups to shutdown...")
 	wg.Wait()
 
 	var closeErr error

@@ -24,8 +24,8 @@ type LoaderConfig struct {
 // loaderHandler is the sarama consumer handler
 // loaderHandler.ConsumeClaim() is called for every topic partition
 type loaderHandler struct {
-	ready   chan bool
-	context context.Context
+	ready chan bool
+	ctx   context.Context
 
 	maxSize       int
 	maxWaitTicker *time.Ticker
@@ -49,8 +49,8 @@ func NewHandler(
 ) *loaderHandler {
 
 	return &loaderHandler{
-		ready:   ready,
-		context: context,
+		ready: ready,
+		ctx:   context,
 
 		maxSize:       loaderConfig.MaxSize,
 		maxWaitTicker: time.NewTicker(time.Duration(loaderConfig.MaxWaitSeconds) * time.Second),
@@ -87,7 +87,7 @@ func (h *loaderHandler) Cleanup(sarama.ConsumerGroupSession) error {
 // process calls the load processor to process the batch
 func (h *loaderHandler) process(processor *loadProcessor) {
 	if len(h.msgBuf) > 0 {
-		processor.process(h.context, h.msgBuf)
+		processor.process(h.ctx, h.msgBuf)
 		h.msgBuf = make([]*serializer.Message, 0, h.maxSize)
 	}
 }
@@ -102,6 +102,10 @@ func (h *loaderHandler) insert(
 
 	h.msgBuf = append(h.msgBuf, msg)
 	if len(h.msgBuf) >= h.maxSize {
+		klog.V(2).Infof(
+			"topic:%s: batched by time",
+			msg.Topic,
+		)
 		h.process(processor)
 	}
 }
@@ -135,9 +139,9 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 
 	for {
 		select {
-		case <-h.context.Done():
-			klog.Infof(
-				"ConsumeClaim gracefully shutdown for topic: %s",
+		case <-h.ctx.Done():
+			klog.V(2).Infof(
+				"ConsumeClaim gracefully shutdown for topic: %s (above)",
 				claim.Topic(),
 			)
 			return nil
@@ -150,6 +154,17 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				)
 				return nil
 			}
+
+			select {
+			default:
+			case <-h.ctx.Done():
+				klog.V(2).Infof(
+					"ConsumeClaim gracefully shutdown for topic: %s",
+					claim.Topic(),
+				)
+				return nil
+			}
+
 			// Deserialize the message
 			msg, err := h.serializer.Deserialize(message)
 			if err != nil {
@@ -161,24 +176,30 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 
 			// Process the batch by schemaID
 			job := StringMapToJob(msg.Value.(map[string]interface{}))
-			schemaID := job.SchemaId
+			upstreamJobSchemaId := job.SchemaId
+
 			if lastSchemaId == nil {
 				lastSchemaId = new(int)
-			} else if *lastSchemaId != schemaID {
+			} else if *lastSchemaId != upstreamJobSchemaId {
 				klog.V(2).Infof(
-					"topic:%s: Got new schema (new batch): %d => %d\n",
+					"topic:%s: batched by schema, schema changed from %d => %d\n",
 					claim.Topic(),
 					*lastSchemaId,
-					schemaID,
+					upstreamJobSchemaId,
 				)
 				h.process(processor)
 			} else {
 			}
 			// Process the batch by size or insert in batch
 			h.insert(msg, processor)
+			*lastSchemaId = upstreamJobSchemaId
 		case <-h.maxWaitTicker.C:
 			h.mu.Lock()
 			// Process the batch by time
+			klog.V(2).Infof(
+				"topic:%s: batched by time",
+				claim.Topic(),
+			)
 			h.process(processor)
 			h.mu.Unlock()
 		}
