@@ -186,7 +186,7 @@ func (r *releaser) release(
 				rollbackErr,
 			)
 		}
-		return fmt.Errorf("Error releasing topic: %s err: %v\n", topic, err)
+		return err
 	}
 
 	return nil
