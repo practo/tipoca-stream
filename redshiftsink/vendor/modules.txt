@@ -274,7 +274,6 @@ github.com/pierrec/lz4/internal/xxh32
 github.com/pkg/errors
 # github.com/practo/gobatch v0.0.0-20200822085922-4905d08d9f40
 ## explicit
-github.com/practo/gobatch
 # github.com/practo/klog/v2 v2.2.1
 ## explicit
 github.com/practo/klog/v2

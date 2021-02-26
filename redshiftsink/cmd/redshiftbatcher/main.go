@@ -81,9 +81,10 @@ func run(cmd *cobra.Command, args []string) {
 		ready := make(chan bool)
 		consumerGroup, err := kafka.NewConsumerGroup(
 			groupConfig,
-			redshiftbatcher.NewConsumer(
+			redshiftbatcher.NewHandler(
 				ready,
 				ctx,
+				config.Batcher,
 				groupConfig.Kafka,
 				groupConfig.Sarama,
 				maskConfig,
