@@ -499,7 +499,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, nil
 	}
 
-	// release the realtime topics, all topics in realtime are
+	// release the realtime topics, topics in realtime (maxTopicRelease) are
 	// taken as a group and is tried to release in single reconcile
 	// to reduce the time spent on rebalance of sink groups (optimization)
 	// #141
@@ -557,13 +557,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			)
 		}
 	}
-	var topicReleaseEvent *TopicsReleasedEvent
 	if len(releasedTopics) > 0 {
-		topicReleaseEvent = &TopicsReleasedEvent{
-			Object:  rsk,
-			Topics:  releasedTopics,
-			Version: status.desiredVersion,
-		}
 		now := time.Now().UnixNano()
 		r.ReleaseCache.Store(
 			rsk.Namespace+rsk.Name,
@@ -572,11 +566,11 @@ func (r *RedshiftSinkReconciler) reconcile(
 		status.notifyRelease(secret, repo, filePath)
 	}
 	if releaseError != nil {
-		return result, topicReleaseEvent, releaseError
+		return result, nil, releaseError
 	}
-	if topicReleaseEvent != nil {
+	if len(releasedTopics) > 0 {
 		klog.V(2).Infof("rsk/%v: all topics were released succesfully!", rsk.Name)
-		return result, topicReleaseEvent, nil
+		return result, nil, nil
 	}
 
 	// not possible to reach here
