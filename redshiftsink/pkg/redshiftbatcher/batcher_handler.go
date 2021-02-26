@@ -8,7 +8,6 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
 	"github.com/spf13/viper"
-	"sync"
 	"time"
 )
 
@@ -45,16 +44,11 @@ type batcherHandler struct {
 	maxSize       int
 	maxWaitTicker *time.Ticker
 
-	msgBuf []*serializer.Message
-
 	kafkaConfig            kafka.KafkaConfig
 	saramaConfig           kafka.SaramaConfig
 	maskConfig             masker.MaskConfig
 	serializer             serializer.Serializer
 	kafkaLoaderTopicPrefix string
-
-	// lock to protect buffer operation
-	mu sync.RWMutex
 }
 
 func NewHandler(
@@ -72,8 +66,6 @@ func NewHandler(
 
 		maxSize:       batcherConfig.MaxSize,
 		maxWaitTicker: time.NewTicker(time.Duration(batcherConfig.MaxWaitSeconds) * time.Second),
-
-		msgBuf: make([]*serializer.Message, 0, batcherConfig.MaxSize),
 
 		kafkaConfig:            kafkaConfig,
 		saramaConfig:           saramaConfig,
@@ -105,41 +97,6 @@ func (h *batcherHandler) Cleanup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-// process calls the processor to process the batch
-func (h *batcherHandler) process(topic string, processor *batchProcessor) {
-	if len(h.msgBuf) > 0 {
-		klog.V(2).Infof(
-			"topic:%s: calling processor...",
-			topic,
-		)
-		processor.process(h.ctx, h.msgBuf)
-		h.msgBuf = make([]*serializer.Message, 0, h.maxSize)
-	} else {
-		klog.V(2).Infof(
-			"topic:%s: no msgs",
-			topic,
-		)
-	}
-}
-
-// insert makes the batch and also calls the processor if batchSize >= maxSize
-func (h *batcherHandler) insert(
-	msg *serializer.Message,
-	processor *batchProcessor,
-) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	h.msgBuf = append(h.msgBuf, msg)
-	if len(h.msgBuf) >= h.maxSize {
-		klog.V(2).Infof(
-			"topic:%s: maxSize hit",
-			msg.Topic,
-		)
-		h.process(msg.Topic, processor)
-	}
-}
-
 // ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages().
 // ConsumeClaim is managed by the consumer.manager routine
 func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
@@ -161,6 +118,12 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		h.saramaConfig,
 		h.maskConfig,
 		h.kafkaLoaderTopicPrefix,
+	)
+	msgBatch := serializer.NewMessageBatch(
+		claim.Topic(),
+		claim.Partition(),
+		h.maxSize,
+		processor,
 	)
 
 	// NOTE:
@@ -222,21 +185,19 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 					*lastSchemaId,
 					msg.SchemaId,
 				)
-				h.process(claim.Topic(), processor)
+				msgBatch.Process(h.ctx)
 			} else {
 			}
 			// Process the batch by size or insert in batch
-			h.insert(msg, processor)
+			msgBatch.Insert(h.ctx, msg)
 			*lastSchemaId = msg.SchemaId
 		case <-h.maxWaitTicker.C:
-			h.mu.Lock()
 			// Process the batch by time
 			klog.V(2).Infof(
 				"topic:%s: maxWaitSeconds hit",
 				claim.Topic(),
 			)
-			h.process(claim.Topic(), processor)
-			h.mu.Unlock()
+			msgBatch.Process(h.ctx)
 		}
 	}
 }

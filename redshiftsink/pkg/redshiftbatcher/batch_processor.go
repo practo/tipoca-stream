@@ -108,7 +108,7 @@ func newBatchProcessor(
 	saramaConfig kafka.SaramaConfig,
 	maskConfig masker.MaskConfig,
 	kafkaLoaderTopicPrefix string,
-) *batchProcessor {
+) serializer.MessageBatchProcessor {
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
 		viper.GetString("s3sink.secretAccessKey"),
@@ -411,7 +411,8 @@ func (b *batchProcessor) processBatch(
 	return true
 }
 
-func (b *batchProcessor) process(ctx context.Context, msgBuf []*serializer.Message) {
+// Process implements serializer.MessageBatch
+func (b *batchProcessor) Process(ctx context.Context, msgBuf []*serializer.Message) {
 	now := time.Now()
 
 	b.setBatchId()
