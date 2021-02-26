@@ -12,7 +12,7 @@ require (
 	github.com/linkedin/goavro/v2 v2.10.0
 	github.com/onsi/ginkgo v1.14.2
 	github.com/onsi/gomega v1.10.4
-	github.com/practo/gobatch v0.0.0-20200822085922-4905d08d9f40
+	github.com/practo/gobatch v0.0.0-20200822085922-4905d08d9f40 // indirect
 	github.com/practo/klog/v2 v2.2.1
 	github.com/practo/pq v0.0.0-20200930024154-af3ceb106a20
 	github.com/prometheus/client_golang v1.9.0
