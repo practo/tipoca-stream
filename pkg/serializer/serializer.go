@@ -13,18 +13,6 @@ const (
 	OperationDelete = "DELETE"
 )
 
-type Message struct {
-	SchemaId  int
-	Topic     string
-	Partition int32
-	Offset    int64
-	Key       string
-	Value     interface{}
-
-	Operation  string
-	MaskSchema map[string]MaskInfo
-}
-
 type MaskInfo struct {
 	Masked        bool
 	SortCol       bool

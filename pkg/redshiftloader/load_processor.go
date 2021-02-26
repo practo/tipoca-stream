@@ -90,7 +90,7 @@ func newLoadProcessor(
 	partition int32,
 	saramaConfig kafka.SaramaConfig,
 	redshifter *redshift.Redshift,
-) *loadProcessor {
+) serializer.MessageBatchProcessor {
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
 		viper.GetString("s3sink.secretAccessKey"),
@@ -652,7 +652,8 @@ func (b *loadProcessor) processBatch(
 	return true
 }
 
-func (b *loadProcessor) process(ctx context.Context, msgBuf []*serializer.Message) {
+// Process implements serializer.MessageBatch
+func (b *loadProcessor) Process(ctx context.Context, msgBuf []*serializer.Message) {
 	b.setBatchId()
 	if b.ctxCancelled(ctx) {
 		return
