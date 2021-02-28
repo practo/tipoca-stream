@@ -120,6 +120,11 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		case message, ok := <-claimMsgChan:
 			if !ok {
 				klog.V(2).Infof(
+					"topic:%s: ConsumeClaim ending, hit",
+					claim.Topic(),
+				)
+				msgBatch.Process(h.ctx)
+				klog.V(2).Infof(
 					"ConsumeClaim ended for topic: %s, partition: %d (would rerun by manager)\n",
 					claim.Topic(),
 					claim.Partition(),

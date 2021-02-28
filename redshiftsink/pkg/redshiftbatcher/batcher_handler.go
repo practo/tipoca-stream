@@ -119,6 +119,7 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		h.maskConfig,
 		h.kafkaLoaderTopicPrefix,
 	)
+
 	msgBatch := serializer.NewMessageBatch(
 		claim.Topic(),
 		claim.Partition(),
@@ -142,6 +143,11 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			return nil
 		case message, ok := <-claimMsgChan:
 			if !ok {
+				klog.V(2).Infof(
+					"topic:%s: ConsumeClaim ending, hit",
+					claim.Topic(),
+				)
+				msgBatch.Process(h.ctx)
 				klog.V(2).Infof(
 					"ConsumeClaim ended for topic: %s, partition: %d (would rerun by manager)\n",
 					claim.Topic(),
