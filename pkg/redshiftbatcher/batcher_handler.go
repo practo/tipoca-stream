@@ -41,8 +41,8 @@ type batcherHandler struct {
 	ready chan bool
 	ctx   context.Context
 
-	maxSize       int
-	maxWaitTicker *time.Ticker
+	maxSize        int
+	maxWaitSeconds int
 
 	kafkaConfig            kafka.KafkaConfig
 	saramaConfig           kafka.SaramaConfig
@@ -64,8 +64,8 @@ func NewHandler(
 		ready: ready,
 		ctx:   ctx,
 
-		maxSize:       batcherConfig.MaxSize,
-		maxWaitTicker: time.NewTicker(time.Duration(batcherConfig.MaxWaitSeconds) * time.Second),
+		maxSize:        batcherConfig.MaxSize,
+		maxWaitSeconds: batcherConfig.MaxWaitSeconds,
 
 		kafkaConfig:            kafkaConfig,
 		saramaConfig:           saramaConfig,
@@ -119,12 +119,14 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		h.maskConfig,
 		h.kafkaLoaderTopicPrefix,
 	)
-
 	msgBatch := serializer.NewMessageBatch(
 		claim.Topic(),
 		claim.Partition(),
 		h.maxSize,
 		processor,
+	)
+	maxWaitTicker := time.NewTicker(
+		time.Duration(h.maxWaitSeconds) * time.Second,
 	)
 
 	// NOTE:
@@ -197,7 +199,7 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			// Process the batch by size or insert in batch
 			msgBatch.Insert(h.ctx, msg)
 			*lastSchemaId = msg.SchemaId
-		case <-h.maxWaitTicker.C:
+		case <-maxWaitTicker.C:
 			// Process the batch by time
 			klog.V(2).Infof(
 				"topic:%s: maxWaitSeconds hit",
