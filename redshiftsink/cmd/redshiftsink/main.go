@@ -16,8 +16,10 @@ package main
 
 import (
 	"flag"
+	"math/rand"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/practo/klog/v2"
 	pflag "github.com/spf13/pflag"
@@ -48,6 +50,8 @@ func init() {
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
+
 	var enableLeaderElection bool
 	var releaseWaitSeconds int64
 	var batcherImage, loaderImage, secretRefName, secretRefNamespace, kafkaVersion, metricsAddr string
