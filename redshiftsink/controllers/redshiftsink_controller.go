@@ -56,12 +56,14 @@ type RedshiftSinkReconciler struct {
 	ReleaseCache       *sync.Map
 	GitCache           *sync.Map
 
-	DefaultBatcherImage       string
-	DefaultLoaderImage        string
-	DefaultSecretRefName      string
-	DefaultSecretRefNamespace string
-	DefaultKafkaVersion       string
-	ReleaseWaitSeconds        int64
+	DefaultBatcherImage         string
+	DefaultLoaderImage          string
+	DefaultSecretRefName        string
+	DefaultSecretRefNamespace   string
+	DefaultKafkaVersion         string
+	ReleaseWaitSeconds          int64
+	DefaultRedshiftMaxIdleConns int
+	DefaultRedshiftMaxOpenConns int
 }
 
 // +kubebuilder:rbac:groups=tipoca.k8s.practo.dev,resources=redshiftsinks,verbs=get;list;watch;create;update;patch;delete
@@ -333,7 +335,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			setTopics(kafkaTopics).
 			setMaskVersion("").
 			buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-			buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig).
+			buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 			build()
 		result, event, err := maskLessSinkGroup.reconcile(ctx)
 		return result, event, err
@@ -415,7 +417,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
 		buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-		buildLoader(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig).
+		buildLoader(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 		build()
 
 	reloadingRatio := status.reloadingRatio()
@@ -466,7 +468,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setMaskVersion(status.currentVersion).
 		setTopicGroups().
 		buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-		buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig).
+		buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 		build()
 
 	main = sgBuilder.
@@ -476,7 +478,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
 		buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-		buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig).
+		buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 		build()
 
 	sinkGroups := []*sinkGroup{reloadDupe, reload, main}

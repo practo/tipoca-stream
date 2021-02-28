@@ -72,13 +72,16 @@ type RedshiftLoaderSpec struct {
 	// are running for this CRD object. Default: false
 	Suspend bool `json:"suspend,omitempty"`
 
-	// Max configurations for the loader to batch and load
+	// Max configurations for the loader to batch the load
 	MaxSize        int `json:"maxSize"`
 	MaxWaitSeconds int `json:"maxWaitSeconds"`
 
 	// RedshiftSchema to sink the data in
 	RedshiftSchema string `json:"redshiftSchema"`
-
+	// RedshiftMaxOpenConns is the maximum open connections allowed
+	RedshiftMaxOpenConns *int `json:"redshiftMaxOpenConns,omitempty"`
+	// RedshiftMaxIdleConns is the maximum idle connections allowed
+	RedshiftMaxIdleConns *int `json:"redshiftMaxIdleConns,omitempty"`
 	// RedshiftGroup to give the access to when new topics gets released
 	RedshiftGroup *string `json:"redshiftGroup"`
 

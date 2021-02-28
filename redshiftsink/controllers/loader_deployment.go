@@ -57,6 +57,19 @@ func loaderName(rskName, sinkGroup string) string {
 	return fmt.Sprintf("%s-%s%s", rskName, sinkGroup, LoaderSuffix)
 }
 
+func redshiftConnections(rsk *tipocav1.RedshiftSink, defaultMaxOpenConns, defaultMaxIdleConns int) (int, int) {
+	maxOpenConns := defaultMaxOpenConns
+	maxIdleConns := defaultMaxIdleConns
+	if rsk.Spec.Loader.RedshiftMaxOpenConns != nil {
+		maxOpenConns = *rsk.Spec.Loader.RedshiftMaxOpenConns
+	}
+	if rsk.Spec.Loader.RedshiftMaxIdleConns != nil {
+		maxIdleConns = *rsk.Spec.Loader.RedshiftMaxIdleConns
+	}
+
+	return maxOpenConns, maxIdleConns
+}
+
 func NewLoader(
 	name string,
 	rsk *tipocav1.RedshiftSink,
@@ -67,6 +80,8 @@ func NewLoader(
 	defaultImage string,
 	defaultKafkaVersion string,
 	tlsConfig *kafka.TLSConfig,
+	defaultMaxOpenConns int,
+	defaultMaxIdleConns int,
 ) (
 	Deployment,
 	error,
@@ -106,6 +121,8 @@ func NewLoader(
 		})
 	}
 
+	maxOpenConns, maxIdleConns := redshiftConnections(rsk, defaultMaxOpenConns, defaultMaxIdleConns)
+
 	conf := config.Config{
 		Loader: redshiftloader.LoaderConfig{
 			MaxSize:        rsk.Spec.Loader.MaxSize,
@@ -130,8 +147,8 @@ func NewLoader(
 			Password:     secret["redshiftPassword"],
 			Timeout:      10,
 			Stats:        true,
-			MaxOpenConns: 3,
-			MaxIdleConns: 3,
+			MaxOpenConns: maxOpenConns,
+			MaxIdleConns: maxIdleConns,
 		},
 	}
 	confBytes, err := yaml.Marshal(conf)

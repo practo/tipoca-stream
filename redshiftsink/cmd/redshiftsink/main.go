@@ -51,6 +51,7 @@ func main() {
 	var enableLeaderElection bool
 	var releaseWaitSeconds int64
 	var batcherImage, loaderImage, secretRefName, secretRefNamespace, kafkaVersion, metricsAddr string
+	var redshiftMaxOpenConns, redshiftMaxIdleConns int
 	flag.StringVar(&batcherImage, "default-batcher-image", "746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftbatcher:latest", "image to use for the redshiftbatcher")
 	flag.StringVar(&loaderImage, "default-loader-image", "746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftloader:latest", "image to use for the redshiftloader")
 	flag.StringVar(&secretRefName, "default-secret-ref-name", "redshiftsink-secret", "default secret name for all redshiftsink secret")
@@ -58,9 +59,9 @@ func main() {
 	flag.StringVar(&kafkaVersion, "default-kafka-version", "2.6.0", "default kafka version")
 	flag.Int64Var(&releaseWaitSeconds, "release-wait-seconds", 1800, "time to wait after a release to prevent repeated sinkgroup shuffle, takes effect after reloadingRatio is above limit.")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
+	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	flag.IntVar(&redshiftMaxOpenConns, "default-redshift-max-open-conns", 10, "the maximum number of open connections allowed to redshift per redshiftsink resource")
+	flag.IntVar(&redshiftMaxIdleConns, "default-redshift-max-idle-conns", 2, "the maximum number of idle connections allowed to redshift per redshiftsink resource")
 	flag.Parse()
 
 	ctrl.SetLogger(klogr.New())
@@ -87,22 +88,24 @@ func main() {
 	}
 
 	if err = (&controllers.RedshiftSinkReconciler{
-		Client:                    uncachedClient,
-		Log:                       ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
-		Scheme:                    mgr.GetScheme(),
-		Recorder:                  mgr.GetEventRecorderFor("redshiftsink-reconciler"),
-		KafkaWatchers:             new(sync.Map),
-		KafkaTopicRegexes:         new(sync.Map),
-		KafkaTopicsCache:          new(sync.Map),
-		KafkaRealtimeCache:        new(sync.Map),
-		ReleaseCache:              new(sync.Map),
-		GitCache:                  new(sync.Map),
-		DefaultBatcherImage:       batcherImage,
-		DefaultLoaderImage:        loaderImage,
-		DefaultSecretRefName:      secretRefName,
-		DefaultSecretRefNamespace: secretRefNamespace,
-		DefaultKafkaVersion:       kafkaVersion,
-		ReleaseWaitSeconds:        releaseWaitSeconds,
+		Client:                      uncachedClient,
+		Log:                         ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
+		Scheme:                      mgr.GetScheme(),
+		Recorder:                    mgr.GetEventRecorderFor("redshiftsink-reconciler"),
+		KafkaWatchers:               new(sync.Map),
+		KafkaTopicRegexes:           new(sync.Map),
+		KafkaTopicsCache:            new(sync.Map),
+		KafkaRealtimeCache:          new(sync.Map),
+		ReleaseCache:                new(sync.Map),
+		GitCache:                    new(sync.Map),
+		DefaultBatcherImage:         batcherImage,
+		DefaultLoaderImage:          loaderImage,
+		DefaultSecretRefName:        secretRefName,
+		DefaultSecretRefNamespace:   secretRefNamespace,
+		DefaultKafkaVersion:         kafkaVersion,
+		ReleaseWaitSeconds:          releaseWaitSeconds,
+		DefaultRedshiftMaxOpenConns: redshiftMaxOpenConns,
+		DefaultRedshiftMaxIdleConns: redshiftMaxIdleConns,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RedshiftSink")
 		os.Exit(1)

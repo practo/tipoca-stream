@@ -43,10 +43,12 @@ spec:
        command:
        - /redshiftsink
        args:
-       - --default-batcher-image=746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftbatcher:latest
-       - --default-loader-image=746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftloader:latest
        - -v=2
        - --release-wait-seconds=1800
+       - --default-batcher-image=746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftbatcher:latest
+       - --default-loader-image=746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftloader:latest
+       - --default-redshift-max-open-conns=10
+       - --default-redshift-max-idle-conns=2
        resources:
          limits:
            cpu: 300m

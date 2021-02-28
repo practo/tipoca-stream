@@ -573,7 +573,7 @@ func (b *loadProcessor) processBatch(
 ) bool {
 
 	if b.redshiftStats {
-		klog.V(2).Infof("startbatch dbstats: %+v\n", b.redshifter.Stats())
+		klog.V(2).Infof("dbstats: %+v\n", b.redshifter.Stats())
 	}
 
 	var inputTable redshift.Table
