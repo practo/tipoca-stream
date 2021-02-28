@@ -61,7 +61,7 @@ type sinkGroupBuilder interface {
 	setMaskVersion(version string) sinkGroupBuilder
 	setTopicGroups() sinkGroupBuilder
 	buildBatcher(secret map[string]string, defaultImage, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig) sinkGroupBuilder
-	buildLoader(secret map[string]string, defaultImage, tableSuffix string, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig) sinkGroupBuilder
+	buildLoader(secret map[string]string, defaultImage, tableSuffix string, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig, defaultMaxOpenConns int, defaultMaxIdleConns int) sinkGroupBuilder
 	build() *sinkGroup
 }
 
@@ -156,6 +156,8 @@ func (sb *buildSinkGroup) buildLoader(
 	tableSuffix string,
 	defaultKafkaVersion string,
 	tlsConfig *kafka.TLSConfig,
+	defaultMaxOpenConns int,
+	defaultMaxIdleConns int,
 ) sinkGroupBuilder {
 	consumerGroups, err := computeConsumerGroups(sb.topicGroups, sb.topics)
 	if err != nil {
@@ -171,6 +173,8 @@ func (sb *buildSinkGroup) buildLoader(
 		defaultImage,
 		defaultKafkaVersion,
 		tlsConfig,
+		defaultMaxOpenConns,
+		defaultMaxIdleConns,
 	)
 	if err != nil {
 		klog.Fatalf("Error making loader: %v", err)
