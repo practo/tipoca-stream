@@ -26,8 +26,8 @@ type loaderHandler struct {
 	ready chan bool
 	ctx   context.Context
 
-	maxSize       int
-	maxWaitTicker *time.Ticker
+	maxSize        int
+	maxWaitSeconds int
 
 	saramaConfig kafka.SaramaConfig
 	redshifter   *redshift.Redshift
@@ -46,8 +46,8 @@ func NewHandler(
 		ready: ready,
 		ctx:   ctx,
 
-		maxSize:       loaderConfig.MaxSize,
-		maxWaitTicker: time.NewTicker(time.Duration(loaderConfig.MaxWaitSeconds) * time.Second),
+		maxSize:        loaderConfig.MaxSize,
+		maxWaitSeconds: loaderConfig.MaxWaitSeconds,
 
 		saramaConfig: saramaConfig,
 		redshifter:   redshifter,
@@ -101,6 +101,9 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		claim.Partition(),
 		h.maxSize,
 		processor,
+	)
+	maxWaitTicker := time.NewTicker(
+		time.Duration(h.maxWaitSeconds) * time.Second,
 	)
 
 	// NOTE:
@@ -169,7 +172,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			// Process the batch by size or insert in batch
 			msgBatch.Insert(h.ctx, msg)
 			*lastSchemaId = upstreamJobSchemaId
-		case <-h.maxWaitTicker.C:
+		case <-maxWaitTicker.C:
 			// Process the batch by time
 			klog.V(2).Infof(
 				"topic:%s: maxWaitSeconds hit",
