@@ -334,9 +334,13 @@ spec:
                       phase:
                         description: Phase determines the
                         type: string
+                      releasedVersion:
+                        description: ReleasedVersion is the last released version
+                          for the topic
+                        type: string
                       version:
                         description: MaskFileVersion is the current mask configuration
-                          being used
+                          being worked on
                         type: string
                     type: object
                   description: CurrentMaskStatus stores the current status of mask
@@ -354,9 +358,13 @@ spec:
                       phase:
                         description: Phase determines the
                         type: string
+                      releasedVersion:
+                        description: ReleasedVersion is the last released version
+                          for the topic
+                        type: string
                       version:
                         description: MaskFileVersion is the current mask configuration
-                          being used
+                          being worked on
                         type: string
                     type: object
                   description: DesiredMaskStatus stores the current status of mask

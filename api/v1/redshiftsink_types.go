@@ -163,12 +163,16 @@ const (
 
 // TopicMaskStatus store the mask status of a single topic
 type TopicMaskStatus struct {
-	// MaskFileVersion is the current mask configuration being used
+	// MaskFileVersion is the current mask configuration being worked on
 	// +optional
 	Version string `json:"version,omitempty"`
 	// Phase determines the
 	// +optional
 	Phase MaskPhase `json:"phase,omitempty"`
+
+	// ReleasedVersion is the last released version for the topic
+	// +optional
+	ReleasedVersion *string `json:"releasedVersion,omitempty"`
 }
 
 type MaskStatus struct {
