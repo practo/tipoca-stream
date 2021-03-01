@@ -230,10 +230,6 @@ func currentReleasedVersion(rsk *tipocav1.RedshiftSink, topic string) *string {
 		return nil
 	}
 
-	if rsk.Status.MaskStatus.CurrentMaskVersion == nil {
-		return nil
-	}
-
 	status, ok := rsk.Status.MaskStatus.CurrentMaskStatus[topic]
 	if !ok {
 		return nil
