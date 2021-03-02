@@ -148,16 +148,19 @@ func (b *loadProcessor) setBatchId() {
 func (b *loadProcessor) markOffset(msgBuf []*serializer.Message) {
 	if len(msgBuf) > 0 {
 		lastMessage := msgBuf[len(msgBuf)-1]
+		klog.V(2).Infof("%s, offset: %v, marking", lastMessage.Offset+1, lastMessage.Topic)
 		b.session.MarkOffset(
 			lastMessage.Topic,
 			lastMessage.Partition,
 			lastMessage.Offset+1,
 			"",
 		)
+		klog.V(2).Infof("%s, offset: %v, marked", lastMessage.Offset+1, lastMessage.Topic)
 
 		if b.autoCommit == false {
+			klog.V(2).Infof("%s, committing (autoCommit=false)", lastMessage.Topic)
 			b.session.Commit()
-			klog.V(2).Infof("%s, Committed (autoCommit=false)", lastMessage.Topic)
+			klog.V(2).Infof("%s, committed (autoCommit=false)", lastMessage.Topic)
 		}
 
 		b.lastCommittedOffset = lastMessage.Offset
