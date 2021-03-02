@@ -157,10 +157,11 @@ func (b *loadProcessor) markOffset(msgBuf []*serializer.Message) {
 
 		if b.autoCommit == false {
 			b.session.Commit()
+			klog.V(2).Infof("%s, Committed (autoCommit=false)", lastMessage.Topic)
 		}
 
 		b.lastCommittedOffset = lastMessage.Offset
-		klog.V(2).Infof("%s, Committed (autoCommit=false)", lastMessage.Topic)
+
 	} else {
 		klog.Warningf("%s, markOffset not possible for empty batch", b.topic)
 	}
