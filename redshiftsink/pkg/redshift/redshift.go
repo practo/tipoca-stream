@@ -180,7 +180,7 @@ func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
 
 	r.SetMaxIdleConns(conf.MaxIdleConns)
 	r.SetMaxOpenConns(conf.MaxOpenConns)
-	klog.V(1).Infof("dbstats: %+v\n", r.Stats())
+	klog.V(2).Infof("dbstats: %+v\n", r.Stats())
 	// TODO: not using this
 	// klog.Info("Setting Redshift ConnMaxLifetime=-1 (keep alive)")
 	// r.SetConnMaxLifetime(1200 * time.Second)
@@ -426,7 +426,7 @@ func (r *Redshift) UpdateTable(inputTable, targetTable Table) (bool, error) {
 	}
 
 	if len(transactcolumnOps)+len(columnOps)+len(varCharColumnOps) == 0 {
-		klog.V(2).Infof(
+		klog.V(4).Infof(
 			"Schema migration is not needed for table: %v\n",
 			inputTable.Name)
 		return false, nil
