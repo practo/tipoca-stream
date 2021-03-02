@@ -146,31 +146,23 @@ func (b *loadProcessor) setBatchId() {
 }
 
 func (b *loadProcessor) markOffset(msgBuf []*serializer.Message) {
-	for i, message := range msgBuf {
+	if len(msgBuf) > 0 {
+		lastMessage := msgBuf[len(msgBuf)-1]
 		b.session.MarkOffset(
-			message.Topic,
-			message.Partition,
-			message.Offset+1,
+			lastMessage.Topic,
+			lastMessage.Partition,
+			lastMessage.Offset+1,
 			"",
 		)
 
-		// By default operator sets autoCommit as false but it is not a
-		// problem even if it is set to true because
-		// the duplication is prevented by the merge and order is maintained
-		// by kafka.
 		if b.autoCommit == false {
-			klog.V(2).Infof("%s, Committing (autoCommit=false)", message.Topic)
 			b.session.Commit()
 		}
-		b.lastCommittedOffset = message.Offset
-		var verbosity klog.Level = 5
-		if len(msgBuf)-1 == i {
-			verbosity = 3
-		}
-		klog.V(verbosity).Infof(
-			"%s, lastCommittedOffset:%d: Processed\n",
-			message.Topic, b.lastCommittedOffset,
-		)
+
+		b.lastCommittedOffset = lastMessage.Offset
+		klog.V(2).Infof("%s, Committed (autoCommit=false)", lastMessage.Topic)
+	} else {
+		klog.Warningf("%s, markOffset not possible for empty batch", b.topic)
 	}
 }
 
