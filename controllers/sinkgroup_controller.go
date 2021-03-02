@@ -618,8 +618,8 @@ func (s *sinkGroup) topicRealtime(
 	cacheLoaded, ok := cache.Load(topic)
 	if ok {
 		realtimeCache = cacheLoaded.(kafkaRealtimeCache)
-		// 150 to 240 seconds
-		validitySeconds := rand.Intn(90) + 150
+		// 300 to 240 seconds
+		validitySeconds := rand.Intn(120) + 300 
 		klog.V(5).Infof("rsk/%s validity seconds: %v topic: %s", s.rsk.Name, validitySeconds, topic)
 		if cacheValid(time.Second*time.Duration(validitySeconds), realtimeCache.lastCacheRefresh) {
 			klog.V(4).Infof("rsk/%s (realtime cache hit) topic: %s", s.rsk.Name, topic)
