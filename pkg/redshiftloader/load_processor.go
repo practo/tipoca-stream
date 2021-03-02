@@ -126,7 +126,7 @@ func (b *loadProcessor) ctxCancelled(ctx context.Context) bool {
 	select {
 	case <-ctx.Done():
 		klog.Infof(
-			"topic:%s, batchId:%d, lastCommittedOffset:%d: Cancelled.\n",
+			"%s, batchId:%d, lastCommittedOffset:%d: Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,
 		)
 		return true
@@ -138,7 +138,7 @@ func (b *loadProcessor) ctxCancelled(ctx context.Context) bool {
 // setBatchId is used for logging, helps in debugging.
 func (b *loadProcessor) setBatchId() {
 	if b.batchId == maxBatchId {
-		klog.V(5).Infof("topic:%s: Resetting batchId to zero.", b.topic)
+		klog.V(5).Infof("%s: Resetting batchId to zero.", b.topic)
 		b.batchId = 0
 	}
 
@@ -159,7 +159,7 @@ func (b *loadProcessor) markOffset(msgBuf []*serializer.Message) {
 		// the duplication is prevented by the merge and order is maintained
 		// by kafka.
 		if b.autoCommit == false {
-			klog.V(2).Infof("topic:%s, Committing (autoCommit=false)", message.Topic)
+			klog.V(2).Infof("%s, Committing (autoCommit=false)", message.Topic)
 			b.session.Commit()
 		}
 		b.lastCommittedOffset = message.Offset
@@ -168,7 +168,7 @@ func (b *loadProcessor) markOffset(msgBuf []*serializer.Message) {
 			verbosity = 3
 		}
 		klog.V(verbosity).Infof(
-			"topic:%s, lastCommittedOffset:%d: Processed\n",
+			"%s, lastCommittedOffset:%d: Processed\n",
 			message.Topic, b.lastCommittedOffset,
 		)
 	}
@@ -177,15 +177,15 @@ func (b *loadProcessor) markOffset(msgBuf []*serializer.Message) {
 // handleShutdown is mostly used to log the messages before going down
 func (b *loadProcessor) handleShutdown() {
 	klog.Infof(
-		"topic:%s, batchId:%d: Batch processing gracefully shutdown.\n",
+		"%s, batchId:%d: Batch processing gracefully shutdown.\n",
 		b.topic,
 		b.batchId,
 	)
 	if b.lastCommittedOffset == 0 {
-		klog.Infof("topic:%s: Nothing new was committed.\n", b.topic)
+		klog.Infof("%s: Nothing new was committed.\n", b.topic)
 	} else {
 		klog.Infof(
-			"topic:%s: lastCommittedOffset: %d. Shut down.\n",
+			"%s: lastCommittedOffset: %d. Shut down.\n",
 			b.topic,
 			b.lastCommittedOffset,
 		)
@@ -213,11 +213,10 @@ func (b *loadProcessor) loadTable(schema, table, s3ManifestKey string) {
 		klog.Fatalf("Error committing tx, err:%v\n", err)
 	}
 
-	klog.Infof(
-		"topic:%s, batchId:%d: Loaded Staging Table: %s\n",
+	klog.V(2).Infof(
+		"%s, copied staging\n",
 		b.topic,
-		b.batchId,
-		table)
+	)
 }
 
 // deDupeStagingTable keeps the highest offset per pk in the table, keeping
@@ -235,6 +234,7 @@ func (b *loadProcessor) deDupeStagingTable(tx *sql.Tx) {
 		tx.Rollback()
 		klog.Fatalf("Deduplication failed, %v\n", err)
 	}
+	klog.V(2).Infof("%s, deduped", b.topic)
 }
 
 // deleteCommonRowsInTargetTable removes all the rows from the target table
@@ -251,6 +251,7 @@ func (b *loadProcessor) deleteCommonRowsInTargetTable(tx *sql.Tx) {
 		tx.Rollback()
 		klog.Fatalf("DeleteCommon failed, %v\n", err)
 	}
+	klog.V(2).Infof("%s, deleted common", b.topic)
 }
 
 // deleteRowsWithDeleteOpInStagingTable deletes the rows with operation
@@ -267,6 +268,7 @@ func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
 		tx.Rollback()
 		klog.Fatalf("DeleteRowsWithDeleteOp failed, %v\n", err)
 	}
+	klog.V(2).Infof("%s, deleted delete-op", b.topic)
 }
 
 // insertIntoTargetTable uses unload and copy strategy to bulk insert into
@@ -311,6 +313,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 		tx.Rollback()
 		klog.Fatalf("Unloading staging table to s3 failed, %v\n", err)
 	}
+	klog.V(2).Infof("%s, unloaded", b.topic)
 
 	s3ManifestKey := s3CopyDir + "manifest"
 	err = b.redshifter.Copy(tx,
@@ -326,6 +329,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 		tx.Rollback()
 		klog.Fatalf("Copying data to target table from s3 failed, %v\n", err)
 	}
+	klog.V(2).Infof("%s, copied", b.topic)
 }
 
 // dropTable removes the table only if it exists else returns and does nothing
@@ -378,6 +382,7 @@ func (b *loadProcessor) merge() {
 	b.deleteCommonRowsInTargetTable(tx)
 	b.deleteRowsWithDeleteOpInStagingTable(tx)
 	b.insertIntoTargetTable(tx)
+
 	err = tx.Commit()
 	if err != nil {
 		klog.Fatalf("Error committing tx, err:%v\n", err)
@@ -458,7 +463,7 @@ func (b *loadProcessor) createStagingTable(
 		klog.Fatalf("Error committing tx, err:%v\n", err)
 	}
 	klog.V(3).Infof(
-		"topic:%s, schemaId:%d: Staging Table %s created\n",
+		"%s, schemaId:%d: Staging Table %s created\n",
 		b.topic,
 		schemaId,
 		b.stagingTable.Name)
@@ -536,7 +541,7 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 			klog.Fatalf("Error committing tx, err:%v\n", err)
 		}
 		klog.V(2).Infof(
-			"topic:%s, schemaId:%d: Table %s created",
+			"%s, schemaId:%d: Table %s created",
 			b.topic,
 			schemaId,
 			inputTable.Name)
@@ -594,6 +599,10 @@ func (b *loadProcessor) processBatch(
 
 			// this assumes all messages in a batch have same schema id
 			if id == 0 {
+				b.batchStartOffset = message.Offset
+				klog.V(2).Infof("%s, batchId:%d, startOffset:%v\n",
+					b.topic, b.batchId, b.batchStartOffset,
+				)
 				b.upstreamTopic = job.UpstreamTopic
 				klog.V(3).Infof("Processing schema: %+v\n", schemaId)
 				resp, err := b.schemaTransformer.TransformValue(
@@ -636,7 +645,7 @@ func (b *loadProcessor) processBatch(
 			s3ManifestKey, err)
 	}
 
-	klog.V(2).Infof("topic: %s, using merge strategy\n", b.topic)
+	klog.V(2).Infof("%s, load staging\n", b.topic)
 	b.createStagingTable(schemaId, inputTable)
 	b.loadTable(
 		b.stagingTable.Meta.Schema,
@@ -659,7 +668,7 @@ func (b *loadProcessor) Process(ctx context.Context, msgBuf []*serializer.Messag
 		return
 	}
 
-	klog.Infof("topic:%s, batchId:%d, size:%d: Processing...\n",
+	klog.Infof("%s, batchId:%d, size:%d: Processing...\n",
 		b.topic, b.batchId, len(msgBuf),
 	)
 
@@ -672,7 +681,7 @@ func (b *loadProcessor) Process(ctx context.Context, msgBuf []*serializer.Messag
 	b.markOffset(msgBuf)
 
 	klog.Infof(
-		"topic:%s, batchId:%d, startOffset:%d, endOffset:%d: Processed",
+		"%s, batchId:%d, startOffset:%d, endOffset:%d: Processed",
 		b.topic, b.batchId, b.batchStartOffset, b.batchEndOffset,
 	)
 }
