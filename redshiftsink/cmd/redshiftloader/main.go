@@ -110,7 +110,7 @@ func run(cmd *cobra.Command, args []string) {
 			// cancel,
 		)
 		wg.Add(1)
-		go manager.SyncTopics(ctx, 15, wg)
+		go manager.SyncTopics(ctx, wg)
 		wg.Add(1)
 		go manager.Consume(ctx, wg)
 	}
