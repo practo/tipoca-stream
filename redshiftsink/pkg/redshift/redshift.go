@@ -748,6 +748,17 @@ func (r *Redshift) DropTable(tx *sql.Tx, schema string, table string) error {
 	)
 }
 
+func (r *Redshift) DropTableWithCascade(tx *sql.Tx, schema string, table string) error {
+	dropTable := `DROP TABLE %s cascade;`
+	return r.prepareAndExecute(
+		tx,
+		fmt.Sprintf(
+			dropTable,
+			fmt.Sprintf(`"%s"."%s"`, schema, table),
+		),
+	)
+}
+
 func (r *Redshift) DeleteColumn(tx *sql.Tx, schema string, table string,
 	columnName string, columnValue string) error {
 
