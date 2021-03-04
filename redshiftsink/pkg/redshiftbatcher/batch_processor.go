@@ -177,26 +177,22 @@ func removeEmptyNullValues(value map[string]*string) map[string]*string {
 	return value
 }
 
-func (b *batchProcessor) ctxCancelled(ctx context.Context) bool {
+func (b *batchProcessor) ctxCancelled(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
-		err := ctx.Err()
-		klog.Warningf("Processing stopped! main ctx done, ctxErr: %v", err)
 		klog.Warningf(
 			"%s, batchId:%d, lastCommitted:%d: main ctx done. Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,
 		)
-		return true
+		return fmt.Errorf("Processing stopped! main ctx done (recreate), ctxErr: %v", ctx.Err())
 	case <-b.session.Context().Done():
-		err := ctx.Err()
-		klog.Warningf("Processing stopped! ctx done, ctxErr: %v", err)
 		klog.Warningf(
 			"%s, batchId:%d, lastCommitted:%d: session ctx done. Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,
 		)
-		return true
+		return fmt.Errorf("Processing stopped! session ctx done (recreate), ctxErr: %v", b.session.Context().Err())
 	default:
-		return false
+		return nil
 	}
 }
 
@@ -403,47 +399,50 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 func (b *batchProcessor) processBatch(
 	ctx context.Context,
 	msgBuf []*serializer.Message,
-) bool {
+) error {
 
 	b.s3Key = ""
 	for id, message := range msgBuf {
 		select {
 		case <-ctx.Done():
-			return false
+			return fmt.Errorf("Main context done, recreate, err: %v", ctx.Err())
+		case <-b.session.Context().Done():
+			return fmt.Errorf("Session context done, recreate, err: %v", b.session.Context().Err())
 		default:
 			b.processMessage(message, id)
 		}
 	}
 
-	return true
+	return nil
 }
 
 // Process implements serializer.MessageBatch
-func (b *batchProcessor) Process(ctx context.Context, msgBuf []*serializer.Message) {
+func (b *batchProcessor) Process(ctx context.Context, msgBuf []*serializer.Message) error {
 	now := time.Now()
 
 	b.setBatchId()
 	b.batchSchemaId = -1
 	b.skipMerge = true
 
-	if b.ctxCancelled(ctx) {
-		return
+	err := b.ctxCancelled(ctx)
+	if err != nil {
+		return err
 	}
 
 	klog.Infof("topic:%s, batchId:%d, size:%d: Processing...\n",
 		b.topic, b.batchId, len(msgBuf),
 	)
 
-	done := b.processBatch(ctx, msgBuf)
-	if !done {
+	err = b.processBatch(ctx, msgBuf)
+	if err != nil {
 		b.handleShutdown()
-		return
+		return err
 	}
 
 	klog.Infof("topic:%s, batchId:%d, size:%d: Uploading...\n",
 		b.topic, b.batchId, len(msgBuf),
 	)
-	err := b.s3sink.Upload(b.s3Key, b.bodyBuf)
+	err = b.s3sink.Upload(b.s3Key, b.bodyBuf)
 	if err != nil {
 		klog.Fatalf("Error writing to s3, err=%v\n", err)
 	}
@@ -469,4 +468,6 @@ func (b *batchProcessor) Process(ctx context.Context, msgBuf []*serializer.Messa
 	)
 
 	setBatchProcessingSeconds(now, b.topic)
+
+	return nil
 }
