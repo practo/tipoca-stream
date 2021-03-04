@@ -177,14 +177,21 @@ func removeEmptyNullValues(value map[string]*string) map[string]*string {
 	return value
 }
 
-// TODO: get rid of this https://github.com/herryg91/gobatch/issues/2
 func (b *batchProcessor) ctxCancelled(ctx context.Context) bool {
 	select {
 	case <-ctx.Done():
 		err := ctx.Err()
-		klog.Warningf("Batch processing stopped, ctx done, ctxErr: %v", err)
-		klog.V(2).Infof(
-			"topic:%s, batchId:%d, lastCommittedOffset:%d: Cancelled.\n",
+		klog.Warningf("Processing stopped! main ctx done, ctxErr: %v", err)
+		klog.Warningf(
+			"%s, batchId:%d, lastCommitted:%d: main ctx done. Cancelled.\n",
+			b.topic, b.batchId, b.lastCommittedOffset,
+		)
+		return true
+	case <-b.session.Context().Done():
+		err := ctx.Err()
+		klog.Warningf("Processing stopped! ctx done, ctxErr: %v", err)
+		klog.Warningf(
+			"%s, batchId:%d, lastCommitted:%d: session ctx done. Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,
 		)
 		return true

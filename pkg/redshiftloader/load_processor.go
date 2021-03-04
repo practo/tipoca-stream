@@ -121,12 +121,21 @@ func newLoadProcessor(
 	}
 }
 
-// TODO: get rid of this https://github.com/herryg91/gobatch/issues/2
 func (b *loadProcessor) ctxCancelled(ctx context.Context) bool {
 	select {
 	case <-ctx.Done():
-		klog.Infof(
-			"%s, batchId:%d, lastCommittedOffset:%d: Cancelled.\n",
+		err := ctx.Err()
+		klog.Warningf("Processing stopped! main ctx done, ctxErr: %v", err)
+		klog.Warningf(
+			"%s, batchId:%d, lastCommitted:%d: main ctx done. Cancelled.\n",
+			b.topic, b.batchId, b.lastCommittedOffset,
+		)
+		return true
+	case <-b.session.Context().Done():
+		err := ctx.Err()
+		klog.Warningf("Processing stopped! ctx done, ctxErr: %v", err)
+		klog.Warningf(
+			"%s, batchId:%d, lastCommitted:%d: session ctx done. Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,
 		)
 		return true
