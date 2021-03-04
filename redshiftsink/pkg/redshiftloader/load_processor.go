@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/viper"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
@@ -668,6 +669,7 @@ func (b *loadProcessor) processBatch(
 
 // Process implements serializer.MessageBatch
 func (b *loadProcessor) Process(ctx context.Context, msgBuf []*serializer.Message) {
+	start := time.Now()
 	b.setBatchId()
 	if b.ctxCancelled(ctx) {
 		return
@@ -682,11 +684,11 @@ func (b *loadProcessor) Process(ctx context.Context, msgBuf []*serializer.Messag
 		b.handleShutdown()
 		return
 	}
-
 	b.markOffset(msgBuf)
 
 	klog.Infof(
-		"%s, batchId:%d, startOffset:%d, endOffset:%d: Processed",
-		b.topic, b.batchId, b.batchStartOffset, b.batchEndOffset,
+		"%s, batchId:%d, size:%d, end:%d:, Processed (%.1fs)",
+		b.topic, b.batchId, len(msgBuf), b.batchEndOffset,
+		time.Since(start).Seconds(),
 	)
 }
