@@ -99,7 +99,7 @@ func NewBatcher(
 				Assignor:                "range",
 				Oldest:                  true,
 				Log:                     true,
-				AutoCommit:              false,
+				AutoCommit:              true,
 				SessionTimeoutSeconds:   &sessionTimeoutSeconds,
 				HearbeatIntervalSeconds: &hearbeatIntervalSeconds,
 				MaxProcessingSeconds:    &maxProcessingSeconds,
