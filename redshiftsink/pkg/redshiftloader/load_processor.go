@@ -3,6 +3,7 @@ package redshiftloader
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
@@ -686,9 +687,16 @@ func (b *loadProcessor) Process(ctx context.Context, msgBuf []*serializer.Messag
 	}
 	b.markOffset(msgBuf)
 
+	var timeTaken string
+	secondsTaken := time.Since(start).Seconds()
+	if secondsTaken > 60 {
+		timeTaken = fmt.Sprintf("%.0fm", secondsTaken/60)
+	} else {
+		timeTaken = fmt.Sprintf("%.0fs", secondsTaken)
+	}
+
 	klog.Infof(
-		"%s, batchId:%d, size:%d, end:%d:, Processed (%.1fs)",
-		b.topic, b.batchId, len(msgBuf), b.batchEndOffset,
-		time.Since(start).Seconds(),
+		"%s, batchId:%d, size:%d, end:%d:, Processed in %s",
+		b.topic, b.batchId, len(msgBuf), b.batchEndOffset, timeTaken,
 	)
 }
