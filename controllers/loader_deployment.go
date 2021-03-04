@@ -96,14 +96,15 @@ func NewLoader(
 	if kafkaVersion == "" {
 		kafkaVersion = defaultKafkaVersion
 	}
+
+	// defaults for the loader
+	var sessionTimeoutSeconds int = 10
+	var hearbeatIntervalSeconds int = 2
+	var maxProcessingSeconds float32 = 0.5
+
 	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
 		totalTopics += len(group.topics)
-
-		// defaults for the loader
-		var sessionTimeoutSeconds int = 300
-		var hearbeatIntervalSeconds int = 120
-		var maxProcessingSeconds float32 = 1200
 
 		groupConfigs = append(groupConfigs, kafka.ConsumerGroupConfig{
 			GroupID: consumerGroupID(rsk.Name, rsk.Namespace, groupID, "-loader"),
