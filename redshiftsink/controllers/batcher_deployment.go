@@ -77,6 +77,12 @@ func NewBatcher(
 	if kafkaVersion == "" {
 		kafkaVersion = defaultKafkaVersion
 	}
+
+	// defaults for the batcher
+	var sessionTimeoutSeconds int = 10
+	var hearbeatIntervalSeconds int = 2
+	var maxProcessingSeconds float32 = 0.5
+
 	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
 		totalTopics += len(group.topics)
@@ -90,10 +96,13 @@ func NewBatcher(
 				TLSConfig: *tlsConfig,
 			},
 			Sarama: kafka.SaramaConfig{
-				Assignor:   "range",
-				Oldest:     true,
-				Log:        true,
-				AutoCommit: false,
+				Assignor:                "range",
+				Oldest:                  true,
+				Log:                     true,
+				AutoCommit:              false,
+				SessionTimeoutSeconds:   &sessionTimeoutSeconds,
+				HearbeatIntervalSeconds: &hearbeatIntervalSeconds,
+				MaxProcessingSeconds:    &maxProcessingSeconds,
 			},
 		})
 	}

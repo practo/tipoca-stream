@@ -16,9 +16,9 @@ type SaramaConfig struct {
 	Oldest                  bool     `yaml:"oldest"`
 	Log                     bool     `yaml:"log"`
 	AutoCommit              bool     `yaml:"autoCommit"`
-	SessionTimeoutSeconds   *int     `yaml:"sessionTimeoutSeconds,omitempty"`    // default 20s
-	HearbeatIntervalSeconds *int     `yaml:"heartBeatIntervalSeconds,omitempty"` // default 6s
-	MaxProcessingSeconds    *float32 `yaml:"MaxProcessingSeconds,omitempty"`     // default 0.5s (it is for the complete batch)
+	SessionTimeoutSeconds   *int     `yaml:"sessionTimeoutSeconds,omitempty"`   // default 20s
+	HearbeatIntervalSeconds *int     `yaml:"hearbeatIntervalSeconds,omitempty"` // default 6s
+	MaxProcessingSeconds    *float32 `yaml:"maxProcessingSeconds,omitempty"`    // default 0.5s (it is for the complete batch)
 }
 
 type saramaConsumerGroup struct {
@@ -73,20 +73,14 @@ func NewSaramaConsumerGroup(
 
 	if config.Sarama.SessionTimeoutSeconds != nil {
 		c.Consumer.Group.Session.Timeout = time.Duration(*config.Sarama.SessionTimeoutSeconds) * time.Second
-	} else {
-		c.Consumer.Group.Session.Timeout = 20 * time.Second // overwrites sarams default of 10s
 	}
 
 	if config.Sarama.HearbeatIntervalSeconds != nil {
 		c.Consumer.Group.Heartbeat.Interval = time.Duration(*config.Sarama.HearbeatIntervalSeconds) * time.Second
-	} else {
-		c.Consumer.Group.Heartbeat.Interval = 6 * time.Second // overwrites sarams default of 3s
 	}
 
 	if config.Sarama.MaxProcessingSeconds != nil {
-		c.Consumer.MaxProcessingTime = time.Duration(*config.Sarama.MaxProcessingSeconds) * time.Second
-	} else {
-		c.Consumer.MaxProcessingTime = 500 * time.Millisecond // overwrites saramas default of 100ms
+		c.Consumer.MaxProcessingTime = time.Duration(*config.Sarama.MaxProcessingSeconds*1000) * time.Millisecond
 	}
 
 	if config.Kafka.TLSConfig.Enable {
