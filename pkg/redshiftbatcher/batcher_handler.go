@@ -2,6 +2,7 @@ package redshiftbatcher
 
 import (
 	"context"
+	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
@@ -144,6 +145,8 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				claim.Topic(),
 			)
 			return nil
+		case <-session.Context().Done():
+			return fmt.Errorf("Session context done, recreate, err: %v", session.Context().Err())
 		case message, ok := <-claimMsgChan:
 			if !ok {
 				klog.V(2).Infof(
@@ -170,6 +173,8 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 					claim.Topic(),
 				)
 				return nil
+			case <-session.Context().Done():
+				return fmt.Errorf("Session context done, recreate, err: %v", session.Context().Err())
 			}
 
 			if len(message.Value) == 0 {
