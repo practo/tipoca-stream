@@ -99,6 +99,12 @@ func NewLoader(
 	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
 		totalTopics += len(group.topics)
+
+		// defaults for the loader
+		var sessionTimeoutSeconds int = 300
+		var hearbeatIntervalSeconds int = 120
+		var maxProcessingSeconds float32 = 1200
+
 		groupConfigs = append(groupConfigs, kafka.ConsumerGroupConfig{
 			GroupID: consumerGroupID(rsk.Name, rsk.Namespace, groupID, "-loader"),
 			TopicRegexes: expandTopicsToRegex(
@@ -113,10 +119,13 @@ func NewLoader(
 				TLSConfig: *tlsConfig,
 			},
 			Sarama: kafka.SaramaConfig{
-				Assignor:   "range",
-				Oldest:     true,
-				Log:        false,
-				AutoCommit: false,
+				Assignor:                "range",
+				Oldest:                  true,
+				Log:                     true,
+				AutoCommit:              false,
+				SessionTimeoutSeconds:   &sessionTimeoutSeconds,
+				HearbeatIntervalSeconds: &hearbeatIntervalSeconds,
+				MaxProcessingSeconds:    &maxProcessingSeconds,
 			},
 		})
 	}

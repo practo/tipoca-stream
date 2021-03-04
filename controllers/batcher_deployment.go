@@ -92,8 +92,8 @@ func NewBatcher(
 			Sarama: kafka.SaramaConfig{
 				Assignor:   "range",
 				Oldest:     true,
-				Log:        false,
-				AutoCommit: true,
+				Log:        true,
+				AutoCommit: false,
 			},
 		})
 	}
