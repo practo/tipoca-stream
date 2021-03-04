@@ -81,7 +81,7 @@ func NewBatcher(
 	// defaults for the batcher
 	var sessionTimeoutSeconds int = 10
 	var hearbeatIntervalSeconds int = 2
-	var maxProcessingSeconds float32 = 0.5
+	var maxProcessingSeconds float32 = 180 // batcher can be slow based on batch size
 
 	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
