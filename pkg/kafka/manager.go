@@ -246,13 +246,14 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 		// Consume ultimately calls ConsumeClaim for every topic partition
 		err := c.consumerGroup.Consume(ctx, topics)
 		if err != nil {
-			klog.Fatalf("Error from consumer: %v", err)
+			klog.Errorf("Error from consumer handler: %v", err)
 		}
 		// check if context was cancelled, the consumer should stop
 		if ctx.Err() != nil {
 			klog.V(2).Infof("Manager: %s, Context cancelled", c.consumerGroupID)
 			return
 		}
+
 		klog.V(2).Infof(
 			"Completed ConsumeClaim for (%s), I will rerun\n",
 			c.consumerGroupID,

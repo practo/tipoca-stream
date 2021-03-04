@@ -123,26 +123,22 @@ func newLoadProcessor(
 	}
 }
 
-func (b *loadProcessor) ctxCancelled(ctx context.Context) bool {
+func (b *loadProcessor) ctxCancelled(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
-		err := ctx.Err()
-		klog.Warningf("Processing stopped! main ctx done, ctxErr: %v", err)
 		klog.Warningf(
 			"%s, batchId:%d, lastCommitted:%d: main ctx done. Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,
 		)
-		return true
+		return fmt.Errorf("Processing stopped! main ctx done (recreate), ctxErr: %v", ctx.Err())
 	case <-b.session.Context().Done():
-		err := ctx.Err()
-		klog.Warningf("Processing stopped! ctx done, ctxErr: %v", err)
 		klog.Warningf(
 			"%s, batchId:%d, lastCommitted:%d: session ctx done. Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,
 		)
-		return true
+		return fmt.Errorf("Processing stopped! session ctx done (recreate), ctxErr: %v", b.session.Context().Err())
 	default:
-		return false
+		return nil
 	}
 }
 
@@ -181,8 +177,8 @@ func (b *loadProcessor) markOffset(msgBuf []*serializer.Message) {
 	}
 }
 
-// handleShutdown is mostly used to log the messages before going down
-func (b *loadProcessor) handleShutdown() {
+// printCurrentState is mostly used to log the messages before going down
+func (b *loadProcessor) printCurrentState() {
 	klog.Infof(
 		"%s, batchId:%d: Batch processing gracefully shutdown.\n",
 		b.topic,
@@ -582,7 +578,7 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 func (b *loadProcessor) processBatch(
 	ctx context.Context,
 	msgBuf []*serializer.Message,
-) bool {
+) error {
 
 	if b.redshiftStats {
 		klog.V(2).Infof("dbstats: %+v\n", b.redshifter.Stats())
@@ -598,7 +594,9 @@ func (b *loadProcessor) processBatch(
 	for id, message := range msgBuf {
 		select {
 		case <-ctx.Done():
-			return false
+			return fmt.Errorf("Main context done, recreate, err: %v", ctx.Err())
+		case <-b.session.Context().Done():
+			return fmt.Errorf("Session context done, recreate, err: %v", b.session.Context().Err())
 		default:
 			job := StringMapToJob(message.Value.(map[string]interface{}))
 			schemaId = job.SchemaId
@@ -665,25 +663,26 @@ func (b *loadProcessor) processBatch(
 		klog.V(2).Infof("endbatch dbstats: %+v\n", b.redshifter.Stats())
 	}
 
-	return true
+	return nil
 }
 
 // Process implements serializer.MessageBatch
-func (b *loadProcessor) Process(ctx context.Context, msgBuf []*serializer.Message) {
+func (b *loadProcessor) Process(ctx context.Context, msgBuf []*serializer.Message) error {
 	start := time.Now()
 	b.setBatchId()
-	if b.ctxCancelled(ctx) {
-		return
+	err := b.ctxCancelled(ctx)
+	if err != nil {
+		return err
 	}
 
 	klog.Infof("%s, batchId:%d, size:%d: Processing...\n",
 		b.topic, b.batchId, len(msgBuf),
 	)
 
-	done := b.processBatch(ctx, msgBuf)
-	if !done {
-		b.handleShutdown()
-		return
+	err = b.processBatch(ctx, msgBuf)
+	if err != nil {
+		b.printCurrentState()
+		return err
 	}
 	b.markOffset(msgBuf)
 
@@ -699,4 +698,6 @@ func (b *loadProcessor) Process(ctx context.Context, msgBuf []*serializer.Messag
 		"%s, batchId:%d, size:%d, end:%d:, Processed in %s",
 		b.topic, b.batchId, len(msgBuf), b.batchEndOffset, timeTaken,
 	)
+
+	return nil
 }

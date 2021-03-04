@@ -89,6 +89,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 	)
 
 	var lastSchemaId *int
+	var err error
 	processor := newLoadProcessor(
 		session,
 		claim.Topic(),
@@ -126,7 +127,10 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 					"topic:%s: ConsumeClaim ending, hit",
 					claim.Topic(),
 				)
-				msgBatch.Process(h.ctx)
+				err = msgBatch.Process(h.ctx)
+				if err != nil {
+					return err
+				}
 				klog.V(2).Infof(
 					"ConsumeClaim ended for topic: %s, partition: %d (would rerun by manager)\n",
 					claim.Topic(),
@@ -167,10 +171,16 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 					*lastSchemaId,
 					upstreamJobSchemaId,
 				)
-				msgBatch.Process(h.ctx)
+				err = msgBatch.Process(h.ctx)
+				if err != nil {
+					return err
+				}
 			}
 			// Process the batch by size or insert in batch
-			msgBatch.Insert(h.ctx, msg)
+			err = msgBatch.Insert(h.ctx, msg)
+			if err != nil {
+				return err
+			}
 			*lastSchemaId = upstreamJobSchemaId
 		case <-maxWaitTicker.C:
 			// Process the batch by time
@@ -178,7 +188,10 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				"topic:%s: maxWaitSeconds hit",
 				claim.Topic(),
 			)
-			msgBatch.Process(h.ctx)
+			err = msgBatch.Process(h.ctx)
+			if err != nil {
+				return err
+			}
 		}
 	}
 }
