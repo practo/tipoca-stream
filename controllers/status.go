@@ -165,18 +165,18 @@ func (sb *buildStatus) computeReloading() statusBuilder {
 
 func (sb *buildStatus) computeReloadingDupe() statusBuilder {
 	reloadDupeTopics := []string{}
-	releasedMap := toMap(sb.released)
+	alreadyReleased := alreadyReleasedTopics(sb.rsk)
 
 	for _, reloadingTopic := range sb.reloading {
-		_, ok := releasedMap[reloadingTopic]
-		if !ok {
+		yes, ok := alreadyReleased[reloadingTopic]
+		if ok && yes {
+			reloadDupeTopics = append(reloadDupeTopics, reloadingTopic)
+		} else {
 			klog.V(4).Infof(
 				"%s is a new topic (reload-dupe not required)",
 				reloadingTopic,
 			)
-			continue
 		}
-		reloadDupeTopics = append(reloadDupeTopics, reloadingTopic)
 	}
 
 	sb.reloadingDupe = reloadDupeTopics
@@ -198,6 +198,44 @@ func (sb *buildStatus) build() *status {
 
 	s.updateMaskStatus()
 	return s
+}
+
+// alreadyReleasedTopics finds if the topic was relaesed before or not, if it
+// was released before the reloadingDupe is configured for it
+func alreadyReleasedTopics(rsk *tipocav1.RedshiftSink) map[string]bool {
+	topics := make(map[string]bool)
+	if rsk.Status.MaskStatus == nil ||
+		rsk.Status.MaskStatus.CurrentMaskStatus == nil {
+		return topics
+	}
+
+	if rsk.Status.MaskStatus.CurrentMaskVersion == nil {
+		return topics
+	}
+
+	for topic, status := range rsk.Status.MaskStatus.CurrentMaskStatus {
+		if status.ReleasedVersion == nil {
+			topics[topic] = false
+		} else {
+			topics[topic] = true
+		}
+	}
+
+	return topics
+}
+
+func currentReleasedVersion(rsk *tipocav1.RedshiftSink, topic string) *string {
+	if rsk.Status.MaskStatus == nil ||
+		rsk.Status.MaskStatus.CurrentMaskStatus == nil {
+		return nil
+	}
+
+	status, ok := rsk.Status.MaskStatus.CurrentMaskStatus[topic]
+	if !ok {
+		return nil
+	}
+
+	return status.ReleasedVersion
 }
 
 func currentTopicsByMaskStatus(rsk *tipocav1.RedshiftSink, phase tipocav1.MaskPhase, version string) []string {
@@ -300,11 +338,14 @@ func (s *status) computerCurrentMaskStatus() map[string]tipocav1.TopicMaskStatus
 		_, ok := topicsReleased[topic]
 		if ok {
 			status[topic] = tipocav1.TopicMaskStatus{
-				Version: s.desiredVersion,
-				Phase:   tipocav1.MaskActive,
+				Version:         s.desiredVersion,
+				Phase:           tipocav1.MaskActive,
+				ReleasedVersion: &s.desiredVersion,
 			}
 			continue
 		}
+
+		releasedVersion := currentReleasedVersion(s.rsk, topic)
 
 		// the topic is waiting to get released, it has reached realtime
 		// release can happen any time soon, since it is one operation
@@ -312,8 +353,9 @@ func (s *status) computerCurrentMaskStatus() map[string]tipocav1.TopicMaskStatus
 		_, ok = topicsRealtime[topic]
 		if ok {
 			status[topic] = tipocav1.TopicMaskStatus{
-				Version: s.desiredVersion,
-				Phase:   tipocav1.MaskRealtime,
+				Version:         s.desiredVersion,
+				Phase:           tipocav1.MaskRealtime,
+				ReleasedVersion: releasedVersion,
 			}
 			continue
 		}
@@ -322,8 +364,9 @@ func (s *status) computerCurrentMaskStatus() map[string]tipocav1.TopicMaskStatus
 		_, ok = topicsReloading[topic]
 		if ok {
 			status[topic] = tipocav1.TopicMaskStatus{
-				Version: s.desiredVersion,
-				Phase:   tipocav1.MaskReloading,
+				Version:         s.desiredVersion,
+				Phase:           tipocav1.MaskReloading,
+				ReleasedVersion: releasedVersion,
 			}
 			continue
 		}
@@ -337,8 +380,9 @@ func (s *status) computerCurrentMaskStatus() map[string]tipocav1.TopicMaskStatus
 
 		// else for all the other topics it is considered they are active
 		status[topic] = tipocav1.TopicMaskStatus{
-			Version: s.desiredVersion,
-			Phase:   tipocav1.MaskActive,
+			Version:         s.desiredVersion,
+			Phase:           tipocav1.MaskActive,
+			ReleasedVersion: &s.desiredVersion,
 		}
 	}
 

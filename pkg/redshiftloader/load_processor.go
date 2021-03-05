@@ -3,6 +3,7 @@ package redshiftloader
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
@@ -15,6 +16,7 @@ import (
 	"github.com/spf13/viper"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
@@ -90,7 +92,7 @@ func newLoadProcessor(
 	partition int32,
 	saramaConfig kafka.SaramaConfig,
 	redshifter *redshift.Redshift,
-) *loadProcessor {
+) serializer.MessageBatchProcessor {
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
 		viper.GetString("s3sink.secretAccessKey"),
@@ -121,24 +123,29 @@ func newLoadProcessor(
 	}
 }
 
-// TODO: get rid of this https://github.com/herryg91/gobatch/issues/2
-func (b *loadProcessor) ctxCancelled(ctx context.Context) bool {
+func (b *loadProcessor) ctxCancelled(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
-		klog.Infof(
-			"topic:%s, batchId:%d, lastCommittedOffset:%d: Cancelled.\n",
+		klog.Warningf(
+			"%s, batchId:%d, lastCommitted:%d: main ctx done. Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,
 		)
-		return true
+		return fmt.Errorf("Processing stopped! main ctx done (recreate), ctxErr: %v", ctx.Err())
+	case <-b.session.Context().Done():
+		klog.Warningf(
+			"%s, batchId:%d, lastCommitted:%d: session ctx done. Cancelled.\n",
+			b.topic, b.batchId, b.lastCommittedOffset,
+		)
+		return fmt.Errorf("Processing stopped! session ctx done (recreate), ctxErr: %v", b.session.Context().Err())
 	default:
-		return false
+		return nil
 	}
 }
 
 // setBatchId is used for logging, helps in debugging.
 func (b *loadProcessor) setBatchId() {
 	if b.batchId == maxBatchId {
-		klog.V(5).Infof("topic:%s: Resetting batchId to zero.", b.topic)
+		klog.V(5).Infof("%s: Resetting batchId to zero.", b.topic)
 		b.batchId = 0
 	}
 
@@ -146,46 +153,42 @@ func (b *loadProcessor) setBatchId() {
 }
 
 func (b *loadProcessor) markOffset(msgBuf []*serializer.Message) {
-	for i, message := range msgBuf {
+	if len(msgBuf) > 0 {
+		lastMessage := msgBuf[len(msgBuf)-1]
+		klog.V(2).Infof("%s, offset: %v, marking", lastMessage.Topic, lastMessage.Offset+1)
 		b.session.MarkOffset(
-			message.Topic,
-			message.Partition,
-			message.Offset+1,
+			lastMessage.Topic,
+			lastMessage.Partition,
+			lastMessage.Offset+1,
 			"",
 		)
+		klog.V(2).Infof("%s, offset: %v, marked", lastMessage.Topic, lastMessage.Offset+1)
 
-		// By default operator sets autoCommit as false but it is not a
-		// problem even if it is set to true because
-		// the duplication is prevented by the merge and order is maintained
-		// by kafka.
 		if b.autoCommit == false {
-			klog.V(2).Infof("topic:%s, Committing (autoCommit=false)", message.Topic)
+			klog.V(2).Infof("%s, committing (autoCommit=false)", lastMessage.Topic)
 			b.session.Commit()
+			klog.V(2).Infof("%s, committed (autoCommit=false)", lastMessage.Topic)
 		}
-		b.lastCommittedOffset = message.Offset
-		var verbosity klog.Level = 5
-		if len(msgBuf)-1 == i {
-			verbosity = 3
-		}
-		klog.V(verbosity).Infof(
-			"topic:%s, lastCommittedOffset:%d: Processed\n",
-			message.Topic, b.lastCommittedOffset,
-		)
+
+		b.lastCommittedOffset = lastMessage.Offset
+
+	} else {
+		klog.Warningf("%s, markOffset not possible for empty batch", b.topic)
 	}
 }
 
-// handleShutdown is mostly used to log the messages before going down
-func (b *loadProcessor) handleShutdown() {
+// printCurrentState is mostly used to log the messages before going down
+func (b *loadProcessor) printCurrentState() {
 	klog.Infof(
-		"topic:%s, batchId:%d: Batch processing gracefully shutdown.\n",
+		"%s, batchId:%d: Batch processing gracefully shutdown.\n",
 		b.topic,
 		b.batchId,
 	)
 	if b.lastCommittedOffset == 0 {
-		klog.Infof("topic:%s: Nothing new was committed.\n", b.topic)
+		klog.Infof("%s: Nothing new was committed.\n", b.topic)
 	} else {
 		klog.Infof(
-			"topic:%s: lastCommittedOffset: %d. Shut down.\n",
+			"%s: lastCommittedOffset: %d. Shut down.\n",
 			b.topic,
 			b.lastCommittedOffset,
 		)
@@ -213,11 +216,10 @@ func (b *loadProcessor) loadTable(schema, table, s3ManifestKey string) {
 		klog.Fatalf("Error committing tx, err:%v\n", err)
 	}
 
-	klog.Infof(
-		"topic:%s, batchId:%d: Loaded Staging Table: %s\n",
+	klog.V(2).Infof(
+		"%s, copied staging\n",
 		b.topic,
-		b.batchId,
-		table)
+	)
 }
 
 // deDupeStagingTable keeps the highest offset per pk in the table, keeping
@@ -235,6 +237,7 @@ func (b *loadProcessor) deDupeStagingTable(tx *sql.Tx) {
 		tx.Rollback()
 		klog.Fatalf("Deduplication failed, %v\n", err)
 	}
+	klog.V(2).Infof("%s, deduped", b.topic)
 }
 
 // deleteCommonRowsInTargetTable removes all the rows from the target table
@@ -251,6 +254,7 @@ func (b *loadProcessor) deleteCommonRowsInTargetTable(tx *sql.Tx) {
 		tx.Rollback()
 		klog.Fatalf("DeleteCommon failed, %v\n", err)
 	}
+	klog.V(2).Infof("%s, deleted common", b.topic)
 }
 
 // deleteRowsWithDeleteOpInStagingTable deletes the rows with operation
@@ -267,6 +271,7 @@ func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
 		tx.Rollback()
 		klog.Fatalf("DeleteRowsWithDeleteOp failed, %v\n", err)
 	}
+	klog.V(2).Infof("%s, deleted delete-op", b.topic)
 }
 
 // insertIntoTargetTable uses unload and copy strategy to bulk insert into
@@ -311,6 +316,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 		tx.Rollback()
 		klog.Fatalf("Unloading staging table to s3 failed, %v\n", err)
 	}
+	klog.V(2).Infof("%s, unloaded", b.topic)
 
 	s3ManifestKey := s3CopyDir + "manifest"
 	err = b.redshifter.Copy(tx,
@@ -326,6 +332,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 		tx.Rollback()
 		klog.Fatalf("Copying data to target table from s3 failed, %v\n", err)
 	}
+	klog.V(2).Infof("%s, copied", b.topic)
 }
 
 // dropTable removes the table only if it exists else returns and does nothing
@@ -378,6 +385,7 @@ func (b *loadProcessor) merge() {
 	b.deleteCommonRowsInTargetTable(tx)
 	b.deleteRowsWithDeleteOpInStagingTable(tx)
 	b.insertIntoTargetTable(tx)
+
 	err = tx.Commit()
 	if err != nil {
 		klog.Fatalf("Error committing tx, err:%v\n", err)
@@ -458,7 +466,7 @@ func (b *loadProcessor) createStagingTable(
 		klog.Fatalf("Error committing tx, err:%v\n", err)
 	}
 	klog.V(3).Infof(
-		"topic:%s, schemaId:%d: Staging Table %s created\n",
+		"%s, schemaId:%d: Staging Table %s created\n",
 		b.topic,
 		schemaId,
 		b.stagingTable.Name)
@@ -536,7 +544,7 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 			klog.Fatalf("Error committing tx, err:%v\n", err)
 		}
 		klog.V(2).Infof(
-			"topic:%s, schemaId:%d: Table %s created",
+			"%s, schemaId:%d: Table %s created",
 			b.topic,
 			schemaId,
 			inputTable.Name)
@@ -570,10 +578,10 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 func (b *loadProcessor) processBatch(
 	ctx context.Context,
 	msgBuf []*serializer.Message,
-) bool {
+) error {
 
 	if b.redshiftStats {
-		klog.V(2).Infof("startbatch dbstats: %+v\n", b.redshifter.Stats())
+		klog.V(2).Infof("dbstats: %+v\n", b.redshifter.Stats())
 	}
 
 	var inputTable redshift.Table
@@ -586,7 +594,9 @@ func (b *loadProcessor) processBatch(
 	for id, message := range msgBuf {
 		select {
 		case <-ctx.Done():
-			return false
+			return fmt.Errorf("Main context done, recreate, err: %v", ctx.Err())
+		case <-b.session.Context().Done():
+			return fmt.Errorf("Session context done, recreate, err: %v", b.session.Context().Err())
 		default:
 			job := StringMapToJob(message.Value.(map[string]interface{}))
 			schemaId = job.SchemaId
@@ -594,6 +604,10 @@ func (b *loadProcessor) processBatch(
 
 			// this assumes all messages in a batch have same schema id
 			if id == 0 {
+				b.batchStartOffset = message.Offset
+				klog.V(2).Infof("%s, batchId:%d, startOffset:%v\n",
+					b.topic, b.batchId, b.batchStartOffset,
+				)
 				b.upstreamTopic = job.UpstreamTopic
 				klog.V(3).Infof("Processing schema: %+v\n", schemaId)
 				resp, err := b.schemaTransformer.TransformValue(
@@ -636,7 +650,7 @@ func (b *loadProcessor) processBatch(
 			s3ManifestKey, err)
 	}
 
-	klog.V(2).Infof("topic: %s, using merge strategy\n", b.topic)
+	klog.V(2).Infof("%s, load staging\n", b.topic)
 	b.createStagingTable(schemaId, inputTable)
 	b.loadTable(
 		b.stagingTable.Meta.Schema,
@@ -649,29 +663,41 @@ func (b *loadProcessor) processBatch(
 		klog.V(2).Infof("endbatch dbstats: %+v\n", b.redshifter.Stats())
 	}
 
-	return true
+	return nil
 }
 
-func (b *loadProcessor) process(ctx context.Context, msgBuf []*serializer.Message) {
+// Process implements serializer.MessageBatch
+func (b *loadProcessor) Process(ctx context.Context, msgBuf []*serializer.Message) error {
+	start := time.Now()
 	b.setBatchId()
-	if b.ctxCancelled(ctx) {
-		return
+	err := b.ctxCancelled(ctx)
+	if err != nil {
+		return err
 	}
 
-	klog.Infof("topic:%s, batchId:%d, size:%d: Processing...\n",
+	klog.Infof("%s, batchId:%d, size:%d: Processing...\n",
 		b.topic, b.batchId, len(msgBuf),
 	)
 
-	done := b.processBatch(ctx, msgBuf)
-	if !done {
-		b.handleShutdown()
-		return
+	err = b.processBatch(ctx, msgBuf)
+	if err != nil {
+		b.printCurrentState()
+		return err
 	}
-
 	b.markOffset(msgBuf)
 
+	var timeTaken string
+	secondsTaken := time.Since(start).Seconds()
+	if secondsTaken > 60 {
+		timeTaken = fmt.Sprintf("%.0fm", secondsTaken/60)
+	} else {
+		timeTaken = fmt.Sprintf("%.0fs", secondsTaken)
+	}
+
 	klog.Infof(
-		"topic:%s, batchId:%d, startOffset:%d, endOffset:%d: Processed",
-		b.topic, b.batchId, b.batchStartOffset, b.batchEndOffset,
+		"%s, batchId:%d, size:%d, end:%d:, Processed in %s",
+		b.topic, b.batchId, len(msgBuf), b.batchEndOffset, timeTaken,
 	)
+
+	return nil
 }

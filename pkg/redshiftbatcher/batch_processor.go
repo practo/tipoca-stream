@@ -21,6 +21,10 @@ import (
 	"time"
 )
 
+const (
+	maxBatchId = 99
+)
+
 type batchProcessor struct {
 	topic             string
 	loaderTopicPrefix string
@@ -32,9 +36,6 @@ type batchProcessor struct {
 
 	// session is required to commit the offsets on succesfull processing
 	session sarama.ConsumerGroupSession
-
-	// mainContext for cancellations
-	mainContext context.Context
 
 	// s3Sink
 	s3sink *s3sink.S3Sink
@@ -100,15 +101,14 @@ type batchProcessor struct {
 }
 
 func newBatchProcessor(
+	session sarama.ConsumerGroupSession,
 	topic string,
 	partition int32,
-	session sarama.ConsumerGroupSession,
-	mainContext context.Context,
 	kafkaConfig kafka.KafkaConfig,
 	saramaConfig kafka.SaramaConfig,
 	maskConfig masker.MaskConfig,
 	kafkaLoaderTopicPrefix string,
-) *batchProcessor {
+) serializer.MessageBatchProcessor {
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
 		viper.GetString("s3sink.secretAccessKey"),
@@ -142,12 +142,11 @@ func newBatchProcessor(
 	klog.Infof("topic: %v, autoCommit: %v", topic, saramaConfig.AutoCommit)
 
 	return &batchProcessor{
-		topic:              topic,
-		loaderTopicPrefix:  kafkaLoaderTopicPrefix,
-		partition:          partition,
-		autoCommit:         saramaConfig.AutoCommit,
 		session:            session,
-		mainContext:        mainContext,
+		topic:              topic,
+		partition:          partition,
+		loaderTopicPrefix:  kafkaLoaderTopicPrefix,
+		autoCommit:         saramaConfig.AutoCommit,
 		s3sink:             sink,
 		s3BucketDir:        viper.GetString("s3sink.bucketDir"),
 		bodyBuf:            bytes.NewBuffer(make([]byte, 0, 4096)),
@@ -178,19 +177,22 @@ func removeEmptyNullValues(value map[string]*string) map[string]*string {
 	return value
 }
 
-// TODO: get rid of this https://github.com/herryg91/gobatch/issues/2
-func (b *batchProcessor) ctxCancelled() bool {
+func (b *batchProcessor) ctxCancelled(ctx context.Context) error {
 	select {
-	case <-b.mainContext.Done():
-		err := b.mainContext.Err()
-		klog.Warningf("Batch processing stopped, mainContext done, ctxErr: %v", err)
-		klog.V(2).Infof(
-			"topic:%s, batchId:%d, lastCommittedOffset:%d: Cancelled.\n",
+	case <-ctx.Done():
+		klog.Warningf(
+			"%s, batchId:%d, lastCommitted:%d: main ctx done. Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,
 		)
-		return true
+		return fmt.Errorf("Processing stopped! main ctx done (recreate), ctxErr: %v", ctx.Err())
+	case <-b.session.Context().Done():
+		klog.Warningf(
+			"%s, batchId:%d, lastCommitted:%d: session ctx done. Cancelled.\n",
+			b.topic, b.batchId, b.lastCommittedOffset,
+		)
+		return fmt.Errorf("Processing stopped! session ctx done (recreate), ctxErr: %v", b.session.Context().Err())
 	default:
-		return false
+		return nil
 	}
 }
 
@@ -227,10 +229,8 @@ func (b *batchProcessor) setS3key(topic string, partition int32, offset int64) {
 	}
 }
 
-func (b *batchProcessor) markOffset(datas []interface{}) {
-	for i, data := range datas {
-		message := data.(*serializer.Message)
-
+func (b *batchProcessor) markOffset(msgBuf []*serializer.Message) {
+	for i, message := range msgBuf {
 		b.session.MarkOffset(
 			message.Topic,
 			message.Partition,
@@ -249,7 +249,7 @@ func (b *batchProcessor) markOffset(datas []interface{}) {
 		}
 		b.lastCommittedOffset = message.Offset
 		var verbosity klog.Level = 5
-		if len(datas)-1 == i {
+		if len(msgBuf)-1 == i {
 			verbosity = 3
 		}
 		klog.V(verbosity).Infof(
@@ -397,46 +397,52 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 // otherwise return false in case of gracefull shutdown signals being captured,
 // this helps in cleanly shutting down the batch processing.
 func (b *batchProcessor) processBatch(
-	mainContext context.Context, datas []interface{}) bool {
+	ctx context.Context,
+	msgBuf []*serializer.Message,
+) error {
 
 	b.s3Key = ""
-	for id, data := range datas {
+	for id, message := range msgBuf {
 		select {
-		case <-mainContext.Done():
-			return false
+		case <-ctx.Done():
+			return fmt.Errorf("Main context done, recreate, err: %v", ctx.Err())
+		case <-b.session.Context().Done():
+			return fmt.Errorf("Session context done, recreate, err: %v", b.session.Context().Err())
 		default:
-			b.processMessage(data.(*serializer.Message), id)
+			b.processMessage(message, id)
 		}
 	}
 
-	return true
+	return nil
 }
 
-func (b *batchProcessor) process(workerID int, datas []interface{}) {
+// Process implements serializer.MessageBatch
+func (b *batchProcessor) Process(ctx context.Context, msgBuf []*serializer.Message) error {
 	now := time.Now()
 
 	b.setBatchId()
 	b.batchSchemaId = -1
 	b.skipMerge = true
 
-	if b.ctxCancelled() {
-		return
+	err := b.ctxCancelled(ctx)
+	if err != nil {
+		return err
 	}
 
 	klog.Infof("topic:%s, batchId:%d, size:%d: Processing...\n",
-		b.topic, b.batchId, len(datas),
+		b.topic, b.batchId, len(msgBuf),
 	)
 
-	done := b.processBatch(b.mainContext, datas)
-	if !done {
+	err = b.processBatch(ctx, msgBuf)
+	if err != nil {
 		b.handleShutdown()
-		return
+		return err
 	}
 
 	klog.Infof("topic:%s, batchId:%d, size:%d: Uploading...\n",
-		b.topic, b.batchId, len(datas),
+		b.topic, b.batchId, len(msgBuf),
 	)
-	err := b.s3sink.Upload(b.s3Key, b.bodyBuf)
+	err = b.s3sink.Upload(b.s3Key, b.bodyBuf)
 	if err != nil {
 		klog.Fatalf("Error writing to s3, err=%v\n", err)
 	}
@@ -454,7 +460,7 @@ func (b *batchProcessor) process(workerID int, datas []interface{}) {
 
 	b.signalLoad()
 
-	b.markOffset(datas)
+	b.markOffset(msgBuf)
 
 	klog.Infof(
 		"topic:%s, batchId:%d, startOffset:%d, endOffset:%d: Processed",
@@ -462,4 +468,6 @@ func (b *batchProcessor) process(workerID int, datas []interface{}) {
 	)
 
 	setBatchProcessingSeconds(now, b.topic)
+
+	return nil
 }

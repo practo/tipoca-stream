@@ -38,13 +38,6 @@ type KafkaConfig struct {
 	TLSConfig   TLSConfig `yaml:"tlsConfig"`
 }
 
-type SaramaConfig struct {
-	Assignor   string `yaml:"assignor"` // default is there
-	Oldest     bool   `yaml:"oldest"`
-	Log        bool   `yaml:"log"`
-	AutoCommit bool   `yaml:"autoCommit"`
-}
-
 func NewConsumerGroup(
 	config ConsumerGroupConfig,
 	consumerGroupHandler sarama.ConsumerGroupHandler,
@@ -61,9 +54,6 @@ func NewConsumerGroup(
 	}
 	if config.LoaderTopicPrefix == "" {
 		config.LoaderTopicPrefix = "loader-"
-	}
-	if config.Sarama.Assignor == "" {
-		config.Sarama.Assignor = "range"
 	}
 
 	switch config.Kafka.KafkaClient {

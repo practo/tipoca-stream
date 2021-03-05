@@ -57,6 +57,19 @@ func loaderName(rskName, sinkGroup string) string {
 	return fmt.Sprintf("%s-%s%s", rskName, sinkGroup, LoaderSuffix)
 }
 
+func redshiftConnections(rsk *tipocav1.RedshiftSink, defaultMaxOpenConns, defaultMaxIdleConns int) (int, int) {
+	maxOpenConns := defaultMaxOpenConns
+	maxIdleConns := defaultMaxIdleConns
+	if rsk.Spec.Loader.RedshiftMaxOpenConns != nil {
+		maxOpenConns = *rsk.Spec.Loader.RedshiftMaxOpenConns
+	}
+	if rsk.Spec.Loader.RedshiftMaxIdleConns != nil {
+		maxIdleConns = *rsk.Spec.Loader.RedshiftMaxIdleConns
+	}
+
+	return maxOpenConns, maxIdleConns
+}
+
 func NewLoader(
 	name string,
 	rsk *tipocav1.RedshiftSink,
@@ -67,6 +80,8 @@ func NewLoader(
 	defaultImage string,
 	defaultKafkaVersion string,
 	tlsConfig *kafka.TLSConfig,
+	defaultMaxOpenConns int,
+	defaultMaxIdleConns int,
 ) (
 	Deployment,
 	error,
@@ -81,9 +96,16 @@ func NewLoader(
 	if kafkaVersion == "" {
 		kafkaVersion = defaultKafkaVersion
 	}
+
+	// defaults for the loader
+	var sessionTimeoutSeconds int = 10
+	var hearbeatIntervalSeconds int = 2
+	var maxProcessingSeconds float32 = 600 // loader can be slow based on batch size
+
 	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
 		totalTopics += len(group.topics)
+
 		groupConfigs = append(groupConfigs, kafka.ConsumerGroupConfig{
 			GroupID: consumerGroupID(rsk.Name, rsk.Namespace, groupID, "-loader"),
 			TopicRegexes: expandTopicsToRegex(
@@ -98,13 +120,18 @@ func NewLoader(
 				TLSConfig: *tlsConfig,
 			},
 			Sarama: kafka.SaramaConfig{
-				Assignor:   "range",
-				Oldest:     true,
-				Log:        false,
-				AutoCommit: false,
+				Assignor:                "range",
+				Oldest:                  true,
+				Log:                     true,
+				AutoCommit:              false,
+				SessionTimeoutSeconds:   &sessionTimeoutSeconds,
+				HearbeatIntervalSeconds: &hearbeatIntervalSeconds,
+				MaxProcessingSeconds:    &maxProcessingSeconds,
 			},
 		})
 	}
+
+	maxOpenConns, maxIdleConns := redshiftConnections(rsk, defaultMaxOpenConns, defaultMaxIdleConns)
 
 	conf := config.Config{
 		Loader: redshiftloader.LoaderConfig{
@@ -130,8 +157,8 @@ func NewLoader(
 			Password:     secret["redshiftPassword"],
 			Timeout:      10,
 			Stats:        true,
-			MaxOpenConns: 3,
-			MaxIdleConns: 3,
+			MaxOpenConns: maxOpenConns,
+			MaxIdleConns: maxIdleConns,
 		},
 	}
 	confBytes, err := yaml.Marshal(conf)
@@ -153,9 +180,14 @@ func NewLoader(
 	}
 
 	confString := string(confBytes)
-	objectName := getObjectName(name, confString)
+	hash, err := getHashStructure(conf)
+	if err != nil {
+		return nil, err
+	}
+	objectName := fmt.Sprintf("%s-%s", name, hash)
 	labels := getDefaultLabels(
-		LoaderLabelInstance, sinkGroup, objectName, rsk.Name)
+		LoaderLabelInstance, sinkGroup, objectName, rsk.Name,
+	)
 
 	configSpec := configMapSpec{
 		name:       objectName,

@@ -114,7 +114,7 @@ func (r *releaser) releaseTopic(
 	}
 	if tableExist {
 		klog.V(4).Infof("drop table %v", table)
-		err = r.redshifter.DropTable(tx, schema, table)
+		err = r.redshifter.DropTableWithCascade(tx, schema, table)
 		if err != nil {
 			return err
 		}
@@ -186,7 +186,7 @@ func (r *releaser) release(
 				rollbackErr,
 			)
 		}
-		return fmt.Errorf("Error releasing topic: %s err: %v\n", topic, err)
+		return err
 	}
 
 	return nil
