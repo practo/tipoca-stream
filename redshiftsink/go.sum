@@ -405,6 +405,8 @@ github.com/mitchellh/go-homedir v1.1.0 h1:lukF9ziXFxDFPkA1vsr5zpc1XuPDn/wFntq5mG
 github.com/mitchellh/go-homedir v1.1.0/go.mod h1:SfyaCUpYCn1Vlf4IUYiD9fPX4A5wJrkLzIz1N1q0pr0=
 github.com/mitchellh/go-testing-interface v1.0.0/go.mod h1:kRemZodwjscx+RGhAo8eIhFbs2+BFgRtFPeD/KE+zxI=
 github.com/mitchellh/gox v0.4.0/go.mod h1:Sd9lOJ0+aimLBi73mGofS1ycjY8lL3uZM3JPS42BGNg=
+github.com/mitchellh/hashstructure/v2 v2.0.1 h1:L60q1+q7cXE4JeEJJKMnh2brFIe3rZxCihYAB61ypAY=
+github.com/mitchellh/hashstructure/v2 v2.0.1/go.mod h1:MG3aRVU/N29oo/V/IhBX8GR/zz4kQkprJgF2EVszyDE=
 github.com/mitchellh/iochan v1.0.0/go.mod h1:JwYml1nuB7xOzsp52dPpHFffvOCDupsG0QubkSMEySY=
 github.com/mitchellh/mapstructure v0.0.0-20160808181253-ca63d7c062ee/go.mod h1:FVVH3fgwuzCH5S8UJGiWEs2h04kUh9fWfEaFds41c1Y=
 github.com/mitchellh/mapstructure v1.1.2 h1:fmNYVwqnSfB9mZU6OS2O6GsXM+wcskZDuKQzvN1EDeE=
@@ -481,8 +483,6 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/posener/complete v1.1.1/go.mod h1:em0nMJCgc9GFtwrmVmEMR/ZL6WyhyjMBndrE9hABlRI=
 github.com/pquerna/cachecontrol v0.0.0-20171018203845-0dec1b30a021/go.mod h1:prYjPmNq4d1NPVmpShWobRqXY3q7Vp+80DqgxxUrUIA=
-github.com/practo/gobatch v0.0.0-20200822085922-4905d08d9f40 h1:ukO+fKWBM3U9LYZhB3Mm+BA8S04Mjc880W/EUbpoMVg=
-github.com/practo/gobatch v0.0.0-20200822085922-4905d08d9f40/go.mod h1:OR//ozfD9hhQvQ1exBwHezn3VtEV1BjaLWj1LP+gAAk=
 github.com/practo/klog/v2 v2.2.1 h1:yV/SavG73KHSmCVwtDap1RGe+2jd86e1eugT+Mv2/FA=
 github.com/practo/klog/v2 v2.2.1/go.mod h1:WMkpfPwTxLgSLookpI4UUv2zL7tMltKACK/FHB1zLV0=
 github.com/practo/pq v0.0.0-20200930024154-af3ceb106a20 h1:05vUPBE8rE/C036Jb/Rzt4699sv+GzZSxAWVlw0wblk=
