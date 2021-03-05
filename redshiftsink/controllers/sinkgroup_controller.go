@@ -61,7 +61,7 @@ type sinkGroupBuilder interface {
 	setMaskVersion(version string) sinkGroupBuilder
 	setTopicGroups() sinkGroupBuilder
 	buildBatcher(secret map[string]string, defaultImage, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig) sinkGroupBuilder
-	buildLoader(secret map[string]string, defaultImage, tableSuffix string, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig) sinkGroupBuilder
+	buildLoader(secret map[string]string, defaultImage, tableSuffix string, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig, defaultMaxOpenConns int, defaultMaxIdleConns int) sinkGroupBuilder
 	build() *sinkGroup
 }
 
@@ -156,6 +156,8 @@ func (sb *buildSinkGroup) buildLoader(
 	tableSuffix string,
 	defaultKafkaVersion string,
 	tlsConfig *kafka.TLSConfig,
+	defaultMaxOpenConns int,
+	defaultMaxIdleConns int,
 ) sinkGroupBuilder {
 	consumerGroups, err := computeConsumerGroups(sb.topicGroups, sb.topics)
 	if err != nil {
@@ -171,6 +173,8 @@ func (sb *buildSinkGroup) buildLoader(
 		defaultImage,
 		defaultKafkaVersion,
 		tlsConfig,
+		defaultMaxOpenConns,
+		defaultMaxIdleConns,
 	)
 	if err != nil {
 		klog.Fatalf("Error making loader: %v", err)
@@ -614,11 +618,11 @@ func (s *sinkGroup) topicRealtime(
 	cacheLoaded, ok := cache.Load(topic)
 	if ok {
 		realtimeCache = cacheLoaded.(kafkaRealtimeCache)
-		// 120 to 210 seconds
-		validitySeconds := rand.Intn(90) + 120
+		// 300 to 240 seconds
+		validitySeconds := rand.Intn(120) + 300
 		klog.V(5).Infof("rsk/%s validity seconds: %v topic: %s", s.rsk.Name, validitySeconds, topic)
 		if cacheValid(time.Second*time.Duration(validitySeconds), realtimeCache.lastCacheRefresh) {
-			klog.V(2).Infof("rsk/%s (realtime cache hit) topic: %s", s.rsk.Name, topic)
+			klog.V(4).Infof("rsk/%s (realtime cache hit) topic: %s", s.rsk.Name, topic)
 			if realtimeCache.realtime {
 				return true, realtimeCache.lastCacheRefresh, nil
 			}
@@ -642,7 +646,7 @@ func (s *sinkGroup) topicRealtime(
 	if err != nil {
 		return false, &now, fmt.Errorf("Error getting current offset for %s", topic)
 	}
-	klog.V(2).Infof("%s, lastOffset=%v", topic, batcherLastOffset)
+	klog.V(4).Infof("%s, lastOffset=%v", topic, batcherLastOffset)
 
 	// This won't work for topics which have lastOffset less than lag
 	// klog.V(2).Infof("%s, lastOffset=%v", topic, batcherLastOffset)
@@ -660,7 +664,7 @@ func (s *sinkGroup) topicRealtime(
 	if err != nil {
 		return false, &now, err
 	}
-	klog.V(2).Infof("%s, currentOffset=%v", topic, batcherCurrentOffset)
+	klog.V(4).Infof("%s, currentOffset=%v", topic, batcherCurrentOffset)
 	if batcherCurrentOffset == -1 {
 		klog.V(2).Infof("%s, batcher cg 404, not realtime", topic)
 		return false, &now, nil
@@ -677,7 +681,7 @@ func (s *sinkGroup) topicRealtime(
 	if err != nil {
 		return false, &now, fmt.Errorf("Error getting current offset for %s", loaderTopic)
 	}
-	klog.V(2).Infof("%s, lastOffset=%v", loaderTopic, loaderLastOffset)
+	klog.V(4).Infof("%s, lastOffset=%v", loaderTopic, loaderLastOffset)
 
 	// This won't work for topics which have lastOffset less than lag
 	// if loaderLastOffset < maxLoaderLag {
@@ -693,7 +697,7 @@ func (s *sinkGroup) topicRealtime(
 	if err != nil {
 		return false, &now, err
 	}
-	klog.V(2).Infof("%s, currentOffset=%v (queried)", loaderTopic, loaderCurrentOffset)
+	klog.V(4).Infof("%s, currentOffset=%v (queried)", loaderTopic, loaderCurrentOffset)
 	if loaderCurrentOffset == -1 {
 		// CurrentOffset can be -1 in two cases
 		// 1. When the Consumer Group was never created in that case we return and consider the topic not realtime
@@ -712,7 +716,7 @@ func (s *sinkGroup) topicRealtime(
 	} else {
 		group.LoaderCurrentOffset = &loaderCurrentOffset
 		// updates the new queried lodaer offset
-		klog.V(2).Infof("%s, cg found", loaderTopic)
+		klog.V(4).Infof("%s, cg found", loaderTopic)
 		updateTopicGroup(s.rsk, topic, group)
 	}
 	klog.V(2).Infof("%s, currentOffset=%v, checking realtime", loaderTopic, *group.LoaderCurrentOffset)

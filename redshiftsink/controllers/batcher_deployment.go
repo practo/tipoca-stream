@@ -77,6 +77,12 @@ func NewBatcher(
 	if kafkaVersion == "" {
 		kafkaVersion = defaultKafkaVersion
 	}
+
+	// defaults for the batcher
+	var sessionTimeoutSeconds int = 10
+	var hearbeatIntervalSeconds int = 2
+	var maxProcessingSeconds float32 = 180 // batcher can be slow based on batch size
+
 	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
 		totalTopics += len(group.topics)
@@ -90,10 +96,13 @@ func NewBatcher(
 				TLSConfig: *tlsConfig,
 			},
 			Sarama: kafka.SaramaConfig{
-				Assignor:   "range",
-				Oldest:     true,
-				Log:        false,
-				AutoCommit: true,
+				Assignor:                "range",
+				Oldest:                  true,
+				Log:                     true,
+				AutoCommit:              true,
+				SessionTimeoutSeconds:   &sessionTimeoutSeconds,
+				HearbeatIntervalSeconds: &hearbeatIntervalSeconds,
+				MaxProcessingSeconds:    &maxProcessingSeconds,
 			},
 		})
 	}
@@ -137,9 +146,14 @@ func NewBatcher(
 	}
 
 	confString := string(confBytes)
-	objectName := getObjectName(name, confString)
+	hash, err := getHashStructure(conf)
+	if err != nil {
+		return nil, err
+	}
+	objectName := fmt.Sprintf("%s-%s", name, hash)
 	labels := getDefaultLabels(
-		BatcherLabelInstance, sinkGroup, objectName, rsk.Name)
+		BatcherLabelInstance, sinkGroup, objectName, rsk.Name,
+	)
 
 	configSpec := configMapSpec{
 		name:       objectName,

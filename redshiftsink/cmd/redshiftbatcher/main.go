@@ -81,9 +81,10 @@ func run(cmd *cobra.Command, args []string) {
 		ready := make(chan bool)
 		consumerGroup, err := kafka.NewConsumerGroup(
 			groupConfig,
-			redshiftbatcher.NewConsumer(
+			redshiftbatcher.NewHandler(
 				ready,
 				ctx,
+				config.Batcher,
 				groupConfig.Kafka,
 				groupConfig.Sarama,
 				maskConfig,
@@ -104,7 +105,7 @@ func run(cmd *cobra.Command, args []string) {
 			groupConfig.TopicRegexes,
 		)
 		wg.Add(1)
-		go manager.SyncTopics(ctx, 15, wg)
+		go manager.SyncTopics(ctx, wg)
 		wg.Add(1)
 		go manager.Consume(ctx, wg)
 	}
@@ -164,9 +165,6 @@ func run(cmd *cobra.Command, args []string) {
 	klog.V(1).Info("Goodbye!")
 }
 
-// main/main.main()
-// => consumer/manager.Consume() => consumer/consumer_group.Consume()
-// => sarama/consumer_group.Consume() => redshfitbatcher/kafka.ConsumeClaim()
 func main() {
 	rand.Seed(time.Now().UnixNano())
 

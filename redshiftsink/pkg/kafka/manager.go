@@ -11,6 +11,10 @@ import (
 	"github.com/practo/klog/v2"
 )
 
+const (
+	defaultTickSeconds = 5
+)
+
 type Manager struct {
 	// consumer client, this is sarama now, can be kafka-go later
 	consumerGroup ConsumerGroupInterface
@@ -23,6 +27,9 @@ type Manager struct {
 
 	// used for gracefully shutting down
 	// cancel context.CancelFunc
+
+	// tickSeconds is the time interval after which SyncTopics runs
+	tickSeconds int
 
 	// ready is used to signal the main thread about the readiness of
 	// the manager
@@ -63,6 +70,7 @@ func NewManager(
 		consumerGroupID: consumerGroupID,
 		topicRegexes:    topicRegexes,
 		// cancel:            cancel,
+		tickSeconds:       defaultTickSeconds, // starts with default
 		Ready:             make(chan bool),
 		activeTopics:      make(map[string]bool),
 		topicsInitialized: false,
@@ -149,10 +157,10 @@ func (c *Manager) setActiveTopics(topics []string) {
 }
 
 func (c *Manager) SyncTopics(
-	ctx context.Context, seconds int, wg *sync.WaitGroup) {
+	ctx context.Context, wg *sync.WaitGroup) {
 
 	defer wg.Done()
-	ticker := time.NewTicker(time.Second * time.Duration(seconds))
+	ticker := time.NewTicker(time.Second * time.Duration(c.tickSeconds))
 	for {
 		err := c.refreshTopics()
 		if err != nil {
@@ -167,11 +175,17 @@ func (c *Manager) SyncTopics(
 				"Inactive topics: %v. triggering shutdown in 3m...",
 				inactiveTopics,
 			)
-			time.Sleep(180 * time.Second)
+			ticker.Reset(time.Second * time.Duration(180))
+			c.tickSeconds = 180
 			klog.V(2).Info("Triggering shutdown to reload inactive topics")
 			// c.cancel()
 			syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 			return
+		}
+
+		if len(topics) > 0 && c.tickSeconds == defaultTickSeconds {
+			ticker.Reset(time.Second * time.Duration(600))
+			c.tickSeconds = 600
 		}
 
 		select {
@@ -232,13 +246,14 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 		// Consume ultimately calls ConsumeClaim for every topic partition
 		err := c.consumerGroup.Consume(ctx, topics)
 		if err != nil {
-			klog.Fatalf("Error from consumer: %v", err)
+			klog.Errorf("Error from consumer handler: %v", err)
 		}
 		// check if context was cancelled, the consumer should stop
 		if ctx.Err() != nil {
 			klog.V(2).Infof("Manager: %s, Context cancelled", c.consumerGroupID)
 			return
 		}
+
 		klog.V(2).Infof(
 			"Completed ConsumeClaim for (%s), I will rerun\n",
 			c.consumerGroupID,

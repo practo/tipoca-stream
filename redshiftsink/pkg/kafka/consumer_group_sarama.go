@@ -8,7 +8,18 @@ import (
 	"log"
 	"os"
 	"strings"
+	"time"
 )
+
+type SaramaConfig struct {
+	Assignor                string   `yaml:"assignor"` // default is there
+	Oldest                  bool     `yaml:"oldest"`
+	Log                     bool     `yaml:"log"`
+	AutoCommit              bool     `yaml:"autoCommit"`
+	SessionTimeoutSeconds   *int     `yaml:"sessionTimeoutSeconds,omitempty"`   // default 20s
+	HearbeatIntervalSeconds *int     `yaml:"hearbeatIntervalSeconds,omitempty"` // default 6s
+	MaxProcessingSeconds    *float32 `yaml:"maxProcessingSeconds,omitempty"`    // default 0.5s (it is for the complete batch)
+}
 
 type saramaConsumerGroup struct {
 	// client is required to get Kafka cluster related info like Topics
@@ -32,6 +43,10 @@ func NewSaramaConsumerGroup(
 	ConsumerGroupInterface,
 	error,
 ) {
+	// set defaults
+	if config.Sarama.Assignor == "" {
+		config.Sarama.Assignor = "range"
+	}
 	if config.Sarama.Log {
 		sarama.Logger = log.New(os.Stdout, "[sarama] ", log.LstdFlags)
 	}
@@ -56,6 +71,18 @@ func NewSaramaConsumerGroup(
 			"Unknown group-partition assignor: %s", config.Sarama.Assignor)
 	}
 
+	if config.Sarama.SessionTimeoutSeconds != nil {
+		c.Consumer.Group.Session.Timeout = time.Duration(*config.Sarama.SessionTimeoutSeconds) * time.Second
+	}
+
+	if config.Sarama.HearbeatIntervalSeconds != nil {
+		c.Consumer.Group.Heartbeat.Interval = time.Duration(*config.Sarama.HearbeatIntervalSeconds) * time.Second
+	}
+
+	if config.Sarama.MaxProcessingSeconds != nil {
+		c.Consumer.MaxProcessingTime = time.Duration(*config.Sarama.MaxProcessingSeconds*1000) * time.Millisecond
+	}
+
 	if config.Kafka.TLSConfig.Enable {
 		c.Net.TLS.Enable = true
 		tlsConfig, err := NewTLSConfig(config.Kafka.TLSConfig)
@@ -77,6 +104,8 @@ func NewSaramaConsumerGroup(
 	// c.Consumer.Fetch.Min = 3
 	// c.Consumer.Fetch.Max = 10
 	brokers := strings.Split(config.Kafka.Brokers, ",")
+
+	klog.V(2).Infof("cg:%s config: %+v", config.GroupID, c)
 
 	consumerGroup, err := sarama.NewConsumerGroup(
 		brokers, config.GroupID, c)

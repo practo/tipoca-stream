@@ -153,7 +153,7 @@ spec:
               description: RedshiftLoaderSpec defines the desired state of RedshifLoader
               properties:
                 maxSize:
-                  description: Max configurations for the loader to batch and load
+                  description: Max configurations for the loader to batch the load
                   type: integer
                 maxWaitSeconds:
                   type: integer
@@ -239,6 +239,14 @@ spec:
                   description: RedshiftGroup to give the access to when new topics
                     gets released
                   type: string
+                redshiftMaxIdleConns:
+                  description: RedshiftMaxIdleConns is the maximum idle connections
+                    allowed
+                  type: integer
+                redshiftMaxOpenConns:
+                  description: RedshiftMaxOpenConns is the maximum open connections
+                    allowed
+                  type: integer
                 redshiftSchema:
                   description: RedshiftSchema to sink the data in
                   type: string
@@ -326,9 +334,13 @@ spec:
                       phase:
                         description: Phase determines the
                         type: string
+                      releasedVersion:
+                        description: ReleasedVersion is the last released version
+                          for the topic
+                        type: string
                       version:
                         description: MaskFileVersion is the current mask configuration
-                          being used
+                          being worked on
                         type: string
                     type: object
                   description: CurrentMaskStatus stores the current status of mask
@@ -346,9 +358,13 @@ spec:
                       phase:
                         description: Phase determines the
                         type: string
+                      releasedVersion:
+                        description: ReleasedVersion is the last released version
+                          for the topic
+                        type: string
                       version:
                         description: MaskFileVersion is the current mask configuration
-                          being used
+                          being worked on
                         type: string
                     type: object
                   description: DesiredMaskStatus stores the current status of mask
