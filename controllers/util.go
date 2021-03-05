@@ -2,13 +2,14 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"sort"
 	"strings"
 
+	hashstructure "github.com/mitchellh/hashstructure/v2"
 	klog "github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
-	masker "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -124,14 +125,18 @@ func deploymentFromSpec(
 	return d
 }
 
-func generateConfigHash(data string) string {
-	hash := masker.Mask(data, "")
-	return *hash
-}
+func getHashStructure(v interface{}) (string, error) {
+	h, err := hashstructure.Hash(
+		v,
+		hashstructure.FormatV2,
+		&hashstructure.HashOptions{SlicesAsSets: true},
+	)
+	if err != nil {
+		return "", err
+	}
+	hash := fmt.Sprintf("%d", h)
 
-func getObjectName(prefix, data string) string {
-	hash := generateConfigHash(data)
-	return prefix + "-" + hash[:6]
+	return hash[:6], nil
 }
 
 // getDefaultLabels gives back the default labels for the crd resources

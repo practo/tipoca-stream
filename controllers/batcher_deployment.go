@@ -146,9 +146,14 @@ func NewBatcher(
 	}
 
 	confString := string(confBytes)
-	objectName := getObjectName(name, confString)
+	hash, err := getHashStructure(conf)
+	if err != nil {
+		return nil, err
+	}
+	objectName := fmt.Sprintf("%s-%s", name, hash)
 	labels := getDefaultLabels(
-		BatcherLabelInstance, sinkGroup, objectName, rsk.Name)
+		BatcherLabelInstance, sinkGroup, objectName, rsk.Name,
+	)
 
 	configSpec := configMapSpec{
 		name:       objectName,
