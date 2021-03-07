@@ -89,6 +89,11 @@ func getSourceType(v interface{}) SourceType {
 			fieldsFound = fieldsFound + 1
 		}
 
+		// overwrite the length of the enum types
+		if columnType == "ENUM" {
+			columnLength = fmt.Sprintf("%v", redshift.RedshiftStringMaxLength)
+		}
+
 		if key == "__debezium.source.column.scale" {
 			columnScale = fmt.Sprintf("%s", value)
 			fieldsFound = fieldsFound + 1
