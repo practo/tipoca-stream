@@ -108,7 +108,7 @@ func (m *masker) Transform(
 				mobile := *cVal
 				exposedLength := MOBILE_KEYS_EXPOSED_LENGTH
 				if len(mobile) < MOBILE_KEYS_EXPOSED_LENGTH {
-					exposedLength := len(mobile)
+					exposedLength = len(mobile)
 				}
 				tMobile = stringPtr(
 					mobile[:exposedLength],
