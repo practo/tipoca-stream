@@ -120,7 +120,7 @@ func column(v map[string]interface{}) ColInfo {
 	for key, v2 := range v {
 		switch key {
 		case "name":
-			column.Name = v["name"].(string)
+			column.Name = strings.ToLower(v["name"].(string))
 		case "type":
 			//fmt.Printf("name=%v v2=%v\n",v["name"], v2)
 			switch v2.(type) {
@@ -343,7 +343,7 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 		distKey := false
 		columnMasked := false
 		if len(maskSchema) != 0 {
-			mschema, ok := maskSchema[column.Name]
+			mschema, ok := maskSchema[strings.ToLower(column.Name)]
 			if ok {
 				sortKey = mschema.SortCol
 				distKey = mschema.DistCol
@@ -432,7 +432,7 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 
 	// set primary key
 	for idx, column := range redshiftColumns {
-		if isPrimaryKey(column.Name, primaryKeys) {
+		if isPrimaryKey(strings.ToLower(column.Name), primaryKeys) {
 			column.PrimaryKey = true
 			redshiftColumns[idx] = column
 		}
