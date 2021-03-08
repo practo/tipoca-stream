@@ -307,6 +307,16 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 			expectedResult:  "character varying(32)",
 			expectError:     false,
 		},
+		{
+			name:            "test25: JSON",
+			sqlType:         "mysql",
+			debeziumType:    "string",
+			sourceColType:   "JSON",
+			sourceColLength: "",
+			columnMasked:    false,
+			expectedResult:  "character varying(65535)",
+			expectError:     false,
+		},
 	}
 
 	for _, tc := range tests {
