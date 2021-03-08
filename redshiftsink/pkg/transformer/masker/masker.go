@@ -106,8 +106,12 @@ func (m *masker) Transform(
 				tMobile = nil
 			} else {
 				mobile := *cVal
+				exposedLength := MOBILE_KEYS_EXPOSED_LENGTH
+				if len(mobile) < MOBILE_KEYS_EXPOSED_LENGTH {
+					exposedLength := len(mobile)
+				}
 				tMobile = stringPtr(
-					mobile[:MOBILE_KEYS_EXPOSED_LENGTH],
+					mobile[:exposedLength],
 				)
 			}
 			extraColumns[cName+transformer.MobileCoulmnSuffix] = tMobile
