@@ -309,8 +309,6 @@ func (b *batchProcessor) signalLoad() {
 }
 
 func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
-	now := time.Now()
-
 	klog.V(5).Infof(
 		"topic:%s, batchId:%d id:%d: transforming\n",
 		b.topic, b.batchId, id,
@@ -390,7 +388,6 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 	)
 
 	b.batchEndOffset = message.Offset
-	setBatchMessageProcessingSeconds(now, b.topic)
 }
 
 // processBatch handles the batch procesing and return true if all completes
@@ -467,7 +464,10 @@ func (b *batchProcessor) Process(ctx context.Context, msgBuf []*serializer.Messa
 		b.topic, b.batchId, b.batchStartOffset, b.batchEndOffset,
 	)
 
-	setBatchProcessingSeconds(now, b.topic)
+	setMsgsProcessedPerSecond(
+		b.topic,
+		float64(len(msgBuf))/time.Since(now).Seconds(),
+	)
 
 	return nil
 }
