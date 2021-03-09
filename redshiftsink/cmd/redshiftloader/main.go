@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	pflag "github.com/spf13/pflag"
 	"math/rand"
+	"net/http"
 
 	"os"
 	"os/signal"
@@ -19,6 +20,8 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftloader"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var rootCmd = &cobra.Command{
@@ -34,8 +37,20 @@ func init() {
 	pflag.CommandLine.AddGoFlag(flag.CommandLine.Lookup("v"))
 }
 
+func serveMetrics() {
+	klog.V(2).Info("Starting prometheus metric endpoint")
+	http.HandleFunc("/status", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	http.Handle("/metrics", promhttp.Handler())
+	http.ListenAndServe(":8787", nil)
+}
+
 func run(cmd *cobra.Command, args []string) {
 	klog.Info("Starting the redshift loader")
+	go serveMetrics()
 
 	config, err := conf.LoadConfig(cmd)
 	if err != nil {
@@ -85,11 +100,13 @@ func run(cmd *cobra.Command, args []string) {
 
 	for _, groupConfig := range config.ConsumerGroups {
 		ready := make(chan bool)
+		groupID := groupConfig.GroupID
 		consumerGroup, err := kafka.NewConsumerGroup(
 			groupConfig,
 			redshiftloader.NewHandler(
 				ctx,
 				ready,
+				groupID,
 				config.Loader,
 				groupConfig.Sarama,
 				redshifter,
@@ -100,7 +117,6 @@ func run(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 		consumersReady = append(consumersReady, ready)
-		groupID := groupConfig.GroupID
 		consumerGroups[groupID] = consumerGroup
 		klog.V(2).Infof("Kafka client created for group: %s", groupID)
 		manager := kafka.NewManager(

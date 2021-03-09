@@ -38,7 +38,7 @@ func init() {
 }
 
 func serveMetrics() {
-	klog.Info("Starting prometheus metric endpoint")
+	klog.V(2).Info("Starting prometheus metric endpoint")
 	http.HandleFunc("/status", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))

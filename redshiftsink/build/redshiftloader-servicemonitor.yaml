@@ -1,0 +1,23 @@
+# Please edit the object below. Lines beginning with a '#' will be ignored,
+# and an empty file will abort the edit. If an error occurs while saving this file will be
+# reopened with the relevant failures.
+#
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    k8s-app: redshiftloader
+  name: redshiftloader
+  namespace: monitoring
+spec:
+  endpoints:
+  - interval: 5s
+    path: /metrics
+    port: redshiftloader-metrics
+  jobLabel: k8s-app
+  namespaceSelector:
+    matchNames:
+    - ts-redshiftsink-latest
+  selector:
+    matchLabels:
+      k8s-app: redshiftloader

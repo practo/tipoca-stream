@@ -27,6 +27,8 @@ type loaderHandler struct {
 	ready chan bool
 	ctx   context.Context
 
+	consumerGroupID string
+
 	maxSize        int
 	maxWaitSeconds int
 
@@ -38,6 +40,7 @@ type loaderHandler struct {
 func NewHandler(
 	ctx context.Context,
 	ready chan bool,
+	consumerGroupID string,
 	loaderConfig LoaderConfig,
 	saramaConfig kafka.SaramaConfig,
 	redshifter *redshift.Redshift,
@@ -46,6 +49,8 @@ func NewHandler(
 	return &loaderHandler{
 		ready: ready,
 		ctx:   ctx,
+
+		consumerGroupID: consumerGroupID,
 
 		maxSize:        loaderConfig.MaxSize,
 		maxWaitSeconds: loaderConfig.MaxWaitSeconds,
@@ -93,6 +98,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 	var err error
 	processor := newLoadProcessor(
 		session,
+		h.consumerGroupID,
 		claim.Topic(),
 		claim.Partition(),
 		h.saramaConfig,

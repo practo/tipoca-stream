@@ -140,6 +140,11 @@ Flags:
 - Loader performs schema migration.
 - Loader performs the load of the data to Redshift by performing series of merge operations using Staging tables.
 
+#### Metrics
+```
+rsk_loader_messages_processed_per_second
+```
+
 ### Configuration
 Create a file config.yaml, refer [config-sample.yaml](./cmd/redshiftbatcher/config/config_sample.yaml).
 ```bash
