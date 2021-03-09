@@ -79,11 +79,13 @@ func run(cmd *cobra.Command, args []string) {
 	wg := &sync.WaitGroup{}
 	for _, groupConfig := range config.ConsumerGroups {
 		ready := make(chan bool)
+		groupID := groupConfig.GroupID
 		consumerGroup, err := kafka.NewConsumerGroup(
 			groupConfig,
 			redshiftbatcher.NewHandler(
 				ready,
 				ctx,
+				groupID,
 				config.Batcher,
 				groupConfig.Kafka,
 				groupConfig.Sarama,
@@ -96,7 +98,6 @@ func run(cmd *cobra.Command, args []string) {
 			os.Exit(1)
 		}
 		consumersReady = append(consumersReady, ready)
-		groupID := groupConfig.GroupID
 		consumerGroups[groupID] = consumerGroup
 		klog.V(2).Infof("Kafka client created for group: %s", groupID)
 		manager := kafka.NewManager(
