@@ -5,24 +5,19 @@
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
-  creationTimestamp: "2020-09-12T09:32:28Z"
-  generation: 2
   labels:
-    k8s-app: tipoca-stream-redshiftbatcher
-  name: tipoca-stream-redshiftbatcher
+    k8s-app: redshiftbatcher
+  name: redshiftbatcher
   namespace: monitoring
-  resourceVersion: "570650138"
-  selfLink: /apis/monitoring.coreos.com/v1/namespaces/monitoring/servicemonitors/tipoca-stream-redshiftbatcher
-  uid: f84194e6-0caf-42ca-9840-a100c4a80290
 spec:
   endpoints:
   - interval: 5s
     path: /metrics
-    port: tipoca-stream-redshiftbatcher-metrics
+    port: redshiftbatcher-metrics
   jobLabel: k8s-app
   namespaceSelector:
     matchNames:
-    - tipoca-stream-redshiftbatcher-latest
+    - ts-redshiftsink-latest 
   selector:
     matchLabels:
-      k8s-app: tipoca-stream-redshiftbatcher
+      k8s-app: redshiftbatcher
