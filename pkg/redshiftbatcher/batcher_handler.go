@@ -45,7 +45,6 @@ type batcherHandler struct {
 	maxSize        int
 	maxWaitSeconds int
 
-	// consumerGroupID is the consumer group's id
 	consumerGroupID string
 
 	kafkaConfig            kafka.KafkaConfig

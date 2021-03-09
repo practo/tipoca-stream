@@ -28,6 +28,8 @@ type loadProcessor struct {
 	upstreamTopic string
 	partition     int32
 
+	consumerGroupID string
+
 	// autoCommit to Kafka
 	autoCommit bool
 
@@ -88,6 +90,7 @@ type loadProcessor struct {
 
 func newLoadProcessor(
 	session sarama.ConsumerGroupSession,
+	consumerGroupID string,
 	topic string,
 	partition int32,
 	saramaConfig kafka.SaramaConfig,
@@ -109,6 +112,7 @@ func newLoadProcessor(
 		session:            session,
 		topic:              topic,
 		partition:          partition,
+		consumerGroupID:    consumerGroupID,
 		autoCommit:         saramaConfig.AutoCommit,
 		s3sink:             sink,
 		messageTransformer: debezium.NewMessageTransformer(),
@@ -697,6 +701,12 @@ func (b *loadProcessor) Process(ctx context.Context, msgBuf []*serializer.Messag
 	klog.Infof(
 		"%s, batchId:%d, size:%d, end:%d:, Processed in %s",
 		b.topic, b.batchId, len(msgBuf), b.batchEndOffset, timeTaken,
+	)
+
+	setMsgsProcessedPerSecond(
+		b.consumerGroupID,
+		b.topic,
+		float64(len(msgBuf))/secondsTaken,
 	)
 
 	return nil
