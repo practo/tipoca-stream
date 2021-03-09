@@ -45,6 +45,9 @@ type batcherHandler struct {
 	maxSize        int
 	maxWaitSeconds int
 
+	// consumerGroupID is the consumer group's id
+	consumerGroupID string
+
 	kafkaConfig            kafka.KafkaConfig
 	saramaConfig           kafka.SaramaConfig
 	maskConfig             masker.MaskConfig
@@ -55,6 +58,7 @@ type batcherHandler struct {
 func NewHandler(
 	ready chan bool,
 	ctx context.Context,
+	consumerGroupID string,
 	batcherConfig BatcherConfig,
 	kafkaConfig kafka.KafkaConfig,
 	saramaConfig kafka.SaramaConfig,
@@ -64,6 +68,8 @@ func NewHandler(
 	return &batcherHandler{
 		ready: ready,
 		ctx:   ctx,
+
+		consumerGroupID: consumerGroupID,
 
 		maxSize:        batcherConfig.MaxSize,
 		maxWaitSeconds: batcherConfig.MaxWaitSeconds,
@@ -114,6 +120,7 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 	var err error
 	processor := newBatchProcessor(
 		session,
+		h.consumerGroupID,
 		claim.Topic(),
 		claim.Partition(),
 		h.kafkaConfig,

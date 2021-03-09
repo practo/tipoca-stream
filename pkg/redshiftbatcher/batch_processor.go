@@ -29,6 +29,8 @@ type batchProcessor struct {
 	topic             string
 	loaderTopicPrefix string
 
+	consumerGroupID string
+
 	partition int32
 
 	// autoCommit to Kafka
@@ -102,6 +104,7 @@ type batchProcessor struct {
 
 func newBatchProcessor(
 	session sarama.ConsumerGroupSession,
+	consumerGroupID string,
 	topic string,
 	partition int32,
 	kafkaConfig kafka.KafkaConfig,
@@ -146,6 +149,7 @@ func newBatchProcessor(
 		topic:              topic,
 		partition:          partition,
 		loaderTopicPrefix:  kafkaLoaderTopicPrefix,
+		consumerGroupID:    consumerGroupID,
 		autoCommit:         saramaConfig.AutoCommit,
 		s3sink:             sink,
 		s3BucketDir:        viper.GetString("s3sink.bucketDir"),
@@ -465,6 +469,7 @@ func (b *batchProcessor) Process(ctx context.Context, msgBuf []*serializer.Messa
 	)
 
 	setMsgsProcessedPerSecond(
+		b.consumerGroupID,
 		b.topic,
 		float64(len(msgBuf))/time.Since(now).Seconds(),
 	)

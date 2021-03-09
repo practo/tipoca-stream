@@ -109,6 +109,10 @@ Flags:
 
 ```
 
+#### Metrics
+```
+rsk_batcher_messages_processed_per_second
+```
 
 ### Configuration
 Create a file config.yaml, refer [config-sample.yaml](./cmd/redshiftbatcher/config/config_sample.yaml).
