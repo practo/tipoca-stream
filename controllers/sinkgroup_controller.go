@@ -679,7 +679,7 @@ func (s *sinkGroup) topicRealtime(
 	}
 	loaderLastOffset, err := watcher.LastOffset(loaderTopic, 0)
 	if err != nil {
-		return false, &now, fmt.Errorf("Error getting current offset for %s", loaderTopic)
+		return false, &now, fmt.Errorf("Error getting last offset for %s", loaderTopic)
 	}
 	klog.V(4).Infof("%s, lastOffset=%v", loaderTopic, loaderLastOffset)
 
@@ -706,9 +706,7 @@ func (s *sinkGroup) topicRealtime(
 		//    we find this case by saving the currentOffset for the loader topcics in RedshiftSink Topic Group Status
 		if group.LoaderCurrentOffset == nil {
 			klog.V(2).Infof("%s, loader cg 404, not realtime", loaderTopic)
-			// lastRefresh is sent nil(second arg return) to check this
-			// topic again quickly for the realtime info.
-			return false, nil, nil
+			return false, &now, nil
 		}
 		klog.V(2).Infof("%s, currentOffset=%v (old), cg 404, try realtime", loaderTopic, *group.LoaderCurrentOffset)
 		// give the topic the opportunity to release based on its last found currentOffset
