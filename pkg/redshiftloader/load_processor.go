@@ -33,9 +33,6 @@ type loadProcessor struct {
 	// autoCommit to Kafka
 	autoCommit bool
 
-	// session is required to commit the offsets on succesfull processing
-	session sarama.ConsumerGroupSession
-
 	// s3Sink
 	s3sink *s3sink.S3Sink
 
@@ -89,7 +86,6 @@ type loadProcessor struct {
 }
 
 func newLoadProcessor(
-	session sarama.ConsumerGroupSession,
 	consumerGroupID string,
 	topic string,
 	partition int32,
@@ -109,7 +105,6 @@ func newLoadProcessor(
 	klog.V(3).Infof("%s: auto-commit: %v", topic, saramaConfig.AutoCommit)
 
 	return &loadProcessor{
-		session:            session,
 		topic:              topic,
 		partition:          partition,
 		consumerGroupID:    consumerGroupID,
@@ -131,16 +126,10 @@ func (b *loadProcessor) ctxCancelled(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		klog.Warningf(
-			"%s, batchId:%d, lastCommitted:%d: main ctx done. Cancelled.\n",
-			b.topic, b.batchId, b.lastCommittedOffset,
-		)
-		return fmt.Errorf("Processing stopped! main ctx done (recreate), ctxErr: %v", ctx.Err())
-	case <-b.session.Context().Done():
-		klog.Warningf(
 			"%s, batchId:%d, lastCommitted:%d: session ctx done. Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,
 		)
-		return fmt.Errorf("Processing stopped! session ctx done (recreate), ctxErr: %v", b.session.Context().Err())
+		return ctx.Err()
 	default:
 		return nil
 	}
@@ -156,11 +145,11 @@ func (b *loadProcessor) setBatchId() {
 	b.batchId += 1
 }
 
-func (b *loadProcessor) markOffset(msgBuf []*serializer.Message) {
+func (b *loadProcessor) markOffset(session sarama.ConsumerGroupSession, msgBuf []*serializer.Message) {
 	if len(msgBuf) > 0 {
 		lastMessage := msgBuf[len(msgBuf)-1]
 		klog.V(2).Infof("%s, offset: %v, marking", lastMessage.Topic, lastMessage.Offset+1)
-		b.session.MarkOffset(
+		session.MarkOffset(
 			lastMessage.Topic,
 			lastMessage.Partition,
 			lastMessage.Offset+1,
@@ -170,7 +159,7 @@ func (b *loadProcessor) markOffset(msgBuf []*serializer.Message) {
 
 		if b.autoCommit == false {
 			klog.V(2).Infof("%s, committing (autoCommit=false)", lastMessage.Topic)
-			b.session.Commit()
+			session.Commit()
 			klog.V(2).Infof("%s, committed (autoCommit=false)", lastMessage.Topic)
 		}
 
@@ -201,10 +190,10 @@ func (b *loadProcessor) printCurrentState() {
 
 // loadTable loads the batch to redhsift table using
 // COPY command.
-func (b *loadProcessor) loadTable(schema, table, s3ManifestKey string) {
+func (b *loadProcessor) loadTable(schema, table, s3ManifestKey string) error {
 	tx, err := b.redshifter.Begin()
 	if err != nil {
-		klog.Fatalf("Error creating database tx, err: %v\n", err)
+		return fmt.Errorf("Error creating database tx, err: %v\n", err)
 	}
 	err = b.redshifter.Copy(
 		tx, schema, table, b.s3sink.GetKeyURI(s3ManifestKey),
@@ -213,24 +202,26 @@ func (b *loadProcessor) loadTable(schema, table, s3ManifestKey string) {
 	)
 	if err != nil {
 		tx.Rollback()
-		klog.Fatalf("Error loading data in staging table, err:%v\n", err)
+		return fmt.Errof("Error loading data in staging table, err:%v\n", err)
 	}
 	err = tx.Commit()
 	if err != nil {
-		klog.Fatalf("Error committing tx, err:%v\n", err)
+		return fmt.Errorf("Error committing tx, err:%v\n", err)
 	}
 
 	klog.V(2).Infof(
 		"%s, copied staging\n",
 		b.topic,
 	)
+
+	return nil
 }
 
 // deDupeStagingTable keeps the highest offset per pk in the table, keeping
 // only the recent representation of the row in staging table, deleting others.
 // TODO: de duplication may need optimizations (also measure the time taken)
 // https://stackoverflow.com/questions/63664935/redshift-delete-duplicate-records-but-keep-latest/63664982?noredirect=1#comment112581353_63664982
-func (b *loadProcessor) deDupeStagingTable(tx *sql.Tx) {
+func (b *loadProcessor) deDupeStagingTable(tx *sql.Tx) error {
 	err := b.redshifter.DeDupe(tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
@@ -239,15 +230,17 @@ func (b *loadProcessor) deDupeStagingTable(tx *sql.Tx) {
 	)
 	if err != nil {
 		tx.Rollback()
-		klog.Fatalf("Deduplication failed, %v\n", err)
+		return fmt.Errorf("Deduplication failed, %v\n", err)
 	}
 	klog.V(2).Infof("%s, deduped", b.topic)
+
+	return nil
 }
 
 // deleteCommonRowsInTargetTable removes all the rows from the target table
 // that is to be modified in this batch. This is done because we can then
 // easily perform inserts in the target table. Also DELETE gets taken care.
-func (b *loadProcessor) deleteCommonRowsInTargetTable(tx *sql.Tx) {
+func (b *loadProcessor) deleteCommonRowsInTargetTable(tx *sql.Tx) error {
 	err := b.redshifter.DeleteCommon(tx,
 		b.targetTable.Meta.Schema,
 		b.stagingTable.Name,
@@ -256,9 +249,11 @@ func (b *loadProcessor) deleteCommonRowsInTargetTable(tx *sql.Tx) {
 	)
 	if err != nil {
 		tx.Rollback()
-		klog.Fatalf("DeleteCommon failed, %v\n", err)
+		return fmt.Errorf("DeleteCommon failed, %v\n", err)
 	}
 	klog.V(2).Infof("%s, deleted common", b.topic)
+
+	return nil
 }
 
 // deleteRowsWithDeleteOpInStagingTable deletes the rows with operation
@@ -273,15 +268,17 @@ func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
 	)
 	if err != nil {
 		tx.Rollback()
-		klog.Fatalf("DeleteRowsWithDeleteOp failed, %v\n", err)
+		return fmt.Errorf("DeleteRowsWithDeleteOp failed, %v\n", err)
 	}
 	klog.V(2).Infof("%s, deleted delete-op", b.topic)
+
+	return nil
 }
 
 // insertIntoTargetTable uses unload and copy strategy to bulk insert into
 // target table. This is the most efficient way to inserting in redshift
 // when the source is redshift table.
-func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
+func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) error {
 	err := b.redshifter.DropColumn(
 		tx,
 		b.stagingTable.Meta.Schema,
@@ -290,7 +287,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 	)
 	if err != nil {
 		tx.Rollback()
-		klog.Fatal(err)
+		return fmt.Error(err)
 	}
 
 	err = b.redshifter.DropColumn(
@@ -301,7 +298,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 	)
 	if err != nil {
 		tx.Rollback()
-		klog.Fatal(err)
+		return fmt.Error(err)
 	}
 
 	s3CopyDir := filepath.Join(
@@ -318,7 +315,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 	)
 	if err != nil {
 		tx.Rollback()
-		klog.Fatalf("Unloading staging table to s3 failed, %v\n", err)
+		return fmt.Errorf("Unloading staging table to s3 failed, %v\n", err)
 	}
 	klog.V(2).Infof("%s, unloaded", b.topic)
 
@@ -334,9 +331,11 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) {
 	)
 	if err != nil {
 		tx.Rollback()
-		klog.Fatalf("Copying data to target table from s3 failed, %v\n", err)
+		return fmt.Errorf("Copying data to target table from s3 failed, %v\n", err)
 	}
 	klog.V(2).Infof("%s, copied", b.topic)
+
+	return nil
 }
 
 // dropTable removes the table only if it exists else returns and does nothing
@@ -379,34 +378,51 @@ func (b *loadProcessor) dropTable(schema string, table string) error {
 // 4. insert all the rows from staging table to target table
 // 5. drop the staging table
 // end transaction
-func (b *loadProcessor) merge() {
+func (b *loadProcessor) merge() error {
 	tx, err := b.redshifter.Begin()
 	if err != nil {
-		klog.Fatalf("Error creating database tx, err: %v\n", err)
+		return fmt.Errorf("Error creating database tx, err: %v\n", err)
 	}
 
-	b.deDupeStagingTable(tx)
-	b.deleteCommonRowsInTargetTable(tx)
-	b.deleteRowsWithDeleteOpInStagingTable(tx)
-	b.insertIntoTargetTable(tx)
+	err = b.deDupeStagingTable(tx)
+	if err != nil {
+		return err
+	}
+	err = b.deleteCommonRowsInTargetTable(tx)
+	if err != nil {
+		return err
+	}
+	err = b.deleteRowsWithDeleteOpInStagingTable(tx)
+	if err != nil {
+		return err
+	}
+	err = b.insertIntoTargetTable(tx)
+	if err != nil {
+		return err
+	}
 
 	err = tx.Commit()
 	if err != nil {
-		klog.Fatalf("Error committing tx, err:%v\n", err)
+		return fmt.Errorf("Error committing tx, err:%v\n", err)
 	}
+
 	// error is warning in the below task since we clean on start
 	err = b.dropTable(b.stagingTable.Meta.Schema, b.stagingTable.Name)
 	if err != nil {
 		klog.Warningf("Dropping the table: %s failed!, err: %v\n",
-			b.stagingTable.Name, err)
+			b.stagingTable.Name,
+			err,
+		)
 	}
+
+	return nil
 }
 
 // createStagingTable creates a staging table based on the schema id of the
 // batch messages.
 // this also intializes b.stagingTable
 func (b *loadProcessor) createStagingTable(
-	schemaId int, inputTable redshift.Table) {
+	schemaId int, inputTable redshift.Table) error {
 
 	b.stagingTable = redshift.NewTable(inputTable)
 	b.stagingTable.Name = b.stagingTable.Name + "_staged"
@@ -427,13 +443,13 @@ func (b *loadProcessor) createStagingTable(
 	}
 	err := b.dropTable(b.stagingTable.Meta.Schema, b.stagingTable.Name)
 	if err != nil {
-		klog.Fatalf("Error dropping staging table: %v\n", err)
+		return fmt.Errorf("Error dropping staging table: %v\n", err)
 	}
 
 	primaryKeys, err := b.schemaTransformer.TransformKey(
 		b.upstreamTopic)
 	if err != nil {
-		klog.Fatalf("Error getting primarykey for: %s, err: %v\n", b.topic, err)
+		return fmt.Errorf("Error getting primarykey for: %s, err: %v\n", b.topic, err)
 	}
 	b.primaryKeys = primaryKeys
 
@@ -458,32 +474,35 @@ func (b *loadProcessor) createStagingTable(
 
 	tx, err := b.redshifter.Begin()
 	if err != nil {
-		klog.Fatalf("Error creating database tx, err: %v\n", err)
+		return fmt.Errorf("Error creating database tx, err: %v\n", err)
 	}
 	err = b.redshifter.CreateTable(tx, *b.stagingTable)
 	if err != nil {
 		tx.Rollback()
-		klog.Fatalf("Error creating staging table, err: %v\n", err)
+		return fmt.Errorf("Error creating staging table, err: %v\n", err)
 	}
 	err = tx.Commit()
 	if err != nil {
-		klog.Fatalf("Error committing tx, err:%v\n", err)
+		return fmt.Errorf("Error committing tx, err:%v\n", err)
 	}
 	klog.V(3).Infof(
-		"%s, schemaId:%d: Staging Table %s created\n",
+		"%s, schemaId:%d: created staging %s \n",
 		b.topic,
 		schemaId,
-		b.stagingTable.Name)
+		b.stagingTable.Name,
+	)
+
+	return nil
 }
 
 // migrateTable migrates the table since redshift does not support
 // ALTER COLUMN for everything. MoreInfo: #40
 func (b *loadProcessor) migrateTable(
-	inputTable, targetTable redshift.Table) {
+	inputTable, targetTable redshift.Table) error {
 
 	tx, err := b.redshifter.Begin()
 	if err != nil {
-		klog.Fatalf("Error creating database tx, err: %v\n", err)
+		return fmt.Errorf("Error creating database tx, err: %v\n", err)
 	}
 
 	s3CopyDir := filepath.Join(
@@ -501,13 +520,15 @@ func (b *loadProcessor) migrateTable(
 	)
 	if err != nil {
 		tx.Rollback()
-		klog.Fatalf("Error migrating table, err:%v\n", err)
+		return fmt.Errorf("Error migrating table, err:%v\n", err)
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		klog.Fatalf("Error committing tx, err:%v\n", err)
+		return fmt.Errorf("Error committing tx, err:%v\n", err)
 	}
+
+	return nil
 }
 
 // migrateSchema construct the "inputTable" using schemaId in the message.
@@ -522,38 +543,40 @@ func (b *loadProcessor) migrateTable(
 // Supported: delete columns
 // Supported: alter columns (supported via table migration)
 // TODO: NotSupported: row ordering changes and row renames
-func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
+func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) error {
 	// TODO: add cache here based on schema id and return
 	// save some database calls.
 	tableExist, err := b.redshifter.TableExist(
 		inputTable.Meta.Schema, inputTable.Name,
 	)
 	if err != nil {
-		klog.Fatalf("Error querying table exist, err: %v\n", err)
+		return fmt.Errorf("Error querying table exist, err: %v\n", err)
 	}
 	if !tableExist {
 		tx, err := b.redshifter.Begin()
 		if err != nil {
-			klog.Fatalf("Error creating database tx, err: %v\n", err)
+			return fmt.Errorf("Error creating database tx, err: %v\n", err)
 		}
 		err = b.redshifter.CreateTable(tx, inputTable)
 		if err != nil {
 			tx.Rollback()
-			klog.Fatalf(
+			return fmt.Errorf(
 				"Error creating table: %+v, err: %v\n",
-				inputTable, err)
+				inputTable, err,
+			)
 		}
 		err = tx.Commit()
 		if err != nil {
-			klog.Fatalf("Error committing tx, err:%v\n", err)
+			return fmt.Errorf("Error committing tx, err:%v\n", err)
 		}
 		klog.V(2).Infof(
-			"%s, schemaId:%d: Table %s created",
+			"%s, schemaId:%d: created table %s",
 			b.topic,
 			schemaId,
-			inputTable.Name)
+			inputTable.Name,
+		)
 		b.targetTable = redshift.NewTable(inputTable)
-		return
+		return nil
 	}
 
 	targetTable, err := b.redshifter.GetTableMetadata(
@@ -561,19 +584,21 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) {
 	)
 	b.targetTable = targetTable
 	if err != nil {
-		klog.Fatalf("Error querying targetTable, err: %v\n", err)
+		return fmt.Errorf("Error querying targetTable, err: %v\n", err)
 	}
 
 	// UpdateTable computes the schema migration commands and executes it
 	// if required else does nothing. (it runs in transaction based on strategy)
 	migrateTable, err := b.redshifter.UpdateTable(inputTable, *targetTable)
 	if err != nil {
-		klog.Fatalf("Schema migration failed, err: %v\n", err)
+		return fmt.Errorf("Schema migration failed, err: %v\n", err)
 	}
 
 	if migrateTable == true {
-		b.migrateTable(inputTable, *targetTable)
+		return b.migrateTable(inputTable, *targetTable)
 	}
+
+	return nil
 }
 
 // processBatch handles the batch procesing and return true if all completes
@@ -590,6 +615,7 @@ func (b *loadProcessor) processBatch(
 
 	var inputTable redshift.Table
 	var schemaId int
+	var err error
 	b.stagingTable = nil
 	b.targetTable = nil
 	b.upstreamTopic = ""
@@ -598,9 +624,7 @@ func (b *loadProcessor) processBatch(
 	for id, message := range msgBuf {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("Main context done, recreate, err: %v", ctx.Err())
-		case <-b.session.Context().Done():
-			return fmt.Errorf("Session context done, recreate, err: %v", b.session.Context().Err())
+			return fmt.Errorf("session ctx done, err: %v", ctx.Err())
 		default:
 			job := StringMapToJob(message.Value.(map[string]interface{}))
 			schemaId = job.SchemaId
@@ -614,23 +638,27 @@ func (b *loadProcessor) processBatch(
 				)
 				b.upstreamTopic = job.UpstreamTopic
 				klog.V(3).Infof("Processing schema: %+v\n", schemaId)
-				resp, err := b.schemaTransformer.TransformValue(
+				resp, err = b.schemaTransformer.TransformValue(
 					b.upstreamTopic,
 					schemaId,
 					job.MaskSchema,
 				)
 				if err != nil {
-					klog.Fatalf(
+					return fmt.Errorf(
 						"Transforming schema:%d => inputTable failed: %v\n",
 						schemaId,
-						err)
+						err,
+					)
 				}
 				inputTable = resp.(redshift.Table)
 				inputTable.Meta.Schema = b.redshiftSchema
 				// postgres(redshift)
 				inputTable.Name = strings.ToLower(
 					inputTable.Name + b.tableSuffix)
-				b.migrateSchema(schemaId, inputTable)
+				err = b.migrateSchema(schemaId, inputTable)
+				if err != nil {
+					return err
+				}
 			}
 			entries = append(
 				entries,
@@ -647,48 +675,68 @@ func (b *loadProcessor) processBatch(
 		viper.GetString("s3sink.bucketDir"),
 		b.topic,
 		util.NewUUIDString(),
-		"manifest.json")
-	err := b.s3sink.UploadS3Manifest(s3ManifestKey, entries)
+		"manifest.json",
+	)
+	err = b.s3sink.UploadS3Manifest(s3ManifestKey, entries)
 	if err != nil {
-		klog.Fatalf("Error uploading manifest: %s to s3, err:%v\n",
-			s3ManifestKey, err)
+		return fmt.Errorf(
+			"Error uploading manifest: %s to s3, err:%v\n",
+			s3ManifestKey,
+			err,
+		)
 	}
 
+	// load
 	klog.V(2).Infof("%s, load staging\n", b.topic)
-	b.createStagingTable(schemaId, inputTable)
-	b.loadTable(
+	err = b.createStagingTable(schemaId, inputTable)
+	if err != nil {
+		return err
+	}
+	err = b.loadTable(
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
 		s3ManifestKey,
 	)
-	b.merge()
+	if err != nil {
+		return err
+	}
+
+	// merge
+	err = b.merge()
+	if err != nil {
+		return err
+	}
 
 	if b.redshiftStats {
-		klog.V(2).Infof("endbatch dbstats: %+v\n", b.redshifter.Stats())
+		klog.V(3).Infof("endbatch dbstats: %+v\n", b.redshifter.Stats())
 	}
 
 	return nil
 }
 
 // Process implements serializer.MessageBatch
-func (b *loadProcessor) Process(ctx context.Context, msgBuf []*serializer.Message) error {
+func (b *loadProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*serializer.Message) error {
 	start := time.Now()
 	b.setBatchId()
+	ctx := session.Context()
+
 	err := b.ctxCancelled(ctx)
 	if err != nil {
 		return err
 	}
-
 	klog.Infof("%s, batchId:%d, size:%d: Processing...\n",
 		b.topic, b.batchId, len(msgBuf),
 	)
-
 	err = b.processBatch(ctx, msgBuf)
 	if err != nil {
 		b.printCurrentState()
 		return err
 	}
-	b.markOffset(msgBuf)
+	err = b.ctxCancelled(ctx)
+	if err != nil {
+		return err
+	}
+	b.markOffset(session, msgBuf)
 
 	var timeTaken string
 	secondsTaken := time.Since(start).Seconds()
