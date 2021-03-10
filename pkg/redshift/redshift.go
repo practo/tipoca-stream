@@ -84,14 +84,12 @@ type dbExecCloser interface {
 	SetMaxOpenConns(n int)
 
 	// without tx
-	PrepareContext(c context.Context, query string) (*sql.Stmt, error)
+	PrepareContext(ctx context.Context, query string) (*sql.Stmt, error)
 
 	// tx
-	BeginTx(
-		c context.Context, opts *sql.TxOptions) (*sql.Tx, error)
-	QueryContext(
-		c context.Context, q string, a ...interface{}) (*sql.Rows, error)
-	QueryRowContext(c context.Context, q string, a ...interface{}) *sql.Row
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+	QueryContext(ctx context.Context, q string, a ...interface{}) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, q string, a ...interface{}) *sql.Row
 }
 
 // Redshift wraps a dbExecCloser and can be used to perform
@@ -99,7 +97,6 @@ type dbExecCloser interface {
 // Give it a context for the duration of the job
 type Redshift struct {
 	dbExecCloser
-	ctx  context.Context
 	conf RedshiftConfig
 }
 
@@ -161,7 +158,7 @@ type SourceType struct {
 	ColumnScale  string `yaml:"columnScale"`
 }
 
-func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
+func NewRedshift(conf RedshiftConfig) (*Redshift, error) {
 	source := fmt.Sprintf(
 		"host=%s port=%s dbname=%s keepalive=1 connect_timeout=%d",
 		conf.Host, conf.Port, conf.Database, conf.Timeout,
@@ -176,7 +173,7 @@ func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
 	if err := sqldb.Ping(); err != nil {
 		return nil, err
 	}
-	r := &Redshift{sqldb, ctx, conf}
+	r := &Redshift{sqldb, conf}
 
 	r.SetMaxIdleConns(conf.MaxIdleConns)
 	r.SetMaxOpenConns(conf.MaxOpenConns)
@@ -189,14 +186,14 @@ func NewRedshift(ctx context.Context, conf RedshiftConfig) (*Redshift, error) {
 }
 
 // Begin wraps a new transaction in the databases context
-func (r *Redshift) Begin() (*sql.Tx, error) {
-	return r.dbExecCloser.BeginTx(r.ctx, nil)
+func (r *Redshift) Begin(ctx context.Context) (*sql.Tx, error) {
+	return r.dbExecCloser.BeginTx(ctx, nil)
 }
 
-func (r *Redshift) SchemaExist(schema string) (bool, error) {
+func (r *Redshift) SchemaExist(ctx context.Context, schema string) (bool, error) {
 	q := fmt.Sprintf(schemaExist, schema)
 	var placeholder string
-	err := r.QueryRowContext(r.ctx, q).Scan(&placeholder)
+	err := r.QueryRowContext(ctx, q).Scan(&placeholder)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			klog.V(5).Infof(
@@ -210,21 +207,21 @@ func (r *Redshift) SchemaExist(schema string) (bool, error) {
 	return true, nil
 }
 
-func (r *Redshift) CreateSchema(schema string) error {
+func (r *Redshift) CreateSchema(ctx context.Context, schema string) error {
 	tx, err := r.Begin()
 	if err != nil {
 		return err
 	}
 
 	createSQL := fmt.Sprintf(schemaCreate, schema)
-	createStmt, err := tx.PrepareContext(r.ctx, createSQL)
+	createStmt, err := tx.PrepareContext(ctx, createSQL)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 	defer createStmt.Close()
 
-	_, err = createStmt.ExecContext(r.ctx)
+	_, err = createStmt.ExecContext(ctx)
 	if err != nil {
 		tx.Rollback()
 	}
@@ -237,10 +234,10 @@ func (r *Redshift) CreateSchema(schema string) error {
 	return err
 }
 
-func (r *Redshift) TableExist(schema string, table string) (bool, error) {
+func (r *Redshift) TableExist(ctx context.Context, schema string, table string) (bool, error) {
 	q := fmt.Sprintf(tableExist, schema, table)
 	var placeholder string
-	err := r.QueryRowContext(r.ctx, q).Scan(&placeholder)
+	err := r.QueryRowContext(ctx, q).Scan(&placeholder)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			klog.V(5).Infof(
@@ -354,7 +351,7 @@ func getColumnSQL(c ColInfo) string {
 	)
 }
 
-func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
+func (r *Redshift) CreateTable(ctx context.Context, tx *sql.Tx, table Table) error {
 	var primaryKeys []string
 	for _, c := range table.Columns {
 		if c.PrimaryKey {
@@ -396,14 +393,14 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 	)
 
 	klog.V(5).Infof("Preparing: %s\n", createSQL)
-	createStmt, err := tx.PrepareContext(r.ctx, createSQL)
+	createStmt, err := tx.PrepareContext(ctx, createSQL)
 	if err != nil {
 		return fmt.Errorf("error preparing statement: %v\n", err)
 	}
 	defer createStmt.Close()
 
 	klog.V(4).Infof("Running: %s\n", createSQL)
-	_, err = createStmt.ExecContext(r.ctx)
+	_, err = createStmt.ExecContext(ctx)
 
 	return err
 }
@@ -416,7 +413,7 @@ func (r *Redshift) CreateTable(tx *sql.Tx, table Table) error {
 // 3. Strategy3: table-migration using UNLOAD and COPY and a temp table
 // 				 Supports: all the other migration scenarios
 //               Exectued by ReplaceTable(), triggered by this function
-func (r *Redshift) UpdateTable(inputTable, targetTable Table) (bool, error) {
+func (r *Redshift) UpdateTable(ctx context.Context, inputTable, targetTable Table) (bool, error) {
 	klog.V(4).Infof("inputt Table: \n%+v\n", inputTable)
 	klog.V(4).Infof("target Table: \n%+v\n", targetTable)
 	transactcolumnOps, columnOps, varCharColumnOps, err := CheckSchemas(
@@ -442,13 +439,13 @@ func (r *Redshift) UpdateTable(inputTable, targetTable Table) (bool, error) {
 	}
 	for _, op := range varCharColumnOps {
 		klog.V(4).Infof("Preparing (!tx): %s", op)
-		alterStmt, err := r.PrepareContext(r.ctx, op)
+		alterStmt, err := r.PrepareContext(ctx, op)
 		if err != nil {
 			return false, err
 		}
 
 		klog.V(2).Infof("Running (!tx): %s", op)
-		_, err = alterStmt.ExecContext(r.ctx)
+		_, err = alterStmt.ExecContext(ctx)
 		if err != nil {
 			return false, fmt.Errorf("cmd failed, cmd:%s, err: %s\n", op, err)
 		}
@@ -469,13 +466,13 @@ func (r *Redshift) UpdateTable(inputTable, targetTable Table) (bool, error) {
 		// postgres only allows adding one column at a time
 		for _, op := range transactcolumnOps {
 			klog.V(4).Infof("Preparing: %s", op)
-			alterStmt, err := tx.PrepareContext(r.ctx, op)
+			alterStmt, err := tx.PrepareContext(ctx, op)
 			if err != nil {
 				tx.Rollback()
 				return false, err
 			}
 			klog.V(2).Infof("Running: %s", op)
-			_, err = alterStmt.ExecContext(r.ctx)
+			_, err = alterStmt.ExecContext(ctx)
 			if err != nil {
 				tx.Rollback()
 				return false, fmt.Errorf(
@@ -513,7 +510,7 @@ func (r *Redshift) UpdateTable(inputTable, targetTable Table) (bool, error) {
 // 3. UNLOAD the renamed table data t1_migrating to s3
 // 4. COPY the unloaded data from s3 to the new table t1
 func (r *Redshift) ReplaceTable(
-	tx *sql.Tx, unLoadS3Key string, copyS3ManifestKey string,
+	ctx context.Context, tx *sql.Tx, unLoadS3Key string, copyS3ManifestKey string,
 	inputTable, targetTable Table) error {
 
 	klog.Infof("Strategy3: table-migration starting(slow), table: %s ...\n",
@@ -540,7 +537,7 @@ func (r *Redshift) ReplaceTable(
 		migrationTableName,
 	)
 	klog.V(4).Infof("Running: %s", renameSQL)
-	_, err = tx.ExecContext(r.ctx, renameSQL)
+	_, err = tx.ExecContext(ctx, renameSQL)
 	if err != nil {
 		return err
 	}
@@ -581,6 +578,7 @@ func (r *Redshift) ReplaceTable(
 }
 
 func (r *Redshift) RenameTable(
+	ctx context.Context,
 	tx *sql.Tx,
 	schema string,
 	sourceTableName string,
@@ -594,7 +592,7 @@ func (r *Redshift) RenameTable(
 	)
 
 	klog.V(4).Infof("Running: %s", renameSQL)
-	_, err := tx.ExecContext(r.ctx, renameSQL)
+	_, err := tx.ExecContext(ctx, renameSQL)
 	if err != nil {
 		return fmt.Errorf("Error renaming table, err: %v", err)
 	}
@@ -603,6 +601,7 @@ func (r *Redshift) RenameTable(
 }
 
 func (r *Redshift) GrantSchemaAccess(
+	ctx context.Context,
 	tx *sql.Tx,
 	schema string,
 	table string,
@@ -622,7 +621,7 @@ func (r *Redshift) GrantSchemaAccess(
 
 	for _, sql := range []string{grantSelectSQL, grantUsageSQL} {
 		klog.V(4).Infof("Running: %s", sql)
-		_, err := tx.ExecContext(r.ctx, sql)
+		_, err := tx.ExecContext(ctx, sql)
 		if err != nil {
 			return fmt.Errorf("Error granting schema access, err: %v", err)
 		}
@@ -631,16 +630,16 @@ func (r *Redshift) GrantSchemaAccess(
 	return nil
 }
 
-func (r *Redshift) prepareAndExecute(tx *sql.Tx, command string) error {
+func (r *Redshift) prepareAndExecute(ctx context.Context, tx *sql.Tx, command string) error {
 	klog.V(5).Infof("Preparing: %s\n", command)
-	statement, err := tx.PrepareContext(r.ctx, command)
+	statement, err := tx.PrepareContext(ctx, command)
 	if err != nil {
 		return err
 	}
 	defer statement.Close()
 
 	klog.V(4).Infof("Running: %s\n", command)
-	_, err = statement.ExecContext(r.ctx)
+	_, err = statement.ExecContext(ctx)
 	if err != nil {
 		return fmt.Errorf("cmd failed, cmd:%s, err: %s\n", command, err)
 	}
@@ -792,7 +791,7 @@ func (r *Redshift) DropColumn(tx *sql.Tx, schema string, table string,
 
 // Unload copies data present in the table to s3
 // this loads data to s3 and generates a manifest file at s3key + manifest path
-func (r *Redshift) Unload(tx *sql.Tx,
+func (r *Redshift) Unload(ctx context.Context, tx *sql.Tx,
 	schema string, table string, s3Key string, removeDuplicate bool) error {
 
 	distinct := ""
@@ -815,7 +814,7 @@ func (r *Redshift) Unload(tx *sql.Tx,
 	)
 	klog.V(2).Infof("Running: UNLOAD from %s to s3\n", table)
 	klog.V(5).Infof("Running: %s", unLoadSQL)
-	_, err := tx.ExecContext(r.ctx, unLoadSQL)
+	_, err := tx.ExecContext(ctx, unLoadSQL)
 
 	return err
 }
@@ -823,7 +822,7 @@ func (r *Redshift) Unload(tx *sql.Tx,
 // Copy using manifest file
 // into redshift using manifest file.
 // this is meant to be run in a transaction, so the first arg must be a sql.Tx
-func (r *Redshift) Copy(tx *sql.Tx,
+func (r *Redshift) Copy(ctx context.Context, tx *sql.Tx,
 	schema string, table string, s3ManifestURI string,
 	typeJson bool, typeCsv bool, comupdateOff bool, statupdateOff bool) error {
 
@@ -866,7 +865,7 @@ func (r *Redshift) Copy(tx *sql.Tx,
 	)
 	klog.V(2).Infof("Running: COPY from s3 to: %s\n", table)
 	klog.V(5).Infof("Running: %s\n", copySQL)
-	_, err := tx.ExecContext(r.ctx, copySQL)
+	_, err := tx.ExecContext(ctx, copySQL)
 	if err != nil {
 		return fmt.Errorf(
 			"Error running copySQL: %v, err: %v\n",
@@ -879,7 +878,7 @@ func (r *Redshift) Copy(tx *sql.Tx,
 
 // GetTableMetadata looks for a table and returns the Table representation
 // if the table does not exist it returns an empty table but does not error
-func (r *Redshift) GetTableMetadata(schema, tableName string) (*Table, error) {
+func (r *Redshift) GetTableMetadata(ctx context.Context, schema, tableName string) (*Table, error) {
 	exist, err := r.TableExist(schema, tableName)
 	if err != nil {
 		return nil, err
@@ -891,7 +890,7 @@ func (r *Redshift) GetTableMetadata(schema, tableName string) (*Table, error) {
 
 	var cols []ColInfo
 	rows, err := r.QueryContext(
-		r.ctx, fmt.Sprintf(tableSchema, schema, tableName))
+		ctx, fmt.Sprintf(tableSchema, schema, tableName))
 	if err != nil {
 		return nil, fmt.Errorf(
 			"error Running column query: %s, err: %s", tableSchema, err)

@@ -190,13 +190,13 @@ func (b *loadProcessor) printCurrentState() {
 
 // loadTable loads the batch to redhsift table using
 // COPY command.
-func (b *loadProcessor) loadTable(schema, table, s3ManifestKey string) error {
-	tx, err := b.redshifter.Begin()
+func (b *loadProcessor) loadTable(ctx context.Context, schema, table, s3ManifestKey string) error {
+	tx, err := b.redshifter.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("Error creating database tx, err: %v\n", err)
 	}
 	err = b.redshifter.Copy(
-		tx, schema, table, b.s3sink.GetKeyURI(s3ManifestKey),
+		ctx, tx, schema, table, b.s3sink.GetKeyURI(s3ManifestKey),
 		true, false,
 		true, true,
 	)
@@ -221,8 +221,8 @@ func (b *loadProcessor) loadTable(schema, table, s3ManifestKey string) error {
 // only the recent representation of the row in staging table, deleting others.
 // TODO: de duplication may need optimizations (also measure the time taken)
 // https://stackoverflow.com/questions/63664935/redshift-delete-duplicate-records-but-keep-latest/63664982?noredirect=1#comment112581353_63664982
-func (b *loadProcessor) deDupeStagingTable(tx *sql.Tx) error {
-	err := b.redshifter.DeDupe(tx,
+func (b *loadProcessor) deDupeStagingTable(ctx context.Context, tx *sql.Tx) error {
+	err := b.redshifter.DeDupe(ctx, tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
 		b.primaryKeys,
@@ -240,8 +240,8 @@ func (b *loadProcessor) deDupeStagingTable(tx *sql.Tx) error {
 // deleteCommonRowsInTargetTable removes all the rows from the target table
 // that is to be modified in this batch. This is done because we can then
 // easily perform inserts in the target table. Also DELETE gets taken care.
-func (b *loadProcessor) deleteCommonRowsInTargetTable(tx *sql.Tx) error {
-	err := b.redshifter.DeleteCommon(tx,
+func (b *loadProcessor) deleteCommonRowsInTargetTable(ctx context.Context, tx *sql.Tx) error {
+	err := b.redshifter.DeleteCommon(ctx, tx,
 		b.targetTable.Meta.Schema,
 		b.stagingTable.Name,
 		b.targetTable.Name,
@@ -259,8 +259,8 @@ func (b *loadProcessor) deleteCommonRowsInTargetTable(tx *sql.Tx) error {
 // deleteRowsWithDeleteOpInStagingTable deletes the rows with operation
 // DELETE in the staging table. so that the delete gets taken care and
 // after this we can freely insert everything in staging table to target table.
-func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
-	err := b.redshifter.DeleteColumn(tx,
+func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(ctx context.Context, tx *sql.Tx) {
+	err := b.redshifter.DeleteColumn(ctx, tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
 		transformer.TempTableOp,
@@ -278,8 +278,9 @@ func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(tx *sql.Tx) {
 // insertIntoTargetTable uses unload and copy strategy to bulk insert into
 // target table. This is the most efficient way to inserting in redshift
 // when the source is redshift table.
-func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) error {
+func (b *loadProcessor) insertIntoTargetTable(ctx context.Context, tx *sql.Tx) error {
 	err := b.redshifter.DropColumn(
+		ctx,
 		tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
@@ -291,6 +292,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) error {
 	}
 
 	err = b.redshifter.DropColumn(
+		ctx,
 		tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
@@ -307,7 +309,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) error {
 		util.NewUUIDString(),
 		"unload_",
 	)
-	err = b.redshifter.Unload(tx,
+	err = b.redshifter.Unload(ctx, tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
 		b.s3sink.GetKeyURI(s3CopyDir),
@@ -320,7 +322,7 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) error {
 	klog.V(2).Infof("%s, unloaded", b.topic)
 
 	s3ManifestKey := s3CopyDir + "manifest"
-	err = b.redshifter.Copy(tx,
+	err = b.redshifter.Copy(ctx, tx,
 		b.targetTable.Meta.Schema,
 		b.targetTable.Name,
 		b.s3sink.GetKeyURI(s3ManifestKey),
@@ -339,9 +341,9 @@ func (b *loadProcessor) insertIntoTargetTable(tx *sql.Tx) error {
 }
 
 // dropTable removes the table only if it exists else returns and does nothing
-func (b *loadProcessor) dropTable(schema string, table string) error {
+func (b *loadProcessor) dropTable(ctx context.Context, schema string, table string) error {
 	tableExist, err := b.redshifter.TableExist(
-		b.stagingTable.Meta.Schema, b.stagingTable.Name,
+		ctx, b.stagingTable.Meta.Schema, b.stagingTable.Name,
 	)
 	if err != nil {
 		return err
@@ -349,11 +351,11 @@ func (b *loadProcessor) dropTable(schema string, table string) error {
 	if !tableExist {
 		return nil
 	}
-	tx, err := b.redshifter.Begin()
+	tx, err := b.redshifter.Begin(ctx)
 	if err != nil {
 		return err
 	}
-	err = b.redshifter.DropTable(tx,
+	err = b.redshifter.DropTable(ctx, tx,
 		schema,
 		table,
 	)
@@ -378,25 +380,25 @@ func (b *loadProcessor) dropTable(schema string, table string) error {
 // 4. insert all the rows from staging table to target table
 // 5. drop the staging table
 // end transaction
-func (b *loadProcessor) merge() error {
-	tx, err := b.redshifter.Begin()
+func (b *loadProcessor) merge(ctx context.Context) error {
+	tx, err := b.redshifter.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("Error creating database tx, err: %v\n", err)
 	}
 
-	err = b.deDupeStagingTable(tx)
+	err = b.deDupeStagingTable(ctx, tx)
 	if err != nil {
 		return err
 	}
-	err = b.deleteCommonRowsInTargetTable(tx)
+	err = b.deleteCommonRowsInTargetTable(ctx, tx)
 	if err != nil {
 		return err
 	}
-	err = b.deleteRowsWithDeleteOpInStagingTable(tx)
+	err = b.deleteRowsWithDeleteOpInStagingTable(ctx, tx)
 	if err != nil {
 		return err
 	}
-	err = b.insertIntoTargetTable(tx)
+	err = b.insertIntoTargetTable(ctx, tx)
 	if err != nil {
 		return err
 	}
@@ -407,7 +409,7 @@ func (b *loadProcessor) merge() error {
 	}
 
 	// error is warning in the below task since we clean on start
-	err = b.dropTable(b.stagingTable.Meta.Schema, b.stagingTable.Name)
+	err = b.dropTable(ctx, b.stagingTable.Meta.Schema, b.stagingTable.Name)
 	if err != nil {
 		klog.Warningf("Dropping the table: %s failed!, err: %v\n",
 			b.stagingTable.Name,
@@ -422,7 +424,7 @@ func (b *loadProcessor) merge() error {
 // batch messages.
 // this also intializes b.stagingTable
 func (b *loadProcessor) createStagingTable(
-	schemaId int, inputTable redshift.Table) error {
+	ctx context.Context, schemaId int, inputTable redshift.Table) error {
 
 	b.stagingTable = redshift.NewTable(inputTable)
 	b.stagingTable.Name = b.stagingTable.Name + "_staged"
@@ -441,7 +443,7 @@ func (b *loadProcessor) createStagingTable(
 			b.stagingTable.Columns[idx] = column
 		}
 	}
-	err := b.dropTable(b.stagingTable.Meta.Schema, b.stagingTable.Name)
+	err := b.dropTable(ctx, b.stagingTable.Meta.Schema, b.stagingTable.Name)
 	if err != nil {
 		return fmt.Errorf("Error dropping staging table: %v\n", err)
 	}
@@ -472,11 +474,11 @@ func (b *loadProcessor) createStagingTable(
 	}
 	b.stagingTable.Columns = append(extraColumns, b.stagingTable.Columns...)
 
-	tx, err := b.redshifter.Begin()
+	tx, err := b.redshifter.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("Error creating database tx, err: %v\n", err)
 	}
-	err = b.redshifter.CreateTable(tx, *b.stagingTable)
+	err = b.redshifter.CreateTable(ctx, tx, *b.stagingTable)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("Error creating staging table, err: %v\n", err)
@@ -498,9 +500,9 @@ func (b *loadProcessor) createStagingTable(
 // migrateTable migrates the table since redshift does not support
 // ALTER COLUMN for everything. MoreInfo: #40
 func (b *loadProcessor) migrateTable(
-	inputTable, targetTable redshift.Table) error {
+	ctx context.Context, inputTable, targetTable redshift.Table) error {
 
-	tx, err := b.redshifter.Begin()
+	tx, err := b.redshifter.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("Error creating database tx, err: %v\n", err)
 	}
@@ -515,6 +517,7 @@ func (b *loadProcessor) migrateTable(
 	copyS3ManifestKey := b.s3sink.GetKeyURI(s3CopyDir + "manifest")
 
 	err = b.redshifter.ReplaceTable(
+		ctx,
 		tx, unLoadS3Key, copyS3ManifestKey,
 		inputTable, targetTable,
 	)
@@ -543,21 +546,21 @@ func (b *loadProcessor) migrateTable(
 // Supported: delete columns
 // Supported: alter columns (supported via table migration)
 // TODO: NotSupported: row ordering changes and row renames
-func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) error {
+func (b *loadProcessor) migrateSchema(ctx context.Context, schemaId int, inputTable redshift.Table) error {
 	// TODO: add cache here based on schema id and return
 	// save some database calls.
 	tableExist, err := b.redshifter.TableExist(
-		inputTable.Meta.Schema, inputTable.Name,
+		ctx, inputTable.Meta.Schema, inputTable.Name,
 	)
 	if err != nil {
 		return fmt.Errorf("Error querying table exist, err: %v\n", err)
 	}
 	if !tableExist {
-		tx, err := b.redshifter.Begin()
+		tx, err := b.redshifter.Begin(ctx)
 		if err != nil {
 			return fmt.Errorf("Error creating database tx, err: %v\n", err)
 		}
-		err = b.redshifter.CreateTable(tx, inputTable)
+		err = b.redshifter.CreateTable(ctx, tx, inputTable)
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf(
@@ -580,7 +583,7 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) e
 	}
 
 	targetTable, err := b.redshifter.GetTableMetadata(
-		inputTable.Meta.Schema, inputTable.Name,
+		ctx, inputTable.Meta.Schema, inputTable.Name,
 	)
 	b.targetTable = targetTable
 	if err != nil {
@@ -589,7 +592,7 @@ func (b *loadProcessor) migrateSchema(schemaId int, inputTable redshift.Table) e
 
 	// UpdateTable computes the schema migration commands and executes it
 	// if required else does nothing. (it runs in transaction based on strategy)
-	migrateTable, err := b.redshifter.UpdateTable(inputTable, *targetTable)
+	migrateTable, err := b.redshifter.UpdateTable(ctx, inputTable, *targetTable)
 	if err != nil {
 		return fmt.Errorf("Schema migration failed, err: %v\n", err)
 	}
@@ -655,7 +658,7 @@ func (b *loadProcessor) processBatch(
 				// postgres(redshift)
 				inputTable.Name = strings.ToLower(
 					inputTable.Name + b.tableSuffix)
-				err = b.migrateSchema(schemaId, inputTable)
+				err = b.migrateSchema(ctx, schemaId, inputTable)
 				if err != nil {
 					return err
 				}
@@ -688,11 +691,12 @@ func (b *loadProcessor) processBatch(
 
 	// load
 	klog.V(2).Infof("%s, load staging\n", b.topic)
-	err = b.createStagingTable(schemaId, inputTable)
+	err = b.createStagingTable(ctx, schemaId, inputTable)
 	if err != nil {
 		return err
 	}
 	err = b.loadTable(
+		ctx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
 		s3ManifestKey,
@@ -702,7 +706,7 @@ func (b *loadProcessor) processBatch(
 	}
 
 	// merge
-	err = b.merge()
+	err = b.merge(ctx)
 	if err != nil {
 		return err
 	}
