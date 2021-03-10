@@ -88,7 +88,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 	claim sarama.ConsumerGroupClaim) error {
 
 	klog.V(2).Infof(
-		"ConsumeClaim for topic:%s, partition:%d, initalOffset:%d\n",
+		"ConsumeClaim started for topic:%s, partition:%d, initalOffset:%d\n",
 		claim.Topic(),
 		claim.Partition(),
 		claim.InitialOffset(),
@@ -124,26 +124,21 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		select {
 		case <-h.ctx.Done():
 			klog.V(2).Infof(
-				"ConsumeClaim gracefully shutdown for topic: %s (above)",
+				"ConsumeClaim returning for topic: %s (main ctx done)",
 				claim.Topic(),
 			)
 			return nil
 		case <-session.Context().Done():
-			return fmt.Errorf("Session context done, recreate, err: %v", session.Context().Err())
+			klog.V(2).Infof(
+				"ConsumeClaim returning for topic: %s (session ctx done)",
+				claim.Topic(),
+			)
+			return fmt.Errorf("session ctx done, err: %v", session.Context().Err())
 		case message, ok := <-claimMsgChan:
 			if !ok {
 				klog.V(2).Infof(
-					"topic:%s: ConsumeClaim ending, hit",
+					"ConsumeClaim returning for topic: %s (read msg channel closed)",
 					claim.Topic(),
-				)
-				err = msgBatch.Process(h.ctx)
-				if err != nil {
-					return err
-				}
-				klog.V(2).Infof(
-					"ConsumeClaim ended for topic: %s, partition: %d (would rerun by manager)\n",
-					claim.Topic(),
-					claim.Partition(),
 				)
 				return nil
 			}
@@ -152,12 +147,16 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			default:
 			case <-h.ctx.Done():
 				klog.V(2).Infof(
-					"ConsumeClaim gracefully shutdown for topic: %s",
+					"ConsumeClaim returning for topic: %s (main ctx done)",
 					claim.Topic(),
 				)
 				return nil
 			case <-session.Context().Done():
-				return fmt.Errorf("Session context done, recreate, err: %v", session.Context().Err())
+				klog.V(2).Infof(
+					"ConsumeClaim returning for topic: %s (session ctx done)",
+					claim.Topic(),
+				)
+				return fmt.Errorf("session ctx done, err: %v", session.Context().Err())
 			}
 
 			// Deserialize the message
@@ -182,13 +181,13 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 					*lastSchemaId,
 					upstreamJobSchemaId,
 				)
-				err = msgBatch.Process(h.ctx)
+				err = msgBatch.Process(session)
 				if err != nil {
 					return err
 				}
 			}
 			// Process the batch by size or insert in batch
-			err = msgBatch.Insert(h.ctx, msg)
+			err = msgBatch.Insert(session, msg)
 			if err != nil {
 				return err
 			}
@@ -199,7 +198,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				"topic:%s: maxWaitSeconds hit",
 				claim.Topic(),
 			)
-			err = msgBatch.Process(h.ctx)
+			err = msgBatch.Process(session)
 			if err != nil {
 				return err
 			}
