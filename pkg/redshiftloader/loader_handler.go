@@ -63,7 +63,7 @@ func NewHandler(
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
 func (h *loaderHandler) Setup(sarama.ConsumerGroupSession) error {
-	klog.V(3).Info("Setting up consumer")
+	klog.V(1).Info("Setting up handler")
 
 	// Mark the consumer as ready
 	select {
@@ -78,7 +78,7 @@ func (h *loaderHandler) Setup(sarama.ConsumerGroupSession) error {
 
 // Cleanup is run at the end of a session, once all ConsumeClaim goroutines have exited
 func (h *loaderHandler) Cleanup(sarama.ConsumerGroupSession) error {
-	klog.V(3).Info("Cleaning up consumer")
+	klog.V(1).Info("Cleaning up handler")
 	return nil
 }
 
@@ -87,7 +87,7 @@ func (h *loaderHandler) Cleanup(sarama.ConsumerGroupSession) error {
 func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 	claim sarama.ConsumerGroupClaim) error {
 
-	klog.V(2).Infof(
+	klog.V(1).Infof(
 		"ConsumeClaim started for topic:%s, partition:%d, initalOffset:%d\n",
 		claim.Topic(),
 		claim.Partition(),
@@ -97,7 +97,6 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 	var lastSchemaId *int
 	var err error
 	processor := newLoadProcessor(
-		session,
 		h.consumerGroupID,
 		claim.Topic(),
 		claim.Partition(),
@@ -176,7 +175,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				lastSchemaId = new(int)
 			} else if *lastSchemaId != upstreamJobSchemaId {
 				klog.V(2).Infof(
-					"topic:%s: schema changed, %d => %d\n",
+					"topic:%s: schema changed, %d => %d (batch flush)\n",
 					claim.Topic(),
 					*lastSchemaId,
 					upstreamJobSchemaId,

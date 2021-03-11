@@ -23,7 +23,6 @@ type releaser struct {
 }
 
 func newReleaser(
-	ctx context.Context,
 	schema string,
 	repo string,
 	filePath string,
@@ -63,7 +62,7 @@ func newReleaser(
 		MaxIdleConns: 3,
 	}
 
-	redshifter, err := redshift.NewRedshift(ctx, config)
+	redshifter, err := redshift.NewRedshift(config)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"Error creating redshift connecton, config: %+v, err: %v",
@@ -108,27 +107,27 @@ func (r *releaser) releaseTopic(
 	_, _, table := transformer.ParseTopic(topic)
 	reloadedTable := table + tableSuffix
 
-	tableExist, err := r.redshifter.TableExist(schema, table)
+	tableExist, err := r.redshifter.TableExist(ctx, schema, table)
 	if err != nil {
 		return err
 	}
 	if tableExist {
 		klog.V(4).Infof("drop table %v", table)
-		err = r.redshifter.DropTableWithCascade(tx, schema, table)
+		err = r.redshifter.DropTableWithCascade(ctx, tx, schema, table)
 		if err != nil {
 			return err
 		}
 	}
 
 	klog.V(4).Infof("move table %v -> %v", reloadedTable, table)
-	err = r.redshifter.RenameTable(tx, schema, reloadedTable, table)
+	err = r.redshifter.RenameTable(ctx, tx, schema, reloadedTable, table)
 	if err != nil {
 		return err
 	}
 
 	if group != nil {
 		klog.V(4).Infof("granting schema access for table: %v to group: %v", table, *group)
-		err = r.redshifter.GrantSchemaAccess(tx, schema, table, *group)
+		err = r.redshifter.GrantSchemaAccess(ctx, tx, schema, table, *group)
 		if err != nil {
 			return err
 		}
@@ -171,7 +170,7 @@ func (r *releaser) release(
 	status *status,
 	patcher *statusPatcher,
 ) error {
-	tx, err := r.redshifter.Begin()
+	tx, err := r.redshifter.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("Error creating database tx, err: %v\n", err)
 	}
