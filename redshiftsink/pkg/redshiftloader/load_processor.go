@@ -202,7 +202,7 @@ func (b *loadProcessor) loadTable(ctx context.Context, schema, table, s3Manifest
 	)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errof("Error loading data in staging table, err:%v\n", err)
+		return fmt.Errorf("Error loading data in staging table, err:%v\n", err)
 	}
 	err = tx.Commit()
 	if err != nil {
@@ -259,7 +259,7 @@ func (b *loadProcessor) deleteCommonRowsInTargetTable(ctx context.Context, tx *s
 // deleteRowsWithDeleteOpInStagingTable deletes the rows with operation
 // DELETE in the staging table. so that the delete gets taken care and
 // after this we can freely insert everything in staging table to target table.
-func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(ctx context.Context, tx *sql.Tx) {
+func (b *loadProcessor) deleteRowsWithDeleteOpInStagingTable(ctx context.Context, tx *sql.Tx) error {
 	err := b.redshifter.DeleteColumn(ctx, tx,
 		b.stagingTable.Meta.Schema,
 		b.stagingTable.Name,
@@ -288,7 +288,7 @@ func (b *loadProcessor) insertIntoTargetTable(ctx context.Context, tx *sql.Tx) e
 	)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Error(err)
+		return err
 	}
 
 	err = b.redshifter.DropColumn(
@@ -300,7 +300,7 @@ func (b *loadProcessor) insertIntoTargetTable(ctx context.Context, tx *sql.Tx) e
 	)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Error(err)
+		return err
 	}
 
 	s3CopyDir := filepath.Join(
@@ -598,7 +598,7 @@ func (b *loadProcessor) migrateSchema(ctx context.Context, schemaId int, inputTa
 	}
 
 	if migrateTable == true {
-		return b.migrateTable(inputTable, *targetTable)
+		return b.migrateTable(ctx, inputTable, *targetTable)
 	}
 
 	return nil
@@ -641,7 +641,7 @@ func (b *loadProcessor) processBatch(
 				)
 				b.upstreamTopic = job.UpstreamTopic
 				klog.V(3).Infof("Processing schema: %+v\n", schemaId)
-				resp, err = b.schemaTransformer.TransformValue(
+				resp, err := b.schemaTransformer.TransformValue(
 					b.upstreamTopic,
 					schemaId,
 					job.MaskSchema,

@@ -1,8 +1,6 @@
 package serializer
 
 import (
-	"context"
-
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 )

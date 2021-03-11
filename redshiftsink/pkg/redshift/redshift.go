@@ -208,7 +208,7 @@ func (r *Redshift) SchemaExist(ctx context.Context, schema string) (bool, error)
 }
 
 func (r *Redshift) CreateSchema(ctx context.Context, schema string) error {
-	tx, err := r.Begin()
+	tx, err := r.Begin(ctx)
 	if err != nil {
 		return err
 	}
@@ -458,7 +458,7 @@ func (r *Redshift) UpdateTable(ctx context.Context, inputTable, targetTable Tabl
 			"Strategy2: starting inplace-migration, table:%v\n",
 			inputTable.Name)
 
-		tx, err := r.Begin()
+		tx, err := r.Begin(ctx)
 		if err != nil {
 			return false, fmt.Errorf("Error creating tx, err: %v\n", err)
 		}
@@ -520,12 +520,12 @@ func (r *Redshift) ReplaceTable(
 	migrationTableName := fmt.Sprintf(
 		`%s_migrating`, targetTable.Name)
 
-	exist, err := r.TableExist(targetTable.Meta.Schema, migrationTableName)
+	exist, err := r.TableExist(ctx, targetTable.Meta.Schema, migrationTableName)
 	if err != nil {
 		return err
 	}
 	if exist {
-		err := r.DropTable(tx, targetTable.Meta.Schema, migrationTableName)
+		err := r.DropTable(ctx, tx, targetTable.Meta.Schema, migrationTableName)
 		if err != nil {
 			return err
 		}
@@ -542,12 +542,12 @@ func (r *Redshift) ReplaceTable(
 		return err
 	}
 
-	err = r.CreateTable(tx, inputTable)
+	err = r.CreateTable(ctx, tx, inputTable)
 	if err != nil {
 		return err
 	}
 
-	err = r.Unload(tx,
+	err = r.Unload(ctx, tx,
 		targetTable.Meta.Schema,
 		migrationTableName,
 		unLoadS3Key,
@@ -557,7 +557,7 @@ func (r *Redshift) ReplaceTable(
 		return err
 	}
 
-	err = r.Copy(tx,
+	err = r.Copy(ctx, tx,
 		targetTable.Meta.Schema,
 		targetTable.Name,
 		copyS3ManifestKey,
@@ -572,7 +572,7 @@ func (r *Redshift) ReplaceTable(
 
 	// Try dropping table and ignore the error if any
 	// as this operation is always performed on start
-	r.DropTable(tx, targetTable.Meta.Schema, migrationTableName)
+	r.DropTable(ctx, tx, targetTable.Meta.Schema, migrationTableName)
 
 	return nil
 }
@@ -649,7 +649,7 @@ func (r *Redshift) prepareAndExecute(ctx context.Context, tx *sql.Tx, command st
 
 // DeDupe deletes the duplicates in the redshift table and keeps only the
 // latest, it accepts a transaction
-func (r *Redshift) DeDupe(tx *sql.Tx, schema string, table string,
+func (r *Redshift) DeDupe(ctx context.Context, tx *sql.Tx, schema string, table string,
 	targetTablePrimaryKeys []string, stagingTablePrimaryKey string) error {
 
 	var joinOn string
@@ -678,11 +678,11 @@ func (r *Redshift) DeDupe(tx *sql.Tx, schema string, table string,
 		stagingTablePrimaryKey,
 	)
 
-	return r.prepareAndExecute(tx, command)
+	return r.prepareAndExecute(ctx, tx, command)
 }
 
 // DeleteCommon deletes the common based on commonColumn from targetTable.
-func (r *Redshift) DeleteCommon(tx *sql.Tx, schema string, stagingTable string,
+func (r *Redshift) DeleteCommon(ctx context.Context, tx *sql.Tx, schema string, stagingTable string,
 	targetTable string, commonColumns []string) error {
 
 	var whereColumn string
@@ -733,12 +733,13 @@ select %s from %s t1 join %s t2 on %s);`
 		joinOn,
 	)
 
-	return r.prepareAndExecute(tx, command)
+	return r.prepareAndExecute(ctx, tx, command)
 }
 
-func (r *Redshift) DropTable(tx *sql.Tx, schema string, table string) error {
+func (r *Redshift) DropTable(ctx context.Context, tx *sql.Tx, schema string, table string) error {
 	dropTable := `DROP TABLE %s;`
 	return r.prepareAndExecute(
+		ctx,
 		tx,
 		fmt.Sprintf(
 			dropTable,
@@ -747,9 +748,10 @@ func (r *Redshift) DropTable(tx *sql.Tx, schema string, table string) error {
 	)
 }
 
-func (r *Redshift) DropTableWithCascade(tx *sql.Tx, schema string, table string) error {
+func (r *Redshift) DropTableWithCascade(ctx context.Context, tx *sql.Tx, schema string, table string) error {
 	dropTable := `DROP TABLE %s cascade;`
 	return r.prepareAndExecute(
+		ctx,
 		tx,
 		fmt.Sprintf(
 			dropTable,
@@ -758,7 +760,7 @@ func (r *Redshift) DropTableWithCascade(tx *sql.Tx, schema string, table string)
 	)
 }
 
-func (r *Redshift) DeleteColumn(tx *sql.Tx, schema string, table string,
+func (r *Redshift) DeleteColumn(ctx context.Context, tx *sql.Tx, schema string, table string,
 	columnName string, columnValue string) error {
 
 	sTable := fmt.Sprintf(`"%s"."%s"`, schema, table)
@@ -773,10 +775,10 @@ func (r *Redshift) DeleteColumn(tx *sql.Tx, schema string, table string,
 		columnValue,
 	)
 
-	return r.prepareAndExecute(tx, command)
+	return r.prepareAndExecute(ctx, tx, command)
 }
 
-func (r *Redshift) DropColumn(tx *sql.Tx, schema string, table string,
+func (r *Redshift) DropColumn(ctx context.Context, tx *sql.Tx, schema string, table string,
 	columnName string) error {
 
 	command := fmt.Sprintf(
@@ -786,7 +788,7 @@ func (r *Redshift) DropColumn(tx *sql.Tx, schema string, table string,
 		columnName,
 	)
 
-	return r.prepareAndExecute(tx, command)
+	return r.prepareAndExecute(ctx, tx, command)
 }
 
 // Unload copies data present in the table to s3
@@ -879,7 +881,7 @@ func (r *Redshift) Copy(ctx context.Context, tx *sql.Tx,
 // GetTableMetadata looks for a table and returns the Table representation
 // if the table does not exist it returns an empty table but does not error
 func (r *Redshift) GetTableMetadata(ctx context.Context, schema, tableName string) (*Table, error) {
-	exist, err := r.TableExist(schema, tableName)
+	exist, err := r.TableExist(ctx, schema, tableName)
 	if err != nil {
 		return nil, err
 	}
