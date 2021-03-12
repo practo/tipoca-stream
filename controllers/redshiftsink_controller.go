@@ -515,7 +515,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 	var releaser *releaser
 	if len(releaseCandidates) > 0 {
 		releaser, err = newReleaser(
-			ctx,
 			rsk.Spec.Loader.RedshiftSchema,
 			repo,
 			filePath,
