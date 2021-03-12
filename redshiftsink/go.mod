@@ -29,3 +29,5 @@ require (
 	k8s.io/klog v1.0.0
 	sigs.k8s.io/controller-runtime v0.7.0
 )
+
+replace github.com/Shopify/sarama => github.com/alok87/sarama v1.27.2-fix1897
