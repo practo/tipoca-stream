@@ -69,20 +69,20 @@ func run(cmd *cobra.Command, args []string) {
 	}
 
 	// Redshift connections is shared by all topics in all routines
-	redshifter, err := redshift.NewRedshift(ctx, config.Redshift)
+	redshifter, err := redshift.NewRedshift(config.Redshift)
 	if err != nil {
 		klog.Fatalf("Error creating redshifter: %v\n", err)
 	}
 
 	schema := config.Redshift.Schema
-	schemaExist, err := redshifter.SchemaExist(schema)
+	schemaExist, err := redshifter.SchemaExist(ctx, schema)
 	if err != nil {
 		klog.Fatalf("Error querying schema exists, err: %v\n", err)
 	}
 	if !schemaExist {
-		err = redshifter.CreateSchema(schema)
+		err = redshifter.CreateSchema(ctx, schema)
 		if err != nil {
-			exist, err2 := redshifter.SchemaExist(schema)
+			exist, err2 := redshifter.SchemaExist(ctx, schema)
 			if err2 != nil {
 				klog.Fatalf("Error checking schema exist, err: %v\n", err2)
 			}

@@ -1,7 +1,7 @@
 package serializer
 
 import (
-	"context"
+	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 )
 
@@ -18,7 +18,7 @@ type Message struct {
 }
 
 type MessageBatchProcessor interface {
-	Process(ctx context.Context, msgBuf []*Message) error
+	Process(session sarama.ConsumerGroupSession, msgBuf []*Message) error
 }
 
 type MessageBatch struct {
@@ -40,13 +40,13 @@ func NewMessageBatch(topic string, partition int32, maxSize int, processor Messa
 }
 
 // process calls the processor to process the batch
-func (b *MessageBatch) Process(ctx context.Context) error {
+func (b *MessageBatch) Process(session sarama.ConsumerGroupSession) error {
 	if len(b.msgBuf) > 0 {
 		klog.V(2).Infof(
 			"topic:%s: calling processor...",
 			b.topic,
 		)
-		err := b.processor.Process(ctx, b.msgBuf)
+		err := b.processor.Process(session, b.msgBuf)
 		if err != nil {
 			return err
 		}
@@ -63,7 +63,7 @@ func (b *MessageBatch) Process(ctx context.Context) error {
 
 // insert makes the batch and also calls the processor if batchSize >= maxSize
 func (b *MessageBatch) Insert(
-	ctx context.Context,
+	session sarama.ConsumerGroupSession,
 	msg *Message,
 ) error {
 	b.msgBuf = append(b.msgBuf, msg)
@@ -72,7 +72,7 @@ func (b *MessageBatch) Insert(
 			"topic:%s: maxSize hit",
 			msg.Topic,
 		)
-		return b.Process(ctx)
+		return b.Process(session)
 	}
 
 	return nil

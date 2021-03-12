@@ -36,9 +36,6 @@ type batchProcessor struct {
 	// autoCommit to Kafka
 	autoCommit bool
 
-	// session is required to commit the offsets on succesfull processing
-	session sarama.ConsumerGroupSession
-
 	// s3Sink
 	s3sink *s3sink.S3Sink
 
@@ -103,7 +100,6 @@ type batchProcessor struct {
 }
 
 func newBatchProcessor(
-	session sarama.ConsumerGroupSession,
 	consumerGroupID string,
 	topic string,
 	partition int32,
@@ -145,7 +141,6 @@ func newBatchProcessor(
 	klog.Infof("topic: %v, autoCommit: %v", topic, saramaConfig.AutoCommit)
 
 	return &batchProcessor{
-		session:            session,
 		topic:              topic,
 		partition:          partition,
 		loaderTopicPrefix:  kafkaLoaderTopicPrefix,
@@ -185,16 +180,10 @@ func (b *batchProcessor) ctxCancelled(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
 		klog.Warningf(
-			"%s, batchId:%d, lastCommitted:%d: main ctx done. Cancelled.\n",
-			b.topic, b.batchId, b.lastCommittedOffset,
-		)
-		return fmt.Errorf("Processing stopped! main ctx done (recreate), ctxErr: %v", ctx.Err())
-	case <-b.session.Context().Done():
-		klog.Warningf(
 			"%s, batchId:%d, lastCommitted:%d: session ctx done. Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,
 		)
-		return fmt.Errorf("Processing stopped! session ctx done (recreate), ctxErr: %v", b.session.Context().Err())
+		return ctx.Err()
 	default:
 		return nil
 	}
@@ -233,9 +222,9 @@ func (b *batchProcessor) setS3key(topic string, partition int32, offset int64) {
 	}
 }
 
-func (b *batchProcessor) markOffset(msgBuf []*serializer.Message) {
+func (b *batchProcessor) markOffset(session sarama.ConsumerGroupSession, msgBuf []*serializer.Message) {
 	for i, message := range msgBuf {
-		b.session.MarkOffset(
+		session.MarkOffset(
 			message.Topic,
 			message.Partition,
 			message.Offset+1,
@@ -249,7 +238,7 @@ func (b *batchProcessor) markOffset(msgBuf []*serializer.Message) {
 		// commit only when autoCommit is Off
 		if b.autoCommit == false {
 			klog.V(2).Infof("topic:%s, Committing (autoCommit=false)", message.Topic)
-			b.session.Commit()
+			session.Commit()
 		}
 		b.lastCommittedOffset = message.Offset
 		var verbosity klog.Level = 5
@@ -264,16 +253,16 @@ func (b *batchProcessor) markOffset(msgBuf []*serializer.Message) {
 }
 
 func (b *batchProcessor) handleShutdown() {
-	klog.Infof(
-		"topic:%s, batchId:%d: Batch processing gracefully shutdown.\n",
+	klog.V(2).Infof(
+		"topic:%s, batchId:%d: batch processing gracefully shutingdown.\n",
 		b.topic,
 		b.batchId,
 	)
 	if b.lastCommittedOffset == 0 {
-		klog.Infof("topic:%s: Nothing new was committed.\n", b.topic)
+		klog.Infof("topic:%s: nothing new was committed.\n", b.topic)
 	} else {
-		klog.Infof(
-			"topic:%s: lastCommittedOffset: %d. Shut down.\n",
+		klog.V(2).Infof(
+			"topic:%s: lastCommittedOffset: %d. shut down.\n",
 			b.topic,
 			b.lastCommittedOffset,
 		)
@@ -282,7 +271,7 @@ func (b *batchProcessor) handleShutdown() {
 	b.signaler.Close()
 }
 
-func (b *batchProcessor) signalLoad() {
+func (b *batchProcessor) signalLoad() error {
 	downstreamTopic := b.loaderTopicPrefix + b.topic
 	klog.V(2).Infof("topic:%s, batchId:%d, skipMerge:%v\n",
 		b.topic, b.batchId, b.skipMerge)
@@ -304,23 +293,20 @@ func (b *batchProcessor) signalLoad() {
 		job.ToStringMap(),
 	)
 	if err != nil {
-		klog.Fatalf("Error sending the signal to the loader, err:%v\n", err)
+		return fmt.Errorf("Error signalling the loader, err:%v\n", err)
 	}
 	klog.V(2).Infof(
 		"topic:%s, batchId:%d: Signalled loader.\n",
 		b.topic, b.batchId,
 	)
+
+	return nil
 }
 
-func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
+func (b *batchProcessor) processMessage(ctx context.Context, message *serializer.Message, id int) error {
 	klog.V(5).Infof(
 		"topic:%s, batchId:%d id:%d: transforming\n",
 		b.topic, b.batchId, id,
-	)
-	// V(99) is an expception but required (never try this in prod)
-	klog.V(99).Infof(
-		"topic:%s, batchId:%d id:%d: message:%+v\n",
-		b.topic, b.batchId, id, message,
 	)
 
 	// key is always made based on the first not nil message in the batch
@@ -333,24 +319,21 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 			b.maskSchema,
 		)
 		if err != nil {
-			klog.Fatalf(
-				"Transforming schema:%d => inputTable failed: %v\n",
+			return fmt.Errorf(
+				"transforming schema:%d => inputTable failed: %v\n",
 				b.batchSchemaId,
-				err)
+				err,
+			)
 		}
 		b.batchSchemaTable = resp.(redshift.Table)
 
 		b.setS3key(message.Topic, message.Partition, message.Offset)
 
-		klog.V(5).Infof("topic:%s, batchId:%d id:%d: s3Key:%s\n",
-			b.topic, b.batchId, id, b.s3Key,
-		)
-
 		b.batchStartOffset = message.Offset
 	}
 
 	if b.batchSchemaId != message.SchemaId {
-		klog.Fatalf("topic:%s, schema id mismatch in the batch, %d != %d\n",
+		return fmt.Errorf("topic:%s, schema id mismatch in the batch, %d != %d\n",
 			b.topic,
 			b.batchSchemaId,
 			message.SchemaId,
@@ -359,13 +342,15 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 
 	err := b.messageTransformer.Transform(message, b.batchSchemaTable)
 	if err != nil {
-		klog.Fatalf("Error transforming message:%+v, err:%v\n", message, err)
+		return fmt.Errorf(
+			"Error transforming message:%+v, err:%v\n", message, err,
+		)
 	}
 
 	if b.maskMessages {
 		err := b.msgMasker.Transform(message, b.batchSchemaTable)
 		if err != nil {
-			klog.Fatalf("Error masking message:%+v, err:%v\n", message, err)
+			return fmt.Errorf("Error masking message:%+v, err:%v\n", message, err)
 		}
 	}
 
@@ -373,7 +358,7 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 
 	messageValueBytes, err := json.Marshal(message.Value)
 	if err != nil {
-		klog.Fatalf("Error marshalling message.Value, message: %+v\n", message)
+		return fmt.Errorf("Error marshalling message.Value, message: %+v\n", message)
 	}
 
 	b.bodyBuf.Write(messageValueBytes)
@@ -392,6 +377,8 @@ func (b *batchProcessor) processMessage(message *serializer.Message, id int) {
 	)
 
 	b.batchEndOffset = message.Offset
+
+	return nil
 }
 
 // processBatch handles the batch procesing and return true if all completes
@@ -406,11 +393,12 @@ func (b *batchProcessor) processBatch(
 	for id, message := range msgBuf {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("Main context done, recreate, err: %v", ctx.Err())
-		case <-b.session.Context().Done():
-			return fmt.Errorf("Session context done, recreate, err: %v", b.session.Context().Err())
+			return fmt.Errorf("session ctx done, err: %v", ctx.Err())
 		default:
-			b.processMessage(message, id)
+			err := b.processMessage(ctx, message, id)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -418,36 +406,34 @@ func (b *batchProcessor) processBatch(
 }
 
 // Process implements serializer.MessageBatch
-func (b *batchProcessor) Process(ctx context.Context, msgBuf []*serializer.Message) error {
+func (b *batchProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*serializer.Message) error {
 	now := time.Now()
 
 	b.setBatchId()
 	b.batchSchemaId = -1
 	b.skipMerge = true
+	ctx := session.Context()
 
 	err := b.ctxCancelled(ctx)
 	if err != nil {
 		return err
 	}
-
-	klog.Infof("topic:%s, batchId:%d, size:%d: Processing...\n",
+	klog.V(2).Infof("topic:%s, batchId:%d, size:%d: Processing...\n",
 		b.topic, b.batchId, len(msgBuf),
 	)
-
 	err = b.processBatch(ctx, msgBuf)
 	if err != nil {
 		b.handleShutdown()
-		return err
+		return fmt.Errorf("Error processing batch, err:%v", err)
 	}
 
-	klog.Infof("topic:%s, batchId:%d, size:%d: Uploading...\n",
+	klog.V(2).Infof("topic:%s, batchId:%d, size:%d: Uploading...\n",
 		b.topic, b.batchId, len(msgBuf),
 	)
 	err = b.s3sink.Upload(b.s3Key, b.bodyBuf)
 	if err != nil {
-		klog.Fatalf("Error writing to s3, err=%v\n", err)
+		return fmt.Errorf("Error writing to s3, err=%v\n", err)
 	}
-
 	klog.V(3).Infof(
 		"topic:%s, batchId:%d, startOffset:%d, endOffset:%d: Uploaded",
 		b.topic, b.batchId, b.batchStartOffset, b.batchEndOffset,
@@ -459,15 +445,17 @@ func (b *batchProcessor) Process(ctx context.Context, msgBuf []*serializer.Messa
 
 	b.bodyBuf.Truncate(0)
 
-	b.signalLoad()
+	err = b.signalLoad()
+	if err != nil {
+		return err
+	}
 
-	b.markOffset(msgBuf)
+	b.markOffset(session, msgBuf)
 
-	klog.Infof(
+	klog.V(2).Infof(
 		"topic:%s, batchId:%d, startOffset:%d, endOffset:%d: Processed",
 		b.topic, b.batchId, b.batchStartOffset, b.batchEndOffset,
 	)
-
 	setMsgsProcessedPerSecond(
 		b.consumerGroupID,
 		b.topic,

@@ -1,6 +1,6 @@
 # cloud.google.com/go v0.51.0
 cloud.google.com/go/compute/metadata
-# github.com/Shopify/sarama v1.27.2
+# github.com/Shopify/sarama v1.27.2 => github.com/alok87/sarama v1.27.2-fix1897
 ## explicit
 github.com/Shopify/sarama
 # github.com/aws/aws-sdk-go v1.36.21
@@ -275,8 +275,6 @@ github.com/pierrec/lz4
 github.com/pierrec/lz4/internal/xxh32
 # github.com/pkg/errors v0.9.1
 github.com/pkg/errors
-# github.com/practo/gobatch v0.0.0-20200822085922-4905d08d9f40
-## explicit
 # github.com/practo/klog/v2 v2.2.1
 ## explicit
 github.com/practo/klog/v2
@@ -760,3 +758,4 @@ sigs.k8s.io/controller-runtime/pkg/webhook/internal/metrics
 sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
+# github.com/Shopify/sarama => github.com/alok87/sarama v1.27.2-fix1897

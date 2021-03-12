@@ -238,7 +238,7 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 
 		c.setActiveTopics(topics)
 		klog.V(2).Infof(
-			"Calling ConsumeClaim for %d topic(s) (%s)\n",
+			"ConsumeClaim starting for %d topic(s) (%s)\n",
 			len(topics),
 			c.consumerGroupID,
 		)
@@ -250,13 +250,17 @@ func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 		}
 		// check if context was cancelled, the consumer should stop
 		if ctx.Err() != nil {
-			klog.V(2).Infof("Manager: %s, Context cancelled", c.consumerGroupID)
+			klog.V(2).Infof(
+				"ConsumeClaim ended for %s, ctxErr: %v (main ctx cancel, won't rerun, shutdown!)\n",
+				c.consumerGroupID,
+				ctx.Err(),
+			)
 			return
+		} else {
+			klog.V(2).Infof(
+				"ConsumeClaim ended for %s, (will rerun)\n",
+				c.consumerGroupID,
+			)
 		}
-
-		klog.V(2).Infof(
-			"Completed ConsumeClaim for (%s), I will rerun\n",
-			c.consumerGroupID,
-		)
 	}
 }
