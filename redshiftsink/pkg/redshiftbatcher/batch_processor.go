@@ -18,6 +18,7 @@ import (
 	"github.com/spf13/viper"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -27,11 +28,10 @@ const (
 
 type batchProcessor struct {
 	topic             string
+	partition         int32
 	loaderTopicPrefix string
 
 	consumerGroupID string
-
-	partition int32
 
 	// autoCommit to Kafka
 	autoCommit bool
@@ -103,11 +103,12 @@ func newBatchProcessor(
 	consumerGroupID string,
 	topic string,
 	partition int32,
+	processChan chan []*serializer.Message,
 	kafkaConfig kafka.KafkaConfig,
 	saramaConfig kafka.SaramaConfig,
 	maskConfig masker.MaskConfig,
 	kafkaLoaderTopicPrefix string,
-) serializer.MessageBatchProcessor {
+) serializer.MessageBatchAsyncProcessor {
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
 		viper.GetString("s3sink.secretAccessKey"),
@@ -183,7 +184,7 @@ func (b *batchProcessor) ctxCancelled(ctx context.Context) error {
 			"%s, batchId:%d, lastCommitted:%d: session ctx done. Cancelled.\n",
 			b.topic, b.batchId, b.lastCommittedOffset,
 		)
-		return ctx.Err()
+		return kafka.ErrSaramaSessionContextDone
 	default:
 		return nil
 	}
@@ -393,7 +394,7 @@ func (b *batchProcessor) processBatch(
 	for id, message := range msgBuf {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("session ctx done, err: %v", ctx.Err())
+			return kafka.ErrSaramaSessionContextDone
 		default:
 			err := b.processMessage(ctx, message, id)
 			if err != nil {
@@ -405,10 +406,12 @@ func (b *batchProcessor) processBatch(
 	return nil
 }
 
-// Process implements serializer.MessageBatch
-func (b *batchProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*serializer.Message) error {
-	now := time.Now()
+func (b *batchProcessor) ProcessMsgBuf(
+	session sarama.ConsumerGroupSession,
+	msgBuf []*serializer.Message,
+) error {
 
+	now := time.Now()
 	b.setBatchId()
 	b.batchSchemaId = -1
 	b.skipMerge = true
@@ -463,4 +466,33 @@ func (b *batchProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*
 	)
 
 	return nil
+}
+
+// Process implements serializer.MessageBatchAsyncProcessor
+func (b *batchProcessor) Process(
+	wg *sync.WaitGroup,
+	session sarama.ConsumerGroupSession,
+	processChan <-chan []*serializer.Message,
+	errChan chan<- error,
+) {
+	defer wg.Done()
+
+	for {
+		select {
+		case <-session.Context().Done():
+			errChan <- kafka.ErrSaramaSessionContextDone
+			return
+		case msgBuf := <-processChan:
+			err := b.ProcessMsgBuf(session, msgBuf)
+			if err != nil {
+				errChan <- err
+				klog.Errorf(
+					"%s, error occured: %v, processor shutdown.",
+					b.topic,
+					err,
+				)
+				return
+			}
+		}
+	}
 }
