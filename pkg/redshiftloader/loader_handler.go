@@ -103,7 +103,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		h.saramaConfig,
 		h.redshifter,
 	)
-	msgBatch := serializer.NewMessageBatch(
+	msgBatch := serializer.NewMessageSyncBatch(
 		claim.Topic(),
 		claim.Partition(),
 		h.maxSize,

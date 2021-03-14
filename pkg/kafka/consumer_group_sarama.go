@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
@@ -10,6 +11,8 @@ import (
 	"strings"
 	"time"
 )
+
+var ErrSaramaSessionContextDone = errors.New("session context done")
 
 type SaramaConfig struct {
 	Assignor                string   `yaml:"assignor"` // default is there
