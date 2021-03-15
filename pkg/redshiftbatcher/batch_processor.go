@@ -22,77 +22,29 @@ import (
 	"time"
 )
 
-const (
-	maxBatchId = 99
-)
-
 type batchProcessor struct {
 	topic             string
 	partition         int32
 	loaderTopicPrefix string
+	consumerGroupID   string
+	autoCommit        bool
 
-	consumerGroupID string
-
-	// autoCommit to Kafka
-	autoCommit bool
-
-	// s3Sink
-	s3sink *s3sink.S3Sink
-
-	// s3BucketDir
+	s3sink      *s3sink.S3Sink
 	s3BucketDir string
-
-	// s3Key is the key at which the batch data is stored in s3
-	s3Key string
-
-	// bodyBuf stores the batch data in buffer before upload
-	bodyBuf *bytes.Buffer
-
-	// batchId is a forever increasing number which resets after maxBatchId
-	// this is useful only for logging and debugging purpose
-	batchId int
-
-	// batchSchemaId contains the schema id the batch has
-	// all messages in the batch should have same schema id
-	batchSchemaId int
-
-	// batchSchemaTable contains the redshift table made from the schema
-	batchSchemaTable redshift.Table
-
-	// batchStartOffset is the starting offset of the batch
-	// this is useful only for logging and debugging purpose
-	batchStartOffset int64
-
-	// batchEndOffset is the ending offset of the batch
-	// this is useful only for logging and debugging purpose
-	batchEndOffset int64
-
-	// lastCommitedOffset tells the last commitedOffset
-	// this is helpful to log at the time of shutdown and can help in debugging
-	lastCommittedOffset int64
 
 	// messageTransformer is used to transform debezium events into
 	// redshift COPY commands with some annotations
 	messageTransformer transformer.MessageTransformer
-
 	// schemaTransfomer is used to transform debezium schema
 	// to redshift table
 	schemaTransformer transformer.SchemaTransformer
-
 	// msgMasker is used to mask the message based on the configuration
 	// provided. Default is always to mask everything.
 	// this gets activated only when batcher.mask is set to true
 	// and batcher.maskConfigDir is defined.
 	msgMasker transformer.MessageTransformer
-
 	// maskMessages stores if the masking is enabled
 	maskMessages bool
-
-	// maskMessages stores if the masking is enabled
-	maskSchema map[string]serializer.MaskInfo
-
-	// skipMerge if only create operations are present in batch
-	skipMerge bool
 
 	// signaler is a kafka producer signaling the load the batch uploaded data
 	// TODO: make the producer have interface
@@ -149,16 +101,128 @@ func newBatchProcessor(
 		autoCommit:         saramaConfig.AutoCommit,
 		s3sink:             sink,
 		s3BucketDir:        viper.GetString("s3sink.bucketDir"),
-		bodyBuf:            bytes.NewBuffer(make([]byte, 0, 4096)),
 		messageTransformer: debezium.NewMessageTransformer(),
 		schemaTransformer: debezium.NewSchemaTransformer(
 			viper.GetString("schemaRegistryURL")),
 		msgMasker:    msgMasker,
 		maskMessages: maskMessages,
-		skipMerge:    true,
-		maskSchema:   make(map[string]serializer.MaskInfo),
 		signaler:     signaler,
 	}
+}
+
+type response struct {
+	err               error
+	batchID           int
+	batchSchemaID     int
+	batchSchemaTable  redshift.Table
+	skipMerge         bool
+	s3Key             string
+	bodyBuf           *bytes.Buffer
+	startOffset       int64
+	endOffset         int64
+	messagesProcessed int
+	maskSchema        map[string]serializer.MaskInfo
+}
+
+func (b *batchProcessor) ctxCancelled(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		klog.Warningf(
+			"%s, session ctx done. Cancelled.\n",
+			b.topic,
+		)
+		return kafka.ErrSaramaSessionContextDone
+	default:
+		return nil
+	}
+}
+
+func constructS3key(
+	s3ucketDir string,
+	topic string,
+	partition int32,
+	offset int64,
+) string {
+	s3FileName := fmt.Sprintf(
+		"%d_offset_%d_partition.json",
+		offset,
+		partition,
+	)
+
+	maskFileVersion := viper.GetString("batcher.maskFileVersion")
+	if maskFileVersion != "" {
+		return filepath.Join(
+			s3ucketDir,
+			topic,
+			maskFileVersion,
+			s3FileName,
+		)
+	} else {
+		return filepath.Join(
+			s3ucketDir,
+			topic,
+			s3FileName,
+		)
+	}
+}
+
+func (b *batchProcessor) handleShutdown() {
+	klog.V(2).Infof("%s: batch processing gracefully shutingdown", b.topic)
+	b.signaler.Close()
+}
+
+func (b *batchProcessor) markOffset(
+	session sarama.ConsumerGroupSession,
+	topic string,
+	partition int32,
+	offset int64,
+	autoCommit bool,
+) {
+	klog.V(2).Infof("%s: offset: %v, marking", topic, offset+1)
+	session.MarkOffset(
+		topic,
+		partition,
+		offset+1,
+		"",
+	)
+	klog.V(2).Infof("%s: offset: %v, marked", topic, offset+1)
+
+	if autoCommit == false {
+		klog.V(2).Infof("%s: committing (autoCommit=false)", topic)
+		session.Commit()
+		klog.V(2).Infof("%s: committed (autoCommit=false)", topic)
+	}
+}
+
+func (b *batchProcessor) signalLoad(resp *response) error {
+	klog.V(2).Infof("%s: batchID:%d: signalling", b.topic, resp.batchID)
+
+	job := loader.NewJob(
+		b.topic,
+		resp.startOffset,
+		resp.endOffset,
+		",",
+		b.s3sink.GetKeyURI(resp.s3Key),
+		resp.batchSchemaID, // schema of upstream topic
+		resp.maskSchema,
+		resp.skipMerge,
+	)
+
+	err := b.signaler.Add(
+		b.loaderTopicPrefix+b.topic,
+		loader.JobAvroSchema,
+		[]byte(time.Now().String()),
+		job.ToStringMap(),
+	)
+	if err != nil {
+		return err
+	}
+	klog.V(2).Infof(
+		"%s: batchID:%d: Signalled loader.\n",
+		b.topic, resp.batchID,
+	)
+
+	return nil
 }
 
 func removeEmptyNullValues(value map[string]*string) map[string]*string {
@@ -177,226 +241,103 @@ func removeEmptyNullValues(value map[string]*string) map[string]*string {
 	return value
 }
 
-func (b *batchProcessor) ctxCancelled(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		klog.Warningf(
-			"%s, batchId:%d, lastCommitted:%d: session ctx done. Cancelled.\n",
-			b.topic, b.batchId, b.lastCommittedOffset,
-		)
-		return kafka.ErrSaramaSessionContextDone
-	default:
-		return nil
-	}
-}
-
-func (b *batchProcessor) setBatchId() {
-	if b.batchId == maxBatchId {
-		klog.V(5).Infof("topic:%s: Resetting batchId to zero.", b.topic)
-		b.batchId = 0
-	}
-
-	b.batchId += 1
-}
-
-func (b *batchProcessor) setS3key(topic string, partition int32, offset int64) {
-	s3FileName := fmt.Sprintf(
-		"%d_offset_%d_partition.json",
-		offset,
-		partition,
-	)
-
-	maskFileVersion := viper.GetString("batcher.maskFileVersion")
-	if maskFileVersion != "" {
-		b.s3Key = filepath.Join(
-			b.s3BucketDir,
-			topic,
-			maskFileVersion,
-			s3FileName,
-		)
-	} else {
-		b.s3Key = filepath.Join(
-			b.s3BucketDir,
-			topic,
-			s3FileName,
-		)
-	}
-}
-
-func (b *batchProcessor) markOffset(session sarama.ConsumerGroupSession, msgBuf []*serializer.Message) {
-	for i, message := range msgBuf {
-		session.MarkOffset(
-			message.Topic,
-			message.Partition,
-			message.Offset+1,
-			"",
-		)
-
-		// TODO: not sure how to avoid any failure when the process restarts
-		// while doing this But if the system is idempotent we do not
-		// need to worry about this. Since the write to s3 again will
-		// just overwrite the same data.
-		// commit only when autoCommit is Off
-		if b.autoCommit == false {
-			klog.V(2).Infof("topic:%s, Committing (autoCommit=false)", message.Topic)
-			session.Commit()
-		}
-		b.lastCommittedOffset = message.Offset
-		var verbosity klog.Level = 5
-		if len(msgBuf)-1 == i {
-			verbosity = 3
-		}
-		klog.V(verbosity).Infof(
-			"topic:%s, lastCommittedOffset:%d: Processed\n",
-			message.Topic, b.lastCommittedOffset,
-		)
-	}
-}
-
-func (b *batchProcessor) handleShutdown() {
-	klog.V(2).Infof(
-		"topic:%s, batchId:%d: batch processing gracefully shutingdown.\n",
-		b.topic,
-		b.batchId,
-	)
-	if b.lastCommittedOffset == 0 {
-		klog.Infof("topic:%s: nothing new was committed.\n", b.topic)
-	} else {
-		klog.V(2).Infof(
-			"topic:%s: lastCommittedOffset: %d. shut down.\n",
-			b.topic,
-			b.lastCommittedOffset,
-		)
-	}
-
-	b.signaler.Close()
-}
-
-func (b *batchProcessor) signalLoad() error {
-	downstreamTopic := b.loaderTopicPrefix + b.topic
-	klog.V(2).Infof("topic:%s, batchId:%d, skipMerge:%v\n",
-		b.topic, b.batchId, b.skipMerge)
-	job := loader.NewJob(
-		b.topic,
-		b.batchStartOffset,
-		b.batchEndOffset,
-		",",
-		b.s3sink.GetKeyURI(b.s3Key),
-		b.batchSchemaId, // schema of upstream topic
-		b.maskSchema,
-		b.skipMerge,
-	)
-
-	err := b.signaler.Add(
-		downstreamTopic,
-		loader.JobAvroSchema,
-		[]byte(time.Now().String()),
-		job.ToStringMap(),
-	)
-	if err != nil {
-		return fmt.Errorf("Error signalling the loader, err:%v\n", err)
-	}
-	klog.V(2).Infof(
-		"topic:%s, batchId:%d: Signalled loader.\n",
-		b.topic, b.batchId,
-	)
-
-	return nil
-}
-
-func (b *batchProcessor) processMessage(ctx context.Context, message *serializer.Message, id int) error {
+func (b *batchProcessor) processMessage(
+	ctx context.Context,
+	message *serializer.Message,
+	resp *response,
+	messageID int,
+) error {
 	klog.V(5).Infof(
-		"topic:%s, batchId:%d id:%d: transforming\n",
-		b.topic, b.batchId, id,
+		"%s: batchID:%d id:%d: transforming",
+		b.topic, resp.batchID, messageID,
 	)
 
 	// key is always made based on the first not nil message in the batch
 	// also the batchSchemaId is set only at the start of the batch
-	if b.s3Key == "" {
-		b.batchSchemaId = message.SchemaId
-		resp, err := b.schemaTransformer.TransformValue(
+	if resp.s3Key == "" {
+		resp.batchSchemaID = message.SchemaId
+		r, err := b.schemaTransformer.TransformValue(
 			b.topic,
-			b.batchSchemaId,
-			b.maskSchema,
+			resp.batchSchemaID,
+			resp.maskSchema,
 		)
 		if err != nil {
 			return fmt.Errorf(
-				"transforming schema:%d => inputTable failed: %v\n",
-				b.batchSchemaId,
+				"transforming schema:%d => inputTable failed: %v",
+				resp.batchSchemaID,
 				err,
 			)
 		}
-		b.batchSchemaTable = resp.(redshift.Table)
-
-		b.setS3key(message.Topic, message.Partition, message.Offset)
-
-		b.batchStartOffset = message.Offset
+		resp.batchSchemaTable = r.(redshift.Table)
+		resp.s3Key = constructS3key(
+			b.s3BucketDir,
+			message.Topic,
+			message.Partition,
+			message.Offset,
+		)
+		resp.startOffset = message.Offset
 	}
 
-	if b.batchSchemaId != message.SchemaId {
-		return fmt.Errorf("topic:%s, schema id mismatch in the batch, %d != %d\n",
+	if resp.batchSchemaID != message.SchemaId {
+		return fmt.Errorf("topic:%s, schema id mismatch in the batch, %d != %d",
 			b.topic,
-			b.batchSchemaId,
+			resp.batchSchemaID,
 			message.SchemaId,
 		)
 	}
 
-	err := b.messageTransformer.Transform(message, b.batchSchemaTable)
+	err := b.messageTransformer.Transform(message, resp.batchSchemaTable)
 	if err != nil {
 		return fmt.Errorf(
-			"Error transforming message:%+v, err:%v\n", message, err,
+			"Error transforming message:%+v, err:%v", message, err,
 		)
 	}
 
 	if b.maskMessages {
-		err := b.msgMasker.Transform(message, b.batchSchemaTable)
+		err := b.msgMasker.Transform(message, resp.batchSchemaTable)
 		if err != nil {
-			return fmt.Errorf("Error masking message:%+v, err:%v\n", message, err)
+			return fmt.Errorf("Error masking message:%+v, err:%v", message, err)
 		}
 	}
 
 	message.Value = removeEmptyNullValues(message.Value.(map[string]*string))
-
 	messageValueBytes, err := json.Marshal(message.Value)
 	if err != nil {
-		return fmt.Errorf("Error marshalling message.Value, message: %+v\n", message)
+		return fmt.Errorf("Error marshalling message.Value, message: %+v", message)
 	}
+	resp.bodyBuf.Write(messageValueBytes)
+	resp.bodyBuf.Write([]byte{'\n'})
 
-	b.bodyBuf.Write(messageValueBytes)
-	b.bodyBuf.Write([]byte{'\n'})
-	if b.maskMessages && len(b.maskSchema) == 0 {
-		b.maskSchema = message.MaskSchema
+	if b.maskMessages && len(resp.maskSchema) == 0 {
+		resp.maskSchema = message.MaskSchema
 	}
-
 	if message.Operation != serializer.OperationCreate {
-		b.skipMerge = false
+		resp.skipMerge = false
 	}
-
 	klog.V(5).Infof(
-		"topic:%s, batchId:%d id:%d: transformed\n",
-		b.topic, b.batchId, id,
+		"%s: batchID:%d id:%d: transformed\n",
+		b.topic, resp.batchID, messageID,
 	)
-
-	b.batchEndOffset = message.Offset
+	resp.endOffset = message.Offset
 
 	return nil
 }
 
-// processBatch handles the batch procesing and return true if all completes
+// processMessages handles the batch procesing and return true if all completes
 // otherwise return false in case of gracefull shutdown signals being captured,
 // this helps in cleanly shutting down the batch processing.
-func (b *batchProcessor) processBatch(
+func (b *batchProcessor) processMessages(
 	ctx context.Context,
 	msgBuf []*serializer.Message,
+	resp *response,
 ) error {
 
-	b.s3Key = ""
-	for id, message := range msgBuf {
+	for messageID, message := range msgBuf {
 		select {
 		case <-ctx.Done():
 			return kafka.ErrSaramaSessionContextDone
 		default:
-			err := b.processMessage(ctx, message, id)
+			err := b.processMessage(ctx, message, resp, messageID)
 			if err != nil {
 				return err
 			}
@@ -406,66 +347,42 @@ func (b *batchProcessor) processBatch(
 	return nil
 }
 
-func (b *batchProcessor) ProcessMsgBuf(
+func (b *batchProcessor) processBatch(
 	session sarama.ConsumerGroupSession,
 	msgBuf []*serializer.Message,
-) error {
-
-	now := time.Now()
-	b.setBatchId()
-	b.batchSchemaId = -1
-	b.skipMerge = true
+	resp *response,
+) {
 	ctx := session.Context()
-
 	err := b.ctxCancelled(ctx)
 	if err != nil {
-		return err
-	}
-	klog.V(2).Infof("topic:%s, batchId:%d, size:%d: Processing...\n",
-		b.topic, b.batchId, len(msgBuf),
-	)
-	err = b.processBatch(ctx, msgBuf)
-	if err != nil {
-		b.handleShutdown()
-		return fmt.Errorf("Error processing batch, err:%v", err)
+		resp.err = err
+		return
 	}
 
-	klog.V(2).Infof("topic:%s, batchId:%d, size:%d: Uploading...\n",
-		b.topic, b.batchId, len(msgBuf),
+	klog.V(2).Infof("%s: batchID:%d, size:%d: Processing...",
+		b.topic, resp.batchID, len(msgBuf),
 	)
-	err = b.s3sink.Upload(b.s3Key, b.bodyBuf)
+	err = b.processMessages(ctx, msgBuf, resp)
 	if err != nil {
-		return fmt.Errorf("Error writing to s3, err=%v\n", err)
+		resp.err = err
+		return
+	}
+
+	// Upload
+	klog.V(2).Infof("%s: batchId:%d, size:%d: Uploading...",
+		b.topic, resp.batchID, len(msgBuf),
+	)
+	err = b.s3sink.Upload(resp.s3Key, resp.bodyBuf)
+	if err != nil {
+		resp.err = fmt.Errorf("Error writing to s3, err=%v", err)
+		return
 	}
 	klog.V(3).Infof(
-		"topic:%s, batchId:%d, startOffset:%d, endOffset:%d: Uploaded",
-		b.topic, b.batchId, b.batchStartOffset, b.batchEndOffset,
+		"%s: batchID:%d, startOffset:%d, endOffset:%d: Uploaded",
+		b.topic, resp.batchID, resp.startOffset, resp.endOffset,
 	)
-	klog.V(5).Infof(
-		"topic:%s, batchId:%d: Uploaded: %s",
-		b.topic, b.batchId, b.s3Key,
-	)
-
-	b.bodyBuf.Truncate(0)
-
-	err = b.signalLoad()
-	if err != nil {
-		return err
-	}
-
-	b.markOffset(session, msgBuf)
-
-	klog.V(2).Infof(
-		"topic:%s, batchId:%d, startOffset:%d, endOffset:%d: Processed",
-		b.topic, b.batchId, b.batchStartOffset, b.batchEndOffset,
-	)
-	setMsgsProcessedPerSecond(
-		b.consumerGroupID,
-		b.topic,
-		float64(len(msgBuf))/time.Since(now).Seconds(),
-	)
-
-	return nil
+	resp.bodyBuf.Truncate(0)
+	resp.messagesProcessed = len(msgBuf)
 }
 
 // Process implements serializer.MessageBatchAsyncProcessor
@@ -476,23 +393,105 @@ func (b *batchProcessor) Process(
 	errChan chan<- error,
 ) {
 	defer wg.Done()
+	timeoutTicker := time.NewTicker(5 * time.Second)
 
 	for {
-		select {
-		case <-session.Context().Done():
-			errChan <- kafka.ErrSaramaSessionContextDone
+		now := time.Now()
+		breakLoop := false
+		msgBufs := [][]*serializer.Message{}
+
+		// take out messages from buffer for concurrent batches
+		for i := 0; i < 8; i++ {
+			// using label break is less readable
+			if breakLoop {
+				break
+			}
+			select {
+			case <-session.Context().Done():
+				errChan <- kafka.ErrSaramaSessionContextDone
+				return
+			case msgBuf := <-processChan:
+				msgBufs = append(msgBufs, msgBuf)
+			case <-timeoutTicker.C:
+				breakLoop = true
+				break
+			}
+		}
+
+		// trigger concurrent batches
+		wg := &sync.WaitGroup{}
+		responses := []*response{}
+		for i, msgBuf := range msgBufs {
+			resp := &response{
+				err:           nil,
+				batchID:       i + 1,
+				batchSchemaID: -1,
+				skipMerge:     true,
+				s3Key:         "",
+				bodyBuf:       bytes.NewBuffer(make([]byte, 0, 4096)),
+				maskSchema:    make(map[string]serializer.MaskInfo),
+			}
+			go b.processBatch(session, msgBuf, resp)
+			responses = append(responses, resp)
+			wg.Add(1)
+		}
+		if len(responses) == 0 {
+			klog.V(2).Infof("%s: no batch to process", b.topic)
 			return
-		case msgBuf := <-processChan:
-			err := b.ProcessMsgBuf(session, msgBuf)
-			if err != nil {
-				errChan <- err
+		}
+		klog.V(2).Infof("%s: concurrent batches=%d", b.topic, len(responses))
+		wg.Wait()
+
+		totalMessages := 0
+		// return if there was any error in processing any of the batches
+		for _, resp := range responses {
+			totalMessages += resp.messagesProcessed
+			if resp.err != nil {
+				errChan <- resp.err
 				klog.Errorf(
 					"%s, error occured: %v, processor shutdown.",
 					b.topic,
-					err,
+					resp.err,
 				)
+				b.handleShutdown()
 				return
 			}
 		}
+
+		// signal load for all the processed messages
+		// failure in between signal and marking the offset can lead to
+		// duplicates in the loader topic, but it's ok as loader is idempotent
+		for _, resp := range responses {
+			err := b.signalLoad(resp)
+			if err != nil {
+				errChan <- err
+				klog.Errorf(
+					"%s, error signalling: %v, processor shutdown.",
+					b.topic,
+					err,
+				)
+				b.handleShutdown()
+				return
+			}
+		}
+
+		// mark the last offset of the last batch
+		first := responses[0]
+		last := responses[len(responses)-1]
+		b.markOffset(session, b.topic, 0, last.endOffset, b.autoCommit)
+
+		setMsgsProcessedPerSecond(
+			b.consumerGroupID,
+			b.topic,
+			float64(totalMessages)/time.Since(now).Seconds(),
+		)
+
+		klog.V(2).Infof(
+			"%s: startOffset:%d, endOffset:%d:, Processed in %d batches",
+			b.topic,
+			first.startOffset,
+			last.endOffset,
+			len(responses),
+		)
 	}
 }
