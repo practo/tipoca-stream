@@ -412,7 +412,7 @@ func (b *batchProcessor) Process(
 			len(processChan),
 		)
 		// read multiple msgs from buffer for concurrent batches
-		for i := 0; i < 8; i++ {
+		for {
 			// using label break is less readable
 			if breakLoop {
 				break
@@ -426,6 +426,10 @@ func (b *batchProcessor) Process(
 				return
 			case msgBuf := <-processChan:
 				msgBufs = append(msgBufs, msgBuf)
+				if len(msgBufs) == 8 {
+					breakLoop = true
+					break
+				}
 			case <-timeoutTicker.C:
 				if len(msgBufs) > 0 {
 					breakLoop = true
