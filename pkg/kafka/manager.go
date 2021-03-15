@@ -157,9 +157,11 @@ func (c *Manager) setActiveTopics(topics []string) {
 }
 
 func (c *Manager) SyncTopics(
-	ctx context.Context, wg *sync.WaitGroup) {
-
+	ctx context.Context,
+	wg *sync.WaitGroup,
+) {
 	defer wg.Done()
+
 	ticker := time.NewTicker(time.Second * time.Duration(c.tickSeconds))
 	for {
 		err := c.refreshTopics()
@@ -216,6 +218,7 @@ func (c *Manager) printLastOffsets() {
 
 func (c *Manager) Consume(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
+
 	for {
 		select {
 		case <-ctx.Done():
