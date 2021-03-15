@@ -402,6 +402,11 @@ func (b *batchProcessor) Process(
 
 		// take out messages from buffer for concurrent batches
 		for i := 0; i < 8; i++ {
+			klog.V(2).Infof(
+				"%s: unprocessed msgs in channel: %v",
+				b.topic,
+				len(processChan),
+			)
 			// using label break is less readable
 			if breakLoop {
 				break
