@@ -118,7 +118,7 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 	)
 
 	var lastSchemaId *int
-	processChan := make(chan []*serializer.Message, 100000)
+	processChan := make(chan []*serializer.Message, 1000)
 	errChan := make(chan error)
 	processor := newBatchProcessor(
 		h.consumerGroupID,
