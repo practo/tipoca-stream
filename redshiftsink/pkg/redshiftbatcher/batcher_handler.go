@@ -107,11 +107,12 @@ func (h *batcherHandler) Cleanup(sarama.ConsumerGroupSession) error {
 
 // ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages().
 // ConsumeClaim is managed by the consumer.manager routine
-func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
-	claim sarama.ConsumerGroupClaim) error {
-
+func (h *batcherHandler) ConsumeClaim(
+	session sarama.ConsumerGroupSession,
+	claim sarama.ConsumerGroupClaim,
+) error {
 	klog.V(1).Infof(
-		"%s: consumeClaim started for topic:%s, initalOffset:%d\n",
+		"%s: consumeClaim started, initalOffset:%d\n",
 		claim.Topic(),
 		claim.InitialOffset(),
 	)
@@ -215,9 +216,6 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			)
 			msgBatch.Flush()
 		case err := <-errChan:
-			if err == kafka.ErrSaramaSessionContextDone {
-				return err
-			}
 			syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 			klog.Errorf(
 				"%s: error occured in processing, err: %v, triggered shutdown",

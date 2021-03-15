@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/Shopify/sarama"
+	multierror "github.com/hashicorp/go-multierror"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
@@ -418,7 +419,10 @@ func (b *batchProcessor) Process(
 			}
 			select {
 			case <-session.Context().Done():
-				errChan <- kafka.ErrSaramaSessionContextDone
+				klog.V(2).Infof(
+					"%s: processor returning, session ctx done",
+					b.topic,
+				)
 				return
 			case msgBuf := <-processChan:
 				msgBufs = append(msgBufs, msgBuf)
@@ -445,31 +449,44 @@ func (b *batchProcessor) Process(
 				maskSchema:    make(map[string]serializer.MaskInfo),
 			}
 			go b.processBatch(wg, session, msgBuf, resp)
-			responses = append(responses, resp)
 			wg.Add(1)
+			responses = append(responses, resp)
 		}
 		if len(responses) == 0 {
-			klog.V(2).Infof("%s: no batch to process", b.topic)
-			return
+			klog.Fatalf("%s: no batch to process (unexpected)", b.topic)
 		}
 		klog.V(2).Infof("%s: waiting to finish (%d batches)...", b.topic, len(responses))
 		wg.Wait()
 		klog.V(2).Infof("%s: finished (%d batches)", b.topic, len(responses))
 
-		totalMessages := 0
 		// return if there was any error in processing any of the batches
+		totalMessages := 0
+		var errors error
 		for _, resp := range responses {
 			totalMessages += resp.messagesProcessed
 			if resp.err != nil {
-				errChan <- resp.err
-				klog.Errorf(
-					"%s, error occured: %v, processor shutdown.",
-					b.topic,
-					resp.err,
-				)
-				b.handleShutdown()
-				return
+				if resp.err == kafka.ErrSaramaSessionContextDone {
+					klog.V(2).Infof(
+						"%s: processor returning, session ctx done",
+						b.topic,
+					)
+					return
+				}
+				errors = multierror.Append(errors, resp.err)
 			}
+		}
+		if errors != nil {
+			klog.Errorf(
+				"%s, error(s) occured in processing (sending err)", b.topic,
+			)
+			b.handleShutdown()
+			errChan <- errors
+			klog.Errorf(
+				"%s, error(s) occured: %+v, processor shutdown.",
+				b.topic,
+				errors,
+			)
+			return
 		}
 
 		// signal load for all the processed messages
