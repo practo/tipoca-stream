@@ -85,7 +85,7 @@ func NewHandler(
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
 func (h *batcherHandler) Setup(sarama.ConsumerGroupSession) error {
-	klog.V(1).Info("Setting up handler")
+	klog.V(1).Info("setting up handler")
 
 	// Mark the consumer as ready
 	select {
@@ -101,7 +101,7 @@ func (h *batcherHandler) Setup(sarama.ConsumerGroupSession) error {
 // Cleanup is run at the end of a session,
 // once all ConsumeClaim goroutines have exited
 func (h *batcherHandler) Cleanup(sarama.ConsumerGroupSession) error {
-	klog.V(1).Info("Cleaning up handler")
+	klog.V(1).Info("cleaning up handler")
 	return nil
 }
 
@@ -111,9 +111,8 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 	claim sarama.ConsumerGroupClaim) error {
 
 	klog.V(1).Infof(
-		"ConsumeClaim started for topic:%s, partition:%d, initalOffset:%d\n",
+		"%s: consumeClaim started for topic:%s, initalOffset:%d\n",
 		claim.Topic(),
-		claim.Partition(),
 		claim.InitialOffset(),
 	)
 
@@ -145,6 +144,7 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 	wg.Add(1)
 	defer wg.Wait()
 
+	klog.V(4).Infof("%s: read msgs", claim.Topic())
 	// NOTE:
 	// Do not move the code below to a goroutine.
 	// The `ConsumeClaim` itself is called within a goroutine, see:
@@ -154,13 +154,13 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		select {
 		case <-h.ctx.Done():
 			klog.V(2).Infof(
-				"ConsumeClaim returning for topic: %s (main ctx done)",
+				"%s: consumeClaim returning, main ctx done",
 				claim.Topic(),
 			)
 			return nil
 		case <-session.Context().Done():
 			klog.V(2).Infof(
-				"ConsumeClaim returning for topic: %s (session ctx done), ctxErr: %v",
+				"%s: consumeClaim returning. session ctx done, ctxErr: %v",
 				claim.Topic(),
 				session.Context().Err(),
 			)
@@ -168,7 +168,7 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		case message, ok := <-claimMsgChan:
 			if !ok {
 				klog.V(2).Infof(
-					"ConsumeClaim returning for topic: %s (read msg channel closed)",
+					"%s: consumeClaim returning. read msg channel closed",
 					claim.Topic(),
 				)
 				return nil
@@ -176,7 +176,8 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 
 			if len(message.Value) == 0 {
 				klog.V(2).Infof(
-					"skipping msg, received tombstone, message: %+v\n",
+					"%s: skipping msg, received tombstone, message: %+v\n",
+					claim.Topic(),
 					message,
 				)
 				continue
@@ -195,7 +196,7 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				lastSchemaId = new(int)
 			} else if *lastSchemaId != msg.SchemaId {
 				klog.V(2).Infof(
-					"topic:%s: schema changed, %d => %d (batch flush)\n",
+					"%s: schema changed, %d => %d (batch flush)\n",
 					claim.Topic(),
 					*lastSchemaId,
 					msg.SchemaId,
@@ -209,7 +210,7 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		case <-maxWaitTicker.C:
 			// Flush the batch by time
 			klog.V(2).Infof(
-				"topic:%s: maxWaitSeconds hit",
+				"%s: maxWaitSeconds hit",
 				claim.Topic(),
 			)
 			msgBatch.Flush()
@@ -219,7 +220,7 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			}
 			syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 			klog.Errorf(
-				"topic:%s: error occured in processing, err: %v, triggered shutdown",
+				"%s: error occured in processing, err: %v, triggered shutdown",
 				claim.Topic(),
 				err,
 			)
