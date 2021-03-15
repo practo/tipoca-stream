@@ -91,7 +91,7 @@ func newBatchProcessor(
 		)
 	}
 
-	klog.Infof("topic: %v, autoCommit: %v", topic, saramaConfig.AutoCommit)
+	klog.Infof("%s: autoCommit: %v", topic, saramaConfig.AutoCommit)
 
 	return &batchProcessor{
 		topic:              topic,
@@ -195,7 +195,7 @@ func (b *batchProcessor) markOffset(
 }
 
 func (b *batchProcessor) signalLoad(resp *response) error {
-	klog.V(2).Infof("%s: batchID:%d: signalling", b.topic, resp.batchID)
+	klog.V(4).Infof("%s: batchID:%d: signalling", b.topic, resp.batchID)
 
 	job := loader.NewJob(
 		b.topic,
@@ -218,7 +218,7 @@ func (b *batchProcessor) signalLoad(resp *response) error {
 		return err
 	}
 	klog.V(2).Infof(
-		"%s: batchID:%d: Signalled loader.\n",
+		"%s: batchID:%d: signalled loader.\n",
 		b.topic, resp.batchID,
 	)
 
@@ -348,10 +348,13 @@ func (b *batchProcessor) processMessages(
 }
 
 func (b *batchProcessor) processBatch(
+	wg *sync.WaitGroup,
 	session sarama.ConsumerGroupSession,
 	msgBuf []*serializer.Message,
 	resp *response,
 ) {
+	defer wg.Done()
+
 	ctx := session.Context()
 	err := b.ctxCancelled(ctx)
 	if err != nil {
@@ -359,7 +362,7 @@ func (b *batchProcessor) processBatch(
 		return
 	}
 
-	klog.V(2).Infof("%s: batchID:%d, size:%d: Processing...",
+	klog.V(4).Infof("%s: batchID:%d, size:%d: processing...",
 		b.topic, resp.batchID, len(msgBuf),
 	)
 	err = b.processMessages(ctx, msgBuf, resp)
@@ -369,7 +372,7 @@ func (b *batchProcessor) processBatch(
 	}
 
 	// Upload
-	klog.V(2).Infof("%s: batchId:%d, size:%d: Uploading...",
+	klog.V(4).Infof("%s: batchId:%d, size:%d: uploading...",
 		b.topic, resp.batchID, len(msgBuf),
 	)
 	err = b.s3sink.Upload(resp.s3Key, resp.bodyBuf)
@@ -377,8 +380,8 @@ func (b *batchProcessor) processBatch(
 		resp.err = fmt.Errorf("Error writing to s3, err=%v", err)
 		return
 	}
-	klog.V(3).Infof(
-		"%s: batchID:%d, startOffset:%d, endOffset:%d: Uploaded",
+	klog.V(2).Infof(
+		"%s: batchID:%d, startOffset:%d, endOffset:%d: uploaded",
 		b.topic, resp.batchID, resp.startOffset, resp.endOffset,
 	)
 	resp.bodyBuf.Truncate(0)
@@ -387,26 +390,28 @@ func (b *batchProcessor) processBatch(
 
 // Process implements serializer.MessageBatchAsyncProcessor
 func (b *batchProcessor) Process(
-	wg *sync.WaitGroup,
+	pwg *sync.WaitGroup,
 	session sarama.ConsumerGroupSession,
 	processChan <-chan []*serializer.Message,
 	errChan chan<- error,
 ) {
-	defer wg.Done()
-	timeoutTicker := time.NewTicker(5 * time.Second)
+	defer pwg.Done()
+
+	timeoutTicker := time.NewTicker(10 * time.Second)
+	klog.V(4).Infof("%s: processor started", b.topic)
 
 	for {
 		now := time.Now()
 		breakLoop := false
 		msgBufs := [][]*serializer.Message{}
 
-		// take out messages from buffer for concurrent batches
+		klog.V(2).Infof(
+			"%s: buffchan:%v msgs",
+			b.topic,
+			len(processChan),
+		)
+		// read multiple msgs from buffer for concurrent batches
 		for i := 0; i < 8; i++ {
-			klog.V(2).Infof(
-				"%s: unprocessed msgs in channel: %v",
-				b.topic,
-				len(processChan),
-			)
 			// using label break is less readable
 			if breakLoop {
 				break
@@ -418,12 +423,15 @@ func (b *batchProcessor) Process(
 			case msgBuf := <-processChan:
 				msgBufs = append(msgBufs, msgBuf)
 			case <-timeoutTicker.C:
-				breakLoop = true
-				break
+				if len(msgBufs) > 0 {
+					breakLoop = true
+					break
+				}
 			}
 		}
 
 		// trigger concurrent batches
+		klog.V(2).Infof("%s: processing...", b.topic)
 		wg := &sync.WaitGroup{}
 		responses := []*response{}
 		for i, msgBuf := range msgBufs {
@@ -436,7 +444,7 @@ func (b *batchProcessor) Process(
 				bodyBuf:       bytes.NewBuffer(make([]byte, 0, 4096)),
 				maskSchema:    make(map[string]serializer.MaskInfo),
 			}
-			go b.processBatch(session, msgBuf, resp)
+			go b.processBatch(wg, session, msgBuf, resp)
 			responses = append(responses, resp)
 			wg.Add(1)
 		}
@@ -444,8 +452,9 @@ func (b *batchProcessor) Process(
 			klog.V(2).Infof("%s: no batch to process", b.topic)
 			return
 		}
-		klog.V(2).Infof("%s: concurrent batches=%d", b.topic, len(responses))
+		klog.V(2).Infof("%s: waiting to finish (%d batches)...", b.topic, len(responses))
 		wg.Wait()
+		klog.V(2).Infof("%s: finished (%d batches)", b.topic, len(responses))
 
 		totalMessages := 0
 		// return if there was any error in processing any of the batches
@@ -492,11 +501,10 @@ func (b *batchProcessor) Process(
 		)
 
 		klog.V(2).Infof(
-			"%s: startOffset:%d, endOffset:%d:, Processed in %d batches",
+			"%s: startOffset:%d, endOffset:%d, processed",
 			b.topic,
 			first.startOffset,
 			last.endOffset,
-			len(responses),
 		)
 	}
 }

@@ -55,16 +55,19 @@ func NewMessageAsyncBatch(
 }
 
 func (b *MessageAsyncBatch) Flush() {
-	if len(b.msgBuf) > 0 {
-		klog.V(2).Infof(
-			"topic:%s: calling processor...",
-			b.topic,
-		)
+	size := len(b.msgBuf)
+	if size > 0 {
 		b.processChan <- b.msgBuf
 		b.msgBuf = make([]*Message, 0, b.maxSize)
+		klog.V(4).Infof(
+			"%s: flushed:%d, buffchan:%v msgs",
+			b.topic,
+			size,
+			len(b.processChan),
+		)
 	} else {
 		klog.V(2).Infof(
-			"topic:%s: no msgs",
+			"%s: no msgs",
 			b.topic,
 		)
 	}
@@ -76,7 +79,7 @@ func (b *MessageAsyncBatch) Insert(msg *Message) {
 	b.msgBuf = append(b.msgBuf, msg)
 	if len(b.msgBuf) >= b.maxSize {
 		klog.V(2).Infof(
-			"topic:%s: maxSize hit",
+			"%s: maxSize hit",
 			msg.Topic,
 		)
 		b.Flush()
