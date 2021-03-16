@@ -92,15 +92,20 @@ func NewLoader(
 	}
 
 	totalTopics := 0
+
+	// defaults
 	kafkaVersion := rsk.Spec.KafkaVersion
 	if kafkaVersion == "" {
 		kafkaVersion = defaultKafkaVersion
 	}
+	var maxProcessingTime int32 = redshiftloader.DefaultMaxProcessingTime
+	if rsk.Spec.Batcher.MaxProcessingTime != nil {
+		maxProcessingTime = *rsk.Spec.Batcher.MaxProcessingTime
+	}
 
-	// defaults for the loader
+	// other defaults for the loader
 	var sessionTimeoutSeconds int = 10
 	var hearbeatIntervalSeconds int = 2
-	var maxProcessingSeconds float32 = 600 // loader can be slow based on batch size
 
 	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
@@ -126,7 +131,7 @@ func NewLoader(
 				AutoCommit:              false,
 				SessionTimeoutSeconds:   &sessionTimeoutSeconds,
 				HearbeatIntervalSeconds: &hearbeatIntervalSeconds,
-				MaxProcessingSeconds:    &maxProcessingSeconds,
+				MaxProcessingTime:       &maxProcessingTime,
 			},
 		})
 	}

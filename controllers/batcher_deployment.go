@@ -73,15 +73,24 @@ func NewBatcher(
 	}
 
 	totalTopics := 0
+
+	// defaults
 	kafkaVersion := rsk.Spec.KafkaVersion
 	if kafkaVersion == "" {
 		kafkaVersion = defaultKafkaVersion
 	}
+	maxConcurrency := redshiftbatcher.DefaultMaxConcurrency
+	if rsk.Spec.Batcher.MaxConcurrency != nil {
+		maxConcurrency = *rsk.Spec.Batcher.MaxConcurrency
+	}
+	var maxProcessingTime int32 = redshiftbatcher.DefaultMaxProcessingTime
+	if rsk.Spec.Batcher.MaxProcessingTime != nil {
+		maxProcessingTime = *rsk.Spec.Batcher.MaxProcessingTime
+	}
 
-	// defaults for the batcher
+	// other defaults not configurable defaults for the batcher
 	var sessionTimeoutSeconds int = 10
 	var hearbeatIntervalSeconds int = 2
-	var maxProcessingSeconds float32 = 180 // batcher can be slow based on batch size
 
 	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
@@ -102,7 +111,7 @@ func NewBatcher(
 				AutoCommit:              true,
 				SessionTimeoutSeconds:   &sessionTimeoutSeconds,
 				HearbeatIntervalSeconds: &hearbeatIntervalSeconds,
-				MaxProcessingSeconds:    &maxProcessingSeconds,
+				MaxProcessingTime:       &maxProcessingTime,
 			},
 		})
 	}
@@ -115,6 +124,7 @@ func NewBatcher(
 			MaskFileVersion: maskFileVersion,
 			MaxSize:         rsk.Spec.Batcher.MaxSize,
 			MaxWaitSeconds:  rsk.Spec.Batcher.MaxWaitSeconds,
+			MaxConcurrency:  maxConcurrency,
 		},
 		ConsumerGroups: groupConfigs,
 		S3Sink: s3sink.Config{

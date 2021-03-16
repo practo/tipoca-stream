@@ -50,6 +50,8 @@ type batchProcessor struct {
 	// signaler is a kafka producer signaling the load the batch uploaded data
 	// TODO: make the producer have interface
 	signaler *kafka.AvroProducer
+
+	maxConcurrency int
 }
 
 func newBatchProcessor(
@@ -61,6 +63,7 @@ func newBatchProcessor(
 	saramaConfig kafka.SaramaConfig,
 	maskConfig masker.MaskConfig,
 	kafkaLoaderTopicPrefix string,
+	maxConcurrency int,
 ) serializer.MessageBatchAsyncProcessor {
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
@@ -105,9 +108,10 @@ func newBatchProcessor(
 		messageTransformer: debezium.NewMessageTransformer(),
 		schemaTransformer: debezium.NewSchemaTransformer(
 			viper.GetString("schemaRegistryURL")),
-		msgMasker:    msgMasker,
-		maskMessages: maskMessages,
-		signaler:     signaler,
+		msgMasker:      msgMasker,
+		maskMessages:   maskMessages,
+		signaler:       signaler,
+		maxConcurrency: maxConcurrency,
 	}
 }
 
@@ -426,7 +430,7 @@ func (b *batchProcessor) Process(
 				return
 			case msgBuf := <-processChan:
 				msgBufs = append(msgBufs, msgBuf)
-				if len(msgBufs) == 8 {
+				if len(msgBufs) == b.maxConcurrency {
 					breakLoop = true
 					break
 				}

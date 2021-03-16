@@ -49,8 +49,14 @@ type RedshiftBatcherSpec struct {
 	Suspend bool `json:"suspend,omitempty"`
 
 	// Max configurations for the batcher to batch
-	MaxSize        int `json:"maxSize"`
-	MaxWaitSeconds int `json:"maxWaitSeconds"`
+	MaxSize        int  `json:"maxSize"`
+	MaxWaitSeconds int  `json:"maxWaitSeconds"`
+	MaxConcurrency *int `json:"maxConcurrency,omitempty"`
+
+	// MaxProcessingTime is the sarama configuration MaxProcessingTime
+	// It is the max time in milliseconds required to consume one message.
+	// Defaults to 1000ms
+	MaxProcessingTime *int32 `json:"maxProcessingTime,omitempty"`
 
 	// Mask when turned on enables masking of the data
 	// Default: false
@@ -75,6 +81,11 @@ type RedshiftLoaderSpec struct {
 	// Max configurations for the loader to batch the load
 	MaxSize        int `json:"maxSize"`
 	MaxWaitSeconds int `json:"maxWaitSeconds"`
+
+	// MaxProcessingTime is the sarama configuration MaxProcessingTime
+	// It is the max time in milliseconds required to consume one message.
+	// Defaults to 600000ms (10mins)
+	MaxProcessingTime *int32 `json:"maxProcessingTime,omitempty"`
 
 	// RedshiftSchema to sink the data in
 	RedshiftSchema string `json:"redshiftSchema"`
