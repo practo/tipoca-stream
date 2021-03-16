@@ -91,7 +91,7 @@ func newLoadProcessor(
 	partition int32,
 	saramaConfig kafka.SaramaConfig,
 	redshifter *redshift.Redshift,
-) serializer.MessageBatchProcessor {
+) serializer.MessageBatchSyncProcessor {
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
 		viper.GetString("s3sink.secretAccessKey"),
@@ -718,7 +718,7 @@ func (b *loadProcessor) processBatch(
 	return nil
 }
 
-// Process implements serializer.MessageBatch
+// Process implements serializer.MessageBatchSyncProcessor
 func (b *loadProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*serializer.Message) error {
 	start := time.Now()
 	b.setBatchId()

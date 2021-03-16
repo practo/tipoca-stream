@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
@@ -11,14 +12,16 @@ import (
 	"time"
 )
 
+var ErrSaramaSessionContextDone = errors.New("session context done")
+
 type SaramaConfig struct {
-	Assignor                string   `yaml:"assignor"` // default is there
-	Oldest                  bool     `yaml:"oldest"`
-	Log                     bool     `yaml:"log"`
-	AutoCommit              bool     `yaml:"autoCommit"`
-	SessionTimeoutSeconds   *int     `yaml:"sessionTimeoutSeconds,omitempty"`   // default 20s
-	HearbeatIntervalSeconds *int     `yaml:"hearbeatIntervalSeconds,omitempty"` // default 6s
-	MaxProcessingSeconds    *float32 `yaml:"maxProcessingSeconds,omitempty"`    // default 0.5s (it is for the complete batch)
+	Assignor                string `yaml:"assignor"` // default is there
+	Oldest                  bool   `yaml:"oldest"`
+	Log                     bool   `yaml:"log"`
+	AutoCommit              bool   `yaml:"autoCommit"`
+	SessionTimeoutSeconds   *int   `yaml:"sessionTimeoutSeconds,omitempty"`   // default 20s
+	HearbeatIntervalSeconds *int   `yaml:"hearbeatIntervalSeconds,omitempty"` // default 6s
+	MaxProcessingTime       *int32 `yaml:"maxProcessingTime,omitempty"`       // default is of sarama
 }
 
 type saramaConsumerGroup struct {
@@ -79,8 +82,8 @@ func NewSaramaConsumerGroup(
 		c.Consumer.Group.Heartbeat.Interval = time.Duration(*config.Sarama.HearbeatIntervalSeconds) * time.Second
 	}
 
-	if config.Sarama.MaxProcessingSeconds != nil {
-		c.Consumer.MaxProcessingTime = time.Duration(*config.Sarama.MaxProcessingSeconds*1000) * time.Millisecond
+	if config.Sarama.MaxProcessingTime != nil {
+		c.Consumer.MaxProcessingTime = time.Duration(*config.Sarama.MaxProcessingTime) * time.Millisecond
 	}
 
 	if config.Kafka.TLSConfig.Enable {

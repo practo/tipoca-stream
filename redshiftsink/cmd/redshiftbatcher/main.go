@@ -26,7 +26,7 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "redshiftbatcher",
-	Short: "Batches the debezium data, uploads to s3 and signals the load of the batch.",
+	Short: "Batches the data, uploads to s3 and signals the load of the batch.",
 	Long:  "Consumes the Kafka Topics, trasnform them for redshfit, batches them and uploads to s3. Also signals the load of the batch on successful batch and upload operation..",
 	Run:   run,
 }
@@ -138,16 +138,10 @@ func run(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	klog.V(2).Info("Cancelling context to trigger graceful shutdown...")
+	klog.V(2).Info("Cancelled main context")
 	cancel()
 
-	// TODO: the processing function should signal back
-	// It does not at present
-	// https://github.com/practo/tipoca-stream/issues/18
-	klog.V(2).Info("Waiting the some routines to gracefully shutdown (some don't)")
-	time.Sleep(10 * time.Second)
-
-	// routines which works with wait groups will shutdown gracefully
+	klog.V(2).Info("Waiting for all goroutines to shutdown...")
 	wg.Wait()
 
 	var closeErr error
