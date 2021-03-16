@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+const (
+	DefaultMaxProcessingTime = 600
+)
+
 type LoaderConfig struct {
 	// Maximum size of a batch, on exceeding this batch is pushed
 	// regarless of the wait time.
@@ -45,7 +49,6 @@ func NewHandler(
 	saramaConfig kafka.SaramaConfig,
 	redshifter *redshift.Redshift,
 ) *loaderHandler {
-
 	return &loaderHandler{
 		ready: ready,
 		ctx:   ctx,
@@ -103,7 +106,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		h.saramaConfig,
 		h.redshifter,
 	)
-	msgBatch := serializer.NewMessageBatch(
+	msgBatch := serializer.NewMessageSyncBatch(
 		claim.Topic(),
 		claim.Partition(),
 		h.maxSize,

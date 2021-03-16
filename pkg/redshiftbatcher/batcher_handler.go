@@ -9,7 +9,14 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
 	"github.com/spf13/viper"
+	"sync"
+	"syscall"
 	"time"
+)
+
+const (
+	DefaultMaxConcurrency    = 10
+	DefaultMaxProcessingTime = 600
 )
 
 type BatcherConfig struct {
@@ -34,6 +41,9 @@ type BatcherConfig struct {
 	MaxSize int `yaml:"maxSize,omitempty"`
 	// MaxWaitSeconds after which the bash would be pushed regardless of its size.
 	MaxWaitSeconds int `yaml:"maxWaitSeconds,omitempty"`
+	// MaxConcurrency is the maximum number of concurrent batch processing to run
+	// Defaults to 10
+	MaxConcurrency int `yaml:"maxConcurrency,omitempty"`
 }
 
 // batcherHandler is the sarama consumer handler
@@ -44,6 +54,7 @@ type batcherHandler struct {
 
 	maxSize        int
 	maxWaitSeconds int
+	maxConcurrency int
 
 	consumerGroupID string
 
@@ -64,6 +75,12 @@ func NewHandler(
 	maskConfig masker.MaskConfig,
 	loaderPrefix string,
 ) *batcherHandler {
+
+	// apply defaults
+	if batcherConfig.MaxConcurrency == 0 {
+		batcherConfig.MaxConcurrency = DefaultMaxConcurrency
+	}
+
 	return &batcherHandler{
 		ready: ready,
 		ctx:   ctx,
@@ -72,6 +89,7 @@ func NewHandler(
 
 		maxSize:        batcherConfig.MaxSize,
 		maxWaitSeconds: batcherConfig.MaxWaitSeconds,
+		maxConcurrency: batcherConfig.MaxConcurrency,
 
 		kafkaConfig:            kafkaConfig,
 		saramaConfig:           saramaConfig,
@@ -83,7 +101,7 @@ func NewHandler(
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
 func (h *batcherHandler) Setup(sarama.ConsumerGroupSession) error {
-	klog.V(1).Info("Setting up handler")
+	klog.V(1).Info("setting up handler")
 
 	// Mark the consumer as ready
 	select {
@@ -99,91 +117,85 @@ func (h *batcherHandler) Setup(sarama.ConsumerGroupSession) error {
 // Cleanup is run at the end of a session,
 // once all ConsumeClaim goroutines have exited
 func (h *batcherHandler) Cleanup(sarama.ConsumerGroupSession) error {
-	klog.V(1).Info("Cleaning up handler")
+	klog.V(1).Info("cleaning up handler")
 	return nil
 }
 
 // ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages().
 // ConsumeClaim is managed by the consumer.manager routine
-func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
-	claim sarama.ConsumerGroupClaim) error {
-
+func (h *batcherHandler) ConsumeClaim(
+	session sarama.ConsumerGroupSession,
+	claim sarama.ConsumerGroupClaim,
+) error {
 	klog.V(1).Infof(
-		"ConsumeClaim started for topic:%s, partition:%d, initalOffset:%d\n",
+		"%s: consumeClaim started, initalOffset:%d\n",
 		claim.Topic(),
-		claim.Partition(),
 		claim.InitialOffset(),
 	)
 
 	var lastSchemaId *int
-	var err error
+	processChan := make(chan []*serializer.Message, 1000)
+	errChan := make(chan error)
 	processor := newBatchProcessor(
 		h.consumerGroupID,
 		claim.Topic(),
 		claim.Partition(),
+		processChan,
 		h.kafkaConfig,
 		h.saramaConfig,
 		h.maskConfig,
 		h.kafkaLoaderTopicPrefix,
+		h.maxConcurrency,
 	)
-	msgBatch := serializer.NewMessageBatch(
+	msgBatch := serializer.NewMessageAsyncBatch(
 		claim.Topic(),
 		claim.Partition(),
 		h.maxSize,
-		processor,
+		processChan,
 	)
 	maxWaitTicker := time.NewTicker(
 		time.Duration(h.maxWaitSeconds) * time.Second,
 	)
 
+	wg := &sync.WaitGroup{}
+	go processor.Process(wg, session, processChan, errChan)
+	wg.Add(1)
+	defer wg.Wait()
+
+	klog.V(4).Infof("%s: read msgs", claim.Topic())
 	// NOTE:
 	// Do not move the code below to a goroutine.
 	// The `ConsumeClaim` itself is called within a goroutine, see:
 	// https://github.com/Shopify/sarama/blob/master/consumer_group.go#L27-L29
 	claimMsgChan := claim.Messages()
-
 	for {
 		select {
 		case <-h.ctx.Done():
 			klog.V(2).Infof(
-				"ConsumeClaim returning for topic: %s (main ctx done)",
+				"%s: consumeClaim returning, main ctx done",
 				claim.Topic(),
 			)
 			return nil
 		case <-session.Context().Done():
 			klog.V(2).Infof(
-				"ConsumeClaim returning for topic: %s (session ctx done)",
+				"%s: consumeClaim returning. session ctx done, ctxErr: %v",
 				claim.Topic(),
+				session.Context().Err(),
 			)
-			return fmt.Errorf("session ctx done, err: %v", session.Context().Err())
+			return kafka.ErrSaramaSessionContextDone
 		case message, ok := <-claimMsgChan:
 			if !ok {
 				klog.V(2).Infof(
-					"ConsumeClaim returning for topic: %s (read msg channel closed)",
+					"%s: consumeClaim returning. read msg channel closed",
 					claim.Topic(),
 				)
 				return nil
-			}
-
-			select {
-			default:
-			case <-h.ctx.Done():
-				klog.V(2).Infof(
-					"ConsumeClaim returning for topic: %s (main ctx done)",
-					claim.Topic(),
-				)
-				return nil
-			case <-session.Context().Done():
-				klog.V(2).Infof(
-					"ConsumeClaim returning for topic: %s (session ctx done)",
-					claim.Topic(),
-				)
-				return fmt.Errorf("session ctx done, err: %v", session.Context().Err())
 			}
 
 			if len(message.Value) == 0 {
 				klog.V(2).Infof(
-					"skipping msg, received tombstone, message: %+v\n",
+					"%s: skipping msg, received tombstone, message: %+v\n",
+					claim.Topic(),
 					message,
 				)
 				continue
@@ -202,33 +214,33 @@ func (h *batcherHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				lastSchemaId = new(int)
 			} else if *lastSchemaId != msg.SchemaId {
 				klog.V(2).Infof(
-					"topic:%s: schema changed, %d => %d (batch flush)\n",
+					"%s: schema changed, %d => %d (batch flush)\n",
 					claim.Topic(),
 					*lastSchemaId,
 					msg.SchemaId,
 				)
-				err = msgBatch.Process(session)
-				if err != nil {
-					return err
-				}
-			} else {
+				// Flush the batch due to schema change
+				msgBatch.Flush()
 			}
-			// Process the batch by size or insert in batch
-			err = msgBatch.Insert(session, msg)
-			if err != nil {
-				return err
-			}
+			// Flush the batch by size or insert in batch
+			msgBatch.Insert(msg)
 			*lastSchemaId = msg.SchemaId
 		case <-maxWaitTicker.C:
-			// Process the batch by time
+			// Flush the batch by time
 			klog.V(2).Infof(
-				"topic:%s: maxWaitSeconds hit",
+				"%s: maxWaitSeconds hit",
 				claim.Topic(),
 			)
-			err = msgBatch.Process(session)
-			if err != nil {
-				return err
-			}
+			msgBatch.Flush()
+		case err := <-errChan:
+			syscall.Kill(syscall.Getpid(), syscall.SIGINT)
+			klog.Errorf(
+				"%s: error occured in processing, err: %v, triggered shutdown",
+				claim.Topic(),
+				err,
+			)
+			time.Sleep(30 * time.Second)
+			return nil
 		}
 	}
 }
