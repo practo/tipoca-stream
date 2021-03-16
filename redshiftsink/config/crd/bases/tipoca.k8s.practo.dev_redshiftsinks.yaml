@@ -48,6 +48,14 @@ spec:
                   type: boolean
                 maskFile:
                   type: string
+                maxConcurrency:
+                  type: integer
+                maxProcessingTime:
+                  description: MaxProcessingTime is the sarama configuration MaxProcessingTime
+                    It is the max time in milliseconds required to consume one message.
+                    Defaults to 1000ms
+                  format: int32
+                  type: integer
                 maxSize:
                   description: Max configurations for the batcher to batch
                   type: integer
@@ -152,6 +160,12 @@ spec:
             loader:
               description: RedshiftLoaderSpec defines the desired state of RedshifLoader
               properties:
+                maxProcessingTime:
+                  description: MaxProcessingTime is the sarama configuration MaxProcessingTime
+                    It is the max time in milliseconds required to consume one message.
+                    Defaults to 600000ms (10mins)
+                  format: int32
+                  type: integer
                 maxSize:
                   description: Max configurations for the loader to batch the load
                   type: integer

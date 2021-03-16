@@ -26,7 +26,7 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use:   "redshiftbatcher",
-	Short: "Batches the debezium data, uploads to s3 and signals the load of the batch.",
+	Short: "Batches the data, uploads to s3 and signals the load of the batch.",
 	Long:  "Consumes the Kafka Topics, trasnform them for redshfit, batches them and uploads to s3. Also signals the load of the batch on successful batch and upload operation..",
 	Run:   run,
 }

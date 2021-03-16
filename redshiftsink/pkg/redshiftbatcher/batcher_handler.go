@@ -14,6 +14,11 @@ import (
 	"time"
 )
 
+const (
+	DefaultMaxConcurrency    = 10
+	DefaultMaxProcessingTime = 600
+)
+
 type BatcherConfig struct {
 	// Mask should be turned on or off
 	Mask bool `yaml:"mask,omitempty"`
@@ -36,6 +41,9 @@ type BatcherConfig struct {
 	MaxSize int `yaml:"maxSize,omitempty"`
 	// MaxWaitSeconds after which the bash would be pushed regardless of its size.
 	MaxWaitSeconds int `yaml:"maxWaitSeconds,omitempty"`
+	// MaxConcurrency is the maximum number of concurrent batch processing to run
+	// Defaults to 10
+	MaxConcurrency int `yaml:"maxConcurrency,omitempty"`
 }
 
 // batcherHandler is the sarama consumer handler
@@ -46,6 +54,7 @@ type batcherHandler struct {
 
 	maxSize        int
 	maxWaitSeconds int
+	maxConcurrency int
 
 	consumerGroupID string
 
@@ -66,6 +75,12 @@ func NewHandler(
 	maskConfig masker.MaskConfig,
 	loaderPrefix string,
 ) *batcherHandler {
+
+	// apply defaults
+	if batcherConfig.MaxConcurrency == 0 {
+		batcherConfig.MaxConcurrency = DefaultMaxConcurrency
+	}
+
 	return &batcherHandler{
 		ready: ready,
 		ctx:   ctx,
@@ -74,6 +89,7 @@ func NewHandler(
 
 		maxSize:        batcherConfig.MaxSize,
 		maxWaitSeconds: batcherConfig.MaxWaitSeconds,
+		maxConcurrency: batcherConfig.MaxConcurrency,
 
 		kafkaConfig:            kafkaConfig,
 		saramaConfig:           saramaConfig,
@@ -129,6 +145,7 @@ func (h *batcherHandler) ConsumeClaim(
 		h.saramaConfig,
 		h.maskConfig,
 		h.kafkaLoaderTopicPrefix,
+		h.maxConcurrency,
 	)
 	msgBatch := serializer.NewMessageAsyncBatch(
 		claim.Topic(),
