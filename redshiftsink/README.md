@@ -52,6 +52,7 @@ spec:
     suspend: false
     maxSize: 10
     maxWaitSeconds: 30
+    maxConcurrency: 10
     mask: true
     maskFile: "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker/database.yaml"
     podTemplate:
@@ -63,6 +64,7 @@ spec:
     suspend: false
     maxSize: 10
     maxWaitSeconds: 30
+    maxProcessingTime: 60000
     redshiftSchema: "inventory"
     redshiftGroup:  "sales"
     podTemplate:
