@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	DefaultMaxProcessingTime = 600
+	DefaultMaxProcessingTime = 600000
 )
 
 type LoaderConfig struct {
