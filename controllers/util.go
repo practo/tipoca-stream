@@ -139,6 +139,10 @@ func getHashStructure(v interface{}) (string, error) {
 	return hash[:6], nil
 }
 
+func sortStringSlice(t []string) {
+	sort.Sort(sort.StringSlice(t))
+}
+
 // getDefaultLabels gives back the default labels for the crd resources
 func getDefaultLabels(
 	instance, sinkGroup, objectName string,
@@ -189,7 +193,7 @@ func expandTopicsToRegex(topics []string) string {
 	if len(topics) == 0 {
 		return ""
 	}
-	sort.Strings(topics)
+	sortStringSlice(topics)
 
 	fullMatchRegex := ""
 	for _, topic := range topics {
