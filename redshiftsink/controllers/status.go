@@ -302,7 +302,7 @@ func (s *status) info() {
 	klog.V(2).Infof("%s rDupe:      %d %v", rskName, len(s.reloadingDupe), s.reloadingDupe)
 	klog.V(2).Infof("%s realtime:   %d %v", rskName, len(s.realtime), s.realtime)
 	if len(s.reloading) > MaxConcurrentReloading {
-		klog.V(2).Infof("%s reloadingC: %d %v", rsk.Name, MaxConcurrentReloading, s.reloading[:MaxConcurrentReloading])
+		klog.V(2).Infof("%s reloadingC: %d %v", rskName, MaxConcurrentReloading, s.reloading[:MaxConcurrentReloading])
 	}
 }
 
