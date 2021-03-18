@@ -184,7 +184,6 @@ func (r *RedshiftSinkReconciler) fetchLatestTopics(
 	[]string,
 	error,
 ) {
-	var topics []string
 	var err error
 	var rgx *regexp.Regexp
 	topicsAppended := make(map[string]bool)
@@ -192,15 +191,16 @@ func (r *RedshiftSinkReconciler) fetchLatestTopics(
 
 	allTopics, err := kafkaWatcher.Topics()
 	if err != nil {
-		return topics, err
+		return []string{}, err
 	}
 
+	var topics []string
 	for _, expression := range expressions {
 		rgxLoaded, ok := r.KafkaTopicRegexes.Load(expression)
 		if !ok {
 			rgx, err = regexp.Compile(strings.TrimSpace(expression))
 			if err != nil {
-				return topics, fmt.Errorf(
+				return []string{}, fmt.Errorf(
 					"Compling regex: %s failed, err:%v\n", expression, err)
 			}
 			r.KafkaTopicRegexes.Store(expression, rgx)
@@ -220,6 +220,8 @@ func (r *RedshiftSinkReconciler) fetchLatestTopics(
 			topicsAppended[topic] = true
 		}
 	}
+
+	sortStringSlice(topics)
 
 	return topics, nil
 }
