@@ -16,7 +16,7 @@ import (
 
 const (
 	DefaultMaxConcurrency    = 10
-	DefaultMaxProcessingTime = 600
+	DefaultMaxProcessingTime = 180000
 )
 
 type BatcherConfig struct {
