@@ -418,6 +418,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	allowedReloadingTopics := status.reloading
 	if len(status.reloading) > MaxConcurrentReloading {
 		allowedReloadingTopics = status.reloading[:MaxConcurrentReloading]
+		klog.V(2).Infof("%s reloading (allowed):  %d %v", rsk.Name, len(allowedReloadingTopics), allowedReloadingTopics)
 	}
 	reload = sgBuilder.
 		setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).
