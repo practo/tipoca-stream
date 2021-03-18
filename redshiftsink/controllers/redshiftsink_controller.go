@@ -66,6 +66,11 @@ type RedshiftSinkReconciler struct {
 	DefaultRedshiftMaxOpenConns int
 }
 
+const (
+	MaxConcurrentReloading = 30
+	MaxTopicRelease        = 50
+)
+
 // +kubebuilder:rbac:groups=tipoca.k8s.practo.dev,resources=redshiftsinks,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=tipoca.k8s.practo.dev,resources=redshiftsinks/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=*,resources=deployments,verbs=get;list;watch;create;update;patch;delete
@@ -179,7 +184,6 @@ func (r *RedshiftSinkReconciler) fetchLatestTopics(
 	[]string,
 	error,
 ) {
-	var topics []string
 	var err error
 	var rgx *regexp.Regexp
 	topicsAppended := make(map[string]bool)
@@ -187,15 +191,16 @@ func (r *RedshiftSinkReconciler) fetchLatestTopics(
 
 	allTopics, err := kafkaWatcher.Topics()
 	if err != nil {
-		return topics, err
+		return []string{}, err
 	}
 
+	var topics []string
 	for _, expression := range expressions {
 		rgxLoaded, ok := r.KafkaTopicRegexes.Load(expression)
 		if !ok {
 			rgx, err = regexp.Compile(strings.TrimSpace(expression))
 			if err != nil {
-				return topics, fmt.Errorf(
+				return []string{}, fmt.Errorf(
 					"Compling regex: %s failed, err:%v\n", expression, err)
 			}
 			r.KafkaTopicRegexes.Store(expression, rgx)
@@ -215,6 +220,8 @@ func (r *RedshiftSinkReconciler) fetchLatestTopics(
 			topicsAppended[topic] = true
 		}
 	}
+
+	sortStringSlice(topics)
 
 	return topics, nil
 }
@@ -410,10 +417,14 @@ func (r *RedshiftSinkReconciler) reconcile(
 	//      tableSuffix: ""
 	var reload, reloadDupe, main *sinkGroup
 
+	allowedReloadingTopics := status.reloading
+	if len(status.reloading) > MaxConcurrentReloading {
+		allowedReloadingTopics = status.reloading[:MaxConcurrentReloading]
+	}
 	reload = sgBuilder.
 		setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).
 		setType(ReloadSinkGroup).
-		setTopics(status.reloading).
+		setTopics(allowedReloadingTopics).
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
 		buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
@@ -501,14 +512,13 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, nil, nil
 	}
 
-	// release the realtime topics, topics in realtime (maxTopicRelease) are
+	// release the realtime topics, topics in realtime (MaxTopicRelease) are
 	// taken as a group and is tried to release in single reconcile
 	// to reduce the time spent on rebalance of sink groups (optimization)
 	// #141
-	maxTopicRelease := 50
 	releaseCandidates := status.realtime
-	if len(status.realtime) >= maxTopicRelease {
-		releaseCandidates = status.realtime[:maxTopicRelease]
+	if len(status.realtime) >= MaxTopicRelease {
+		releaseCandidates = status.realtime[:MaxTopicRelease]
 	}
 	klog.V(2).Infof("release candidates: %v", releaseCandidates)
 
