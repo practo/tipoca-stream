@@ -301,6 +301,9 @@ func (s *status) info() {
 	klog.V(2).Infof("%s reloading:  %d %v", rskName, len(s.reloading), s.reloading)
 	klog.V(2).Infof("%s rDupe:      %d %v", rskName, len(s.reloadingDupe), s.reloadingDupe)
 	klog.V(2).Infof("%s realtime:   %d %v", rskName, len(s.realtime), s.realtime)
+	if len(s.reloading) > MaxConcurrentReloading {
+		klog.V(2).Infof("%s reloadingC: %d %v", rsk.Name, MaxConcurrentReloading, s.reloading[:MaxConcurrentReloading])
+	}
 }
 
 // manyReloading checks the percentage of reloading topics of the total topics
