@@ -401,6 +401,17 @@ func (r *RedshiftSinkReconciler) reconcile(
 	status.info()
 	defer status.updateMaskStatus()
 
+	// Safety checks
+	if currentMaskVersion == desiredMaskVersion {
+		if len(status.reloading) > 0 && len(status.diffTopics) == 0 {
+			klog.Fatalf("rsk/%s unexpected status, no diff but reloading", rsk.Name)
+		}
+
+		if len(status.released) == 0 {
+			klog.Fatalf("rsk/%s unexpected status, released=0", rsk.Name)
+		}
+	}
+
 	// SinkGroup are of following types:
 	// 1. main: sink group which has desiredMaskVersion
 	//      and has topics which have been released
