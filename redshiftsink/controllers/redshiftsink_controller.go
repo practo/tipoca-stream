@@ -411,6 +411,9 @@ func (r *RedshiftSinkReconciler) reconcile(
 			klog.Fatalf("rsk/%s unexpected status, released=0", rsk.Name)
 		}
 	}
+	if len(status.diffTopics) == 0 && len(status.reloading) > 0 {
+		klog.Fatalf("rsk/%s unexpected status, no diff but reloading", rsk.Name)
+	}
 
 	// SinkGroup are of following types:
 	// 1. main: sink group which has desiredMaskVersion
