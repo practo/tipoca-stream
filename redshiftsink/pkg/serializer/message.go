@@ -60,7 +60,7 @@ func (b *MessageAsyncBatch) Flush() {
 		b.processChan <- b.msgBuf
 		b.msgBuf = make([]*Message, 0, b.maxSize)
 		klog.V(4).Infof(
-			"%s: flushed:%d, buffchan:%v msgs",
+			"%s: flushed:%d, processChan:%v",
 			b.topic,
 			size,
 			len(b.processChan),

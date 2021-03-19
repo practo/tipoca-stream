@@ -411,7 +411,7 @@ func (b *batchProcessor) Process(
 		msgBufs := [][]*serializer.Message{}
 
 		klog.V(2).Infof(
-			"%s: buffchan:%v msgs",
+			"%s: processChan:%v",
 			b.topic,
 			len(processChan),
 		)

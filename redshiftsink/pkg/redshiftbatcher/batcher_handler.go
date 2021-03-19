@@ -134,7 +134,7 @@ func (h *batcherHandler) ConsumeClaim(
 	)
 
 	var lastSchemaId *int
-	processChan := make(chan []*serializer.Message, 1000)
+	processChan := make(chan []*serializer.Message, h.maxConcurrency)
 	errChan := make(chan error)
 	processor := newBatchProcessor(
 		h.consumerGroupID,
