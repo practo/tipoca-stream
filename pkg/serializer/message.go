@@ -1,6 +1,7 @@
 package serializer
 
 import (
+	"context"
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 	"sync"
@@ -54,10 +55,16 @@ func NewMessageAsyncBatch(
 	}
 }
 
-func (b *MessageAsyncBatch) Flush() {
+func (b *MessageAsyncBatch) Flush(ctx context.Context) {
 	size := len(b.msgBuf)
 	if size > 0 {
-		b.processChan <- b.msgBuf
+		// write to channel with context check, fixes #170
+		select {
+		case <-ctx.Done():
+			klog.V(2).Infof("%s: flush cancelled, ctx done, return", b.topic)
+			return
+		case b.processChan <- b.msgBuf:
+		}
 		b.msgBuf = make([]*Message, 0, b.maxSize)
 		klog.V(4).Infof(
 			"%s: flushed:%d, processChan:%v",
@@ -75,14 +82,14 @@ func (b *MessageAsyncBatch) Flush() {
 
 // insert makes the batch and also and flushes to the processor
 // if batchSize >= maxSize
-func (b *MessageAsyncBatch) Insert(msg *Message) {
+func (b *MessageAsyncBatch) Insert(ctx context.Context, msg *Message) {
 	b.msgBuf = append(b.msgBuf, msg)
 	if len(b.msgBuf) >= b.maxSize {
 		klog.V(2).Infof(
 			"%s: maxSize hit",
 			msg.Topic,
 		)
-		b.Flush()
+		b.Flush(ctx)
 	}
 }
 
