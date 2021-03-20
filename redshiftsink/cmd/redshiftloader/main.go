@@ -125,43 +125,39 @@ func run(cmd *cobra.Command, args []string) {
 			groupConfig.TopicRegexes,
 			// cancel,
 		)
+
 		wg.Add(1)
 		go manager.SyncTopics(ctx, wg)
+
 		wg.Add(1)
 		go manager.Consume(ctx, wg)
 	}
+	klog.V(2).Infof("consumerGroups: %v", len(consumersReady))
 
-	sigterm := make(chan os.Signal, 1)
-	signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
-	ready := 0
-
-	klog.V(2).Infof("ConsumerGroups: %v", len(consumersReady))
-	for ready >= 0 {
+	go func() {
+		sigterm := make(chan os.Signal, 1)
+		signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
 		select {
-		default:
 		case <-sigterm:
 			klog.V(2).Info("SIGTERM signal received")
-			ready = -1
+			cancel()
+			klog.V(2).Info("Cancelled main context")
 		}
+	}()
 
-		if ready == -1 || ready == len(consumersReady) {
-			time.Sleep(3 * time.Second)
-			continue
-		}
-
-		for _, channel := range consumersReady {
+	go func() {
+		for i, c := range consumersReady {
 			select {
-			case <-channel:
-				ready += 1
-				klog.V(2).Infof("ConsumerGroup #%d is up and running", ready)
+			case <-c:
+				klog.V(2).Infof(
+					"#%d consumerGroup is up and running",
+					i,
+				)
 			}
 		}
-	}
+	}()
 
-	klog.V(2).Info("Cancelling context to trigger graceful shutdown...")
-	cancel()
-
-	klog.V(2).Info("Waiting for waitgroups to shutdown...")
+	klog.V(2).Info("wg wait()")
 	wg.Wait()
 
 	var closeErr error

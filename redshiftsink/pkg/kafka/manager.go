@@ -192,6 +192,7 @@ func (c *Manager) SyncTopics(
 
 		select {
 		case <-ctx.Done():
+			klog.V(2).Info("ctx cancelled bye")
 			return
 		case <-ticker.C:
 			continue

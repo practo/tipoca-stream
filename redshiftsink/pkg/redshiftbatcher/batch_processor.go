@@ -456,8 +456,8 @@ func (b *batchProcessor) Process(
 				bodyBuf:       bytes.NewBuffer(make([]byte, 0, 4096)),
 				maskSchema:    make(map[string]serializer.MaskInfo),
 			}
-			go b.processBatch(wg, session, msgBuf, resp)
 			wg.Add(1)
+			go b.processBatch(wg, session, msgBuf, resp)
 			responses = append(responses, resp)
 		}
 		if len(responses) == 0 {
@@ -488,7 +488,18 @@ func (b *batchProcessor) Process(
 				"%s, error(s) occured in processing (sending err)", b.topic,
 			)
 			b.handleShutdown()
-			errChan <- errors
+
+			// send to channel with context check, fix #170
+			select {
+			case <-session.Context().Done():
+				klog.V(2).Infof(
+					"%s: processor returning, session ctx done",
+					b.topic,
+				)
+				return
+			case errChan <- errors:
+			}
+
 			klog.Errorf(
 				"%s, error(s) occured: %+v, processor shutdown.",
 				b.topic,
@@ -501,9 +512,27 @@ func (b *batchProcessor) Process(
 		// failure in between signal and marking the offset can lead to
 		// duplicates in the loader topic, but it's ok as loader is idempotent
 		for _, resp := range responses {
+			select {
+			default:
+			case <-session.Context().Done():
+				klog.V(2).Infof(
+					"%s: processor returning, session ctx done",
+					b.topic,
+				)
+				return
+			}
 			err := b.signalLoad(resp)
 			if err != nil {
-				errChan <- err
+				// send to channel with context check, fix #170
+				select {
+				case <-session.Context().Done():
+					klog.V(2).Infof(
+						"%s: processor returning, session ctx done",
+						b.topic,
+					)
+					return
+				case errChan <- err:
+				}
 				klog.Errorf(
 					"%s, error signalling: %v, processor shutdown.",
 					b.topic,
