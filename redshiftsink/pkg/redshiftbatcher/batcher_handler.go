@@ -158,9 +158,14 @@ func (h *batcherHandler) ConsumeClaim(
 	)
 
 	wg := &sync.WaitGroup{}
-	go processor.Process(wg, session, processChan, errChan)
 	wg.Add(1)
-	defer wg.Wait()
+	go processor.Process(wg, session, processChan, errChan)
+
+	defer func() {
+		klog.V(2).Infof("%s: wg wait() for processing to return", claim.Topic())
+		wg.Wait()
+		klog.V(2).Infof("%s: wg done. processing returned", claim.Topic())
+	}()
 
 	klog.V(4).Infof("%s: read msgs", claim.Topic())
 	// NOTE:
@@ -204,10 +209,10 @@ func (h *batcherHandler) ConsumeClaim(
 			// Deserialize the message
 			msg, err := h.serializer.Deserialize(message)
 			if err != nil {
-				return fmt.Errorf("error deserializing binary, err: %s\n", err)
+				return fmt.Errorf("%s: consumeClaim returning, error deserializing binary, err: %s\n", claim.Topic(), err)
 			}
 			if msg == nil || msg.Value == nil {
-				return fmt.Errorf("got message as nil, message: %+v\n", msg)
+				return fmt.Errorf("%s: consumeClaim returning, error, got message as nil, message: %+v\n", claim.Topic(), msg)
 			}
 
 			if lastSchemaId == nil {
@@ -220,10 +225,10 @@ func (h *batcherHandler) ConsumeClaim(
 					msg.SchemaId,
 				)
 				// Flush the batch due to schema change
-				msgBatch.Flush()
+				msgBatch.Flush(session.Context())
 			}
 			// Flush the batch by size or insert in batch
-			msgBatch.Insert(msg)
+			msgBatch.Insert(session.Context(), msg)
 			*lastSchemaId = msg.SchemaId
 		case <-maxWaitTicker.C:
 			// Flush the batch by time
@@ -231,11 +236,11 @@ func (h *batcherHandler) ConsumeClaim(
 				"%s: maxWaitSeconds hit",
 				claim.Topic(),
 			)
-			msgBatch.Flush()
+			msgBatch.Flush(session.Context())
 		case err := <-errChan:
 			syscall.Kill(syscall.Getpid(), syscall.SIGINT)
 			klog.Errorf(
-				"%s: error occured in processing, err: %v, triggered shutdown",
+				"consumeClaim returning, %s: error occured in processing, err: %v, triggered shutdown",
 				claim.Topic(),
 				err,
 			)
