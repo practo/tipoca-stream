@@ -123,8 +123,8 @@ func NewBatcher(
 			MaskFile:        rsk.Spec.Batcher.MaskFile,
 			MaskFileVersion: maskFileVersion,
 			MaxSize:         rsk.Spec.Batcher.MaxSize,
-			MaxWaitSeconds:  rsk.Spec.Batcher.MaxWaitSeconds,
-			MaxConcurrency:  maxConcurrency,
+			MaxWaitSeconds:  &rsk.Spec.Batcher.MaxWaitSeconds,
+			MaxConcurrency:  &maxConcurrency,
 		},
 		ConsumerGroups: groupConfigs,
 		S3Sink: s3sink.Config{

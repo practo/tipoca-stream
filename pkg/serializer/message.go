@@ -7,6 +7,8 @@ import (
 	"sync"
 )
 
+const DefaultMessageBufferSize = 10
+
 type MessageBatchSyncProcessor interface {
 	Process(session sarama.ConsumerGroupSession, msgBuf []*Message) error
 }
@@ -27,31 +29,37 @@ type Message struct {
 	Offset    int64
 	Key       string
 	Value     interface{}
+	Bytes     int
 
 	Operation  string
 	MaskSchema map[string]MaskInfo
 }
 
 type MessageAsyncBatch struct {
-	topic       string
-	partition   int32
-	maxSize     int
-	msgBuf      []*Message
-	processChan chan []*Message
+	topic            string
+	partition        int32
+	maxSize          int
+	msgBuf           []*Message
+	msgBufBytes      int
+	maxBytesPerBatch *int
+	processChan      chan []*Message
 }
 
 func NewMessageAsyncBatch(
 	topic string,
 	partition int32,
 	maxSize int,
+	maxBufSize int,
+	maxBytesPerBatch *int,
 	processChan chan []*Message,
 ) *MessageAsyncBatch {
 	return &MessageAsyncBatch{
-		topic:       topic,
-		partition:   partition,
-		maxSize:     maxSize,
-		msgBuf:      make([]*Message, 0, maxSize),
-		processChan: processChan,
+		topic:            topic,
+		partition:        partition,
+		maxSize:          maxSize,
+		msgBuf:           make([]*Message, 0, maxBufSize),
+		maxBytesPerBatch: maxBytesPerBatch,
+		processChan:      processChan,
 	}
 }
 
@@ -66,6 +74,7 @@ func (b *MessageAsyncBatch) Flush(ctx context.Context) {
 		case b.processChan <- b.msgBuf:
 		}
 		b.msgBuf = make([]*Message, 0, b.maxSize)
+		b.msgBufBytes = 0
 		klog.V(4).Infof(
 			"%s: flushed:%d, processChan:%v",
 			b.topic,
@@ -84,6 +93,20 @@ func (b *MessageAsyncBatch) Flush(ctx context.Context) {
 // if batchSize >= maxSize
 func (b *MessageAsyncBatch) Insert(ctx context.Context, msg *Message) {
 	b.msgBuf = append(b.msgBuf, msg)
+
+	if b.maxBytesPerBatch != nil {
+		b.msgBufBytes += msg.Bytes
+		if b.msgBufBytes >= *b.maxBytesPerBatch {
+			klog.V(2).Infof(
+				"%s: maxBytesPerBatch hit",
+				msg.Topic,
+			)
+			b.Flush(ctx)
+		}
+		return
+	}
+
+	// Deprecated
 	if len(b.msgBuf) >= b.maxSize {
 		klog.V(2).Infof(
 			"%s: maxSize hit",
