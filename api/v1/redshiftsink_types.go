@@ -42,31 +42,87 @@ type RedshiftPodTemplateSpec struct {
 	Tolerations *[]corev1.Toleration `json:"tolerations,omitempty"`
 }
 
-// RedshiftBatcherSpec defines the desired state of RedshiftBatcher
-type RedshiftBatcherSpec struct {
-	// Supsend when turned on makes sure no batcher pods
-	// are running for this CRD object. Default: false
-	Suspend bool `json:"suspend,omitempty"`
+// Deployment is used to specify how many topics will run together in a unit
+// and how much resources needs to be given to them.
+type DeploymentUnit struct {
+	// MaxTopics specify the maximum number of topics that
+	// can be part of this unit of deployment.
+	MaxTopics *int `json:"maxTopics,omitempty"`
 
-	// Max configurations for the batcher to batch
-	MaxSize        int  `json:"maxSize"`
-	MaxWaitSeconds int  `json:"maxWaitSeconds"`
+	// PodTemplate describes the specification for the unit.
+	// +optional
+	PodTemplate *RedshiftPodTemplateSpec `json:"podTemplate,omitempty"`
+}
+
+type SinkGroupSpec struct {
+	// MaxBytesPerBatch is the maximum bytes per batch.
+	MaxBytesPerBatch *int `json:"maxBytesPerBatch,omitempty"`
+	// MaxWaitSeconds is the maximum time to wait before making a batch,
+	// make a batch if MaxBytesPerBatch is not hit during MaxWaitSeconds.
+	MaxWaitSeconds *int `json:"maxWaitSeconds"`
+	// MaxConcurrency is the maximum no, of batch processors to run concurrently.
 	MaxConcurrency *int `json:"maxConcurrency,omitempty"`
-
-	// MaxProcessingTime is the sarama configuration MaxProcessingTime
-	// It is the max time in milliseconds required to consume one message.
+	// MaxProcessingTime is the max time in ms required to consume one message.
 	// Defaults to 1000ms
 	MaxProcessingTime *int32 `json:"maxProcessingTime,omitempty"`
 
-	// Mask when turned on enables masking of the data
-	// Default: false
+	// DeploymentUnit is to specify the configuration of the unit of deployment
+	// This helps the user to specify how many topics with what resources
+	// can run in one unit of Deployment. Based on this the operator decides
+	// how many deployment units would be launched. This is useful in the first
+	// time sink of redshiftsink resources having huge number of topics.
+	// Check #167 to understand the need of a unit specification.
+	DeploymentUnit *DeploymentUnit `json:"deploymentUnit,omitempty"`
+}
+
+// SinkGroup is the group of batcher and loader pods based on the
+// mask version, target table and the topic release status. These grouped
+// pods can require different configuration to sink the resources. Pods of batcher
+// and loader can specify their sink group configuration using SinkGroupSpec.
+// For example:
+// The first time sink of a table requires different values for MaxBytesPerBatch
+// and different pod resources than the realtime differential sink ones.
+// If All is specified and none of the others are specified, all is used
+// for Main, Reload and ReloadDupe SinkGroup. If others are specified then
+// they take precedence over all. For example if you have specified All and
+// Main, then for the MainSinkGroup Main is used and not All.
+type SinkGroup struct {
+	All        *SinkGroupSpec `json:"all,omitempty"`
+	Main       *SinkGroupSpec `json:"main,omitempty"`
+	Reload     *SinkGroupSpec `json:"reload,omitempty"`
+	ReloadDupe *SinkGroupSpec `json:"reloadDupe,omitempty"`
+}
+
+// RedshiftBatcherSpec defines the desired state of RedshiftBatcher
+type RedshiftBatcherSpec struct {
+	// Supsend is used to suspend batcher pods. Defaults to false.
+	Suspend bool `json:"suspend,omitempty"`
+
+	// Mask when turned on enables masking of the data. Defaults to false
 	// +optional
 	Mask bool `json:"mask"`
+	// MaskFile to use to apply mask configurations
 	// +optional
 	MaskFile string `json:"maskFile"`
 	// +optional
 
-	// Template describes the pods that will be created.
+	// SinkGroup contains the specification for main, reload and reloadDupe
+	// sinkgroups. Operator uses 3 groups to perform Redshiftsink. The topics
+	// which have never been released is part of Reload SinkGroup, the topics
+	// which gets released moves to the Main SinkGroup. ReloadDupe SinkGroup
+	// is used to give realtime upadates to the topics which are reloading.
+	// Defaults are there for all sinkGroups if none is specifed.
+	SinkGroup *SinkGroup `json:"sinkGroup,omitempty"`
+
+	// Deprecated all of the below spec in favour of SinkGroup #167
+	MaxSize        int  `json:"maxSize"`
+	MaxWaitSeconds int  `json:"maxWaitSeconds"`
+	MaxConcurrency *int `json:"maxConcurrency,omitempty"`
+	// MaxProcessingTime is the sarama configuration MaxProcessingTime
+	// It is the max time in milliseconds required to consume one message.
+	// Defaults to 1000ms
+	MaxProcessingTime *int32 `json:"maxProcessingTime,omitempty"`
+	// PodTemplate describes the pods that will be created.
 	// if this is not specifed, a default pod template is created
 	// +optional
 	PodTemplate *RedshiftPodTemplateSpec `json:"podTemplate,omitempty"`
@@ -96,7 +152,7 @@ type RedshiftLoaderSpec struct {
 	// RedshiftGroup to give the access to when new topics gets released
 	RedshiftGroup *string `json:"redshiftGroup"`
 
-	// Template describes the pods that will be created.
+	// PodTemplate describes the pods that will be created.
 	// if this is not specifed, a default pod template is created
 	// +optional
 	PodTemplate *RedshiftPodTemplateSpec `json:"podTemplate,omitempty"`
