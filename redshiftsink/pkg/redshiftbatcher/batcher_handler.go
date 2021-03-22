@@ -15,6 +15,7 @@ import (
 )
 
 var (
+	DefaultMaxBytesPerBatch  int   = 1024
 	DefaultMaxWaitSeconds    int   = 30
 	DefaultMaxConcurrency    int   = 10
 	DefaultMaxProcessingTime int32 = 180000

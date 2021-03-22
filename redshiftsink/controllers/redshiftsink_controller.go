@@ -341,8 +341,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 			setType(MainSinkGroup).
 			setTopics(kafkaTopics).
 			setMaskVersion("").
-			buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-			buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+			buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
+			buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 			build()
 		result, event, err := maskLessSinkGroup.reconcile(ctx)
 		return result, event, err
@@ -441,8 +441,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopics(allowedReloadingTopics).
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
-		buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-		buildLoader(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
+		buildLoaders(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 		build()
 
 	reloadingRatio := status.reloadingRatio()
@@ -492,8 +492,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopics(status.reloadingDupe).
 		setMaskVersion(status.currentVersion).
 		setTopicGroups().
-		buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-		buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
+		buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 		build()
 
 	main = sgBuilder.
@@ -502,8 +502,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopics(status.released).
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
-		buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-		buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
+		buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 		build()
 
 	sinkGroups := []*sinkGroup{reloadDupe, reload, main}

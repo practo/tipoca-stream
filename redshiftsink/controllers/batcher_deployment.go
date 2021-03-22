@@ -25,6 +25,86 @@ type Batcher struct {
 	config     *corev1.ConfigMap
 }
 
+// applyBatcherSinkGroupDefaults applies the defaults for the batcher
+// deplyoments of the sink group so that the user does not need to specify
+// big lengthy configurations everytime. Also the defaults are
+// optimized for maximum performance and is recommended to use.
+func applyBatcherSinkGroupDefaults(
+	rsk *tipocav1.RedshiftSink,
+	sgType string,
+	defaultImage string,
+) *tipocav1.SinkGroupSpec {
+	// defaults
+	maxBytesPerBatch := &redshiftbatcher.DefaultMaxBytesPerBatch
+	maxWaitSeconds := &redshiftbatcher.DefaultMaxWaitSeconds
+	maxConcurrency := &redshiftbatcher.DefaultMaxConcurrency
+	maxProcessingTime := &redshiftbatcher.DefaultMaxProcessingTime
+	maxTopics := &DefaultMaxBatcherTopics
+	image := &defaultImage
+	var resources *corev1.ResourceRequirements
+	var tolerations *[]corev1.Toleration
+
+	// apply the sinkGroup spec rules
+	var specifiedSpec *tipocav1.SinkGroupSpec
+	if rsk.Spec.Batcher.SinkGroup.All != nil {
+		specifiedSpec = rsk.Spec.Batcher.SinkGroup.All
+	}
+	switch sgType {
+	case MainSinkGroup:
+		if rsk.Spec.Batcher.SinkGroup.Main != nil {
+			specifiedSpec = rsk.Spec.Batcher.SinkGroup.Main
+		}
+	case ReloadSinkGroup:
+		if rsk.Spec.Batcher.SinkGroup.Reload != nil {
+			specifiedSpec = rsk.Spec.Batcher.SinkGroup.Reload
+		}
+	case ReloadDupeSinkGroup:
+		if rsk.Spec.Batcher.SinkGroup.ReloadDupe != nil {
+			specifiedSpec = rsk.Spec.Batcher.SinkGroup.ReloadDupe
+		}
+	}
+
+	// overwrite with the defaults with the specified values
+	if specifiedSpec != nil {
+		if specifiedSpec.MaxBytesPerBatch != nil {
+			maxBytesPerBatch = specifiedSpec.MaxBytesPerBatch
+		}
+		if specifiedSpec.MaxWaitSeconds != nil {
+			maxWaitSeconds = specifiedSpec.MaxWaitSeconds
+		}
+		if specifiedSpec.MaxConcurrency != nil {
+			maxConcurrency = specifiedSpec.MaxConcurrency
+		}
+		if specifiedSpec.MaxProcessingTime != nil {
+			maxProcessingTime = specifiedSpec.MaxProcessingTime
+		}
+		if specifiedSpec.DeploymentUnit.PodTemplate.Image != nil {
+			image = specifiedSpec.DeploymentUnit.PodTemplate.Image
+		}
+		if specifiedSpec.DeploymentUnit.PodTemplate.Resources != nil {
+			resources = specifiedSpec.DeploymentUnit.PodTemplate.Resources
+		}
+		if specifiedSpec.DeploymentUnit.PodTemplate.Tolerations != nil {
+			tolerations = specifiedSpec.DeploymentUnit.PodTemplate.Tolerations
+		}
+	}
+
+	return &tipocav1.SinkGroupSpec{
+		MaxBytesPerBatch:  maxBytesPerBatch,
+		MaxWaitSeconds:    maxWaitSeconds,
+		MaxConcurrency:    maxConcurrency,
+		MaxProcessingTime: maxProcessingTime,
+		DeploymentUnit: &tipocav1.DeploymentUnit{
+			MaxTopics: maxTopics,
+			PodTemplate: &tipocav1.RedshiftPodTemplateSpec{
+				Image:       image,
+				Resources:   resources,
+				Tolerations: tolerations,
+			},
+		},
+	}
+}
+
 func batcherSecret(secret map[string]string) (map[string]string, error) {
 	s := make(map[string]string)
 	secretKeys := []string{
@@ -49,8 +129,14 @@ func batcherSecret(secret map[string]string) (map[string]string, error) {
 	return s, nil
 }
 
-func batcherName(rskName, sinkGroup string) string {
-	return fmt.Sprintf("%s-%s%s", rskName, sinkGroup, BatcherSuffix)
+func batcherName(rskName, sinkGroup string, id string) string {
+	return fmt.Sprintf(
+		"%s-%s%s%s",
+		rskName,
+		sinkGroup,
+		id,
+		BatcherSuffix,
+	)
 }
 
 func NewBatcher(
@@ -59,6 +145,7 @@ func NewBatcher(
 	maskFileVersion string,
 	secret map[string]string,
 	sinkGroup string,
+	sinkGroupSpec *tipocav1.SinkGroupSpec,
 	consumerGroups map[string]consumerGroup,
 	defaultImage string,
 	defaultKafkaVersion string,
@@ -72,26 +159,36 @@ func NewBatcher(
 		return nil, err
 	}
 
-	totalTopics := 0
-
 	// defaults
 	kafkaVersion := rsk.Spec.KafkaVersion
 	if kafkaVersion == "" {
 		kafkaVersion = defaultKafkaVersion
 	}
-	maxConcurrency := redshiftbatcher.DefaultMaxConcurrency
-	if rsk.Spec.Batcher.MaxConcurrency != nil {
-		maxConcurrency = *rsk.Spec.Batcher.MaxConcurrency
-	}
 	var maxProcessingTime int32 = redshiftbatcher.DefaultMaxProcessingTime
 	if rsk.Spec.Batcher.MaxProcessingTime != nil {
 		maxProcessingTime = *rsk.Spec.Batcher.MaxProcessingTime
 	}
+	var maxSize int // Deprecated
+	var maxWaitSeconds, maxConcurrency, maxBytesPerBatch *int
+	if sinkGroupSpec != nil {
+		maxBytesPerBatch = sinkGroupSpec.MaxBytesPerBatch
+		maxWaitSeconds = sinkGroupSpec.MaxWaitSeconds
+		maxConcurrency = sinkGroupSpec.MaxConcurrency
+		maxProcessingTime = *sinkGroupSpec.MaxProcessingTime
+	} else { // Deprecated below, remove later when removing TODO:
+		maxSize = rsk.Spec.Batcher.MaxSize
+		maxWaitSeconds = &rsk.Spec.Batcher.MaxWaitSeconds
+		maxConcurrency = &redshiftbatcher.DefaultMaxConcurrency
+		if rsk.Spec.Batcher.MaxConcurrency != nil {
+			maxConcurrency = rsk.Spec.Batcher.MaxConcurrency
+		}
 
-	// other defaults not configurable defaults for the batcher
+	}
+	// other defaults which are not configurable defaults for the batcher
 	var sessionTimeoutSeconds int = 10
 	var hearbeatIntervalSeconds int = 2
 
+	totalTopics := 0
 	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
 		totalTopics += len(group.topics)
@@ -118,13 +215,14 @@ func NewBatcher(
 
 	conf := config.Config{
 		Batcher: redshiftbatcher.BatcherConfig{
-			Mask:            rsk.Spec.Batcher.Mask,
-			MaskSalt:        secret["maskSalt"],
-			MaskFile:        rsk.Spec.Batcher.MaskFile,
-			MaskFileVersion: maskFileVersion,
-			MaxSize:         rsk.Spec.Batcher.MaxSize,
-			MaxWaitSeconds:  &rsk.Spec.Batcher.MaxWaitSeconds,
-			MaxConcurrency:  &maxConcurrency,
+			Mask:             rsk.Spec.Batcher.Mask,
+			MaskSalt:         secret["maskSalt"],
+			MaskFile:         rsk.Spec.Batcher.MaskFile,
+			MaskFileVersion:  maskFileVersion,
+			MaxSize:          maxSize, // Deprecated
+			MaxWaitSeconds:   maxWaitSeconds,
+			MaxConcurrency:   maxConcurrency,
+			MaxBytesPerBatch: maxBytesPerBatch,
 		},
 		ConsumerGroups: groupConfigs,
 		S3Sink: s3sink.Config{
