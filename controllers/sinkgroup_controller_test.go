@@ -6,7 +6,7 @@ import (
 )
 
 func TestDeploymentUnitAssignment(t *testing.T) {
-	// t.Parallel()
+	t.Parallel()
 
 	tests := []struct {
 		name        string
