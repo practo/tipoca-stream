@@ -15,10 +15,10 @@ import (
 )
 
 var (
-	DefaultMaxBytesPerBatch  int   = 1024
-	DefaultMaxWaitSeconds    int   = 30
-	DefaultMaxConcurrency    int   = 10
-	DefaultMaxProcessingTime int32 = 180000
+	DefaultMaxBytesPerBatch  string = "1024"
+	DefaultMaxWaitSeconds    int    = 30
+	DefaultMaxConcurrency    int    = 10
+	DefaultMaxProcessingTime int32  = 180000
 )
 
 type BatcherConfig struct {
@@ -51,9 +51,9 @@ type BatcherConfig struct {
 	MaxConcurrency *int `yaml:"maxConcurrency,omitempty"`
 	// MaxBytesPerBatch is the maximum bytes per batch. Default is there
 	// if the user has not specified a default will be applied.
-	// If this is specified maxSize specification is not considered.
-	// Default woult be specified after MaxSize is gone
-	MaxBytesPerBatch *int `yaml:"maxBytesPerBatch,omitempty"`
+	// If this is specified, maxSize specification is not considered.
+	// Default would be specified after MaxSize is gone
+	MaxBytesPerBatch *int64 `yaml:"maxBytesPerBatch,omitempty"`
 }
 
 // batcherHandler is the sarama consumer handler
@@ -66,7 +66,7 @@ type batcherHandler struct {
 
 	maxWaitSeconds   *int
 	maxConcurrency   *int
-	maxBytesPerBatch *int
+	maxBytesPerBatch *int64
 
 	consumerGroupID        string
 	kafkaConfig            kafka.KafkaConfig

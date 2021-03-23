@@ -29,7 +29,7 @@ type Message struct {
 	Offset    int64
 	Key       string
 	Value     interface{}
-	Bytes     int
+	Bytes     int64
 
 	Operation  string
 	MaskSchema map[string]MaskInfo
@@ -40,8 +40,8 @@ type MessageAsyncBatch struct {
 	partition        int32
 	maxSize          int
 	msgBuf           []*Message
-	msgBufBytes      int
-	maxBytesPerBatch *int
+	msgBufBytes      int64
+	maxBytesPerBatch *int64
 	processChan      chan []*Message
 }
 
@@ -50,7 +50,7 @@ func NewMessageAsyncBatch(
 	partition int32,
 	maxSize int,
 	maxBufSize int,
-	maxBytesPerBatch *int,
+	maxBytesPerBatch *int64,
 	processChan chan []*Message,
 ) *MessageAsyncBatch {
 	return &MessageAsyncBatch{
@@ -117,20 +117,30 @@ func (b *MessageAsyncBatch) Insert(ctx context.Context, msg *Message) {
 }
 
 type MessageSyncBatch struct {
-	topic     string
-	partition int32
-	maxSize   int
-	msgBuf    []*Message
-	processor MessageBatchSyncProcessor
+	topic            string
+	partition        int32
+	maxSize          int
+	msgBuf           []*Message
+	msgBufBytes      int64
+	maxBytesPerBatch *int64
+	processor        MessageBatchSyncProcessor
 }
 
-func NewMessageSyncBatch(topic string, partition int32, maxSize int, processor MessageBatchSyncProcessor) *MessageSyncBatch {
+func NewMessageSyncBatch(
+	topic string,
+	partition int32,
+	maxSize int,
+	maxBufSize int,
+	maxBytesPerBatch *int64,
+	processor MessageBatchSyncProcessor,
+) *MessageSyncBatch {
 	return &MessageSyncBatch{
-		topic:     topic,
-		partition: partition,
-		maxSize:   maxSize,
-		msgBuf:    make([]*Message, 0, maxSize),
-		processor: processor,
+		topic:            topic,
+		partition:        partition,
+		maxSize:          maxSize,
+		msgBuf:           make([]*Message, 0, maxBufSize),
+		maxBytesPerBatch: maxBytesPerBatch,
+		processor:        processor,
 	}
 }
 
@@ -138,7 +148,7 @@ func NewMessageSyncBatch(topic string, partition int32, maxSize int, processor M
 func (b *MessageSyncBatch) Process(session sarama.ConsumerGroupSession) error {
 	if len(b.msgBuf) > 0 {
 		klog.V(2).Infof(
-			"topic:%s: calling processor...",
+			"%s: calling processor...",
 			b.topic,
 		)
 		err := b.processor.Process(session, b.msgBuf)
@@ -146,9 +156,10 @@ func (b *MessageSyncBatch) Process(session sarama.ConsumerGroupSession) error {
 			return err
 		}
 		b.msgBuf = make([]*Message, 0, b.maxSize)
+		b.msgBufBytes = 0
 	} else {
 		klog.V(2).Infof(
-			"topic:%s: no msgs",
+			"%s: no msgs",
 			b.topic,
 		)
 	}
@@ -160,11 +171,26 @@ func (b *MessageSyncBatch) Process(session sarama.ConsumerGroupSession) error {
 func (b *MessageSyncBatch) Insert(
 	session sarama.ConsumerGroupSession,
 	msg *Message,
+	batchBytes int64,
 ) error {
 	b.msgBuf = append(b.msgBuf, msg)
+
+	if b.maxBytesPerBatch != nil && batchBytes != 0 {
+		b.msgBufBytes += batchBytes
+		if b.msgBufBytes >= *b.maxBytesPerBatch {
+			klog.V(2).Infof(
+				"%s: maxBytesPerBatch hit",
+				msg.Topic,
+			)
+			return b.Process(session)
+		}
+		return nil
+	}
+
+	// Deprecated
 	if len(b.msgBuf) >= b.maxSize {
 		klog.V(2).Infof(
-			"topic:%s: maxSize hit",
+			"%s: maxSize hit",
 			msg.Topic,
 		)
 		return b.Process(session)

@@ -253,21 +253,30 @@ spec:
                                   type: array
                               type: object
                           type: object
-                        maxBytesPerBatch:
-                          description: MaxBytesPerBatch is the maximum bytes per batch.
-                          type: integer
                         maxConcurrency:
                           description: MaxConcurrency is the maximum no, of batch
-                            processors to run concurrently.
+                            processors to run concurrently. this spec is useful only
+                            when the sink group pod operates on asynchronous mode.
+                            loader pods does not needed this.
                           type: integer
                         maxProcessingTime:
                           description: MaxProcessingTime is the max time in ms required
                             to consume one message. Defaults to 1000ms
                           format: int32
                           type: integer
+                        maxSizePerBatch:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: 'MaxSizePerBatch is the maximum size of the
+                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
+                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
+                            bytes'
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
                         maxWaitSeconds:
                           description: MaxWaitSeconds is the maximum time to wait
-                            before making a batch, make a batch if MaxBytesPerBatch
+                            before making a batch, make a batch if MaxSizePerBatch
                             is not hit during MaxWaitSeconds.
                           type: integer
                       type: object
@@ -375,21 +384,30 @@ spec:
                                   type: array
                               type: object
                           type: object
-                        maxBytesPerBatch:
-                          description: MaxBytesPerBatch is the maximum bytes per batch.
-                          type: integer
                         maxConcurrency:
                           description: MaxConcurrency is the maximum no, of batch
-                            processors to run concurrently.
+                            processors to run concurrently. this spec is useful only
+                            when the sink group pod operates on asynchronous mode.
+                            loader pods does not needed this.
                           type: integer
                         maxProcessingTime:
                           description: MaxProcessingTime is the max time in ms required
                             to consume one message. Defaults to 1000ms
                           format: int32
                           type: integer
+                        maxSizePerBatch:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: 'MaxSizePerBatch is the maximum size of the
+                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
+                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
+                            bytes'
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
                         maxWaitSeconds:
                           description: MaxWaitSeconds is the maximum time to wait
-                            before making a batch, make a batch if MaxBytesPerBatch
+                            before making a batch, make a batch if MaxSizePerBatch
                             is not hit during MaxWaitSeconds.
                           type: integer
                       type: object
@@ -497,21 +515,30 @@ spec:
                                   type: array
                               type: object
                           type: object
-                        maxBytesPerBatch:
-                          description: MaxBytesPerBatch is the maximum bytes per batch.
-                          type: integer
                         maxConcurrency:
                           description: MaxConcurrency is the maximum no, of batch
-                            processors to run concurrently.
+                            processors to run concurrently. this spec is useful only
+                            when the sink group pod operates on asynchronous mode.
+                            loader pods does not needed this.
                           type: integer
                         maxProcessingTime:
                           description: MaxProcessingTime is the max time in ms required
                             to consume one message. Defaults to 1000ms
                           format: int32
                           type: integer
+                        maxSizePerBatch:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: 'MaxSizePerBatch is the maximum size of the
+                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
+                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
+                            bytes'
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
                         maxWaitSeconds:
                           description: MaxWaitSeconds is the maximum time to wait
-                            before making a batch, make a batch if MaxBytesPerBatch
+                            before making a batch, make a batch if MaxSizePerBatch
                             is not hit during MaxWaitSeconds.
                           type: integer
                       type: object
@@ -619,21 +646,30 @@ spec:
                                   type: array
                               type: object
                           type: object
-                        maxBytesPerBatch:
-                          description: MaxBytesPerBatch is the maximum bytes per batch.
-                          type: integer
                         maxConcurrency:
                           description: MaxConcurrency is the maximum no, of batch
-                            processors to run concurrently.
+                            processors to run concurrently. this spec is useful only
+                            when the sink group pod operates on asynchronous mode.
+                            loader pods does not needed this.
                           type: integer
                         maxProcessingTime:
                           description: MaxProcessingTime is the max time in ms required
                             to consume one message. Defaults to 1000ms
                           format: int32
                           type: integer
+                        maxSizePerBatch:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: 'MaxSizePerBatch is the maximum size of the
+                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
+                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
+                            bytes'
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
                         maxWaitSeconds:
                           description: MaxWaitSeconds is the maximum time to wait
-                            before making a batch, make a batch if MaxBytesPerBatch
+                            before making a batch, make a batch if MaxSizePerBatch
                             is not hit during MaxWaitSeconds.
                           type: integer
                       type: object
@@ -666,7 +702,8 @@ spec:
                   format: int32
                   type: integer
                 maxSize:
-                  description: Max configurations for the loader to batch the load
+                  description: 'Deprecated all of the below spec in favour of SinkGroup
+                    #167 Max configurations for the loader to batch the load'
                   type: integer
                 maxWaitSeconds:
                   type: integer
@@ -763,6 +800,539 @@ spec:
                 redshiftSchema:
                   description: RedshiftSchema to sink the data in
                   type: string
+                sinkGroup:
+                  description: SinkGroup contains the specification for main, reload
+                    and reloadDupe sinkgroups. Operator uses 3 groups to perform Redshiftsink.
+                    The topics which have never been released is part of Reload SinkGroup,
+                    the topics which gets released moves to the Main SinkGroup. ReloadDupe
+                    SinkGroup is used to give realtime upaates to the topics which
+                    are reloading. Defaults are there for all sinkGroups if none is
+                    specifed.
+                  properties:
+                    all:
+                      description: All specifies a common specification for all SinkGroups
+                      properties:
+                        deploymentUnit:
+                          description: 'DeploymentUnit is the unit of deployment for
+                            the batcher or the loader. Using this user can specify
+                            the no of topics and the amount of resources needed to
+                            run them as one unit. Operator calculates the total units
+                            based on this and the total number of topics it needs
+                            to sink. This greatly solves the scaling issues described
+                            in #167.'
+                          properties:
+                            maxTopics:
+                              description: MaxTopics specify the maximum number of
+                                topics that can be part of this unit of deployment.
+                              type: integer
+                            podTemplate:
+                              description: PodTemplate describes the pod specification
+                                for the unit.
+                              properties:
+                                image:
+                                  description: Image for the underlying pod
+                                  type: string
+                                resources:
+                                  description: Resources is for configuring the compute
+                                    resources required
+                                  properties:
+                                    limits:
+                                      additionalProperties:
+                                        anyOf:
+                                        - type: integer
+                                        - type: string
+                                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                        x-kubernetes-int-or-string: true
+                                      description: 'Limits describes the maximum amount
+                                        of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                      type: object
+                                    requests:
+                                      additionalProperties:
+                                        anyOf:
+                                        - type: integer
+                                        - type: string
+                                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                        x-kubernetes-int-or-string: true
+                                      description: 'Requests describes the minimum
+                                        amount of compute resources required. If Requests
+                                        is omitted for a container, it defaults to
+                                        Limits if that is explicitly specified, otherwise
+                                        to an implementation-defined value. More info:
+                                        https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                      type: object
+                                  type: object
+                                tolerations:
+                                  description: Toleartions the underlying pods should
+                                    have
+                                  items:
+                                    description: The pod this Toleration is attached
+                                      to tolerates any taint that matches the triple
+                                      <key,value,effect> using the matching operator
+                                      <operator>.
+                                    properties:
+                                      effect:
+                                        description: Effect indicates the taint effect
+                                          to match. Empty means match all taint effects.
+                                          When specified, allowed values are NoSchedule,
+                                          PreferNoSchedule and NoExecute.
+                                        type: string
+                                      key:
+                                        description: Key is the taint key that the
+                                          toleration applies to. Empty means match
+                                          all taint keys. If the key is empty, operator
+                                          must be Exists; this combination means to
+                                          match all values and all keys.
+                                        type: string
+                                      operator:
+                                        description: Operator represents a key's relationship
+                                          to the value. Valid operators are Exists
+                                          and Equal. Defaults to Equal. Exists is
+                                          equivalent to wildcard for value, so that
+                                          a pod can tolerate all taints of a particular
+                                          category.
+                                        type: string
+                                      tolerationSeconds:
+                                        description: TolerationSeconds represents
+                                          the period of time the toleration (which
+                                          must be of effect NoExecute, otherwise this
+                                          field is ignored) tolerates the taint. By
+                                          default, it is not set, which means tolerate
+                                          the taint forever (do not evict). Zero and
+                                          negative values will be treated as 0 (evict
+                                          immediately) by the system.
+                                        format: int64
+                                        type: integer
+                                      value:
+                                        description: Value is the taint value the
+                                          toleration matches to. If the operator is
+                                          Exists, the value should be empty, otherwise
+                                          just a regular string.
+                                        type: string
+                                    type: object
+                                  type: array
+                              type: object
+                          type: object
+                        maxConcurrency:
+                          description: MaxConcurrency is the maximum no, of batch
+                            processors to run concurrently. this spec is useful only
+                            when the sink group pod operates on asynchronous mode.
+                            loader pods does not needed this.
+                          type: integer
+                        maxProcessingTime:
+                          description: MaxProcessingTime is the max time in ms required
+                            to consume one message. Defaults to 1000ms
+                          format: int32
+                          type: integer
+                        maxSizePerBatch:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: 'MaxSizePerBatch is the maximum size of the
+                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
+                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
+                            bytes'
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        maxWaitSeconds:
+                          description: MaxWaitSeconds is the maximum time to wait
+                            before making a batch, make a batch if MaxSizePerBatch
+                            is not hit during MaxWaitSeconds.
+                          type: integer
+                      type: object
+                    main:
+                      description: Main specifies the MainSinkGroup specification,
+                        overwrites All
+                      properties:
+                        deploymentUnit:
+                          description: 'DeploymentUnit is the unit of deployment for
+                            the batcher or the loader. Using this user can specify
+                            the no of topics and the amount of resources needed to
+                            run them as one unit. Operator calculates the total units
+                            based on this and the total number of topics it needs
+                            to sink. This greatly solves the scaling issues described
+                            in #167.'
+                          properties:
+                            maxTopics:
+                              description: MaxTopics specify the maximum number of
+                                topics that can be part of this unit of deployment.
+                              type: integer
+                            podTemplate:
+                              description: PodTemplate describes the pod specification
+                                for the unit.
+                              properties:
+                                image:
+                                  description: Image for the underlying pod
+                                  type: string
+                                resources:
+                                  description: Resources is for configuring the compute
+                                    resources required
+                                  properties:
+                                    limits:
+                                      additionalProperties:
+                                        anyOf:
+                                        - type: integer
+                                        - type: string
+                                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                        x-kubernetes-int-or-string: true
+                                      description: 'Limits describes the maximum amount
+                                        of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                      type: object
+                                    requests:
+                                      additionalProperties:
+                                        anyOf:
+                                        - type: integer
+                                        - type: string
+                                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                        x-kubernetes-int-or-string: true
+                                      description: 'Requests describes the minimum
+                                        amount of compute resources required. If Requests
+                                        is omitted for a container, it defaults to
+                                        Limits if that is explicitly specified, otherwise
+                                        to an implementation-defined value. More info:
+                                        https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                      type: object
+                                  type: object
+                                tolerations:
+                                  description: Toleartions the underlying pods should
+                                    have
+                                  items:
+                                    description: The pod this Toleration is attached
+                                      to tolerates any taint that matches the triple
+                                      <key,value,effect> using the matching operator
+                                      <operator>.
+                                    properties:
+                                      effect:
+                                        description: Effect indicates the taint effect
+                                          to match. Empty means match all taint effects.
+                                          When specified, allowed values are NoSchedule,
+                                          PreferNoSchedule and NoExecute.
+                                        type: string
+                                      key:
+                                        description: Key is the taint key that the
+                                          toleration applies to. Empty means match
+                                          all taint keys. If the key is empty, operator
+                                          must be Exists; this combination means to
+                                          match all values and all keys.
+                                        type: string
+                                      operator:
+                                        description: Operator represents a key's relationship
+                                          to the value. Valid operators are Exists
+                                          and Equal. Defaults to Equal. Exists is
+                                          equivalent to wildcard for value, so that
+                                          a pod can tolerate all taints of a particular
+                                          category.
+                                        type: string
+                                      tolerationSeconds:
+                                        description: TolerationSeconds represents
+                                          the period of time the toleration (which
+                                          must be of effect NoExecute, otherwise this
+                                          field is ignored) tolerates the taint. By
+                                          default, it is not set, which means tolerate
+                                          the taint forever (do not evict). Zero and
+                                          negative values will be treated as 0 (evict
+                                          immediately) by the system.
+                                        format: int64
+                                        type: integer
+                                      value:
+                                        description: Value is the taint value the
+                                          toleration matches to. If the operator is
+                                          Exists, the value should be empty, otherwise
+                                          just a regular string.
+                                        type: string
+                                    type: object
+                                  type: array
+                              type: object
+                          type: object
+                        maxConcurrency:
+                          description: MaxConcurrency is the maximum no, of batch
+                            processors to run concurrently. this spec is useful only
+                            when the sink group pod operates on asynchronous mode.
+                            loader pods does not needed this.
+                          type: integer
+                        maxProcessingTime:
+                          description: MaxProcessingTime is the max time in ms required
+                            to consume one message. Defaults to 1000ms
+                          format: int32
+                          type: integer
+                        maxSizePerBatch:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: 'MaxSizePerBatch is the maximum size of the
+                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
+                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
+                            bytes'
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        maxWaitSeconds:
+                          description: MaxWaitSeconds is the maximum time to wait
+                            before making a batch, make a batch if MaxSizePerBatch
+                            is not hit during MaxWaitSeconds.
+                          type: integer
+                      type: object
+                    reload:
+                      description: Reload specifies the ReloadSinkGroup specification,
+                        overwrites All
+                      properties:
+                        deploymentUnit:
+                          description: 'DeploymentUnit is the unit of deployment for
+                            the batcher or the loader. Using this user can specify
+                            the no of topics and the amount of resources needed to
+                            run them as one unit. Operator calculates the total units
+                            based on this and the total number of topics it needs
+                            to sink. This greatly solves the scaling issues described
+                            in #167.'
+                          properties:
+                            maxTopics:
+                              description: MaxTopics specify the maximum number of
+                                topics that can be part of this unit of deployment.
+                              type: integer
+                            podTemplate:
+                              description: PodTemplate describes the pod specification
+                                for the unit.
+                              properties:
+                                image:
+                                  description: Image for the underlying pod
+                                  type: string
+                                resources:
+                                  description: Resources is for configuring the compute
+                                    resources required
+                                  properties:
+                                    limits:
+                                      additionalProperties:
+                                        anyOf:
+                                        - type: integer
+                                        - type: string
+                                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                        x-kubernetes-int-or-string: true
+                                      description: 'Limits describes the maximum amount
+                                        of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                      type: object
+                                    requests:
+                                      additionalProperties:
+                                        anyOf:
+                                        - type: integer
+                                        - type: string
+                                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                        x-kubernetes-int-or-string: true
+                                      description: 'Requests describes the minimum
+                                        amount of compute resources required. If Requests
+                                        is omitted for a container, it defaults to
+                                        Limits if that is explicitly specified, otherwise
+                                        to an implementation-defined value. More info:
+                                        https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                      type: object
+                                  type: object
+                                tolerations:
+                                  description: Toleartions the underlying pods should
+                                    have
+                                  items:
+                                    description: The pod this Toleration is attached
+                                      to tolerates any taint that matches the triple
+                                      <key,value,effect> using the matching operator
+                                      <operator>.
+                                    properties:
+                                      effect:
+                                        description: Effect indicates the taint effect
+                                          to match. Empty means match all taint effects.
+                                          When specified, allowed values are NoSchedule,
+                                          PreferNoSchedule and NoExecute.
+                                        type: string
+                                      key:
+                                        description: Key is the taint key that the
+                                          toleration applies to. Empty means match
+                                          all taint keys. If the key is empty, operator
+                                          must be Exists; this combination means to
+                                          match all values and all keys.
+                                        type: string
+                                      operator:
+                                        description: Operator represents a key's relationship
+                                          to the value. Valid operators are Exists
+                                          and Equal. Defaults to Equal. Exists is
+                                          equivalent to wildcard for value, so that
+                                          a pod can tolerate all taints of a particular
+                                          category.
+                                        type: string
+                                      tolerationSeconds:
+                                        description: TolerationSeconds represents
+                                          the period of time the toleration (which
+                                          must be of effect NoExecute, otherwise this
+                                          field is ignored) tolerates the taint. By
+                                          default, it is not set, which means tolerate
+                                          the taint forever (do not evict). Zero and
+                                          negative values will be treated as 0 (evict
+                                          immediately) by the system.
+                                        format: int64
+                                        type: integer
+                                      value:
+                                        description: Value is the taint value the
+                                          toleration matches to. If the operator is
+                                          Exists, the value should be empty, otherwise
+                                          just a regular string.
+                                        type: string
+                                    type: object
+                                  type: array
+                              type: object
+                          type: object
+                        maxConcurrency:
+                          description: MaxConcurrency is the maximum no, of batch
+                            processors to run concurrently. this spec is useful only
+                            when the sink group pod operates on asynchronous mode.
+                            loader pods does not needed this.
+                          type: integer
+                        maxProcessingTime:
+                          description: MaxProcessingTime is the max time in ms required
+                            to consume one message. Defaults to 1000ms
+                          format: int32
+                          type: integer
+                        maxSizePerBatch:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: 'MaxSizePerBatch is the maximum size of the
+                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
+                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
+                            bytes'
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        maxWaitSeconds:
+                          description: MaxWaitSeconds is the maximum time to wait
+                            before making a batch, make a batch if MaxSizePerBatch
+                            is not hit during MaxWaitSeconds.
+                          type: integer
+                      type: object
+                    reloadDupe:
+                      description: ReloadDupe specifies the ReloadDupeSinkGroup specification,
+                        overwrites All
+                      properties:
+                        deploymentUnit:
+                          description: 'DeploymentUnit is the unit of deployment for
+                            the batcher or the loader. Using this user can specify
+                            the no of topics and the amount of resources needed to
+                            run them as one unit. Operator calculates the total units
+                            based on this and the total number of topics it needs
+                            to sink. This greatly solves the scaling issues described
+                            in #167.'
+                          properties:
+                            maxTopics:
+                              description: MaxTopics specify the maximum number of
+                                topics that can be part of this unit of deployment.
+                              type: integer
+                            podTemplate:
+                              description: PodTemplate describes the pod specification
+                                for the unit.
+                              properties:
+                                image:
+                                  description: Image for the underlying pod
+                                  type: string
+                                resources:
+                                  description: Resources is for configuring the compute
+                                    resources required
+                                  properties:
+                                    limits:
+                                      additionalProperties:
+                                        anyOf:
+                                        - type: integer
+                                        - type: string
+                                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                        x-kubernetes-int-or-string: true
+                                      description: 'Limits describes the maximum amount
+                                        of compute resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                      type: object
+                                    requests:
+                                      additionalProperties:
+                                        anyOf:
+                                        - type: integer
+                                        - type: string
+                                        pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                                        x-kubernetes-int-or-string: true
+                                      description: 'Requests describes the minimum
+                                        amount of compute resources required. If Requests
+                                        is omitted for a container, it defaults to
+                                        Limits if that is explicitly specified, otherwise
+                                        to an implementation-defined value. More info:
+                                        https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                      type: object
+                                  type: object
+                                tolerations:
+                                  description: Toleartions the underlying pods should
+                                    have
+                                  items:
+                                    description: The pod this Toleration is attached
+                                      to tolerates any taint that matches the triple
+                                      <key,value,effect> using the matching operator
+                                      <operator>.
+                                    properties:
+                                      effect:
+                                        description: Effect indicates the taint effect
+                                          to match. Empty means match all taint effects.
+                                          When specified, allowed values are NoSchedule,
+                                          PreferNoSchedule and NoExecute.
+                                        type: string
+                                      key:
+                                        description: Key is the taint key that the
+                                          toleration applies to. Empty means match
+                                          all taint keys. If the key is empty, operator
+                                          must be Exists; this combination means to
+                                          match all values and all keys.
+                                        type: string
+                                      operator:
+                                        description: Operator represents a key's relationship
+                                          to the value. Valid operators are Exists
+                                          and Equal. Defaults to Equal. Exists is
+                                          equivalent to wildcard for value, so that
+                                          a pod can tolerate all taints of a particular
+                                          category.
+                                        type: string
+                                      tolerationSeconds:
+                                        description: TolerationSeconds represents
+                                          the period of time the toleration (which
+                                          must be of effect NoExecute, otherwise this
+                                          field is ignored) tolerates the taint. By
+                                          default, it is not set, which means tolerate
+                                          the taint forever (do not evict). Zero and
+                                          negative values will be treated as 0 (evict
+                                          immediately) by the system.
+                                        format: int64
+                                        type: integer
+                                      value:
+                                        description: Value is the taint value the
+                                          toleration matches to. If the operator is
+                                          Exists, the value should be empty, otherwise
+                                          just a regular string.
+                                        type: string
+                                    type: object
+                                  type: array
+                              type: object
+                          type: object
+                        maxConcurrency:
+                          description: MaxConcurrency is the maximum no, of batch
+                            processors to run concurrently. this spec is useful only
+                            when the sink group pod operates on asynchronous mode.
+                            loader pods does not needed this.
+                          type: integer
+                        maxProcessingTime:
+                          description: MaxProcessingTime is the max time in ms required
+                            to consume one message. Defaults to 1000ms
+                          format: int32
+                          type: integer
+                        maxSizePerBatch:
+                          anyOf:
+                          - type: integer
+                          - type: string
+                          description: 'MaxSizePerBatch is the maximum size of the
+                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
+                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
+                            bytes'
+                          pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                          x-kubernetes-int-or-string: true
+                        maxWaitSeconds:
+                          description: MaxWaitSeconds is the maximum time to wait
+                            before making a batch, make a batch if MaxSizePerBatch
+                            is not hit during MaxWaitSeconds.
+                          type: integer
+                      type: object
+                  type: object
                 suspend:
                   description: 'Supsend when turned on makes sure no batcher pods
                     are running for this CRD object. Default: false'

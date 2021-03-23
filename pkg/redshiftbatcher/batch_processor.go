@@ -127,6 +127,7 @@ type response struct {
 	endOffset         int64
 	messagesProcessed int
 	maskSchema        map[string]serializer.MaskInfo
+	bytesProcessed    int64
 }
 
 func (b *batchProcessor) ctxCancelled(ctx context.Context) error {
@@ -211,6 +212,7 @@ func (b *batchProcessor) signalLoad(resp *response) error {
 		resp.batchSchemaID, // schema of upstream topic
 		resp.maskSchema,
 		resp.skipMerge,
+		resp.bytesProcessed,
 	)
 
 	err := b.signaler.Add(
@@ -251,7 +253,9 @@ func (b *batchProcessor) processMessage(
 	message *serializer.Message,
 	resp *response,
 	messageID int,
-) error {
+) (int64, error) {
+	var bytesProcessed int64
+
 	klog.V(5).Infof(
 		"%s: batchID:%d id:%d: transforming",
 		b.topic, resp.batchID, messageID,
@@ -267,7 +271,7 @@ func (b *batchProcessor) processMessage(
 			resp.maskSchema,
 		)
 		if err != nil {
-			return fmt.Errorf(
+			return bytesProcessed, fmt.Errorf(
 				"transforming schema:%d => inputTable failed: %v",
 				resp.batchSchemaID,
 				err,
@@ -284,7 +288,7 @@ func (b *batchProcessor) processMessage(
 	}
 
 	if resp.batchSchemaID != message.SchemaId {
-		return fmt.Errorf("topic:%s, schema id mismatch in the batch, %d != %d",
+		return bytesProcessed, fmt.Errorf("topic:%s, schema id mismatch in the batch, %d != %d",
 			b.topic,
 			resp.batchSchemaID,
 			message.SchemaId,
@@ -293,7 +297,7 @@ func (b *batchProcessor) processMessage(
 
 	err := b.messageTransformer.Transform(message, resp.batchSchemaTable)
 	if err != nil {
-		return fmt.Errorf(
+		return bytesProcessed, fmt.Errorf(
 			"Error transforming message:%+v, err:%v", message, err,
 		)
 	}
@@ -301,17 +305,20 @@ func (b *batchProcessor) processMessage(
 	if b.maskMessages {
 		err := b.msgMasker.Transform(message, resp.batchSchemaTable)
 		if err != nil {
-			return fmt.Errorf("Error masking message:%+v, err:%v", message, err)
+			return bytesProcessed, fmt.Errorf(
+				"Error masking message:%+v, err:%v", message, err)
 		}
 	}
 
 	message.Value = removeEmptyNullValues(message.Value.(map[string]*string))
 	messageValueBytes, err := json.Marshal(message.Value)
 	if err != nil {
-		return fmt.Errorf("Error marshalling message.Value, message: %+v", message)
+		return bytesProcessed, fmt.Errorf(
+			"Error marshalling message.Value, message: %+v", message)
 	}
 	resp.bodyBuf.Write(messageValueBytes)
 	resp.bodyBuf.Write([]byte{'\n'})
+	bytesProcessed += message.Bytes
 
 	if b.maskMessages && len(resp.maskSchema) == 0 {
 		resp.maskSchema = message.MaskSchema
@@ -325,7 +332,7 @@ func (b *batchProcessor) processMessage(
 	)
 	resp.endOffset = message.Offset
 
-	return nil
+	return bytesProcessed, nil
 }
 
 // processMessages handles the batch procesing and return true if all completes
@@ -335,21 +342,23 @@ func (b *batchProcessor) processMessages(
 	ctx context.Context,
 	msgBuf []*serializer.Message,
 	resp *response,
-) error {
+) (int64, error) {
 
+	var totalBytesProcessed int64
 	for messageID, message := range msgBuf {
 		select {
 		case <-ctx.Done():
-			return kafka.ErrSaramaSessionContextDone
+			return totalBytesProcessed, kafka.ErrSaramaSessionContextDone
 		default:
-			err := b.processMessage(ctx, message, resp, messageID)
+			bytesProcessed, err := b.processMessage(ctx, message, resp, messageID)
 			if err != nil {
-				return err
+				return totalBytesProcessed, err
 			}
+			totalBytesProcessed += bytesProcessed
 		}
 	}
 
-	return nil
+	return totalBytesProcessed, nil
 }
 
 func (b *batchProcessor) processBatch(
@@ -370,7 +379,7 @@ func (b *batchProcessor) processBatch(
 	klog.V(4).Infof("%s: batchID:%d, size:%d: processing...",
 		b.topic, resp.batchID, len(msgBuf),
 	)
-	err = b.processMessages(ctx, msgBuf, resp)
+	resp.bytesProcessed, err = b.processMessages(ctx, msgBuf, resp)
 	if err != nil {
 		resp.err = err
 		return
@@ -468,10 +477,12 @@ func (b *batchProcessor) Process(
 		klog.V(2).Infof("%s: finished (%d batches)", b.topic, len(responses))
 
 		// return if there was any error in processing any of the batches
-		totalMessages := 0
+		var totalBytesProcessed int64 = 0
+		totalMessagesProcessed := 0
 		var errors error
 		for _, resp := range responses {
-			totalMessages += resp.messagesProcessed
+			totalBytesProcessed += resp.bytesProcessed
+			totalMessagesProcessed += resp.messagesProcessed
 			if resp.err != nil {
 				if resp.err == kafka.ErrSaramaSessionContextDone {
 					klog.V(2).Infof(
@@ -548,10 +559,15 @@ func (b *batchProcessor) Process(
 		last := responses[len(responses)-1]
 		b.markOffset(session, b.topic, 0, last.endOffset, b.autoCommit)
 
+		setBytesProcessedPerSecond(
+			b.consumerGroupID,
+			b.topic,
+			float64(totalBytesProcessed)/time.Since(now).Seconds(),
+		)
 		setMsgsProcessedPerSecond(
 			b.consumerGroupID,
 			b.topic,
-			float64(totalMessages)/time.Since(now).Seconds(),
+			float64(totalMessagesProcessed)/time.Since(now).Seconds(),
 		)
 
 		klog.V(2).Infof(

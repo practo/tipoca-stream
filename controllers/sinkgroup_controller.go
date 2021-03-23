@@ -247,27 +247,70 @@ func (sb *buildSinkGroup) buildLoaders(
 	defaultMaxOpenConns int,
 	defaultMaxIdleConns int,
 ) sinkGroupBuilder {
-	consumerGroups, err := computeConsumerGroups(sb.topicGroups, sb.topics)
-	if err != nil {
-		klog.Fatalf("Error computing consumer group from status, err: %v", err)
+	loaders := []Deployment{}
+	if sb.rsk.Spec.Loader.SinkGroup != nil {
+		sinkGroupSpec := applyLoaderSinkGroupDefaults(
+			sb.rsk,
+			sb.sgType,
+			defaultImage,
+		)
+		units := assignDeploymentUnits(
+			sb.topics,
+			*sinkGroupSpec.DeploymentUnit.MaxTopics,
+		)
+		for _, unit := range units {
+			consumerGroups, err := computeConsumerGroups(
+				sb.topicGroups, unit.topics)
+			if err != nil {
+				klog.Fatalf(
+					"Error computing consumer group from status, err: %v", err)
+			}
+			loader, err := NewLoader(
+				loaderName(sb.rsk.Name, sb.sgType, unit.id),
+				sb.rsk,
+				tableSuffix,
+				secret,
+				sb.sgType,
+				sinkGroupSpec,
+				consumerGroups,
+				defaultImage,
+				defaultKafkaVersion,
+				tlsConfig,
+				defaultMaxOpenConns,
+				defaultMaxIdleConns,
+			)
+			if err != nil {
+				klog.Fatalf("Error making loader: %v", err)
+			}
+			loaders = append(loaders, loader)
+		}
+	} else { // Deprecated
+		consumerGroups, err := computeConsumerGroups(sb.topicGroups, sb.topics)
+		if err != nil {
+			klog.Fatalf(
+				"Error computing consumer group from status, err: %v", err)
+		}
+		loader, err := NewLoader(
+			loaderName(sb.rsk.Name, sb.sgType, ""),
+			sb.rsk,
+			tableSuffix,
+			secret,
+			sb.sgType,
+			nil,
+			consumerGroups,
+			defaultImage,
+			defaultKafkaVersion,
+			tlsConfig,
+			defaultMaxOpenConns,
+			defaultMaxIdleConns,
+		)
+		if err != nil {
+			klog.Fatalf("Error making loader: %v", err)
+		}
+		loaders = append(loaders, loader)
 	}
-	loader, err := NewLoader(
-		loaderName(sb.rsk.Name, sb.sgType),
-		sb.rsk,
-		tableSuffix,
-		secret,
-		sb.sgType,
-		consumerGroups,
-		defaultImage,
-		defaultKafkaVersion,
-		tlsConfig,
-		defaultMaxOpenConns,
-		defaultMaxIdleConns,
-	)
-	if err != nil {
-		klog.Fatalf("Error making loader: %v", err)
-	}
-	sb.loaders = []Deployment{loader}
+
+	sb.loaders = loaders
 	return sb
 }
 

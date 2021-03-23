@@ -12,6 +12,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 )
 
 const (
@@ -24,6 +25,84 @@ type Loader struct {
 	namespace  string
 	deployment *appsv1.Deployment
 	config     *corev1.ConfigMap
+}
+
+// applyLoaderSinkGroupDefaults applies the defaults for the loader
+// deployments of the sink group. User does not need to specify big lengthy
+// configurations everytime. Defaults are optimized for maximum performance
+// and are recommended to use.
+func applyLoaderSinkGroupDefaults(
+	rsk *tipocav1.RedshiftSink,
+	sgType string,
+	defaultImage string,
+) *tipocav1.SinkGroupSpec {
+	// defaults
+	defaultMaxBytesPerBatch := resource.MustParse(
+		redshiftloader.DefaultMaxBytesPerBatch,
+	)
+	maxSizePerBatch := &defaultMaxBytesPerBatch
+	maxWaitSeconds := &redshiftloader.DefaultMaxWaitSeconds
+	maxProcessingTime := &redshiftloader.DefaultMaxProcessingTime
+	maxTopics := &DefaultMaxBatcherTopics
+	image := &defaultImage
+	var resources *corev1.ResourceRequirements
+	var tolerations *[]corev1.Toleration
+
+	// apply the sinkGroup spec rules
+	var specifiedSpec *tipocav1.SinkGroupSpec
+	if rsk.Spec.Loader.SinkGroup.All != nil {
+		specifiedSpec = rsk.Spec.Loader.SinkGroup.All
+	}
+	switch sgType {
+	case MainSinkGroup:
+		if rsk.Spec.Loader.SinkGroup.Main != nil {
+			specifiedSpec = rsk.Spec.Loader.SinkGroup.Main
+		}
+	case ReloadSinkGroup:
+		if rsk.Spec.Loader.SinkGroup.Reload != nil {
+			specifiedSpec = rsk.Spec.Loader.SinkGroup.Reload
+		}
+	case ReloadDupeSinkGroup:
+		if rsk.Spec.Loader.SinkGroup.ReloadDupe != nil {
+			specifiedSpec = rsk.Spec.Loader.SinkGroup.ReloadDupe
+		}
+	}
+
+	// overwrite with the defaults with the specified values
+	if specifiedSpec != nil {
+		if specifiedSpec.MaxSizePerBatch != nil {
+			maxSizePerBatch = specifiedSpec.MaxSizePerBatch
+		}
+		if specifiedSpec.MaxWaitSeconds != nil {
+			maxWaitSeconds = specifiedSpec.MaxWaitSeconds
+		}
+		if specifiedSpec.MaxProcessingTime != nil {
+			maxProcessingTime = specifiedSpec.MaxProcessingTime
+		}
+		if specifiedSpec.DeploymentUnit.PodTemplate.Image != nil {
+			image = specifiedSpec.DeploymentUnit.PodTemplate.Image
+		}
+		if specifiedSpec.DeploymentUnit.PodTemplate.Resources != nil {
+			resources = specifiedSpec.DeploymentUnit.PodTemplate.Resources
+		}
+		if specifiedSpec.DeploymentUnit.PodTemplate.Tolerations != nil {
+			tolerations = specifiedSpec.DeploymentUnit.PodTemplate.Tolerations
+		}
+	}
+
+	return &tipocav1.SinkGroupSpec{
+		MaxSizePerBatch:   maxSizePerBatch,
+		MaxWaitSeconds:    maxWaitSeconds,
+		MaxProcessingTime: maxProcessingTime,
+		DeploymentUnit: &tipocav1.DeploymentUnit{
+			MaxTopics: maxTopics,
+			PodTemplate: &tipocav1.RedshiftPodTemplateSpec{
+				Image:       image,
+				Resources:   resources,
+				Tolerations: tolerations,
+			},
+		},
+	}
 }
 
 func loaderSecret(secret map[string]string) (map[string]string, error) {
@@ -53,8 +132,14 @@ func loaderSecret(secret map[string]string) (map[string]string, error) {
 	return s, nil
 }
 
-func loaderName(rskName, sinkGroup string) string {
-	return fmt.Sprintf("%s-%s%s", rskName, sinkGroup, LoaderSuffix)
+func loaderName(rskName, sinkGroup string, id string) string {
+	return fmt.Sprintf(
+		"%s-%s%s%s",
+		rskName,
+		sinkGroup,
+		id,
+		LoaderSuffix,
+	)
 }
 
 func redshiftConnections(rsk *tipocav1.RedshiftSink, defaultMaxOpenConns, defaultMaxIdleConns int) (int, int) {
@@ -76,6 +161,7 @@ func NewLoader(
 	tableSuffix string,
 	secret map[string]string,
 	sinkGroup string,
+	sinkGroupSpec *tipocav1.SinkGroupSpec,
 	consumerGroups map[string]consumerGroup,
 	defaultImage string,
 	defaultKafkaVersion string,
@@ -91,26 +177,36 @@ func NewLoader(
 		return nil, err
 	}
 
-	totalTopics := 0
-
 	// defaults
 	kafkaVersion := rsk.Spec.KafkaVersion
 	if kafkaVersion == "" {
 		kafkaVersion = defaultKafkaVersion
 	}
+	var maxSize int // Deprecated
+	var maxBytesPerBatch *int64
+	var maxWaitSeconds *int
 	var maxProcessingTime int32 = redshiftloader.DefaultMaxProcessingTime
-	if rsk.Spec.Batcher.MaxProcessingTime != nil {
-		maxProcessingTime = *rsk.Spec.Batcher.MaxProcessingTime
+	if sinkGroupSpec != nil {
+		m := sinkGroupSpec.MaxSizePerBatch.Value()
+		maxBytesPerBatch = &m
+		maxWaitSeconds = sinkGroupSpec.MaxWaitSeconds
+		maxProcessingTime = *sinkGroupSpec.MaxProcessingTime
+	} else { // Deprecated
+		maxSize = rsk.Spec.Loader.MaxSize
+		maxWaitSeconds = &rsk.Spec.Loader.MaxWaitSeconds
+		if rsk.Spec.Loader.MaxProcessingTime != nil {
+			maxProcessingTime = *rsk.Spec.Loader.MaxProcessingTime
+		}
 	}
 
-	// other defaults for the loader
+	// defaults which are not configurable for the user
 	var sessionTimeoutSeconds int = 10
 	var hearbeatIntervalSeconds int = 2
 
+	totalTopics := 0
 	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
 		totalTopics += len(group.topics)
-
 		groupConfigs = append(groupConfigs, kafka.ConsumerGroupConfig{
 			GroupID: consumerGroupID(rsk.Name, rsk.Namespace, groupID, "-loader"),
 			TopicRegexes: expandTopicsToRegex(
@@ -140,8 +236,9 @@ func NewLoader(
 
 	conf := config.Config{
 		Loader: redshiftloader.LoaderConfig{
-			MaxSize:        rsk.Spec.Loader.MaxSize,
-			MaxWaitSeconds: rsk.Spec.Loader.MaxWaitSeconds,
+			MaxSize:          maxSize, // Deprecated
+			MaxWaitSeconds:   maxWaitSeconds,
+			MaxBytesPerBatch: maxBytesPerBatch,
 		},
 		ConsumerGroups: groupConfigs,
 		S3Sink: s3sink.Config{

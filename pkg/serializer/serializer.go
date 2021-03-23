@@ -65,7 +65,7 @@ func (c *avroSerializer) Deserialize(
 		Offset:     message.Offset,
 		Key:        string(message.Key),
 		Value:      native,
-		Bytes:      len(message.Value),
+		Bytes:      int64(len(message.Value)),
 		MaskSchema: make(map[string]MaskInfo),
 	}, nil
 }

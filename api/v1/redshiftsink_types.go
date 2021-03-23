@@ -18,6 +18,7 @@ package v1
 
 import (
 	corev1 "k8s.io/api/core/v1"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -57,14 +58,19 @@ type DeploymentUnit struct {
 // SinkGroupSpec defines the specification for one of the three sinkgroups:
 // 1. MainSinkGroup 2. ReloadSinkGroup 3. ReloadDupeSinkGroup
 type SinkGroupSpec struct {
-	// MaxBytesPerBatch is the maximum bytes per batch.
+	// MaxSizePerBatch is the maximum size of the batch in Bytes, Ki, Mi, Gi
+	// Examples:
+	// 1000 is 1000 bytes, 1Ki is 1 Killo byte,
+	// 100Mi 100 mega bytes, 1Gi is 1 Giga bytes
 	// +optional
-	MaxBytesPerBatch *int `json:"maxBytesPerBatch,omitempty"`
+	MaxSizePerBatch *resource.Quantity `json:"maxSizePerBatch,omitempty"`
 	// MaxWaitSeconds is the maximum time to wait before making a batch,
-	// make a batch if MaxBytesPerBatch is not hit during MaxWaitSeconds.
+	// make a batch if MaxSizePerBatch is not hit during MaxWaitSeconds.
 	// +optional
 	MaxWaitSeconds *int `json:"maxWaitSeconds,omitempty"`
 	// MaxConcurrency is the maximum no, of batch processors to run concurrently.
+	// this spec is useful only when the sink group pod operates on
+	// asynchronous mode. loader pods does not needed this.
 	// +optional
 	MaxConcurrency *int `json:"maxConcurrency,omitempty"`
 	// MaxProcessingTime is the max time in ms required to consume one message.
@@ -84,7 +90,7 @@ type SinkGroupSpec struct {
 // mask version, target table and the topic release status. This is the specification
 // to allow to have different set of SinkGroupSpec for each type of SinkGroups.
 // Explaining the precedence:
-// The first time sink of a table requires different values for MaxBytesPerBatch
+// The first time sink of a table requires different values for MaxSizePerBatch
 // and different pod resources.
 // a) If All is specified and none of the others are specified, All is used.
 // b) If All and Main both are specified then Main gets used for MainSinkGroup
@@ -148,13 +154,14 @@ type RedshiftLoaderSpec struct {
 	// are running for this CRD object. Default: false
 	Suspend bool `json:"suspend,omitempty"`
 
-	// Max configurations for the loader to batch the load
-	MaxSize        int `json:"maxSize"`
-	MaxWaitSeconds int `json:"maxWaitSeconds"`
-	// MaxProcessingTime is the sarama configuration MaxProcessingTime
-	// It is the max time in milliseconds required to consume one message.
-	// Defaults to 600000ms (10mins)
-	MaxProcessingTime *int32 `json:"maxProcessingTime,omitempty"`
+	// SinkGroup contains the specification for main, reload and reloadDupe
+	// sinkgroups. Operator uses 3 groups to perform Redshiftsink. The topics
+	// which have never been released is part of Reload SinkGroup, the topics
+	// which gets released moves to the Main SinkGroup. ReloadDupe SinkGroup
+	// is used to give realtime upaates to the topics which are reloading.
+	// Defaults are there for all sinkGroups if none is specifed.
+	// +optional
+	SinkGroup *SinkGroup `json:"sinkGroup,omitempty"`
 
 	// RedshiftSchema to sink the data in
 	RedshiftSchema string `json:"redshiftSchema"`
@@ -165,6 +172,14 @@ type RedshiftLoaderSpec struct {
 	// RedshiftGroup to give the access to when new topics gets released
 	RedshiftGroup *string `json:"redshiftGroup"`
 
+	// Deprecated all of the below spec in favour of SinkGroup #167
+	// Max configurations for the loader to batch the load
+	MaxSize        int `json:"maxSize"`
+	MaxWaitSeconds int `json:"maxWaitSeconds"`
+	// MaxProcessingTime is the sarama configuration MaxProcessingTime
+	// It is the max time in milliseconds required to consume one message.
+	// Defaults to 600000ms (10mins)
+	MaxProcessingTime *int32 `json:"maxProcessingTime,omitempty"`
 	// PodTemplate describes the pods that will be created.
 	// if this is not specifed, a default pod template is created
 	// +optional
