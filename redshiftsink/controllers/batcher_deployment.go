@@ -11,6 +11,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 )
 
 const (
@@ -28,14 +29,17 @@ type Batcher struct {
 // applyBatcherSinkGroupDefaults applies the defaults for the batcher
 // deployments of the sink group. User does not need to specify big lengthy
 // configurations everytime. Defaults are optimized for maximum performance
-// and is recommended to use.
+// and are recommended to use.
 func applyBatcherSinkGroupDefaults(
 	rsk *tipocav1.RedshiftSink,
 	sgType string,
 	defaultImage string,
 ) *tipocav1.SinkGroupSpec {
 	// defaults
-	maxBytesPerBatch := &redshiftbatcher.DefaultMaxBytesPerBatch
+	defaultMaxBytesPerBatch := resource.MustParse(
+		redshiftbatcher.DefaultMaxBytesPerBatch,
+	)
+	maxSizePerBatch := &defaultMaxBytesPerBatch
 	maxWaitSeconds := &redshiftbatcher.DefaultMaxWaitSeconds
 	maxConcurrency := &redshiftbatcher.DefaultMaxConcurrency
 	maxProcessingTime := &redshiftbatcher.DefaultMaxProcessingTime
@@ -66,8 +70,8 @@ func applyBatcherSinkGroupDefaults(
 
 	// overwrite with the defaults with the specified values
 	if specifiedSpec != nil {
-		if specifiedSpec.MaxBytesPerBatch != nil {
-			maxBytesPerBatch = specifiedSpec.MaxBytesPerBatch
+		if specifiedSpec.MaxSizePerBatch != nil {
+			maxSizePerBatch = specifiedSpec.MaxSizePerBatch
 		}
 		if specifiedSpec.MaxWaitSeconds != nil {
 			maxWaitSeconds = specifiedSpec.MaxWaitSeconds
@@ -90,7 +94,7 @@ func applyBatcherSinkGroupDefaults(
 	}
 
 	return &tipocav1.SinkGroupSpec{
-		MaxBytesPerBatch:  maxBytesPerBatch,
+		MaxSizePerBatch:   maxSizePerBatch,
 		MaxWaitSeconds:    maxWaitSeconds,
 		MaxConcurrency:    maxConcurrency,
 		MaxProcessingTime: maxProcessingTime,
@@ -165,10 +169,12 @@ func NewBatcher(
 		kafkaVersion = defaultKafkaVersion
 	}
 	var maxSize int // Deprecated
-	var maxBytesPerBatch, maxWaitSeconds, maxConcurrency *int
+	var maxBytesPerBatch *int64
+	var maxWaitSeconds, maxConcurrency *int
 	var maxProcessingTime int32 = redshiftbatcher.DefaultMaxProcessingTime
 	if sinkGroupSpec != nil {
-		maxBytesPerBatch = sinkGroupSpec.MaxBytesPerBatch
+		m := sinkGroupSpec.MaxSizePerBatch.Value()
+		maxBytesPerBatch = &m
 		maxWaitSeconds = sinkGroupSpec.MaxWaitSeconds
 		maxConcurrency = sinkGroupSpec.MaxConcurrency
 		maxProcessingTime = *sinkGroupSpec.MaxProcessingTime

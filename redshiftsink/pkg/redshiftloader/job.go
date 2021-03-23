@@ -17,7 +17,8 @@ var JobAvroSchema string = `{
         {"name": "s3Path", "type": "string"},
         {"name": "schemaId", "type": "int"},
         {"name": "maskSchema", "type": "string"},
-        {"name": "skipMerge", "type": "string", "default": ""}
+        {"name": "skipMerge", "type": "string", "default": ""},
+        {"name": "batchBytes", "type": "long", "default": 0}
     ]
 }`
 
@@ -29,13 +30,15 @@ type Job struct {
 	S3Path        string                         `json:"s3Path"`
 	SchemaId      int                            `json:"schemaId"` // schema id of debezium event
 	MaskSchema    map[string]serializer.MaskInfo `json:"maskSchema"`
-	SkipMerge     bool                           `json:"skipMerge"` // to load using merge strategy or directy COPY
+	SkipMerge     bool                           `json:"skipMerge"`  // to load using merge strategy or directy COPY
+	BatchBytes    int64                          `json:"batchBytes"` // batch bytes store sum of all message bytes in this batch
 }
 
 func NewJob(
 	upstreamTopic string, startOffset int64, endOffset int64,
 	csvDialect string, s3Path string, schemaId int,
-	maskSchema map[string]serializer.MaskInfo, skipMerge bool) Job {
+	maskSchema map[string]serializer.MaskInfo, skipMerge bool,
+	batchBytes int64) Job {
 
 	return Job{
 		UpstreamTopic: upstreamTopic,
@@ -46,6 +49,7 @@ func NewJob(
 		SchemaId:      schemaId,
 		MaskSchema:    maskSchema,
 		SkipMerge:     skipMerge,
+		BatchBytes:    batchBytes,
 	}
 }
 
@@ -94,6 +98,12 @@ func StringMapToJob(data map[string]interface{}) Job {
 				schema = ToSchemaMap(value)
 			}
 			job.MaskSchema = schema
+		case "batchBytes":
+			if value, ok := v.(int64); ok {
+				job.BatchBytes = value
+			} else { // backward compatibility
+				job.BatchBytes = 0
+			}
 		}
 
 	}
@@ -190,5 +200,6 @@ func (c Job) ToStringMap() map[string]interface{} {
 		"schemaId":      c.SchemaId,
 		"skipMerge":     skipMerge,
 		"maskSchema":    ToSchemaString(c.MaskSchema),
+		"batchBytes":    c.BatchBytes,
 	}
 }
