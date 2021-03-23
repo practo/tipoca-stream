@@ -57,11 +57,13 @@ spec:
           maxSizePerBatch: 10Mi
           maxWaitSeconds: 30
           maxConcurrency: 10
-          podTemplate:
-            resources:
-              requests:
-                cpu: 100m
-                memory: 200Mi
+          deploymentUnit:
+              maxTopics: 30
+              podTemplate:
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 200Mi
   loader:
     suspend: false
     redshiftSchema: "inventory"
@@ -71,11 +73,13 @@ spec:
           maxSizePerBatch: 1Gi
           maxWaitSeconds: 30
           maxProcessingTime: 60000
-          podTemplate:
-            resources:
-              requests:
-                cpu: 100m
-                memory: 200Mi
+          deploymentUnit:
+              maxTopics: 30
+              podTemplate:
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 200Mi
 
 ```
 
