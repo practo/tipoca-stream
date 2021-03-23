@@ -26,9 +26,9 @@ type Batcher struct {
 }
 
 // applyBatcherSinkGroupDefaults applies the defaults for the batcher
-// deplyoments of the sink group so that the user does not need to specify
-// big lengthy configurations everytime. Also the defaults are
-// optimized for maximum performance and is recommended to use.
+// deployments of the sink group. User does not need to specify big lengthy
+// configurations everytime. Defaults are optimized for maximum performance
+// and is recommended to use.
 func applyBatcherSinkGroupDefaults(
 	rsk *tipocav1.RedshiftSink,
 	sgType string,
@@ -164,27 +164,26 @@ func NewBatcher(
 	if kafkaVersion == "" {
 		kafkaVersion = defaultKafkaVersion
 	}
-	var maxProcessingTime int32 = redshiftbatcher.DefaultMaxProcessingTime
-	if rsk.Spec.Batcher.MaxProcessingTime != nil {
-		maxProcessingTime = *rsk.Spec.Batcher.MaxProcessingTime
-	}
 	var maxSize int // Deprecated
-	var maxWaitSeconds, maxConcurrency, maxBytesPerBatch *int
+	var maxBytesPerBatch, maxWaitSeconds, maxConcurrency *int
+	var maxProcessingTime int32 = redshiftbatcher.DefaultMaxProcessingTime
 	if sinkGroupSpec != nil {
 		maxBytesPerBatch = sinkGroupSpec.MaxBytesPerBatch
 		maxWaitSeconds = sinkGroupSpec.MaxWaitSeconds
 		maxConcurrency = sinkGroupSpec.MaxConcurrency
 		maxProcessingTime = *sinkGroupSpec.MaxProcessingTime
-	} else { // Deprecated below, remove later when removing TODO:
+	} else { // Deprecated
 		maxSize = rsk.Spec.Batcher.MaxSize
 		maxWaitSeconds = &rsk.Spec.Batcher.MaxWaitSeconds
 		maxConcurrency = &redshiftbatcher.DefaultMaxConcurrency
 		if rsk.Spec.Batcher.MaxConcurrency != nil {
 			maxConcurrency = rsk.Spec.Batcher.MaxConcurrency
 		}
-
+		if rsk.Spec.Batcher.MaxProcessingTime != nil {
+			maxProcessingTime = *rsk.Spec.Batcher.MaxProcessingTime
+		}
 	}
-	// other defaults which are not configurable defaults for the batcher
+	// defaults which are not configurable for the user
 	var sessionTimeoutSeconds int = 10
 	var hearbeatIntervalSeconds int = 2
 

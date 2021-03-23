@@ -42,54 +42,67 @@ type RedshiftPodTemplateSpec struct {
 	Tolerations *[]corev1.Toleration `json:"tolerations,omitempty"`
 }
 
-// Deployment is used to specify how many topics will run together in a unit
-// and how much resources needs to be given to them.
+// DeploymentUnit is used to specify how many topics will run together in a unit
+// and how much resources it needs.
 type DeploymentUnit struct {
 	// MaxTopics specify the maximum number of topics that
 	// can be part of this unit of deployment.
 	MaxTopics *int `json:"maxTopics,omitempty"`
 
-	// PodTemplate describes the specification for the unit.
+	// PodTemplate describes the pod specification for the unit.
 	// +optional
 	PodTemplate *RedshiftPodTemplateSpec `json:"podTemplate,omitempty"`
 }
 
+// SinkGroupSpec defines the specification for one of the three sinkgroups:
+// 1. MainSinkGroup 2. ReloadSinkGroup 3. ReloadDupeSinkGroup
 type SinkGroupSpec struct {
 	// MaxBytesPerBatch is the maximum bytes per batch.
+	// +optional
 	MaxBytesPerBatch *int `json:"maxBytesPerBatch,omitempty"`
 	// MaxWaitSeconds is the maximum time to wait before making a batch,
 	// make a batch if MaxBytesPerBatch is not hit during MaxWaitSeconds.
-	MaxWaitSeconds *int `json:"maxWaitSeconds"`
+	// +optional
+	MaxWaitSeconds *int `json:"maxWaitSeconds,omitempty"`
 	// MaxConcurrency is the maximum no, of batch processors to run concurrently.
+	// +optional
 	MaxConcurrency *int `json:"maxConcurrency,omitempty"`
 	// MaxProcessingTime is the max time in ms required to consume one message.
 	// Defaults to 1000ms
+	// +optional
 	MaxProcessingTime *int32 `json:"maxProcessingTime,omitempty"`
-
-	// DeploymentUnit is to specify the configuration of the unit of deployment
-	// This helps the user to specify how many topics with what resources
-	// can run in one unit of Deployment. Based on this the operator decides
-	// how many deployment units would be launched. This is useful in the first
-	// time sink of redshiftsink resources having huge number of topics.
-	// Check #167 to understand the need of a unit specification.
+	// DeploymentUnit is the unit of deployment for the batcher or the loader.
+	// Using this user can specify the no of topics and the amount of resources
+	// needed to run them as one unit. Operator calculates the total units
+	// based on this and the total number of topics it needs to sink. This
+	// greatly solves the scaling issues described in #167.
+	// +optional
 	DeploymentUnit *DeploymentUnit `json:"deploymentUnit,omitempty"`
 }
 
 // SinkGroup is the group of batcher and loader pods based on the
-// mask version, target table and the topic release status. These grouped
-// pods can require different configuration to sink the resources. Pods of batcher
-// and loader can specify their sink group configuration using SinkGroupSpec.
-// For example:
+// mask version, target table and the topic release status. This is the specification
+// to allow to have different set of SinkGroupSpec for each type of SinkGroups.
+// Explaining the precedence:
 // The first time sink of a table requires different values for MaxBytesPerBatch
-// and different pod resources than the realtime differential sink ones.
-// If All is specified and none of the others are specified, all is used
-// for Main, Reload and ReloadDupe SinkGroup. If others are specified then
-// they take precedence over all. For example if you have specified All and
-// Main, then for the MainSinkGroup Main is used and not All.
+// and different pod resources.
+// a) If All is specified and none of the others are specified, All is used.
+// b) If All and Main both are specified then Main gets used for MainSinkGroup
+// c) If All and Reload are specified then Reload gets used for ReloadSinkGroup
+// d) If All and ReloadDupe are specified then ReloadDupe gets used for ReloadDupeSinkGroup
+// d) If None gets specified then Defaults are used for all of them..
 type SinkGroup struct {
-	All        *SinkGroupSpec `json:"all,omitempty"`
-	Main       *SinkGroupSpec `json:"main,omitempty"`
-	Reload     *SinkGroupSpec `json:"reload,omitempty"`
+	// All specifies a common specification for all SinkGroups
+	// +optional
+	All *SinkGroupSpec `json:"all,omitempty"`
+	// Main specifies the MainSinkGroup specification, overwrites All
+	// +optional
+	Main *SinkGroupSpec `json:"main,omitempty"`
+	// Reload specifies the ReloadSinkGroup specification, overwrites All
+	// +optional
+	Reload *SinkGroupSpec `json:"reload,omitempty"`
+	// ReloadDupe specifies the ReloadDupeSinkGroup specification, overwrites All
+	// +optional
 	ReloadDupe *SinkGroupSpec `json:"reloadDupe,omitempty"`
 }
 
@@ -110,8 +123,9 @@ type RedshiftBatcherSpec struct {
 	// sinkgroups. Operator uses 3 groups to perform Redshiftsink. The topics
 	// which have never been released is part of Reload SinkGroup, the topics
 	// which gets released moves to the Main SinkGroup. ReloadDupe SinkGroup
-	// is used to give realtime upadates to the topics which are reloading.
+	// is used to give realtime upaates to the topics which are reloading.
 	// Defaults are there for all sinkGroups if none is specifed.
+	// +optional
 	SinkGroup *SinkGroup `json:"sinkGroup,omitempty"`
 
 	// Deprecated all of the below spec in favour of SinkGroup #167
@@ -137,7 +151,6 @@ type RedshiftLoaderSpec struct {
 	// Max configurations for the loader to batch the load
 	MaxSize        int `json:"maxSize"`
 	MaxWaitSeconds int `json:"maxWaitSeconds"`
-
 	// MaxProcessingTime is the sarama configuration MaxProcessingTime
 	// It is the max time in milliseconds required to consume one message.
 	// Defaults to 600000ms (10mins)

@@ -146,28 +146,28 @@ spec:
                     and reloadDupe sinkgroups. Operator uses 3 groups to perform Redshiftsink.
                     The topics which have never been released is part of Reload SinkGroup,
                     the topics which gets released moves to the Main SinkGroup. ReloadDupe
-                    SinkGroup is used to give realtime upadates to the topics which
+                    SinkGroup is used to give realtime upaates to the topics which
                     are reloading. Defaults are there for all sinkGroups if none is
                     specifed.
                   properties:
                     all:
+                      description: All specifies a common specification for all SinkGroups
                       properties:
                         deploymentUnit:
-                          description: 'DeploymentUnit is to specify the configuration
-                            of the unit of deployment This helps the user to specify
-                            how many topics with what resources can run in one unit
-                            of Deployment. Based on this the operator decides how
-                            many deployment units would be launched. This is useful
-                            in the first time sink of redshiftsink resources having
-                            huge number of topics. Check #167 to understand the need
-                            of a unit specification.'
+                          description: 'DeploymentUnit is the unit of deployment for
+                            the batcher or the loader. Using this user can specify
+                            the no of topics and the amount of resources needed to
+                            run them as one unit. Operator calculates the total units
+                            based on this and the total number of topics it needs
+                            to sink. This greatly solves the scaling issues described
+                            in #167.'
                           properties:
                             maxTopics:
                               description: MaxTopics specify the maximum number of
                                 topics that can be part of this unit of deployment.
                               type: integer
                             podTemplate:
-                              description: PodTemplate describes the specification
+                              description: PodTemplate describes the pod specification
                                 for the unit.
                               properties:
                                 image:
@@ -270,27 +270,26 @@ spec:
                             before making a batch, make a batch if MaxBytesPerBatch
                             is not hit during MaxWaitSeconds.
                           type: integer
-                      required:
-                      - maxWaitSeconds
                       type: object
                     main:
+                      description: Main specifies the MainSinkGroup specification,
+                        overwrites All
                       properties:
                         deploymentUnit:
-                          description: 'DeploymentUnit is to specify the configuration
-                            of the unit of deployment This helps the user to specify
-                            how many topics with what resources can run in one unit
-                            of Deployment. Based on this the operator decides how
-                            many deployment units would be launched. This is useful
-                            in the first time sink of redshiftsink resources having
-                            huge number of topics. Check #167 to understand the need
-                            of a unit specification.'
+                          description: 'DeploymentUnit is the unit of deployment for
+                            the batcher or the loader. Using this user can specify
+                            the no of topics and the amount of resources needed to
+                            run them as one unit. Operator calculates the total units
+                            based on this and the total number of topics it needs
+                            to sink. This greatly solves the scaling issues described
+                            in #167.'
                           properties:
                             maxTopics:
                               description: MaxTopics specify the maximum number of
                                 topics that can be part of this unit of deployment.
                               type: integer
                             podTemplate:
-                              description: PodTemplate describes the specification
+                              description: PodTemplate describes the pod specification
                                 for the unit.
                               properties:
                                 image:
@@ -393,27 +392,26 @@ spec:
                             before making a batch, make a batch if MaxBytesPerBatch
                             is not hit during MaxWaitSeconds.
                           type: integer
-                      required:
-                      - maxWaitSeconds
                       type: object
                     reload:
+                      description: Reload specifies the ReloadSinkGroup specification,
+                        overwrites All
                       properties:
                         deploymentUnit:
-                          description: 'DeploymentUnit is to specify the configuration
-                            of the unit of deployment This helps the user to specify
-                            how many topics with what resources can run in one unit
-                            of Deployment. Based on this the operator decides how
-                            many deployment units would be launched. This is useful
-                            in the first time sink of redshiftsink resources having
-                            huge number of topics. Check #167 to understand the need
-                            of a unit specification.'
+                          description: 'DeploymentUnit is the unit of deployment for
+                            the batcher or the loader. Using this user can specify
+                            the no of topics and the amount of resources needed to
+                            run them as one unit. Operator calculates the total units
+                            based on this and the total number of topics it needs
+                            to sink. This greatly solves the scaling issues described
+                            in #167.'
                           properties:
                             maxTopics:
                               description: MaxTopics specify the maximum number of
                                 topics that can be part of this unit of deployment.
                               type: integer
                             podTemplate:
-                              description: PodTemplate describes the specification
+                              description: PodTemplate describes the pod specification
                                 for the unit.
                               properties:
                                 image:
@@ -516,27 +514,26 @@ spec:
                             before making a batch, make a batch if MaxBytesPerBatch
                             is not hit during MaxWaitSeconds.
                           type: integer
-                      required:
-                      - maxWaitSeconds
                       type: object
                     reloadDupe:
+                      description: ReloadDupe specifies the ReloadDupeSinkGroup specification,
+                        overwrites All
                       properties:
                         deploymentUnit:
-                          description: 'DeploymentUnit is to specify the configuration
-                            of the unit of deployment This helps the user to specify
-                            how many topics with what resources can run in one unit
-                            of Deployment. Based on this the operator decides how
-                            many deployment units would be launched. This is useful
-                            in the first time sink of redshiftsink resources having
-                            huge number of topics. Check #167 to understand the need
-                            of a unit specification.'
+                          description: 'DeploymentUnit is the unit of deployment for
+                            the batcher or the loader. Using this user can specify
+                            the no of topics and the amount of resources needed to
+                            run them as one unit. Operator calculates the total units
+                            based on this and the total number of topics it needs
+                            to sink. This greatly solves the scaling issues described
+                            in #167.'
                           properties:
                             maxTopics:
                               description: MaxTopics specify the maximum number of
                                 topics that can be part of this unit of deployment.
                               type: integer
                             podTemplate:
-                              description: PodTemplate describes the specification
+                              description: PodTemplate describes the pod specification
                                 for the unit.
                               properties:
                                 image:
@@ -639,8 +636,6 @@ spec:
                             before making a batch, make a batch if MaxBytesPerBatch
                             is not hit during MaxWaitSeconds.
                           type: integer
-                      required:
-                      - maxWaitSeconds
                       type: object
                   type: object
                 suspend:

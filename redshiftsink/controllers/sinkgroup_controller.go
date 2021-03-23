@@ -137,8 +137,7 @@ type deploymentUnit struct {
 	topics []string
 }
 
-// assignDeploymentUnits allocates the total topics into groups of deployments
-// based on the specification. groups are called as deploymentUnit
+// assignDeploymentUnits allocates the total topics into units of deployments.
 func assignDeploymentUnits(allTopics []string, maxTopics int) []deploymentUnit {
 	if len(allTopics) <= maxTopics {
 		return []deploymentUnit{
