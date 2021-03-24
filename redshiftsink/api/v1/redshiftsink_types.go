@@ -124,7 +124,7 @@ type RedshiftBatcherSpec struct {
 	Mask bool `json:"mask"`
 	// MaskFile to use to apply mask configurations
 	// +optional
-	MaskFile string `json:"maskFile"`
+	MaskFile string `json:"maskFile,omitempty"`
 	// +optional
 
 	// SinkGroup contains the specification for main, reload and reloadDupe
@@ -137,8 +137,8 @@ type RedshiftBatcherSpec struct {
 	SinkGroup *SinkGroup `json:"sinkGroup,omitempty"`
 
 	// Deprecated all of the below spec in favour of SinkGroup #167
-	MaxSize        int  `json:"maxSize"`
-	MaxWaitSeconds int  `json:"maxWaitSeconds"`
+	MaxSize        int  `json:"maxSize,omitempty"`
+	MaxWaitSeconds int  `json:"maxWaitSeconds,omitempty"`
 	MaxConcurrency *int `json:"maxConcurrency,omitempty"`
 	// MaxProcessingTime is the sarama configuration MaxProcessingTime
 	// It is the max time in milliseconds required to consume one message.
@@ -179,9 +179,9 @@ type RedshiftLoaderSpec struct {
 	// Deprecated all of the below spec in favour of SinkGroup #167
 	// Max configurations for the loader to batch the load
 	// +optional
-	MaxSize int `json:"maxSize"`
+	MaxSize int `json:"maxSize,omitempty"`
 	// +optional
-	MaxWaitSeconds int `json:"maxWaitSeconds"`
+	MaxWaitSeconds int `json:"maxWaitSeconds,omitempty"`
 	// MaxProcessingTime is the sarama configuration MaxProcessingTime
 	// It is the max time in milliseconds required to consume one message.
 	// Defaults to 600000ms (10mins)
@@ -213,7 +213,7 @@ type RedshiftSinkSpec struct {
 	KafkaVersion      string `json:"kafkaVersion"`
 	KafkaTopicRegexes string `json:"kafkaTopicRegexes"`
 	// +optional
-	KafkaLoaderTopicPrefix string `json:"kafkaLoaderTopicPrefix"`
+	KafkaLoaderTopicPrefix string `json:"kafkaLoaderTopicPrefix,omitempty"`
 
 	Batcher RedshiftBatcherSpec `json:"batcher"`
 	Loader  RedshiftLoaderSpec  `json:"loader"`
@@ -223,25 +223,25 @@ type RedshiftSinkSpec struct {
 	// This is relevant only if masking is turned on in mask configuration.
 	// It is used for live mask reloading.
 	// +optional
-	ReleaseCondition *ReleaseCondition `json:"releaseCondition"`
+	ReleaseCondition *ReleaseCondition `json:"releaseCondition,omitempty"`
 
 	// TopicReleaseCondition is considered instead of ReleaseCondition
 	// if it is defined for a topic. This is used for topics which
 	// does not work well with central ReleaseCondition for all topics
 	// +optional
-	TopicReleaseCondition map[string]ReleaseCondition `json:"topicReleaseCondition"`
+	TopicReleaseCondition map[string]ReleaseCondition `json:"topicReleaseCondition,omitempty"`
 }
 
 type ReleaseCondition struct {
 	// MaxBatcherLag is the maximum lag the batcher consumer group
 	// shoud have to be be considered to be operating in realtime and
 	// to be considered for release.
-	MaxBatcherLag *int64 `json:"maxBatcherLag"`
+	MaxBatcherLag *int64 `json:"maxBatcherLag,omitempty"`
 
 	// MaxLoaderLag is the maximum lag the loader consumer group
 	// shoud have to be be considered to be operating in realtime and
 	// to be considered for release.
-	MaxLoaderLag *int64 `json:"maxLoaderLag"`
+	MaxLoaderLag *int64 `json:"maxLoaderLag,omitempty"`
 }
 
 // MaskPhase is a label for the condition of a masking at the current time.
@@ -299,7 +299,7 @@ type MaskStatus struct {
 
 type Group struct {
 	// LoaderTopicPrefix stores the name of the loader topic prefix
-	LoaderTopicPrefix string `json:"loaderTopicPrefix"`
+	LoaderTopicPrefix string `json:"loaderTopicPrefix,omitempty"`
 
 	// LoaderCurrentOffset stores the last read current offset of the consumer group
 	// This is required to determine if the consumer group has performed any
@@ -309,7 +309,7 @@ type Group struct {
 	// throughput consumer groups not getting moved to realtime from reloading.
 	// TODO: This is not dead field once a group moves to released and
 	// should be cleaned after that(status needs to be updated)
-	LoaderCurrentOffset *int64 `json:"currentOffset"`
+	LoaderCurrentOffset *int64 `json:"currentOffset,omitempty"`
 
 	// ID stores the name of the consumer group for the topic
 	// based on this batcher and loader consumer groups are made
@@ -323,11 +323,11 @@ type RedshiftSinkStatus struct {
 
 	// MaskStatus stores the status of masking for topics if masking is enabled
 	// +optional
-	MaskStatus *MaskStatus `json:"maskStatus"`
+	MaskStatus *MaskStatus `json:"maskStatus,omitempty"`
 
 	// TopicGroup stores the group info for the topic
 	// +optional
-	TopicGroup map[string]Group `json:"topicGroups"`
+	TopicGroup map[string]Group `json:"topicGroups,omitempty"`
 }
 
 // +kubebuilder:resource:path=redshiftsinks,shortName=rsk;rsks
