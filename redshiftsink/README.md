@@ -117,8 +117,8 @@ Flags:
 
 #### Metrics
 ```
-rsk_batcher_bytes_processed_per_second
-rsk_batcher_messages_processed_per_second
+rsk_batcher_bytes_processed
+rsk_batcher_messages_processed
 ```
 
 ### Configuration
@@ -149,8 +149,8 @@ Flags:
 
 #### Metrics
 ```
-rsk_loader_bytes_loaded_per_second
-rsk_loader_messages_loaded_per_second
+rsk_loader_bytes_loaded
+rsk_loader_messages_loaded
 ```
 
 ### Configuration
