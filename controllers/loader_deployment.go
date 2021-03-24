@@ -313,7 +313,7 @@ func NewLoader(
 	}
 
 	return &Loader{
-		name:       name,
+		name:       objectName,
 		namespace:  rsk.Namespace,
 		deployment: deploymentFromSpec(deploySpec, configSpec),
 		config:     configFromSpec(configSpec),
