@@ -1338,8 +1338,6 @@ spec:
                     are running for this CRD object. Default: false'
                   type: boolean
               required:
-              - maxSize
-              - maxWaitSeconds
               - redshiftGroup
               - redshiftSchema
               type: object
