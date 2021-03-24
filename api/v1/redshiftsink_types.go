@@ -178,11 +178,14 @@ type RedshiftLoaderSpec struct {
 
 	// Deprecated all of the below spec in favour of SinkGroup #167
 	// Max configurations for the loader to batch the load
-	MaxSize        int `json:"maxSize"`
+	// +optional
+	MaxSize int `json:"maxSize"`
+	// +optional
 	MaxWaitSeconds int `json:"maxWaitSeconds"`
 	// MaxProcessingTime is the sarama configuration MaxProcessingTime
 	// It is the max time in milliseconds required to consume one message.
 	// Defaults to 600000ms (10mins)
+	// +optional
 	MaxProcessingTime *int32 `json:"maxProcessingTime,omitempty"`
 	// PodTemplate describes the pods that will be created.
 	// if this is not specifed, a default pod template is created
