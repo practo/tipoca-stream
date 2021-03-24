@@ -175,6 +175,8 @@ func NewBatcher(
 	var maxWaitSeconds, maxConcurrency *int
 	var maxProcessingTime int32 = redshiftbatcher.DefaultMaxProcessingTime
 	var image string
+	var resources *corev1.ResourceRequirements
+	var tolerations *[]corev1.Toleration
 	if sinkGroupSpec != nil {
 		m := sinkGroupSpec.MaxSizePerBatch.Value()
 		maxBytesPerBatch = &m
@@ -182,6 +184,8 @@ func NewBatcher(
 		maxConcurrency = sinkGroupSpec.MaxConcurrency
 		maxProcessingTime = *sinkGroupSpec.MaxProcessingTime
 		image = *sinkGroupSpec.DeploymentUnit.PodTemplate.Image
+		resources = sinkGroupSpec.DeploymentUnit.PodTemplate.Resources
+		tolerations = sinkGroupSpec.DeploymentUnit.PodTemplate.Tolerations
 	} else { // Deprecated
 		maxSize = rsk.Spec.Batcher.MaxSize
 		maxWaitSeconds = &rsk.Spec.Batcher.MaxWaitSeconds
@@ -197,6 +201,8 @@ func NewBatcher(
 		} else {
 			image = defaultImage
 		}
+		resources = rsk.Spec.Batcher.PodTemplate.Resources
+		tolerations = rsk.Spec.Batcher.PodTemplate.Tolerations
 	}
 	// defaults which are not configurable for the user
 	var sessionTimeoutSeconds int = 10
@@ -285,8 +291,8 @@ func NewBatcher(
 		namespace:   rsk.Namespace,
 		labels:      labels,
 		replicas:    &replicas,
-		resources:   rsk.Spec.Batcher.PodTemplate.Resources,
-		tolerations: rsk.Spec.Batcher.PodTemplate.Tolerations,
+		resources:   resources,
+		tolerations: tolerations,
 		image:       image,
 		args:        []string{"-v=4", "--config=/config.yaml"},
 	}

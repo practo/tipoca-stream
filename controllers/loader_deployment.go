@@ -189,12 +189,16 @@ func NewLoader(
 	var maxWaitSeconds *int
 	var maxProcessingTime int32 = redshiftloader.DefaultMaxProcessingTime
 	var image string
+	var resources *corev1.ResourceRequirements
+	var tolerations *[]corev1.Toleration
 	if sinkGroupSpec != nil {
 		m := sinkGroupSpec.MaxSizePerBatch.Value()
 		maxBytesPerBatch = &m
 		maxWaitSeconds = sinkGroupSpec.MaxWaitSeconds
 		maxProcessingTime = *sinkGroupSpec.MaxProcessingTime
 		image = *sinkGroupSpec.DeploymentUnit.PodTemplate.Image
+		resources = sinkGroupSpec.DeploymentUnit.PodTemplate.Resources
+		tolerations = sinkGroupSpec.DeploymentUnit.PodTemplate.Tolerations
 	} else { // Deprecated
 		maxSize = rsk.Spec.Loader.MaxSize
 		maxWaitSeconds = &rsk.Spec.Loader.MaxWaitSeconds
@@ -206,6 +210,8 @@ func NewLoader(
 		} else {
 			image = defaultImage
 		}
+		resources = rsk.Spec.Loader.PodTemplate.Resources
+		tolerations = rsk.Spec.Loader.PodTemplate.Tolerations
 	}
 
 	// defaults which are not configurable for the user
@@ -308,8 +314,8 @@ func NewLoader(
 		namespace:   rsk.Namespace,
 		labels:      labels,
 		replicas:    &replicas,
-		resources:   rsk.Spec.Loader.PodTemplate.Resources,
-		tolerations: rsk.Spec.Loader.PodTemplate.Tolerations,
+		resources:   resources,
+		tolerations: tolerations,
 		image:       image,
 		args:        []string{"-v=2", "--config=/config.yaml"},
 	}
