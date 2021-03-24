@@ -559,14 +559,10 @@ func (b *batchProcessor) Process(
 		last := responses[len(responses)-1]
 		b.markOffset(session, b.topic, 0, last.endOffset, b.autoCommit)
 
-		setBytesProcessedPerSecond(
+		setMetrics(
 			b.consumerGroupID,
 			b.topic,
 			float64(totalBytesProcessed)/time.Since(now).Seconds(),
-		)
-		setMsgsProcessedPerSecond(
-			b.consumerGroupID,
-			b.topic,
 			float64(totalMessagesProcessed)/time.Since(now).Seconds(),
 		)
 

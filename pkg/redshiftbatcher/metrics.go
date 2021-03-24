@@ -5,41 +5,46 @@ import (
 )
 
 var (
-	bytesPerSecMetric = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
+	bytesProcessedMetric = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
 			Namespace: "rsk",
 			Subsystem: "batcher",
-			Name:      "bytes_processed_per_second",
-			Help:      "bytes processed per second",
+			Name:      "bytes_processed",
+			Help:      "total number of bytes processed",
 		},
 		[]string{"consumergroup", "topic"},
 	)
-	msgsPerSecMetric = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
+	msgsProcessedMetric = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
 			Namespace: "rsk",
 			Subsystem: "batcher",
-			Name:      "messages_processed_per_second",
-			Help:      "number of messages processed per second",
+			Name:      "messages_processed",
+			Help:      "total number of messages processed",
 		},
 		[]string{"consumergroup", "topic"},
 	)
 )
 
 func init() {
-	prometheus.MustRegister(bytesPerSecMetric)
-	prometheus.MustRegister(msgsPerSecMetric)
+	prometheus.MustRegister(bytesProcessedMetric)
+	prometheus.MustRegister(msgsProcessedMetric)
 }
 
-func setBytesProcessedPerSecond(consumergroup string, topic string, bytesPerSec float64) {
-	bytesPerSecMetric.WithLabelValues(
+func setBytesProcessed(consumergroup string, topic string, bytes float64) {
+	bytesProcessedMetric.WithLabelValues(
 		consumergroup,
 		topic,
-	).Set(bytesPerSec)
+	).Add(bytes)
 }
 
-func setMsgsProcessedPerSecond(consumergroup string, topic string, msgsPerSec float64) {
-	msgsPerSecMetric.WithLabelValues(
+func setMsgsProcessed(consumergroup string, topic string, msgs float64) {
+	msgsProcessedMetric.WithLabelValues(
 		consumergroup,
 		topic,
-	).Set(msgsPerSec)
+	).Add(msgs)
+}
+
+func setMetrics(consumergroup, topic string, bytes, msgs float64) {
+	setBytesProcessed(consumergroup, topic, bytes)
+	setMsgsProcessed(consumergroup, topic, msgs)
 }

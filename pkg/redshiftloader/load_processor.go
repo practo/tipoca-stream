@@ -733,7 +733,7 @@ func (b *loadProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*s
 	if err != nil {
 		return err
 	}
-	klog.Infof("%s, batchId:%d, size:%d: Processing...\n",
+	klog.Infof("%s, batchId:%d, size:%d: processing...\n",
 		b.topic, b.batchId, len(msgBuf),
 	)
 	bytesProcessed, err := b.processBatch(ctx, msgBuf)
@@ -755,20 +755,16 @@ func (b *loadProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*s
 		timeTaken = fmt.Sprintf("%.0fs", secondsTaken)
 	}
 
-	klog.Infof(
-		"%s, batchId:%d, size:%d, end:%d:, Processed in %s",
-		b.topic, b.batchId, len(msgBuf), b.batchEndOffset, timeTaken,
-	)
-
-	setBytesLoadedPerSecond(
+	setMetrics(
 		b.consumerGroupID,
 		b.topic,
 		float64(bytesProcessed)/secondsTaken,
-	)
-	setMsgsLoadedPerSecond(
-		b.consumerGroupID,
-		b.topic,
 		float64(len(msgBuf))/secondsTaken,
+	)
+
+	klog.Infof(
+		"%s, batchId:%d, size:%d, end:%d:, processed in %s",
+		b.topic, b.batchId, len(msgBuf), b.batchEndOffset, timeTaken,
 	)
 
 	return nil
