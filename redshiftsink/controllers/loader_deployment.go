@@ -79,14 +79,16 @@ func applyLoaderSinkGroupDefaults(
 		if specifiedSpec.MaxProcessingTime != nil {
 			maxProcessingTime = specifiedSpec.MaxProcessingTime
 		}
-		if specifiedSpec.DeploymentUnit.PodTemplate.Image != nil {
-			image = specifiedSpec.DeploymentUnit.PodTemplate.Image
-		}
-		if specifiedSpec.DeploymentUnit.PodTemplate.Resources != nil {
-			resources = specifiedSpec.DeploymentUnit.PodTemplate.Resources
-		}
-		if specifiedSpec.DeploymentUnit.PodTemplate.Tolerations != nil {
-			tolerations = specifiedSpec.DeploymentUnit.PodTemplate.Tolerations
+		if specifiedSpec.DeploymentUnit.PodTemplate != nil {
+			if specifiedSpec.DeploymentUnit.PodTemplate.Image != nil {
+				image = specifiedSpec.DeploymentUnit.PodTemplate.Image
+			}
+			if specifiedSpec.DeploymentUnit.PodTemplate.Resources != nil {
+				resources = specifiedSpec.DeploymentUnit.PodTemplate.Resources
+			}
+			if specifiedSpec.DeploymentUnit.PodTemplate.Tolerations != nil {
+				tolerations = specifiedSpec.DeploymentUnit.PodTemplate.Tolerations
+			}
 		}
 	}
 
@@ -186,16 +188,23 @@ func NewLoader(
 	var maxBytesPerBatch *int64
 	var maxWaitSeconds *int
 	var maxProcessingTime int32 = redshiftloader.DefaultMaxProcessingTime
+	var image string
 	if sinkGroupSpec != nil {
 		m := sinkGroupSpec.MaxSizePerBatch.Value()
 		maxBytesPerBatch = &m
 		maxWaitSeconds = sinkGroupSpec.MaxWaitSeconds
 		maxProcessingTime = *sinkGroupSpec.MaxProcessingTime
+		image = *sinkGroupSpec.DeploymentUnit.PodTemplate.Image
 	} else { // Deprecated
 		maxSize = rsk.Spec.Loader.MaxSize
 		maxWaitSeconds = &rsk.Spec.Loader.MaxWaitSeconds
 		if rsk.Spec.Loader.MaxProcessingTime != nil {
 			maxProcessingTime = *rsk.Spec.Loader.MaxProcessingTime
+		}
+		if rsk.Spec.Loader.PodTemplate.Image != nil {
+			image = *rsk.Spec.Loader.PodTemplate.Image
+		} else {
+			image = defaultImage
 		}
 	}
 
@@ -273,13 +282,6 @@ func NewLoader(
 		len(consumerGroups),
 		totalTopics,
 	)
-
-	var image string
-	if rsk.Spec.Loader.PodTemplate.Image != nil {
-		image = *rsk.Spec.Loader.PodTemplate.Image
-	} else {
-		image = defaultImage
-	}
 
 	confString := string(confBytes)
 	hash, err := getHashStructure(conf)

@@ -82,14 +82,16 @@ func applyBatcherSinkGroupDefaults(
 		if specifiedSpec.MaxProcessingTime != nil {
 			maxProcessingTime = specifiedSpec.MaxProcessingTime
 		}
-		if specifiedSpec.DeploymentUnit.PodTemplate.Image != nil {
-			image = specifiedSpec.DeploymentUnit.PodTemplate.Image
-		}
-		if specifiedSpec.DeploymentUnit.PodTemplate.Resources != nil {
-			resources = specifiedSpec.DeploymentUnit.PodTemplate.Resources
-		}
-		if specifiedSpec.DeploymentUnit.PodTemplate.Tolerations != nil {
-			tolerations = specifiedSpec.DeploymentUnit.PodTemplate.Tolerations
+		if specifiedSpec.DeploymentUnit.PodTemplate != nil {
+			if specifiedSpec.DeploymentUnit.PodTemplate.Image != nil {
+				image = specifiedSpec.DeploymentUnit.PodTemplate.Image
+			}
+			if specifiedSpec.DeploymentUnit.PodTemplate.Resources != nil {
+				resources = specifiedSpec.DeploymentUnit.PodTemplate.Resources
+			}
+			if specifiedSpec.DeploymentUnit.PodTemplate.Tolerations != nil {
+				tolerations = specifiedSpec.DeploymentUnit.PodTemplate.Tolerations
+			}
 		}
 	}
 
@@ -172,12 +174,14 @@ func NewBatcher(
 	var maxBytesPerBatch *int64
 	var maxWaitSeconds, maxConcurrency *int
 	var maxProcessingTime int32 = redshiftbatcher.DefaultMaxProcessingTime
+	var image string
 	if sinkGroupSpec != nil {
 		m := sinkGroupSpec.MaxSizePerBatch.Value()
 		maxBytesPerBatch = &m
 		maxWaitSeconds = sinkGroupSpec.MaxWaitSeconds
 		maxConcurrency = sinkGroupSpec.MaxConcurrency
 		maxProcessingTime = *sinkGroupSpec.MaxProcessingTime
+		image = *sinkGroupSpec.DeploymentUnit.PodTemplate.Image
 	} else { // Deprecated
 		maxSize = rsk.Spec.Batcher.MaxSize
 		maxWaitSeconds = &rsk.Spec.Batcher.MaxWaitSeconds
@@ -187,6 +191,11 @@ func NewBatcher(
 		}
 		if rsk.Spec.Batcher.MaxProcessingTime != nil {
 			maxProcessingTime = *rsk.Spec.Batcher.MaxProcessingTime
+		}
+		if rsk.Spec.Batcher.PodTemplate.Image != nil {
+			image = *rsk.Spec.Batcher.PodTemplate.Image
+		} else {
+			image = defaultImage
 		}
 	}
 	// defaults which are not configurable for the user
@@ -250,13 +259,6 @@ func NewBatcher(
 		len(consumerGroups),
 		totalTopics,
 	)
-
-	var image string
-	if rsk.Spec.Batcher.PodTemplate.Image != nil {
-		image = *rsk.Spec.Batcher.PodTemplate.Image
-	} else {
-		image = defaultImage
-	}
 
 	confString := string(confBytes)
 	hash, err := getHashStructure(conf)
