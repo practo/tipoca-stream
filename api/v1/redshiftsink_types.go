@@ -48,6 +48,7 @@ type RedshiftPodTemplateSpec struct {
 type DeploymentUnit struct {
 	// MaxTopics specify the maximum number of topics that
 	// can be part of this unit of deployment.
+	// +optional
 	MaxTopics *int `json:"maxTopics,omitempty"`
 
 	// PodTemplate describes the pod specification for the unit.
@@ -58,10 +59,10 @@ type DeploymentUnit struct {
 // SinkGroupSpec defines the specification for one of the three sinkgroups:
 // 1. MainSinkGroup 2. ReloadSinkGroup 3. ReloadDupeSinkGroup
 type SinkGroupSpec struct {
-	// MaxSizePerBatch is the maximum size of the batch in Bytes, Ki, Mi, Gi
-	// Examples:
+	// MaxSizePerBatch is the maximum size of the batch in bytes, Ki, Mi, Gi
+	// Example values: 1000, 1Ki, 100Mi, 1Gi
 	// 1000 is 1000 bytes, 1Ki is 1 Killo byte,
-	// 100Mi 100 mega bytes, 1Gi is 1 Giga bytes
+	// 100Mi is 100 mega bytes, 1Gi is 1 Giga bytes
 	// +optional
 	MaxSizePerBatch *resource.Quantity `json:"maxSizePerBatch,omitempty"`
 	// MaxWaitSeconds is the maximum time to wait before making a batch,
@@ -69,19 +70,19 @@ type SinkGroupSpec struct {
 	// +optional
 	MaxWaitSeconds *int `json:"maxWaitSeconds,omitempty"`
 	// MaxConcurrency is the maximum no, of batch processors to run concurrently.
-	// this spec is useful only when the sink group pod operates on
-	// asynchronous mode. loader pods does not needed this.
+	// This spec is useful when the sink group pod operates in asynchronous mode.
+	// Loader pods does not needed this as they are synchronous.
 	// +optional
 	MaxConcurrency *int `json:"maxConcurrency,omitempty"`
 	// MaxProcessingTime is the max time in ms required to consume one message.
-	// Defaults to 1000ms
+	// Defaults for the batcher is 180000ms and loader is 600000ms.
 	// +optional
 	MaxProcessingTime *int32 `json:"maxProcessingTime,omitempty"`
 	// DeploymentUnit is the unit of deployment for the batcher or the loader.
 	// Using this user can specify the no of topics and the amount of resources
 	// needed to run them as one unit. Operator calculates the total units
-	// based on this and the total number of topics it needs to sink. This
-	// greatly solves the scaling issues described in #167.
+	// based on the total number of topics and this unit spec. This majorly
+	// solves the scaling issues described in #167.
 	// +optional
 	DeploymentUnit *DeploymentUnit `json:"deploymentUnit,omitempty"`
 }
@@ -90,9 +91,10 @@ type SinkGroupSpec struct {
 // mask version, target table and the topic release status. This is the specification
 // to allow to have different set of SinkGroupSpec for each type of SinkGroups.
 // Explaining the precedence:
-// The first time sink of a table requires different values for MaxSizePerBatch
-// and different pod resources.
-// a) If All is specified and none of the others are specified, All is used.
+// The configuration required for full sink and the realtime sink can be different.
+// SinkGroupSpec for each of the type of sink groups helps us provide different
+// configurations for each of them. Following are the precedence:
+// a) If All is specified and none of the others are specified, All is used for all SinkGroups.
 // b) If All and Main both are specified then Main gets used for MainSinkGroup
 // c) If All and Reload are specified then Reload gets used for ReloadSinkGroup
 // d) If All and ReloadDupe are specified then ReloadDupe gets used for ReloadDupeSinkGroup
@@ -166,8 +168,10 @@ type RedshiftLoaderSpec struct {
 	// RedshiftSchema to sink the data in
 	RedshiftSchema string `json:"redshiftSchema"`
 	// RedshiftMaxOpenConns is the maximum open connections allowed
+	// +optional
 	RedshiftMaxOpenConns *int `json:"redshiftMaxOpenConns,omitempty"`
 	// RedshiftMaxIdleConns is the maximum idle connections allowed
+	// +optional
 	RedshiftMaxIdleConns *int `json:"redshiftMaxIdleConns,omitempty"`
 	// RedshiftGroup to give the access to when new topics gets released
 	RedshiftGroup *string `json:"redshiftGroup"`
