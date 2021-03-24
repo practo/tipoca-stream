@@ -68,7 +68,7 @@ func applyBatcherSinkGroupDefaults(
 		}
 	}
 
-	// overwrite with the defaults with the specified values
+	// overwrite the defaults with the specified values
 	if specifiedSpec != nil {
 		if specifiedSpec.MaxSizePerBatch != nil {
 			maxSizePerBatch = specifiedSpec.MaxSizePerBatch

@@ -43,7 +43,7 @@ func applyLoaderSinkGroupDefaults(
 	maxSizePerBatch := &defaultMaxBytesPerBatch
 	maxWaitSeconds := &redshiftloader.DefaultMaxWaitSeconds
 	maxProcessingTime := &redshiftloader.DefaultMaxProcessingTime
-	maxTopics := &DefaultMaxBatcherTopics
+	maxTopics := &DefaultMaxLoaderTopics
 	image := &defaultImage
 	var resources *corev1.ResourceRequirements
 	var tolerations *[]corev1.Toleration
@@ -68,7 +68,7 @@ func applyLoaderSinkGroupDefaults(
 		}
 	}
 
-	// overwrite with the defaults with the specified values
+	// overwrite the defaults with the specified values
 	if specifiedSpec != nil {
 		if specifiedSpec.MaxSizePerBatch != nil {
 			maxSizePerBatch = specifiedSpec.MaxSizePerBatch

@@ -158,9 +158,8 @@ spec:
                             the batcher or the loader. Using this user can specify
                             the no of topics and the amount of resources needed to
                             run them as one unit. Operator calculates the total units
-                            based on this and the total number of topics it needs
-                            to sink. This greatly solves the scaling issues described
-                            in #167.'
+                            based on the total number of topics and this unit spec.
+                            This majorly solves the scaling issues described in #167.'
                           properties:
                             maxTopics:
                               description: MaxTopics specify the maximum number of
@@ -255,13 +254,14 @@ spec:
                           type: object
                         maxConcurrency:
                           description: MaxConcurrency is the maximum no, of batch
-                            processors to run concurrently. this spec is useful only
-                            when the sink group pod operates on asynchronous mode.
-                            loader pods does not needed this.
+                            processors to run concurrently. This spec is useful when
+                            the sink group pod operates in asynchronous mode. Loader
+                            pods does not needed this as they are synchronous.
                           type: integer
                         maxProcessingTime:
                           description: MaxProcessingTime is the max time in ms required
-                            to consume one message. Defaults to 1000ms
+                            to consume one message. Defaults for the batcher is 180000ms
+                            and loader is 600000ms.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -269,9 +269,9 @@ spec:
                           - type: integer
                           - type: string
                           description: 'MaxSizePerBatch is the maximum size of the
-                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
-                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
-                            bytes'
+                            batch in bytes, Ki, Mi, Gi Example values: 1000, 1Ki,
+                            100Mi, 1Gi 1000 is 1000 bytes, 1Ki is 1 Killo byte, 100Mi
+                            is 100 mega bytes, 1Gi is 1 Giga bytes'
                           pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                           x-kubernetes-int-or-string: true
                         maxWaitSeconds:
@@ -289,9 +289,8 @@ spec:
                             the batcher or the loader. Using this user can specify
                             the no of topics and the amount of resources needed to
                             run them as one unit. Operator calculates the total units
-                            based on this and the total number of topics it needs
-                            to sink. This greatly solves the scaling issues described
-                            in #167.'
+                            based on the total number of topics and this unit spec.
+                            This majorly solves the scaling issues described in #167.'
                           properties:
                             maxTopics:
                               description: MaxTopics specify the maximum number of
@@ -386,13 +385,14 @@ spec:
                           type: object
                         maxConcurrency:
                           description: MaxConcurrency is the maximum no, of batch
-                            processors to run concurrently. this spec is useful only
-                            when the sink group pod operates on asynchronous mode.
-                            loader pods does not needed this.
+                            processors to run concurrently. This spec is useful when
+                            the sink group pod operates in asynchronous mode. Loader
+                            pods does not needed this as they are synchronous.
                           type: integer
                         maxProcessingTime:
                           description: MaxProcessingTime is the max time in ms required
-                            to consume one message. Defaults to 1000ms
+                            to consume one message. Defaults for the batcher is 180000ms
+                            and loader is 600000ms.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -400,9 +400,9 @@ spec:
                           - type: integer
                           - type: string
                           description: 'MaxSizePerBatch is the maximum size of the
-                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
-                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
-                            bytes'
+                            batch in bytes, Ki, Mi, Gi Example values: 1000, 1Ki,
+                            100Mi, 1Gi 1000 is 1000 bytes, 1Ki is 1 Killo byte, 100Mi
+                            is 100 mega bytes, 1Gi is 1 Giga bytes'
                           pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                           x-kubernetes-int-or-string: true
                         maxWaitSeconds:
@@ -420,9 +420,8 @@ spec:
                             the batcher or the loader. Using this user can specify
                             the no of topics and the amount of resources needed to
                             run them as one unit. Operator calculates the total units
-                            based on this and the total number of topics it needs
-                            to sink. This greatly solves the scaling issues described
-                            in #167.'
+                            based on the total number of topics and this unit spec.
+                            This majorly solves the scaling issues described in #167.'
                           properties:
                             maxTopics:
                               description: MaxTopics specify the maximum number of
@@ -517,13 +516,14 @@ spec:
                           type: object
                         maxConcurrency:
                           description: MaxConcurrency is the maximum no, of batch
-                            processors to run concurrently. this spec is useful only
-                            when the sink group pod operates on asynchronous mode.
-                            loader pods does not needed this.
+                            processors to run concurrently. This spec is useful when
+                            the sink group pod operates in asynchronous mode. Loader
+                            pods does not needed this as they are synchronous.
                           type: integer
                         maxProcessingTime:
                           description: MaxProcessingTime is the max time in ms required
-                            to consume one message. Defaults to 1000ms
+                            to consume one message. Defaults for the batcher is 180000ms
+                            and loader is 600000ms.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -531,9 +531,9 @@ spec:
                           - type: integer
                           - type: string
                           description: 'MaxSizePerBatch is the maximum size of the
-                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
-                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
-                            bytes'
+                            batch in bytes, Ki, Mi, Gi Example values: 1000, 1Ki,
+                            100Mi, 1Gi 1000 is 1000 bytes, 1Ki is 1 Killo byte, 100Mi
+                            is 100 mega bytes, 1Gi is 1 Giga bytes'
                           pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                           x-kubernetes-int-or-string: true
                         maxWaitSeconds:
@@ -551,9 +551,8 @@ spec:
                             the batcher or the loader. Using this user can specify
                             the no of topics and the amount of resources needed to
                             run them as one unit. Operator calculates the total units
-                            based on this and the total number of topics it needs
-                            to sink. This greatly solves the scaling issues described
-                            in #167.'
+                            based on the total number of topics and this unit spec.
+                            This majorly solves the scaling issues described in #167.'
                           properties:
                             maxTopics:
                               description: MaxTopics specify the maximum number of
@@ -648,13 +647,14 @@ spec:
                           type: object
                         maxConcurrency:
                           description: MaxConcurrency is the maximum no, of batch
-                            processors to run concurrently. this spec is useful only
-                            when the sink group pod operates on asynchronous mode.
-                            loader pods does not needed this.
+                            processors to run concurrently. This spec is useful when
+                            the sink group pod operates in asynchronous mode. Loader
+                            pods does not needed this as they are synchronous.
                           type: integer
                         maxProcessingTime:
                           description: MaxProcessingTime is the max time in ms required
-                            to consume one message. Defaults to 1000ms
+                            to consume one message. Defaults for the batcher is 180000ms
+                            and loader is 600000ms.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -662,9 +662,9 @@ spec:
                           - type: integer
                           - type: string
                           description: 'MaxSizePerBatch is the maximum size of the
-                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
-                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
-                            bytes'
+                            batch in bytes, Ki, Mi, Gi Example values: 1000, 1Ki,
+                            100Mi, 1Gi 1000 is 1000 bytes, 1Ki is 1 Killo byte, 100Mi
+                            is 100 mega bytes, 1Gi is 1 Giga bytes'
                           pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                           x-kubernetes-int-or-string: true
                         maxWaitSeconds:
@@ -817,9 +817,8 @@ spec:
                             the batcher or the loader. Using this user can specify
                             the no of topics and the amount of resources needed to
                             run them as one unit. Operator calculates the total units
-                            based on this and the total number of topics it needs
-                            to sink. This greatly solves the scaling issues described
-                            in #167.'
+                            based on the total number of topics and this unit spec.
+                            This majorly solves the scaling issues described in #167.'
                           properties:
                             maxTopics:
                               description: MaxTopics specify the maximum number of
@@ -914,13 +913,14 @@ spec:
                           type: object
                         maxConcurrency:
                           description: MaxConcurrency is the maximum no, of batch
-                            processors to run concurrently. this spec is useful only
-                            when the sink group pod operates on asynchronous mode.
-                            loader pods does not needed this.
+                            processors to run concurrently. This spec is useful when
+                            the sink group pod operates in asynchronous mode. Loader
+                            pods does not needed this as they are synchronous.
                           type: integer
                         maxProcessingTime:
                           description: MaxProcessingTime is the max time in ms required
-                            to consume one message. Defaults to 1000ms
+                            to consume one message. Defaults for the batcher is 180000ms
+                            and loader is 600000ms.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -928,9 +928,9 @@ spec:
                           - type: integer
                           - type: string
                           description: 'MaxSizePerBatch is the maximum size of the
-                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
-                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
-                            bytes'
+                            batch in bytes, Ki, Mi, Gi Example values: 1000, 1Ki,
+                            100Mi, 1Gi 1000 is 1000 bytes, 1Ki is 1 Killo byte, 100Mi
+                            is 100 mega bytes, 1Gi is 1 Giga bytes'
                           pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                           x-kubernetes-int-or-string: true
                         maxWaitSeconds:
@@ -948,9 +948,8 @@ spec:
                             the batcher or the loader. Using this user can specify
                             the no of topics and the amount of resources needed to
                             run them as one unit. Operator calculates the total units
-                            based on this and the total number of topics it needs
-                            to sink. This greatly solves the scaling issues described
-                            in #167.'
+                            based on the total number of topics and this unit spec.
+                            This majorly solves the scaling issues described in #167.'
                           properties:
                             maxTopics:
                               description: MaxTopics specify the maximum number of
@@ -1045,13 +1044,14 @@ spec:
                           type: object
                         maxConcurrency:
                           description: MaxConcurrency is the maximum no, of batch
-                            processors to run concurrently. this spec is useful only
-                            when the sink group pod operates on asynchronous mode.
-                            loader pods does not needed this.
+                            processors to run concurrently. This spec is useful when
+                            the sink group pod operates in asynchronous mode. Loader
+                            pods does not needed this as they are synchronous.
                           type: integer
                         maxProcessingTime:
                           description: MaxProcessingTime is the max time in ms required
-                            to consume one message. Defaults to 1000ms
+                            to consume one message. Defaults for the batcher is 180000ms
+                            and loader is 600000ms.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -1059,9 +1059,9 @@ spec:
                           - type: integer
                           - type: string
                           description: 'MaxSizePerBatch is the maximum size of the
-                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
-                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
-                            bytes'
+                            batch in bytes, Ki, Mi, Gi Example values: 1000, 1Ki,
+                            100Mi, 1Gi 1000 is 1000 bytes, 1Ki is 1 Killo byte, 100Mi
+                            is 100 mega bytes, 1Gi is 1 Giga bytes'
                           pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                           x-kubernetes-int-or-string: true
                         maxWaitSeconds:
@@ -1079,9 +1079,8 @@ spec:
                             the batcher or the loader. Using this user can specify
                             the no of topics and the amount of resources needed to
                             run them as one unit. Operator calculates the total units
-                            based on this and the total number of topics it needs
-                            to sink. This greatly solves the scaling issues described
-                            in #167.'
+                            based on the total number of topics and this unit spec.
+                            This majorly solves the scaling issues described in #167.'
                           properties:
                             maxTopics:
                               description: MaxTopics specify the maximum number of
@@ -1176,13 +1175,14 @@ spec:
                           type: object
                         maxConcurrency:
                           description: MaxConcurrency is the maximum no, of batch
-                            processors to run concurrently. this spec is useful only
-                            when the sink group pod operates on asynchronous mode.
-                            loader pods does not needed this.
+                            processors to run concurrently. This spec is useful when
+                            the sink group pod operates in asynchronous mode. Loader
+                            pods does not needed this as they are synchronous.
                           type: integer
                         maxProcessingTime:
                           description: MaxProcessingTime is the max time in ms required
-                            to consume one message. Defaults to 1000ms
+                            to consume one message. Defaults for the batcher is 180000ms
+                            and loader is 600000ms.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -1190,9 +1190,9 @@ spec:
                           - type: integer
                           - type: string
                           description: 'MaxSizePerBatch is the maximum size of the
-                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
-                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
-                            bytes'
+                            batch in bytes, Ki, Mi, Gi Example values: 1000, 1Ki,
+                            100Mi, 1Gi 1000 is 1000 bytes, 1Ki is 1 Killo byte, 100Mi
+                            is 100 mega bytes, 1Gi is 1 Giga bytes'
                           pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                           x-kubernetes-int-or-string: true
                         maxWaitSeconds:
@@ -1210,9 +1210,8 @@ spec:
                             the batcher or the loader. Using this user can specify
                             the no of topics and the amount of resources needed to
                             run them as one unit. Operator calculates the total units
-                            based on this and the total number of topics it needs
-                            to sink. This greatly solves the scaling issues described
-                            in #167.'
+                            based on the total number of topics and this unit spec.
+                            This majorly solves the scaling issues described in #167.'
                           properties:
                             maxTopics:
                               description: MaxTopics specify the maximum number of
@@ -1307,13 +1306,14 @@ spec:
                           type: object
                         maxConcurrency:
                           description: MaxConcurrency is the maximum no, of batch
-                            processors to run concurrently. this spec is useful only
-                            when the sink group pod operates on asynchronous mode.
-                            loader pods does not needed this.
+                            processors to run concurrently. This spec is useful when
+                            the sink group pod operates in asynchronous mode. Loader
+                            pods does not needed this as they are synchronous.
                           type: integer
                         maxProcessingTime:
                           description: MaxProcessingTime is the max time in ms required
-                            to consume one message. Defaults to 1000ms
+                            to consume one message. Defaults for the batcher is 180000ms
+                            and loader is 600000ms.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -1321,9 +1321,9 @@ spec:
                           - type: integer
                           - type: string
                           description: 'MaxSizePerBatch is the maximum size of the
-                            batch in Bytes, Ki, Mi, Gi Examples: 1000 is 1000 bytes,
-                            1Ki is 1 Killo byte, 100Mi 100 mega bytes, 1Gi is 1 Giga
-                            bytes'
+                            batch in bytes, Ki, Mi, Gi Example values: 1000, 1Ki,
+                            100Mi, 1Gi 1000 is 1000 bytes, 1Ki is 1 Killo byte, 100Mi
+                            is 100 mega bytes, 1Gi is 1 Giga bytes'
                           pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                           x-kubernetes-int-or-string: true
                         maxWaitSeconds:

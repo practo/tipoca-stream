@@ -31,7 +31,10 @@ const (
 	ReloadTableSuffix = "_ts_adx_reload"
 )
 
-var DefaultMaxBatcherTopics int = 30
+var (
+	DefaultMaxBatcherTopics int = 30
+	DefaultMaxLoaderTopics  int = 300
+)
 
 type sinkGroupInterface interface {
 	reconcile(ctx context.Context) (ctrl.Result, ReconcilerEvent, error)

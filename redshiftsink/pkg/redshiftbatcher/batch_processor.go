@@ -288,7 +288,7 @@ func (b *batchProcessor) processMessage(
 	}
 
 	if resp.batchSchemaID != message.SchemaId {
-		return bytesProcessed, fmt.Errorf("topic:%s, schema id mismatch in the batch, %d != %d",
+		return bytesProcessed, fmt.Errorf("%s: schema id mismatch in the batch, %d != %d",
 			b.topic,
 			resp.batchSchemaID,
 			message.SchemaId,
