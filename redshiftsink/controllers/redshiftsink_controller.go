@@ -67,8 +67,7 @@ type RedshiftSinkReconciler struct {
 }
 
 const (
-	MaxConcurrentReloading = 30
-	MaxTopicRelease        = 50
+	MaxTopicRelease = 50
 )
 
 // +kubebuilder:rbac:groups=tipoca.k8s.practo.dev,resources=redshiftsinks,verbs=get;list;watch;create;update;patch;delete
@@ -431,14 +430,10 @@ func (r *RedshiftSinkReconciler) reconcile(
 	//      tableSuffix: ""
 	var reload, reloadDupe, main *sinkGroup
 
-	allowedReloadingTopics := status.reloading
-	if len(status.reloading) > MaxConcurrentReloading {
-		allowedReloadingTopics = status.reloading[:MaxConcurrentReloading]
-	}
 	reload = sgBuilder.
 		setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).
 		setType(ReloadSinkGroup).
-		setTopics(allowedReloadingTopics).
+		setTopics(status.reloading).
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
 		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
