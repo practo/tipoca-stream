@@ -79,15 +79,20 @@ func applyLoaderSinkGroupDefaults(
 		if specifiedSpec.MaxProcessingTime != nil {
 			maxProcessingTime = specifiedSpec.MaxProcessingTime
 		}
-		if specifiedSpec.DeploymentUnit.PodTemplate != nil {
-			if specifiedSpec.DeploymentUnit.PodTemplate.Image != nil {
-				image = specifiedSpec.DeploymentUnit.PodTemplate.Image
+		if specifiedSpec.DeploymentUnit != nil {
+			if specifiedSpec.DeploymentUnit.MaxTopics != nil {
+				maxTopics = specifiedSpec.DeploymentUnit.MaxTopics
 			}
-			if specifiedSpec.DeploymentUnit.PodTemplate.Resources != nil {
-				resources = specifiedSpec.DeploymentUnit.PodTemplate.Resources
-			}
-			if specifiedSpec.DeploymentUnit.PodTemplate.Tolerations != nil {
-				tolerations = specifiedSpec.DeploymentUnit.PodTemplate.Tolerations
+			if specifiedSpec.DeploymentUnit.PodTemplate != nil {
+				if specifiedSpec.DeploymentUnit.PodTemplate.Image != nil {
+					image = specifiedSpec.DeploymentUnit.PodTemplate.Image
+				}
+				if specifiedSpec.DeploymentUnit.PodTemplate.Resources != nil {
+					resources = specifiedSpec.DeploymentUnit.PodTemplate.Resources
+				}
+				if specifiedSpec.DeploymentUnit.PodTemplate.Tolerations != nil {
+					tolerations = specifiedSpec.DeploymentUnit.PodTemplate.Tolerations
+				}
 			}
 		}
 	}
