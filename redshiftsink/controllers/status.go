@@ -68,11 +68,13 @@ func (sb *buildStatus) setDesiredVersion(version string) statusBuilder {
 
 func (sb *buildStatus) setAllTopics(topics []string) statusBuilder {
 	sb.allTopics = topics
+	sortStringSlice(sb.allTopics)
 	return sb
 }
 
 func (sb *buildStatus) setDiffTopics(topics []string) statusBuilder {
 	sb.diffTopics = topics
+	sortStringSlice(sb.diffTopics)
 	return sb
 }
 
@@ -108,6 +110,7 @@ func (sb *buildStatus) computeReleased() statusBuilder {
 		klog.V(2).Infof("rsk/%s, Status empty, released=0 ", sb.rsk.Name)
 	}
 	sb.released = released
+	sortStringSlice(sb.released)
 
 	return sb
 }
@@ -116,6 +119,8 @@ func (sb *buildStatus) setRealtime() statusBuilder {
 	sb.realtime = currentTopicsByMaskStatus(
 		sb.rsk, tipocav1.MaskRealtime, sb.desiredVersion,
 	)
+	sortStringSlice(sb.realtime)
+
 	return sb
 }
 
@@ -124,6 +129,7 @@ func (sb *buildStatus) computeReloading() statusBuilder {
 		sb.rsk.Status.MaskStatus.CurrentMaskStatus == nil {
 		klog.V(2).Infof("rsk/%s, Status empty, reloading=diffTopics ", sb.rsk.Name)
 		sb.reloading = sb.diffTopics
+		sortStringSlice(sb.reloading)
 		return sb
 	}
 
@@ -160,6 +166,7 @@ func (sb *buildStatus) computeReloading() statusBuilder {
 	}
 
 	sb.reloading = reConstructingReloading
+	sortStringSlice(sb.reloading)
 	return sb
 }
 
@@ -180,6 +187,7 @@ func (sb *buildStatus) computeReloadingDupe() statusBuilder {
 	}
 
 	sb.reloadingDupe = reloadDupeTopics
+	sortStringSlice(sb.reloadingDupe)
 	return sb
 }
 
