@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	hashstructure "github.com/mitchellh/hashstructure/v2"
 	klog "github.com/practo/klog/v2"
@@ -174,6 +175,18 @@ func getReplicas(suspend bool, totalGroups, totalTopics int) int32 {
 	}
 
 	return 1
+}
+
+func cacheValid(validity time.Duration, lastCachedTime *int64) bool {
+	if lastCachedTime == nil {
+		return false
+	}
+
+	if (*lastCachedTime + validity.Nanoseconds()) > time.Now().UnixNano() {
+		return true
+	}
+
+	return false
 }
 
 func makeLoaderTopics(prefix string, topics []string) []string {
