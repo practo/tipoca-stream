@@ -78,6 +78,11 @@ type SinkGroupSpec struct {
 	// Defaults for the batcher is 180000ms and loader is 600000ms.
 	// +optional
 	MaxProcessingTime *int32 `json:"maxProcessingTime,omitempty"`
+
+	// MaxUnits is the maximum number of units(pods) that can be launched
+	// based on the DeploymentUnit specification
+	// +optional
+	MaxUnits *int32 `json:"maxUnits,omitempty"`
 	// DeploymentUnit is the unit of deployment for the batcher or the loader.
 	// Using this user can specify the no of topics and the amount of resources
 	// needed to run them as one unit. Operator calculates the total units

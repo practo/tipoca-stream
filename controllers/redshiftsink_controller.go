@@ -365,7 +365,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 	var currentMaskVersion string
 	if rsk.Status.MaskStatus != nil &&
 		rsk.Status.MaskStatus.CurrentMaskVersion != nil {
-
 		currentMaskVersion = *rsk.Status.MaskStatus.CurrentMaskVersion
 	} else {
 		klog.V(2).Infof("rsk/%s, Status empty, currentVersion=''", rsk.Name)
@@ -414,6 +413,45 @@ func (r *RedshiftSinkReconciler) reconcile(
 		klog.Fatalf("rsk/%s unexpected status, no diff but reloading", rsk.Name)
 	}
 
+	// Realtime status is always calculated to keep the CurrentOffset
+	// info updated in the rsk status. This is required so that low throughput
+	// release do not get blocked due to missing consumer group currentOffset.
+	reloadTopicGroup := topicGroupBySinkGroup(rsk, ReloadSinkGroup, status.reloading, status.desiredVersion, rsk.Spec.KafkaLoaderTopicPrefix)
+	calc := newRealtimeCalculator(rsk, kafkaWatcher, reloadTopicGroup, r.KafkaRealtimeCache)
+	currentRealtime := calc.calculate(status.reloading, status.realtime)
+
+	// set allowShuffle
+	reloadingRatio := status.reloadingRatio()
+	allowShuffle := true
+	if reloadingRatio > 0.2 {
+		rcloaded, ok := r.ReleaseCache.Load(rsk.Namespace + rsk.Name)
+		if ok {
+			cache := rcloaded.(releaseCache)
+			if cacheValid(time.Second*time.Duration(r.ReleaseWaitSeconds), cache.lastCacheRefresh) {
+				allowShuffle = false
+			}
+		}
+	}
+	klog.V(2).Infof("rsk/%v allowShuffle=%v, reloadingRatio=%v", rsk.Name, allowShuffle, reloadingRatio)
+	// allow realtime update only during release window, to minimize shuffle
+	if allowShuffle {
+		if !subSetSlice(currentRealtime, status.realtime) {
+			for _, moreRealtime := range currentRealtime {
+				status.realtime = appendIfMissing(status.realtime, moreRealtime)
+			}
+			klog.V(2).Infof(
+				"rsk/%s reconcile needed, realtime topics updated: %v",
+				rsk.Name,
+				status.realtime,
+			)
+			return resultRequeueMilliSeconds(1500), nil, nil
+		}
+		klog.V(2).Infof("rsk/%v reconciling all sinkGroups", rsk.Name)
+	} else {
+		klog.V(2).Infof("rsk/%s realtime (waiting): %d %v", rsk.Name, len(currentRealtime), currentRealtime)
+		klog.V(2).Infof("rsk/%v reconciling all sinkGroups (still)", rsk.Name)
+	}
+
 	// SinkGroup are of following types:
 	// 1. main: sink group which has desiredMaskVersion
 	//      and has topics which have been released
@@ -439,47 +477,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
 		buildLoaders(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 		build()
-
-	reloadingRatio := status.reloadingRatio()
-	allowShuffle := true
-	if reloadingRatio > 0.2 {
-		rcloaded, ok := r.ReleaseCache.Load(rsk.Namespace + rsk.Name)
-		if ok {
-			cache := rcloaded.(releaseCache)
-			if cacheValid(time.Second*time.Duration(r.ReleaseWaitSeconds), cache.lastCacheRefresh) {
-				allowShuffle = false
-			}
-			// } else {
-			// 	klog.V(2).Infof("rsk/%v init release cache", rsk.Name)
-			// 	now := time.Now().UnixNano()
-			// 	r.ReleaseCache.Store(
-			// 		rsk.Namespace+rsk.Name,
-			// 		releaseCache{lastCacheRefresh: &now},
-			// 	)
-			// 	return resultRequeueMilliSeconds(100), nil, nil
-		}
-	}
-	klog.V(2).Infof("rsk/%v allowShuffle=%v, reloadingRatio=%v", rsk.Name, allowShuffle, reloadingRatio)
-
-	// Realtime status is always calculated to keep the CurrentOffset
-	// info updated in the rsk status. This is required so that low throughput
-	// release do not get blocked due to missing consumer group currentOffset.
-	currentRealtime := reload.realtimeTopics(status.realtime, kafkaWatcher, r.KafkaRealtimeCache)
-
-	// Allow realtime update only during release window, to minimize shuffle
-	if allowShuffle {
-		if !subSetSlice(currentRealtime, status.realtime) {
-			for _, moreRealtime := range currentRealtime {
-				status.realtime = appendIfMissing(status.realtime, moreRealtime)
-			}
-			klog.V(2).Infof(
-				"Reconcile needed, realtime topics updated: %v", status.realtime)
-			return resultRequeueMilliSeconds(1500), nil, nil
-		}
-		klog.V(2).Infof("rsk/%v reconciling all sinkGroups", rsk.Name)
-	} else {
-		klog.V(2).Infof("rsk/%s realtime (waiting): %d %v", rsk.Name, len(currentRealtime), currentRealtime)
-	}
 
 	reloadDupe = sgBuilder.
 		setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).
