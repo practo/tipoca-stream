@@ -529,7 +529,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	if len(status.realtime) >= MaxTopicRelease {
 		releaseCandidates = status.realtime[:MaxTopicRelease]
 	}
-	klog.V(2).Infof("release candidates: %v", releaseCandidates)
+	klog.V(2).Infof("rsk/%s release candidates: %v", rsk.Name, releaseCandidates)
 
 	var releaser *releaser
 	if len(releaseCandidates) > 0 {
