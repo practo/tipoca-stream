@@ -145,6 +145,7 @@ func (b *batchProcessor) ctxCancelled(ctx context.Context) error {
 
 func constructS3key(
 	s3ucketDir string,
+	consumerGroupID string,
 	topic string,
 	partition int32,
 	offset int64,
@@ -159,6 +160,7 @@ func constructS3key(
 	if maskFileVersion != "" {
 		return filepath.Join(
 			s3ucketDir,
+			consumerGroupID,
 			topic,
 			maskFileVersion,
 			s3FileName,
@@ -166,6 +168,7 @@ func constructS3key(
 	} else {
 		return filepath.Join(
 			s3ucketDir,
+			consumerGroupID,
 			topic,
 			s3FileName,
 		)
@@ -280,6 +283,7 @@ func (b *batchProcessor) processMessage(
 		resp.batchSchemaTable = r.(redshift.Table)
 		resp.s3Key = constructS3key(
 			b.s3BucketDir,
+			b.consumerGroupID,
 			message.Topic,
 			message.Partition,
 			message.Offset,
