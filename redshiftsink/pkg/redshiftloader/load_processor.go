@@ -305,8 +305,8 @@ func (b *loadProcessor) insertIntoTargetTable(ctx context.Context, tx *sql.Tx) e
 
 	s3CopyDir := filepath.Join(
 		viper.GetString("s3sink.bucketDir"),
-		b.topic,
 		b.consumerGroupID,
+		b.topic,
 		util.NewUUIDString(),
 		"unload_",
 	)
@@ -510,8 +510,8 @@ func (b *loadProcessor) migrateTable(
 
 	s3CopyDir := filepath.Join(
 		viper.GetString("s3sink.bucketDir"),
-		b.topic,
 		b.consumerGroupID,
+		b.topic,
 		util.NewUUIDString(),
 		"migrating_unload_",
 	)
@@ -683,8 +683,8 @@ func (b *loadProcessor) processBatch(
 	// upload s3 manifest file to bulk copy data to staging table
 	s3ManifestKey := filepath.Join(
 		viper.GetString("s3sink.bucketDir"),
-		b.topic,
 		b.consumerGroupID,
+		b.topic,
 		util.NewUUIDString(),
 		"manifest.json",
 	)
