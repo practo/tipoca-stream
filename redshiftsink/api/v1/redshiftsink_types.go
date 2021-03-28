@@ -46,11 +46,6 @@ type RedshiftPodTemplateSpec struct {
 // DeploymentUnit is used to specify how many topics will run together in a unit
 // and how much resources it needs.
 type DeploymentUnit struct {
-	// MaxTopics specify the maximum number of topics that
-	// can be part of this unit of deployment.
-	// +optional
-	MaxTopics *int `json:"maxTopics,omitempty"`
-
 	// PodTemplate describes the pod specification for the unit.
 	// +optional
 	PodTemplate *RedshiftPodTemplateSpec `json:"podTemplate,omitempty"`
@@ -79,12 +74,13 @@ type SinkGroupSpec struct {
 	// +optional
 	MaxProcessingTime *int32 `json:"maxProcessingTime,omitempty"`
 
-	// MaxUnits is the maximum number of units(pods) that can be launched
-	// based on the DeploymentUnit specification
+	// MaxReloadingUnits is the maximum number of units(pods) that can be launched
+	// based on the DeploymentUnit specification. Only valid for Reloading SinkGroup.
+	// This value is at present supported to be configurable only for batcher
 	// +optional
-	MaxUnits *int32 `json:"maxUnits,omitempty"`
-	// DeploymentUnit is the unit of deployment for the batcher or the loader.
-	// Using this user can specify the no of topics and the amount of resources
+	MaxReloadingUnits *int32 `json:"maxReloadingUnits,omitempty"`
+	// DeploymentUnit(pod) is the unit of deployment for the batcher or the loader.
+	// Using this user can specify the amount of resources
 	// needed to run them as one unit. Operator calculates the total units
 	// based on the total number of topics and this unit spec. This majorly
 	// solves the scaling issues described in #167.
@@ -333,6 +329,12 @@ type RedshiftSinkStatus struct {
 	// TopicGroup stores the group info for the topic
 	// +optional
 	TopicGroup map[string]Group `json:"topicGroups,omitempty"`
+
+	// BatcherReloadingTopics stores the list of topics which are currently reloading
+	// for the batcher deployments in the reload sink group.
+	// There is a limit to maximum topics that can be reloaded. (MaxReloadingUnits)
+	// +optional
+	BatcherReloadingTopics []string `json:"batcherReloadingTopics,omitempty"`
 }
 
 // +kubebuilder:resource:path=redshiftsinks,shortName=rsk;rsks

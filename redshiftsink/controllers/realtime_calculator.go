@@ -10,15 +10,6 @@ import (
 	"time"
 )
 
-var (
-	DefaultMaxBatcherTopics int = 30
-	DefaultMaxLoaderTopics  int = 300
-)
-
-type realtimeCalculatorInterface interface {
-	calculate(reloading []string, currentRealtime []string) []string
-}
-
 type offsetPosition struct {
 	last    *int64
 	current *int64
@@ -32,6 +23,11 @@ type topicRealtimeInfo struct {
 	loaderRealtime  bool
 }
 
+type topicLag struct {
+	topic string
+	lag   int64
+}
+
 type realtimeCalculator struct {
 	rsk         *tipocav1.RedshiftSink
 	watcher     kafka.Watcher
@@ -40,6 +36,9 @@ type realtimeCalculator struct {
 
 	batchersRealtime []string
 	loadersRealtime  []string
+
+	batchersLag []topicLag
+	loadersLag  []topicLag
 }
 
 func newRealtimeCalculator(
@@ -47,13 +46,15 @@ func newRealtimeCalculator(
 	watcher kafka.Watcher,
 	topicGroups map[string]tipocav1.Group,
 	cache *sync.Map,
-) realtimeCalculatorInterface {
+) *realtimeCalculator {
 
 	return &realtimeCalculator{
 		rsk:         rsk,
 		watcher:     watcher,
 		topicGroups: topicGroups,
 		cache:       cache,
+		batchersLag: []topicLag{},
+		loadersLag:  []topicLag{},
 	}
 }
 
@@ -216,6 +217,8 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 	}
 
 	realtimeTopics := []string{}
+	current := toMap(currentRealtime)
+
 	allTopics, err := r.watcher.Topics()
 	if err != nil {
 		klog.Errorf(
@@ -226,9 +229,7 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 	}
 	allTopicsMap := toMap(allTopics)
 
-	current := toMap(currentRealtime)
 	for _, topic := range reloading {
-
 		group, ok := r.topicGroups[topic]
 		if !ok {
 			klog.Errorf("topicGroup 404 in status for: %s", topic)
@@ -239,7 +240,7 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 		ltopic := r.rsk.Spec.KafkaLoaderTopicPrefix + group.ID + "-" + topic
 		_, ok = allTopicsMap[ltopic]
 		if !ok {
-			klog.V(2).Infof("%s topic 404, not realtime.", loaderTopic)
+			klog.V(2).Infof("%s topic 404, not realtime.", *loaderTopic)
 		} else {
 			loaderTopic = &ltopic
 		}
@@ -280,21 +281,38 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 		// compute realtime
 		maxBatcherLag, maxLoaderLag := r.maxLag(topic)
 		if info.batcher != nil && info.batcher.last != nil && info.batcher.current != nil {
-			if *info.batcher.last-*info.batcher.current <= maxBatcherLag {
-				klog.V(3).Infof("rsk/s: %s, batcher realtime", r.rsk.Name, topic)
+			lag := *info.batcher.last - *info.batcher.current
+			if lag <= maxBatcherLag {
+				klog.V(3).Infof("rsk/%s: %s batcher realtime", r.rsk.Name, topic)
 				info.batcherRealtime = true
 				r.batchersRealtime = append(r.batchersRealtime, topic)
 			}
+			r.batchersLag = append(
+				r.batchersLag,
+				topicLag{
+					topic: topic,
+					lag:   lag,
+				},
+			)
 		}
 		if info.loader != nil && info.loader.last != nil && info.loader.current != nil {
+			lag := *info.loader.last - *info.loader.current
 			if *info.loader.last-*info.loader.current <= maxLoaderLag {
-				klog.V(3).Infof("rsk/s: %s, loader realtime", r.rsk.Name, ltopic)
+				klog.V(3).Infof("rsk/%s: %s loader realtime", r.rsk.Name, ltopic)
 				info.loaderRealtime = true
 				r.loadersRealtime = append(r.loadersRealtime, ltopic)
 			}
+			r.loadersLag = append(
+				r.loadersLag,
+				topicLag{
+					topic: topic,
+					lag:   lag,
+				},
+			)
 		}
+
 		if info.batcherRealtime && info.loaderRealtime {
-			klog.V(2).Infof("rsk/s: %s, realtime", r.rsk.Name, topic)
+			klog.V(2).Infof("rsk/%s: %s realtime", r.rsk.Name, topic)
 			realtimeTopics = append(realtimeTopics, topic)
 		} else {
 			klog.V(2).Infof("%v: waiting to reach realtime", topic)

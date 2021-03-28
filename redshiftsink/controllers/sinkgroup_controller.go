@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"math"
 	"time"
 
 	klog "github.com/practo/klog/v2"
@@ -30,6 +29,8 @@ const (
 )
 
 type sinkGroupInterface interface {
+	batcherDeploymentTopics() []string
+	loaderDeploymentTopics() []string
 	reconcile(ctx context.Context) (ctrl.Result, ReconcilerEvent, error)
 }
 
@@ -40,6 +41,7 @@ type Deployment interface {
 	Deployment() *appsv1.Deployment
 	UpdateConfig(current *corev1.ConfigMap) bool
 	UpdateDeployment(current *appsv1.Deployment) bool
+	Topics() []string
 }
 
 type sinkGroup struct {
@@ -49,6 +51,7 @@ type sinkGroup struct {
 	sgType      string
 	topics      []string
 	topicGroups map[string]tipocav1.Group
+	calc        *realtimeCalculator
 
 	batchers []Deployment
 	loaders  []Deployment
@@ -62,6 +65,7 @@ type sinkGroupBuilder interface {
 	setTopics(topics []string) sinkGroupBuilder
 	setMaskVersion(version string) sinkGroupBuilder
 	setTopicGroups() sinkGroupBuilder
+	setRealtimeCalculator(calc *realtimeCalculator) sinkGroupBuilder
 
 	buildBatchers(secret map[string]string, defaultImage, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig) sinkGroupBuilder
 	buildLoaders(secret map[string]string, defaultImage, tableSuffix string, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig, defaultMaxOpenConns int, defaultMaxIdleConns int) sinkGroupBuilder
@@ -81,6 +85,7 @@ type buildSinkGroup struct {
 	topics      []string
 	topicGroups map[string]tipocav1.Group
 	maskVersion string
+	calc        *realtimeCalculator
 
 	batchers []Deployment
 	loaders  []Deployment
@@ -127,41 +132,10 @@ func (sb *buildSinkGroup) setTopicGroups() sinkGroupBuilder {
 	return sb
 }
 
-type deploymentUnit struct {
-	id     string
-	topics []string
-}
+func (sb *buildSinkGroup) setRealtimeCalculator(calc *realtimeCalculator) sinkGroupBuilder {
+	sb.calc = calc
 
-// assignDeploymentUnits allocates the total topics into units of deployments.
-func assignDeploymentUnits(allTopics []string, maxTopics int) []deploymentUnit {
-	if len(allTopics) <= maxTopics {
-		return []deploymentUnit{
-			deploymentUnit{
-				id:     "0",
-				topics: allTopics,
-			},
-		}
-	}
-
-	units := []deploymentUnit{}
-	totalUnits := int(math.Ceil(float64(len(allTopics)) / float64(maxTopics)))
-	startIndex := 0
-	lastIndex := maxTopics
-	for id := 0; id < totalUnits; id++ {
-		topics := allTopics[startIndex:lastIndex]
-		startIndex = lastIndex
-		if lastIndex+maxTopics >= len(allTopics) {
-			lastIndex = len(allTopics)
-		} else {
-			lastIndex = lastIndex + maxTopics
-		}
-		units = append(units, deploymentUnit{
-			id:     fmt.Sprintf("%d", id),
-			topics: topics,
-		})
-	}
-
-	return units
+	return sb
 }
 
 func (sb *buildSinkGroup) buildBatchers(
@@ -177,10 +151,25 @@ func (sb *buildSinkGroup) buildBatchers(
 			sb.sgType,
 			defaultImage,
 		)
-		units := assignDeploymentUnits(
-			sb.topics,
-			*sinkGroupSpec.DeploymentUnit.MaxTopics,
-		)
+		var units []deploymentUnit
+		if sb.calc != nil {
+			allocator := newUnitAllocator(
+				sb.topics,
+				sb.calc.batchersRealtime,
+				sb.calc.batchersLag,
+				*sinkGroupSpec.MaxReloadingUnits,
+				sb.rsk.Status.BatcherReloadingTopics,
+			)
+			allocator.allocateReloadingUnits()
+			units = allocator.units
+		} else {
+			units = []deploymentUnit{
+				deploymentUnit{
+					id:     "",
+					topics: sb.topics,
+				},
+			}
+		}
 		for _, unit := range units {
 			consumerGroups, err := computeConsumerGroups(
 				sb.topicGroups, unit.topics)
@@ -249,10 +238,12 @@ func (sb *buildSinkGroup) buildLoaders(
 			sb.sgType,
 			defaultImage,
 		)
-		units := assignDeploymentUnits(
-			sb.topics,
-			*sinkGroupSpec.DeploymentUnit.MaxTopics,
-		)
+		units := []deploymentUnit{
+			deploymentUnit{
+				id:     "",
+				topics: sb.topics,
+			},
+		}
 		for _, unit := range units {
 			consumerGroups, err := computeConsumerGroups(
 				sb.topicGroups, unit.topics)
@@ -774,4 +765,22 @@ func (s *sinkGroup) reconcile(
 	}
 
 	return result, nil, nil
+}
+
+func (s *sinkGroup) batcherDeploymentTopics() []string {
+	t := []string{}
+	for _, d := range s.batchers {
+		t = append(t, d.Topics()...)
+	}
+
+	return t
+}
+
+func (s *sinkGroup) loaderDeploymentTopics() []string {
+	t := []string{}
+	for _, d := range s.loaders {
+		t = append(t, d.Topics()...)
+	}
+
+	return t
 }

@@ -419,6 +419,10 @@ func (r *RedshiftSinkReconciler) reconcile(
 	reloadTopicGroup := topicGroupBySinkGroup(rsk, ReloadSinkGroup, status.reloading, status.desiredVersion, rsk.Spec.KafkaLoaderTopicPrefix)
 	calc := newRealtimeCalculator(rsk, kafkaWatcher, reloadTopicGroup, r.KafkaRealtimeCache)
 	currentRealtime := calc.calculate(status.reloading, status.realtime)
+	if len(status.reloading) > 0 {
+		klog.V(2).Infof("rsk/%v batchers realtime: %d / %d", rsk.Name, len(calc.batchersRealtime), len(status.reloading))
+		klog.V(2).Infof("rsk/%v loaders  realtime: %d / %d", rsk.Name, len(calc.loadersRealtime), len(status.reloading))
+	}
 
 	// set allowShuffle
 	reloadingRatio := status.reloadingRatio()
@@ -474,9 +478,11 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopics(status.reloading).
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
+		setRealtimeCalculator(calc).
 		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
 		buildLoaders(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 		build()
+	status.updateBatcherReloadingTopics(reload.batcherDeploymentTopics())
 
 	reloadDupe = sgBuilder.
 		setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).
@@ -484,6 +490,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopics(status.reloadingDupe).
 		setMaskVersion(status.currentVersion).
 		setTopicGroups().
+		setRealtimeCalculator(nil).
 		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
 		buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 		build()
@@ -494,6 +501,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopics(status.released).
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
+		setRealtimeCalculator(nil).
 		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
 		buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 		build()

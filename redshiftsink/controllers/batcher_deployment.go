@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	BatcherSuffix        = "-batcher"
+	BatcherTag           = "batcher"
 	BatcherLabelInstance = "redshiftbatcher"
 )
 
@@ -24,6 +24,7 @@ type Batcher struct {
 	namespace  string
 	deployment *appsv1.Deployment
 	config     *corev1.ConfigMap
+	topics     []string
 }
 
 // applyBatcherSinkGroupDefaults applies the defaults for the batcher
@@ -43,7 +44,6 @@ func applyBatcherSinkGroupDefaults(
 	maxWaitSeconds := &redshiftbatcher.DefaultMaxWaitSeconds
 	maxConcurrency := &redshiftbatcher.DefaultMaxConcurrency
 	maxProcessingTime := &redshiftbatcher.DefaultMaxProcessingTime
-	maxTopics := &DefaultMaxBatcherTopics
 	image := &defaultImage
 	var resources *corev1.ResourceRequirements
 	var tolerations *[]corev1.Toleration
@@ -83,9 +83,6 @@ func applyBatcherSinkGroupDefaults(
 			maxProcessingTime = specifiedSpec.MaxProcessingTime
 		}
 		if specifiedSpec.DeploymentUnit != nil {
-			if specifiedSpec.DeploymentUnit.MaxTopics != nil {
-				maxTopics = specifiedSpec.DeploymentUnit.MaxTopics
-			}
 			if specifiedSpec.DeploymentUnit.PodTemplate != nil {
 				if specifiedSpec.DeploymentUnit.PodTemplate.Image != nil {
 					image = specifiedSpec.DeploymentUnit.PodTemplate.Image
@@ -106,7 +103,6 @@ func applyBatcherSinkGroupDefaults(
 		MaxConcurrency:    maxConcurrency,
 		MaxProcessingTime: maxProcessingTime,
 		DeploymentUnit: &tipocav1.DeploymentUnit{
-			MaxTopics: maxTopics,
 			PodTemplate: &tipocav1.RedshiftPodTemplateSpec{
 				Image:       image,
 				Resources:   resources,
@@ -140,14 +136,23 @@ func batcherSecret(secret map[string]string) (map[string]string, error) {
 	return s, nil
 }
 
-func batcherName(rskName, sinkGroup string, id string) string {
-	return fmt.Sprintf(
-		"%s-%s%s%s",
-		rskName,
-		sinkGroup,
-		id,
-		BatcherSuffix,
-	)
+func batcherName(rskName, sinkGroup, id string) string {
+	if id == "" {
+		return fmt.Sprintf(
+			"%s-%s-%s",
+			rskName,
+			BatcherTag,
+			sinkGroup,
+		)
+	} else {
+		return fmt.Sprintf(
+			"%s-%s-%s-%s",
+			rskName,
+			BatcherTag,
+			sinkGroup,
+			id,
+		)
+	}
 }
 
 func NewBatcher(
@@ -213,9 +218,11 @@ func NewBatcher(
 	var sessionTimeoutSeconds int = 10
 	var hearbeatIntervalSeconds int = 2
 
+	topics := []string{}
 	totalTopics := 0
 	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
+		topics = append(topics, group.topics...)
 		totalTopics += len(group.topics)
 		groupConfigs = append(groupConfigs, kafka.ConsumerGroupConfig{
 			GroupID:           consumerGroupID(rsk.Name, rsk.Namespace, groupID, "-batcher"),
@@ -307,6 +314,7 @@ func NewBatcher(
 		namespace:  rsk.Namespace,
 		deployment: deploymentFromSpec(deploySpec, configSpec),
 		config:     configFromSpec(configSpec),
+		topics:     topics,
 	}, nil
 }
 
@@ -332,4 +340,8 @@ func (b Batcher) UpdateDeployment(current *appsv1.Deployment) bool {
 
 func (b Batcher) UpdateConfig(current *corev1.ConfigMap) bool {
 	return !configSpecEqual(current, b.Config())
+}
+
+func (b Batcher) Topics() []string {
+	return b.topics
 }
