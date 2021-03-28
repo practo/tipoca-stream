@@ -19,6 +19,7 @@ type status struct {
 	released      []string
 	realtime      []string
 	reloading     []string
+	reloadWaiting []string
 	reloadingDupe []string
 }
 
@@ -489,6 +490,10 @@ func (s *status) updateTopicGroup(topic string) {
 		ID:                  groupID,
 	}
 	updateTopicGroup(s.rsk, topic, group)
+}
+
+func (s *status) updateBatcherReloadingTopics(topics []string) {
+	s.rsk.Status.BatcherReloadingTopics = topics
 }
 
 func updateTopicGroup(rsk *tipocav1.RedshiftSink, topic string, group tipocav1.Group) {

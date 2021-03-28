@@ -154,17 +154,13 @@ spec:
                       description: All specifies a common specification for all SinkGroups
                       properties:
                         deploymentUnit:
-                          description: 'DeploymentUnit is the unit of deployment for
-                            the batcher or the loader. Using this user can specify
-                            the no of topics and the amount of resources needed to
-                            run them as one unit. Operator calculates the total units
-                            based on the total number of topics and this unit spec.
-                            This majorly solves the scaling issues described in #167.'
+                          description: 'DeploymentUnit(pod) is the unit of deployment
+                            for the batcher or the loader. Using this user can specify
+                            the amount of resources needed to run them as one unit.
+                            Operator calculates the total units based on the total
+                            number of topics and this unit spec. This majorly solves
+                            the scaling issues described in #167.'
                           properties:
-                            maxTopics:
-                              description: MaxTopics specify the maximum number of
-                                topics that can be part of this unit of deployment.
-                              type: integer
                             podTemplate:
                               description: PodTemplate describes the pod specification
                                 for the unit.
@@ -262,6 +258,14 @@ spec:
                           description: MaxProcessingTime is the max time in ms required
                             to consume one message. Defaults for the batcher is 180000ms
                             and loader is 600000ms.
+                          format: int32
+                          type: integer
+                        maxReloadingUnits:
+                          description: MaxReloadingUnits is the maximum number of
+                            units(pods) that can be launched based on the DeploymentUnit
+                            specification. Only valid for Reloading SinkGroup. This
+                            value is at present supported to be configurable only
+                            for batcher
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -285,17 +289,13 @@ spec:
                         overwrites All
                       properties:
                         deploymentUnit:
-                          description: 'DeploymentUnit is the unit of deployment for
-                            the batcher or the loader. Using this user can specify
-                            the no of topics and the amount of resources needed to
-                            run them as one unit. Operator calculates the total units
-                            based on the total number of topics and this unit spec.
-                            This majorly solves the scaling issues described in #167.'
+                          description: 'DeploymentUnit(pod) is the unit of deployment
+                            for the batcher or the loader. Using this user can specify
+                            the amount of resources needed to run them as one unit.
+                            Operator calculates the total units based on the total
+                            number of topics and this unit spec. This majorly solves
+                            the scaling issues described in #167.'
                           properties:
-                            maxTopics:
-                              description: MaxTopics specify the maximum number of
-                                topics that can be part of this unit of deployment.
-                              type: integer
                             podTemplate:
                               description: PodTemplate describes the pod specification
                                 for the unit.
@@ -393,6 +393,14 @@ spec:
                           description: MaxProcessingTime is the max time in ms required
                             to consume one message. Defaults for the batcher is 180000ms
                             and loader is 600000ms.
+                          format: int32
+                          type: integer
+                        maxReloadingUnits:
+                          description: MaxReloadingUnits is the maximum number of
+                            units(pods) that can be launched based on the DeploymentUnit
+                            specification. Only valid for Reloading SinkGroup. This
+                            value is at present supported to be configurable only
+                            for batcher
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -416,17 +424,13 @@ spec:
                         overwrites All
                       properties:
                         deploymentUnit:
-                          description: 'DeploymentUnit is the unit of deployment for
-                            the batcher or the loader. Using this user can specify
-                            the no of topics and the amount of resources needed to
-                            run them as one unit. Operator calculates the total units
-                            based on the total number of topics and this unit spec.
-                            This majorly solves the scaling issues described in #167.'
+                          description: 'DeploymentUnit(pod) is the unit of deployment
+                            for the batcher or the loader. Using this user can specify
+                            the amount of resources needed to run them as one unit.
+                            Operator calculates the total units based on the total
+                            number of topics and this unit spec. This majorly solves
+                            the scaling issues described in #167.'
                           properties:
-                            maxTopics:
-                              description: MaxTopics specify the maximum number of
-                                topics that can be part of this unit of deployment.
-                              type: integer
                             podTemplate:
                               description: PodTemplate describes the pod specification
                                 for the unit.
@@ -526,6 +530,14 @@ spec:
                             and loader is 600000ms.
                           format: int32
                           type: integer
+                        maxReloadingUnits:
+                          description: MaxReloadingUnits is the maximum number of
+                            units(pods) that can be launched based on the DeploymentUnit
+                            specification. Only valid for Reloading SinkGroup. This
+                            value is at present supported to be configurable only
+                            for batcher
+                          format: int32
+                          type: integer
                         maxSizePerBatch:
                           anyOf:
                           - type: integer
@@ -547,17 +559,13 @@ spec:
                         overwrites All
                       properties:
                         deploymentUnit:
-                          description: 'DeploymentUnit is the unit of deployment for
-                            the batcher or the loader. Using this user can specify
-                            the no of topics and the amount of resources needed to
-                            run them as one unit. Operator calculates the total units
-                            based on the total number of topics and this unit spec.
-                            This majorly solves the scaling issues described in #167.'
+                          description: 'DeploymentUnit(pod) is the unit of deployment
+                            for the batcher or the loader. Using this user can specify
+                            the amount of resources needed to run them as one unit.
+                            Operator calculates the total units based on the total
+                            number of topics and this unit spec. This majorly solves
+                            the scaling issues described in #167.'
                           properties:
-                            maxTopics:
-                              description: MaxTopics specify the maximum number of
-                                topics that can be part of this unit of deployment.
-                              type: integer
                             podTemplate:
                               description: PodTemplate describes the pod specification
                                 for the unit.
@@ -655,6 +663,14 @@ spec:
                           description: MaxProcessingTime is the max time in ms required
                             to consume one message. Defaults for the batcher is 180000ms
                             and loader is 600000ms.
+                          format: int32
+                          type: integer
+                        maxReloadingUnits:
+                          description: MaxReloadingUnits is the maximum number of
+                            units(pods) that can be launched based on the DeploymentUnit
+                            specification. Only valid for Reloading SinkGroup. This
+                            value is at present supported to be configurable only
+                            for batcher
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -810,17 +826,13 @@ spec:
                       description: All specifies a common specification for all SinkGroups
                       properties:
                         deploymentUnit:
-                          description: 'DeploymentUnit is the unit of deployment for
-                            the batcher or the loader. Using this user can specify
-                            the no of topics and the amount of resources needed to
-                            run them as one unit. Operator calculates the total units
-                            based on the total number of topics and this unit spec.
-                            This majorly solves the scaling issues described in #167.'
+                          description: 'DeploymentUnit(pod) is the unit of deployment
+                            for the batcher or the loader. Using this user can specify
+                            the amount of resources needed to run them as one unit.
+                            Operator calculates the total units based on the total
+                            number of topics and this unit spec. This majorly solves
+                            the scaling issues described in #167.'
                           properties:
-                            maxTopics:
-                              description: MaxTopics specify the maximum number of
-                                topics that can be part of this unit of deployment.
-                              type: integer
                             podTemplate:
                               description: PodTemplate describes the pod specification
                                 for the unit.
@@ -918,6 +930,14 @@ spec:
                           description: MaxProcessingTime is the max time in ms required
                             to consume one message. Defaults for the batcher is 180000ms
                             and loader is 600000ms.
+                          format: int32
+                          type: integer
+                        maxReloadingUnits:
+                          description: MaxReloadingUnits is the maximum number of
+                            units(pods) that can be launched based on the DeploymentUnit
+                            specification. Only valid for Reloading SinkGroup. This
+                            value is at present supported to be configurable only
+                            for batcher
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -941,17 +961,13 @@ spec:
                         overwrites All
                       properties:
                         deploymentUnit:
-                          description: 'DeploymentUnit is the unit of deployment for
-                            the batcher or the loader. Using this user can specify
-                            the no of topics and the amount of resources needed to
-                            run them as one unit. Operator calculates the total units
-                            based on the total number of topics and this unit spec.
-                            This majorly solves the scaling issues described in #167.'
+                          description: 'DeploymentUnit(pod) is the unit of deployment
+                            for the batcher or the loader. Using this user can specify
+                            the amount of resources needed to run them as one unit.
+                            Operator calculates the total units based on the total
+                            number of topics and this unit spec. This majorly solves
+                            the scaling issues described in #167.'
                           properties:
-                            maxTopics:
-                              description: MaxTopics specify the maximum number of
-                                topics that can be part of this unit of deployment.
-                              type: integer
                             podTemplate:
                               description: PodTemplate describes the pod specification
                                 for the unit.
@@ -1049,6 +1065,14 @@ spec:
                           description: MaxProcessingTime is the max time in ms required
                             to consume one message. Defaults for the batcher is 180000ms
                             and loader is 600000ms.
+                          format: int32
+                          type: integer
+                        maxReloadingUnits:
+                          description: MaxReloadingUnits is the maximum number of
+                            units(pods) that can be launched based on the DeploymentUnit
+                            specification. Only valid for Reloading SinkGroup. This
+                            value is at present supported to be configurable only
+                            for batcher
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -1072,17 +1096,13 @@ spec:
                         overwrites All
                       properties:
                         deploymentUnit:
-                          description: 'DeploymentUnit is the unit of deployment for
-                            the batcher or the loader. Using this user can specify
-                            the no of topics and the amount of resources needed to
-                            run them as one unit. Operator calculates the total units
-                            based on the total number of topics and this unit spec.
-                            This majorly solves the scaling issues described in #167.'
+                          description: 'DeploymentUnit(pod) is the unit of deployment
+                            for the batcher or the loader. Using this user can specify
+                            the amount of resources needed to run them as one unit.
+                            Operator calculates the total units based on the total
+                            number of topics and this unit spec. This majorly solves
+                            the scaling issues described in #167.'
                           properties:
-                            maxTopics:
-                              description: MaxTopics specify the maximum number of
-                                topics that can be part of this unit of deployment.
-                              type: integer
                             podTemplate:
                               description: PodTemplate describes the pod specification
                                 for the unit.
@@ -1182,6 +1202,14 @@ spec:
                             and loader is 600000ms.
                           format: int32
                           type: integer
+                        maxReloadingUnits:
+                          description: MaxReloadingUnits is the maximum number of
+                            units(pods) that can be launched based on the DeploymentUnit
+                            specification. Only valid for Reloading SinkGroup. This
+                            value is at present supported to be configurable only
+                            for batcher
+                          format: int32
+                          type: integer
                         maxSizePerBatch:
                           anyOf:
                           - type: integer
@@ -1203,17 +1231,13 @@ spec:
                         overwrites All
                       properties:
                         deploymentUnit:
-                          description: 'DeploymentUnit is the unit of deployment for
-                            the batcher or the loader. Using this user can specify
-                            the no of topics and the amount of resources needed to
-                            run them as one unit. Operator calculates the total units
-                            based on the total number of topics and this unit spec.
-                            This majorly solves the scaling issues described in #167.'
+                          description: 'DeploymentUnit(pod) is the unit of deployment
+                            for the batcher or the loader. Using this user can specify
+                            the amount of resources needed to run them as one unit.
+                            Operator calculates the total units based on the total
+                            number of topics and this unit spec. This majorly solves
+                            the scaling issues described in #167.'
                           properties:
-                            maxTopics:
-                              description: MaxTopics specify the maximum number of
-                                topics that can be part of this unit of deployment.
-                              type: integer
                             podTemplate:
                               description: PodTemplate describes the pod specification
                                 for the unit.
@@ -1311,6 +1335,14 @@ spec:
                           description: MaxProcessingTime is the max time in ms required
                             to consume one message. Defaults for the batcher is 180000ms
                             and loader is 600000ms.
+                          format: int32
+                          type: integer
+                        maxReloadingUnits:
+                          description: MaxReloadingUnits is the maximum number of
+                            units(pods) that can be launched based on the DeploymentUnit
+                            specification. Only valid for Reloading SinkGroup. This
+                            value is at present supported to be configurable only
+                            for batcher
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -1394,6 +1426,14 @@ spec:
         status:
           description: RedshiftSinkStatus defines the observed state of RedshiftSink
           properties:
+            batcherReloadingTopics:
+              description: BatcherReloadingTopics stores the list of topics which
+                are currently reloading for the batcher deployments in the reload
+                sink group. There is a limit to maximum topics that can be reloaded.
+                (MaxReloadingUnits)
+              items:
+                type: string
+              type: array
             maskStatus:
               description: MaskStatus stores the status of masking for topics if masking
                 is enabled

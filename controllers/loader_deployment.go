@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	LoaderSuffix        = "-loader"
+	LoaderTag           = "loader"
 	LoaderLabelInstance = "redshiftloader"
 )
 
@@ -25,6 +25,7 @@ type Loader struct {
 	namespace  string
 	deployment *appsv1.Deployment
 	config     *corev1.ConfigMap
+	topics     []string
 }
 
 // applyLoaderSinkGroupDefaults applies the defaults for the loader
@@ -43,7 +44,6 @@ func applyLoaderSinkGroupDefaults(
 	maxSizePerBatch := &defaultMaxBytesPerBatch
 	maxWaitSeconds := &redshiftloader.DefaultMaxWaitSeconds
 	maxProcessingTime := &redshiftloader.DefaultMaxProcessingTime
-	maxTopics := &DefaultMaxLoaderTopics
 	image := &defaultImage
 	var resources *corev1.ResourceRequirements
 	var tolerations *[]corev1.Toleration
@@ -80,9 +80,6 @@ func applyLoaderSinkGroupDefaults(
 			maxProcessingTime = specifiedSpec.MaxProcessingTime
 		}
 		if specifiedSpec.DeploymentUnit != nil {
-			if specifiedSpec.DeploymentUnit.MaxTopics != nil {
-				maxTopics = specifiedSpec.DeploymentUnit.MaxTopics
-			}
 			if specifiedSpec.DeploymentUnit.PodTemplate != nil {
 				if specifiedSpec.DeploymentUnit.PodTemplate.Image != nil {
 					image = specifiedSpec.DeploymentUnit.PodTemplate.Image
@@ -102,7 +99,6 @@ func applyLoaderSinkGroupDefaults(
 		MaxWaitSeconds:    maxWaitSeconds,
 		MaxProcessingTime: maxProcessingTime,
 		DeploymentUnit: &tipocav1.DeploymentUnit{
-			MaxTopics: maxTopics,
 			PodTemplate: &tipocav1.RedshiftPodTemplateSpec{
 				Image:       image,
 				Resources:   resources,
@@ -139,14 +135,23 @@ func loaderSecret(secret map[string]string) (map[string]string, error) {
 	return s, nil
 }
 
-func loaderName(rskName, sinkGroup string, id string) string {
-	return fmt.Sprintf(
-		"%s-%s%s%s",
-		rskName,
-		sinkGroup,
-		id,
-		LoaderSuffix,
-	)
+func loaderName(rskName, sinkGroup, id string) string {
+	if id == "" {
+		return fmt.Sprintf(
+			"%s-%s-%s",
+			rskName,
+			LoaderTag,
+			sinkGroup,
+		)
+	} else {
+		return fmt.Sprintf(
+			"%s-%s-%s-%s",
+			rskName,
+			LoaderTag,
+			sinkGroup,
+			id,
+		)
+	}
 }
 
 func redshiftConnections(rsk *tipocav1.RedshiftSink, defaultMaxOpenConns, defaultMaxIdleConns int) (int, int) {
@@ -223,9 +228,11 @@ func NewLoader(
 	var sessionTimeoutSeconds int = 10
 	var hearbeatIntervalSeconds int = 2
 
+	topics := []string{}
 	totalTopics := 0
 	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
+		topics = append(topics, group.topics...)
 		totalTopics += len(group.topics)
 		groupConfigs = append(groupConfigs, kafka.ConsumerGroupConfig{
 			GroupID: consumerGroupID(rsk.Name, rsk.Namespace, groupID, "-loader"),
@@ -330,6 +337,7 @@ func NewLoader(
 		namespace:  rsk.Namespace,
 		deployment: deploymentFromSpec(deploySpec, configSpec),
 		config:     configFromSpec(configSpec),
+		topics:     topics,
 	}, nil
 }
 
@@ -355,4 +363,8 @@ func (l Loader) UpdateDeployment(current *appsv1.Deployment) bool {
 
 func (l Loader) UpdateConfig(current *corev1.ConfigMap) bool {
 	return !configSpecEqual(current, l.Config())
+}
+
+func (l Loader) Topics() []string {
+	return l.topics
 }
