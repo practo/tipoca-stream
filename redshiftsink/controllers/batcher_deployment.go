@@ -165,15 +165,15 @@ func batcherName(rskName, sinkGroup, id string) string {
 		return fmt.Sprintf(
 			"%s-%s-%s",
 			rskName,
-			BatcherTag,
 			sinkGroup,
+			BatcherTag,
 		)
 	} else {
 		return fmt.Sprintf(
 			"%s-%s-%s-%s",
 			rskName,
-			BatcherTag,
 			sinkGroup,
+			BatcherTag,
 			id,
 		)
 	}
