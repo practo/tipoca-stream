@@ -19,7 +19,6 @@ type status struct {
 	released      []string
 	realtime      []string
 	reloading     []string
-	reloadWaiting []string
 	reloadingDupe []string
 }
 
