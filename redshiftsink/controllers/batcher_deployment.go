@@ -36,20 +36,40 @@ func applyBatcherSinkGroupDefaults(
 	sgType string,
 	defaultImage string,
 ) *tipocav1.SinkGroupSpec {
-	// defaults
-	defaultMaxBytesPerBatch := resource.MustParse(
-		redshiftbatcher.DefaultMaxBytesPerBatch,
-	)
-	maxSizePerBatch := &defaultMaxBytesPerBatch
-	maxWaitSeconds := &redshiftbatcher.DefaultMaxWaitSeconds
-	maxConcurrency := &redshiftbatcher.DefaultMaxConcurrency
-	maxProcessingTime := &redshiftbatcher.DefaultMaxProcessingTime
-	image := &defaultImage
+	var maxSizePerBatch *resource.Quantity
+	var maxWaitSeconds *int
+	var maxConcurrency *int
+	var maxProcessingTime *int32
+	var image *string
 	var resources *corev1.ResourceRequirements
 	var tolerations *[]corev1.Toleration
+	var maxReloadingUnits *int32
+
+	// defaults by sinkgroup
+	var specifiedSpec *tipocav1.SinkGroupSpec
+	switch sgType {
+	case MainSinkGroup:
+		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Mi"))
+		maxWaitSeconds = toIntPtr(60)
+		maxConcurrency = toIntPtr(2)
+		maxProcessingTime = &redshiftbatcher.DefaultMaxProcessingTime
+		image = &defaultImage
+	case ReloadSinkGroup:
+		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Mi"))
+		maxWaitSeconds = toIntPtr(60)
+		maxConcurrency = toIntPtr(10)
+		maxProcessingTime = &redshiftbatcher.DefaultMaxProcessingTime
+		image = &defaultImage
+		maxReloadingUnits = toInt32Ptr(10)
+	case ReloadDupeSinkGroup:
+		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Mi"))
+		maxWaitSeconds = toIntPtr(60)
+		maxConcurrency = toIntPtr(10)
+		maxProcessingTime = &redshiftbatcher.DefaultMaxProcessingTime
+		image = &defaultImage
+	}
 
 	// apply the sinkGroup spec rules
-	var specifiedSpec *tipocav1.SinkGroupSpec
 	if rsk.Spec.Batcher.SinkGroup.All != nil {
 		specifiedSpec = rsk.Spec.Batcher.SinkGroup.All
 	}
@@ -82,6 +102,9 @@ func applyBatcherSinkGroupDefaults(
 		if specifiedSpec.MaxProcessingTime != nil {
 			maxProcessingTime = specifiedSpec.MaxProcessingTime
 		}
+		if specifiedSpec.MaxReloadingUnits != nil {
+			maxReloadingUnits = specifiedSpec.MaxReloadingUnits
+		}
 		if specifiedSpec.DeploymentUnit != nil {
 			if specifiedSpec.DeploymentUnit.PodTemplate != nil {
 				if specifiedSpec.DeploymentUnit.PodTemplate.Image != nil {
@@ -102,6 +125,7 @@ func applyBatcherSinkGroupDefaults(
 		MaxWaitSeconds:    maxWaitSeconds,
 		MaxConcurrency:    maxConcurrency,
 		MaxProcessingTime: maxProcessingTime,
+		MaxReloadingUnits: maxReloadingUnits,
 		DeploymentUnit: &tipocav1.DeploymentUnit{
 			PodTemplate: &tipocav1.RedshiftPodTemplateSpec{
 				Image:       image,

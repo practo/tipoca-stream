@@ -15,10 +15,9 @@ import (
 )
 
 var (
-	DefaultMaxBytesPerBatch  string = "1024"
-	DefaultMaxWaitSeconds    int    = 30
-	DefaultMaxConcurrency    int    = 10
-	DefaultMaxProcessingTime int32  = 180000
+	DefaultMaxWaitSeconds    int   = 30
+	DefaultMaxConcurrency    int   = 10
+	DefaultMaxProcessingTime int32 = 180000
 )
 
 type BatcherConfig struct {

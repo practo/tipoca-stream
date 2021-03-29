@@ -13,9 +13,8 @@ import (
 )
 
 var (
-	DefaultMaxBytesPerBatch  string = "1000000" // 1 MB
-	DefaultMaxWaitSeconds    int    = 60
-	DefaultMaxProcessingTime int32  = 600000
+	DefaultMaxWaitSeconds    int   = 60
+	DefaultMaxProcessingTime int32 = 600000
 )
 
 type LoaderConfig struct {
