@@ -14,6 +14,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
@@ -138,6 +139,18 @@ func getHashStructure(v interface{}) (string, error) {
 	hash := fmt.Sprintf("%d", h)
 
 	return hash[:6], nil
+}
+
+func toIntPtr(i int) *int {
+	return &i
+}
+
+func toInt32Ptr(i int32) *int32 {
+	return &i
+}
+
+func toQuantityPtr(r resource.Quantity) *resource.Quantity {
+	return &r
 }
 
 func sortStringSlice(t []string) {

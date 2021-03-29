@@ -37,19 +37,36 @@ func applyLoaderSinkGroupDefaults(
 	sgType string,
 	defaultImage string,
 ) *tipocav1.SinkGroupSpec {
-	// defaults
-	defaultMaxBytesPerBatch := resource.MustParse(
-		redshiftloader.DefaultMaxBytesPerBatch,
-	)
-	maxSizePerBatch := &defaultMaxBytesPerBatch
-	maxWaitSeconds := &redshiftloader.DefaultMaxWaitSeconds
-	maxProcessingTime := &redshiftloader.DefaultMaxProcessingTime
-	image := &defaultImage
+	var maxSizePerBatch *resource.Quantity
+	var maxWaitSeconds *int
+	var maxProcessingTime *int32
+	var image *string
 	var resources *corev1.ResourceRequirements
 	var tolerations *[]corev1.Toleration
+	var maxReloadingUnits *int32
+
+	// defaults by sinkgroup
+	var specifiedSpec *tipocav1.SinkGroupSpec
+	switch sgType {
+	case MainSinkGroup:
+		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Mi"))
+		maxWaitSeconds = toIntPtr(60)
+		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
+		image = &defaultImage
+	case ReloadSinkGroup:
+		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Mi"))
+		maxWaitSeconds = toIntPtr(60)
+		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
+		image = &defaultImage
+		maxReloadingUnits = toInt32Ptr(1) // loader only supports one for this at present (there is no need as of now to run multiple)
+	case ReloadDupeSinkGroup:
+		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Mi"))
+		maxWaitSeconds = toIntPtr(60)
+		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
+		image = &defaultImage
+	}
 
 	// apply the sinkGroup spec rules
-	var specifiedSpec *tipocav1.SinkGroupSpec
 	if rsk.Spec.Loader.SinkGroup.All != nil {
 		specifiedSpec = rsk.Spec.Loader.SinkGroup.All
 	}
@@ -79,6 +96,10 @@ func applyLoaderSinkGroupDefaults(
 		if specifiedSpec.MaxProcessingTime != nil {
 			maxProcessingTime = specifiedSpec.MaxProcessingTime
 		}
+		// Loader does not support MaxReloadingUnits yet
+		// if specifiedSpec.MaxReloadingUnits != nil {
+		// 	maxReloadingUnits = specifiedSpec.MaxReloadingUnits
+		// }
 		if specifiedSpec.DeploymentUnit != nil {
 			if specifiedSpec.DeploymentUnit.PodTemplate != nil {
 				if specifiedSpec.DeploymentUnit.PodTemplate.Image != nil {
@@ -98,6 +119,7 @@ func applyLoaderSinkGroupDefaults(
 		MaxSizePerBatch:   maxSizePerBatch,
 		MaxWaitSeconds:    maxWaitSeconds,
 		MaxProcessingTime: maxProcessingTime,
+		MaxReloadingUnits: maxReloadingUnits,
 		DeploymentUnit: &tipocav1.DeploymentUnit{
 			PodTemplate: &tipocav1.RedshiftPodTemplateSpec{
 				Image:       image,
