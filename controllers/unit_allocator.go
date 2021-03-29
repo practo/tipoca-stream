@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	"sort"
 )
 
@@ -11,6 +12,8 @@ type unitAllocator struct {
 	topicsLag              []topicLag
 	maxReloadingUnits      int
 	currentReloadingTopics []string
+	mainSinkGroupSpec      *tipocav1.SinkGroupSpec
+	reloadSinkGroupSpec    *tipocav1.SinkGroupSpec
 
 	units []deploymentUnit
 }
@@ -21,6 +24,8 @@ func newUnitAllocator(
 	topicsLag []topicLag,
 	maxReloadingUnits int32,
 	currentReloadingTopics []string,
+	main *tipocav1.SinkGroupSpec,
+	reload *tipocav1.SinkGroupSpec,
 ) *unitAllocator {
 	return &unitAllocator{
 		topics:                 topics,
@@ -29,12 +34,15 @@ func newUnitAllocator(
 		maxReloadingUnits:      int(maxReloadingUnits),
 		currentReloadingTopics: currentReloadingTopics,
 		units:                  []deploymentUnit{},
+		mainSinkGroupSpec:      main,
+		reloadSinkGroupSpec:    reload,
 	}
 }
 
 type deploymentUnit struct {
-	id     string
-	topics []string
+	id            string
+	sinkGroupSpec *tipocav1.SinkGroupSpec
+	topics        []string
 }
 
 func sortTopicsByLag(topicsLag []topicLag) []string {
@@ -54,8 +62,9 @@ func sortTopicsByLag(topicsLag []topicLag) []string {
 func (u *unitAllocator) allocateReloadingUnits() {
 	realtime := toMap(u.realtime)
 	realtimeUnit := deploymentUnit{
-		id:     "realtime",
-		topics: u.realtime,
+		id:            "realtime",
+		sinkGroupSpec: u.mainSinkGroupSpec,
+		topics:        u.realtime,
 	}
 
 	// don't shuffle the already reloading topics unless realtime
@@ -66,8 +75,9 @@ func (u *unitAllocator) allocateReloadingUnits() {
 			continue
 		}
 		reloadingUnits = append(reloadingUnits, deploymentUnit{
-			id:     topic,
-			topics: []string{topic},
+			id:            topic,
+			sinkGroupSpec: u.reloadSinkGroupSpec,
+			topics:        []string{topic},
 		})
 	}
 
@@ -89,8 +99,9 @@ func (u *unitAllocator) allocateReloadingUnits() {
 			break
 		}
 		reloadingUnits = append(reloadingUnits, deploymentUnit{
-			id:     topic,
-			topics: []string{topic},
+			id:            topic,
+			sinkGroupSpec: u.reloadSinkGroupSpec,
+			topics:        []string{topic},
 		})
 	}
 

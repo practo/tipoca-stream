@@ -146,11 +146,19 @@ func (sb *buildSinkGroup) buildBatchers(
 ) sinkGroupBuilder {
 	batchers := []Deployment{}
 	if sb.rsk.Spec.Batcher.SinkGroup != nil {
-		sinkGroupSpec := applyBatcherSinkGroupDefaults(
+		var sinkGroupSpec, mainSinkGroupSpec *tipocav1.SinkGroupSpec
+		sinkGroupSpec = applyBatcherSinkGroupDefaults(
 			sb.rsk,
 			sb.sgType,
 			defaultImage,
 		)
+		if len(sb.calc.batchersRealtime) > 0 {
+			mainSinkGroupSpec = applyBatcherSinkGroupDefaults(
+				sb.rsk,
+				MainSinkGroup,
+				defaultImage,
+			)
+		}
 		var units []deploymentUnit
 		if sb.calc != nil {
 			allocator := newUnitAllocator(
@@ -159,14 +167,17 @@ func (sb *buildSinkGroup) buildBatchers(
 				sb.calc.batchersLag,
 				*sinkGroupSpec.MaxReloadingUnits,
 				sb.rsk.Status.BatcherReloadingTopics,
+				mainSinkGroupSpec,
+				sinkGroupSpec,
 			)
 			allocator.allocateReloadingUnits()
 			units = allocator.units
 		} else {
 			units = []deploymentUnit{
 				deploymentUnit{
-					id:     "",
-					topics: sb.topics,
+					id:            "",
+					sinkGroupSpec: sinkGroupSpec,
+					topics:        sb.topics,
 				},
 			}
 		}
@@ -183,7 +194,7 @@ func (sb *buildSinkGroup) buildBatchers(
 				sb.maskVersion,
 				secret,
 				sb.sgType,
-				sinkGroupSpec,
+				unit.sinkGroupSpec,
 				consumerGroups,
 				defaultImage,
 				defaultKafkaVersion,
