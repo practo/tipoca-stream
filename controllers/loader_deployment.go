@@ -162,15 +162,15 @@ func loaderName(rskName, sinkGroup, id string) string {
 		return fmt.Sprintf(
 			"%s-%s-%s",
 			rskName,
-			LoaderTag,
 			sinkGroup,
+			LoaderTag,
 		)
 	} else {
 		return fmt.Sprintf(
 			"%s-%s-%s-%s",
 			rskName,
-			LoaderTag,
 			sinkGroup,
+			LoaderTag,
 			id,
 		)
 	}
