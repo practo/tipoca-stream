@@ -61,7 +61,6 @@ type RedshiftSinkReconciler struct {
 	DefaultSecretRefName        string
 	DefaultSecretRefNamespace   string
 	DefaultKafkaVersion         string
-	ReleaseWaitSeconds          int64
 	DefaultRedshiftMaxIdleConns int
 	DefaultRedshiftMaxOpenConns int
 }
@@ -424,37 +423,18 @@ func (r *RedshiftSinkReconciler) reconcile(
 		klog.V(2).Infof("rsk/%v loaders  realtime: %d / %d", rsk.Name, len(calc.loadersRealtime), len(status.reloading))
 	}
 
-	// set allowShuffle
-	reloadingRatio := status.reloadingRatio()
-	allowShuffle := true
-	if reloadingRatio > 0.2 {
-		rcloaded, ok := r.ReleaseCache.Load(rsk.Namespace + rsk.Name)
-		if ok {
-			cache := rcloaded.(releaseCache)
-			if cacheValid(time.Second*time.Duration(r.ReleaseWaitSeconds), cache.lastCacheRefresh) {
-				allowShuffle = false
-			}
+	if !subSetSlice(currentRealtime, status.realtime) {
+		for _, moreRealtime := range currentRealtime {
+			status.realtime = appendIfMissing(status.realtime, moreRealtime)
 		}
+		klog.V(2).Infof(
+			"rsk/%s reconcile needed, realtime topics updated: %v",
+			rsk.Name,
+			status.realtime,
+		)
+		return resultRequeueMilliSeconds(1500), nil, nil
 	}
-	klog.V(2).Infof("rsk/%v allowShuffle=%v, reloadingRatio=%v", rsk.Name, allowShuffle, reloadingRatio)
-	// allow realtime update only during release window, to minimize shuffle
-	if allowShuffle {
-		if !subSetSlice(currentRealtime, status.realtime) {
-			for _, moreRealtime := range currentRealtime {
-				status.realtime = appendIfMissing(status.realtime, moreRealtime)
-			}
-			klog.V(2).Infof(
-				"rsk/%s reconcile needed, realtime topics updated: %v",
-				rsk.Name,
-				status.realtime,
-			)
-			return resultRequeueMilliSeconds(1500), nil, nil
-		}
-		klog.V(2).Infof("rsk/%v reconciling all sinkGroups", rsk.Name)
-	} else {
-		klog.V(2).Infof("rsk/%s realtime (waiting): %d %v", rsk.Name, len(currentRealtime), currentRealtime)
-		klog.V(2).Infof("rsk/%v reconciling all sinkGroups (still)", rsk.Name)
-	}
+	klog.V(2).Infof("rsk/%v reconciling all sinkGroups", rsk.Name)
 
 	// SinkGroup are of following types:
 	// 1. main: sink group which has desiredMaskVersion

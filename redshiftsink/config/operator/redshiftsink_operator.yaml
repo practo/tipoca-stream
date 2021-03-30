@@ -44,7 +44,6 @@ spec:
        - /redshiftsink
        args:
        - -v=2
-       - --release-wait-seconds=1800
        - --default-batcher-image=746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftbatcher:latest
        - --default-loader-image=746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftloader:latest
        - --default-redshift-max-open-conns=10
