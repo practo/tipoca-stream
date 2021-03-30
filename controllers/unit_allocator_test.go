@@ -18,7 +18,25 @@ func TestAllocateReloadingUnits(t *testing.T) {
 		units                  []deploymentUnit
 	}{
 		{
-			name:     "allReloadingFirstCase",
+			name:                   "RealFirstCaseWhenTopicLagEmpty",
+			topics:                 []string{"t1", "t2"},
+			realtime:               []string{},
+			topicsLag:              []topicLag{},
+			maxReloadingUnits:      3,
+			currentReloadingTopics: []string{},
+			units: []deploymentUnit{
+				deploymentUnit{
+					id:     "t1",
+					topics: []string{"t1"},
+				},
+				deploymentUnit{
+					id:     "t2",
+					topics: []string{"t2"},
+				},
+			},
+		},
+		{
+			name:     "FirstCase",
 			topics:   []string{"t1", "t2", "t3", "t4"},
 			realtime: []string{},
 			topicsLag: []topicLag{
@@ -49,7 +67,7 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			},
 		},
 		{
-			name:     "allReloadingSecondCaseMax3",
+			name:     "SecondCaseMax3",
 			topics:   []string{"t1", "t2", "t3", "t4"},
 			realtime: []string{},
 			topicsLag: []topicLag{
@@ -88,7 +106,7 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			},
 		},
 		{
-			name:     "allReloadingThirdCaseCurrentThere",
+			name:     "ThirdCaseCurrentThere",
 			topics:   []string{"t1", "t2", "t3", "t4"},
 			realtime: []string{},
 			topicsLag: []topicLag{
@@ -127,7 +145,7 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			},
 		},
 		{
-			name:     "allReloadingFourthCaseLagChangedShouldNotChangeAnything",
+			name:     "FourthCaseLagChangedShouldNotChangeAnything",
 			topics:   []string{"t1", "t2", "t3", "t4"},
 			realtime: []string{},
 			topicsLag: []topicLag{
@@ -166,7 +184,7 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			},
 		},
 		{
-			name:     "allReloadingFifthCaseOneRealtimeOneMovesin",
+			name:     "FifthCaseOneRealtimeOneMovesin",
 			topics:   []string{"t1", "t2", "t3", "t4"},
 			realtime: []string{"t3"},
 			topicsLag: []topicLag{
@@ -209,7 +227,7 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			},
 		},
 		{
-			name:     "allReloadingSixthCaseAllRealtime",
+			name:     "SixthCaseAllRealtime",
 			topics:   []string{"t1", "t2", "t3", "t4"},
 			realtime: []string{"t1", "t2", "t3", "t4"},
 			topicsLag: []topicLag{
@@ -250,6 +268,8 @@ func TestAllocateReloadingUnits(t *testing.T) {
 				tc.topicsLag,
 				tc.maxReloadingUnits,
 				tc.currentReloadingTopics,
+				nil, // TODO add test cases for them also
+				nil,
 			)
 			allocator.allocateReloadingUnits()
 			if !reflect.DeepEqual(allocator.units, tc.units) {
