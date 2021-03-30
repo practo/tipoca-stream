@@ -58,7 +58,6 @@ spec:
           maxWaitSeconds: 30
           maxConcurrency: 10
           deploymentUnit:
-              maxTopics: 30
               podTemplate:
                 resources:
                   requests:
@@ -74,7 +73,6 @@ spec:
           maxWaitSeconds: 30
           maxProcessingTime: 60000
           deploymentUnit:
-              maxTopics: 30
               podTemplate:
                 resources:
                   requests:
