@@ -49,18 +49,18 @@ func applyLoaderSinkGroupDefaults(
 	var specifiedSpec *tipocav1.SinkGroupSpec
 	switch sgType {
 	case MainSinkGroup:
-		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Mi"))
+		maxSizePerBatch = toQuantityPtr(resource.MustParse("1Gi"))
 		maxWaitSeconds = toIntPtr(60)
 		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
 		image = &defaultImage
 	case ReloadSinkGroup:
-		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Mi"))
+		maxSizePerBatch = toQuantityPtr(resource.MustParse("1Gi"))
 		maxWaitSeconds = toIntPtr(60)
 		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
 		image = &defaultImage
 		maxReloadingUnits = toInt32Ptr(1) // loader only supports one for this at present (there is no need as of now to run multiple)
 	case ReloadDupeSinkGroup:
-		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Mi"))
+		maxSizePerBatch = toQuantityPtr(resource.MustParse("1Gi"))
 		maxWaitSeconds = toIntPtr(60)
 		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
 		image = &defaultImage
