@@ -240,7 +240,7 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 		ltopic := r.rsk.Spec.KafkaLoaderTopicPrefix + group.ID + "-" + topic
 		_, ok = allTopicsMap[ltopic]
 		if !ok {
-			klog.V(2).Infof("%s topic 404, not realtime.", *loaderTopic)
+			klog.V(2).Infof("%s topic 404, not realtime.", ltopic)
 		} else {
 			loaderTopic = &ltopic
 		}
