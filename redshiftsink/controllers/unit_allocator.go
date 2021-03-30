@@ -3,6 +3,7 @@ package controllers
 import (
 	"github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
+	transformer "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"sort"
 )
 
@@ -59,6 +60,15 @@ func sortTopicsByLag(topicsLag []topicLag) []string {
 	return topics
 }
 
+func (u *unitAllocator) unitID(topic string) string {
+	_, _, table := transformer.ParseTopic(topic)
+	if len(table) > 10 {
+		return table[:10]
+	}
+
+	return table
+}
+
 // for the reloading sinkGroup
 func (u *unitAllocator) allocateReloadingUnits() {
 	realtime := toMap(u.realtime)
@@ -76,7 +86,7 @@ func (u *unitAllocator) allocateReloadingUnits() {
 			continue
 		}
 		reloadingUnits = append(reloadingUnits, deploymentUnit{
-			id:            topic,
+			id:            u.unitID(topic),
 			sinkGroupSpec: u.reloadSinkGroupSpec,
 			topics:        []string{topic},
 		})
@@ -104,7 +114,7 @@ func (u *unitAllocator) allocateReloadingUnits() {
 			break
 		}
 		reloadingUnits = append(reloadingUnits, deploymentUnit{
-			id:            topic,
+			id:            u.unitID(topic),
 			sinkGroupSpec: u.reloadSinkGroupSpec,
 			topics:        []string{topic},
 		})
