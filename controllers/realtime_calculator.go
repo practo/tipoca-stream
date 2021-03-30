@@ -102,7 +102,7 @@ func (r *realtimeCalculator) fetchRealtimeCache(
 	// 120 to 240 seconds, randomness to prevent multiple parallel calls
 	validSec := rand.Intn(120) + 120
 	klog.V(5).Infof(
-		"rsk/%s, %s, cacheValid=%ss"
+		"rsk/%s, %s, cacheValid=%ss",
 		r.rsk.Name,
 		topic,
 		validSec,
