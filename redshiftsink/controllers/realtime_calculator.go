@@ -99,13 +99,13 @@ func (r *realtimeCalculator) fetchRealtimeCache(
 		return topicRealtimeInfo{}, false
 	}
 
-	// 600 to 840 seconds, randomness to prevent multiple parallel calls
-	validSec := rand.Intn(240) + 600
+	// 120 to 240 seconds, randomness to prevent multiple parallel calls
+	validSec := rand.Intn(120) + 120
 	klog.V(5).Infof(
-		"rsk/%s validSec: %v topic: %s",
+		"rsk/%s, %s, cacheValid=%ss"
 		r.rsk.Name,
-		validSec,
 		topic,
+		validSec,
 	)
 
 	info := loadedInfo.(topicRealtimeInfo)
@@ -318,7 +318,9 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 			klog.V(2).Infof("%v: waiting to reach realtime", topic)
 		}
 
-		info.lastUpdate = &now
+		if !hit {
+			info.lastUpdate = &now
+		}
 		r.cache.Store(topic, info)
 	}
 
