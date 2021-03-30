@@ -152,15 +152,15 @@ func (sb *buildSinkGroup) buildBatchers(
 			sb.sgType,
 			defaultImage,
 		)
-		if len(sb.calc.batchersRealtime) > 0 {
-			mainSinkGroupSpec = applyBatcherSinkGroupDefaults(
-				sb.rsk,
-				MainSinkGroup,
-				defaultImage,
-			)
-		}
 		var units []deploymentUnit
 		if sb.calc != nil {
+			if len(sb.calc.batchersRealtime) > 0 {
+				mainSinkGroupSpec = applyBatcherSinkGroupDefaults(
+					sb.rsk,
+					MainSinkGroup,
+					defaultImage,
+				)
+			}
 			allocator := newUnitAllocator(
 				sb.topics,
 				sb.calc.batchersRealtime,
