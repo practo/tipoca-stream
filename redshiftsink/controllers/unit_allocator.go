@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	"sort"
 )
@@ -90,6 +91,10 @@ func (u *unitAllocator) allocateReloadingUnits() {
 	}
 
 	topicsByLagAsc := sortTopicsByLag(u.topicsLag)
+	if len(topicsByLagAsc) == 0 && len(u.topics) != 0 {
+		klog.Infof("empty topicsLag, using %+v", u.topics)
+		topicsByLagAsc = u.topics
+	}
 	for _, topic := range topicsByLagAsc {
 		_, ok := realtime[topic]
 		if ok {
