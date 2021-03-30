@@ -23,9 +23,9 @@ type topicRealtimeInfo struct {
 	loaderRealtime  bool
 }
 
-type topicLag struct {
+type topicLast struct {
 	topic string
-	lag   int64
+	last  int64
 }
 
 type realtimeCalculator struct {
@@ -37,8 +37,8 @@ type realtimeCalculator struct {
 	batchersRealtime []string
 	loadersRealtime  []string
 
-	batchersLag []topicLag
-	loadersLag  []topicLag
+	batchersLast []topicLast
+	loadersLast  []topicLast
 }
 
 func newRealtimeCalculator(
@@ -49,12 +49,12 @@ func newRealtimeCalculator(
 ) *realtimeCalculator {
 
 	return &realtimeCalculator{
-		rsk:         rsk,
-		watcher:     watcher,
-		topicGroups: topicGroups,
-		cache:       cache,
-		batchersLag: []topicLag{},
-		loadersLag:  []topicLag{},
+		rsk:          rsk,
+		watcher:      watcher,
+		topicGroups:  topicGroups,
+		cache:        cache,
+		batchersLast: []topicLast{},
+		loadersLast:  []topicLast{},
 	}
 }
 
@@ -281,32 +281,34 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 		// compute realtime
 		maxBatcherLag, maxLoaderLag := r.maxLag(topic)
 		if info.batcher != nil && info.batcher.last != nil && info.batcher.current != nil {
-			lag := *info.batcher.last - *info.batcher.current
-			if lag <= maxBatcherLag {
-				klog.V(3).Infof("rsk/%s: %s batcher realtime", r.rsk.Name, topic)
-				info.batcherRealtime = true
-				r.batchersRealtime = append(r.batchersRealtime, topic)
+			if info.batcher.current != nil {
+				if *info.batcher.last-*info.batcher.current <= maxBatcherLag {
+					klog.V(3).Infof("rsk/%s: %s batcher realtime", r.rsk.Name, topic)
+					info.batcherRealtime = true
+					r.batchersRealtime = append(r.batchersRealtime, topic)
+				}
 			}
-			r.batchersLag = append(
-				r.batchersLag,
-				topicLag{
+			r.batchersLast = append(
+				r.batchersLast,
+				topicLast{
 					topic: topic,
-					lag:   lag,
+					last:  *info.batcher.last,
 				},
 			)
 		}
-		if info.loader != nil && info.loader.last != nil && info.loader.current != nil {
-			lag := *info.loader.last - *info.loader.current
-			if *info.loader.last-*info.loader.current <= maxLoaderLag {
-				klog.V(3).Infof("rsk/%s: %s loader realtime", r.rsk.Name, ltopic)
-				info.loaderRealtime = true
-				r.loadersRealtime = append(r.loadersRealtime, ltopic)
+		if info.loader != nil && info.loader.last != nil {
+			if info.loader.current != nil {
+				if *info.loader.last-*info.loader.current <= maxLoaderLag {
+					klog.V(3).Infof("rsk/%s: %s loader realtime", r.rsk.Name, ltopic)
+					info.loaderRealtime = true
+					r.loadersRealtime = append(r.loadersRealtime, ltopic)
+				}
 			}
-			r.loadersLag = append(
-				r.loadersLag,
-				topicLag{
+			r.loadersLast = append(
+				r.loadersLast,
+				topicLast{
 					topic: topic,
-					lag:   lag,
+					last:  *info.loader.last,
 				},
 			)
 		}

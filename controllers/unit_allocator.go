@@ -11,7 +11,7 @@ type unitAllocator struct {
 	topics   []string
 	realtime []string
 
-	topicsLag              []topicLag
+	topicsLast             []topicLast
 	maxReloadingUnits      int
 	currentReloadingTopics []string
 	mainSinkGroupSpec      *tipocav1.SinkGroupSpec
@@ -23,7 +23,7 @@ type unitAllocator struct {
 func newUnitAllocator(
 	topics,
 	realtime []string,
-	topicsLag []topicLag,
+	topicsLast []topicLast,
 	maxReloadingUnits int32,
 	currentReloadingTopics []string,
 	main *tipocav1.SinkGroupSpec,
@@ -32,7 +32,7 @@ func newUnitAllocator(
 	return &unitAllocator{
 		topics:                 topics,
 		realtime:               realtime,
-		topicsLag:              topicsLag,
+		topicsLast:             topicsLast,
 		maxReloadingUnits:      int(maxReloadingUnits),
 		currentReloadingTopics: currentReloadingTopics,
 		units:                  []deploymentUnit{},
@@ -47,13 +47,13 @@ type deploymentUnit struct {
 	topics        []string
 }
 
-func sortTopicsByLag(topicsLag []topicLag) []string {
-	sort.SliceStable(topicsLag, func(i, j int) bool {
-		return topicsLag[i].lag < topicsLag[j].lag
+func sortTopicsByLastOffset(topicsLast []topicLast) []string {
+	sort.SliceStable(topicsLast, func(i, j int) bool {
+		return topicsLast[i].last < topicsLast[j].last
 	})
 
 	topics := []string{}
-	for _, tl := range topicsLag {
+	for _, tl := range topicsLast {
 		topics = append(topics, tl.topic)
 	}
 
@@ -100,12 +100,12 @@ func (u *unitAllocator) allocateReloadingUnits() {
 		return
 	}
 
-	topicsByLagAsc := sortTopicsByLag(u.topicsLag)
-	if len(topicsByLagAsc) == 0 && len(u.topics) != 0 {
-		klog.Infof("empty topicsLag, using %+v", u.topics)
-		topicsByLagAsc = u.topics
+	topicsByLastAsc := sortTopicsByLastOffset(u.topicsLast)
+	if len(topicsByLastAsc) == 0 && len(u.topics) != 0 {
+		klog.Infof("empty topicsLast, using %+v", u.topics)
+		topicsByLastAsc = u.topics
 	}
-	for _, topic := range topicsByLagAsc {
+	for _, topic := range topicsByLastAsc {
 		_, ok := realtime[topic]
 		if ok {
 			continue

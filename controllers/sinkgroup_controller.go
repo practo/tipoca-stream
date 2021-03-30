@@ -164,7 +164,7 @@ func (sb *buildSinkGroup) buildBatchers(
 			allocator := newUnitAllocator(
 				sb.topics,
 				sb.calc.batchersRealtime,
-				sb.calc.batchersLag,
+				sb.calc.batchersLast,
 				*sinkGroupSpec.MaxReloadingUnits,
 				sb.rsk.Status.BatcherReloadingTopics,
 				mainSinkGroupSpec,

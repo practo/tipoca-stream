@@ -12,7 +12,7 @@ func TestAllocateReloadingUnits(t *testing.T) {
 		name                   string
 		topics                 []string
 		realtime               []string
-		topicsLag              []topicLag
+		topicsLast             []topicLast
 		maxReloadingUnits      int32
 		currentReloadingTopics []string
 		units                  []deploymentUnit
@@ -21,7 +21,7 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			name:                   "RealFirstCaseWhenTopicLagEmpty",
 			topics:                 []string{"t1", "t2"},
 			realtime:               []string{},
-			topicsLag:              []topicLag{},
+			topicsLast:             []topicLast{},
 			maxReloadingUnits:      3,
 			currentReloadingTopics: []string{},
 			units: []deploymentUnit{
@@ -39,20 +39,20 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			name:     "FirstCase",
 			topics:   []string{"t1", "t2", "t3", "t4"},
 			realtime: []string{},
-			topicsLag: []topicLag{
-				topicLag{
+			topicsLast: []topicLast{
+				topicLast{
 					topic: "t1",
 					lag:   1500,
 				},
-				topicLag{
+				topicLast{
 					topic: "t2",
 					lag:   1500,
 				},
-				topicLag{
+				topicLast{
 					topic: "t3",
 					lag:   1400,
 				},
-				topicLag{
+				topicLast{
 					topic: "t4",
 					lag:   1400,
 				},
@@ -70,20 +70,20 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			name:     "SecondCaseMax3",
 			topics:   []string{"t1", "t2", "t3", "t4"},
 			realtime: []string{},
-			topicsLag: []topicLag{
-				topicLag{
+			topicsLast: []topicLast{
+				topicLast{
 					topic: "t1",
 					lag:   1500,
 				},
-				topicLag{
+				topicLast{
 					topic: "t2",
 					lag:   1500,
 				},
-				topicLag{
+				topicLast{
 					topic: "t3",
 					lag:   1400,
 				},
-				topicLag{
+				topicLast{
 					topic: "t4",
 					lag:   1400,
 				},
@@ -109,20 +109,20 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			name:     "ThirdCaseCurrentThere",
 			topics:   []string{"t1", "t2", "t3", "t4"},
 			realtime: []string{},
-			topicsLag: []topicLag{
-				topicLag{
+			topicsLast: []topicLast{
+				topicLast{
 					topic: "t1",
 					lag:   1500,
 				},
-				topicLag{
+				topicLast{
 					topic: "t2",
 					lag:   1500,
 				},
-				topicLag{
+				topicLast{
 					topic: "t3",
 					lag:   1400,
 				},
-				topicLag{
+				topicLast{
 					topic: "t4",
 					lag:   1400,
 				},
@@ -148,20 +148,20 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			name:     "FourthCaseLagChangedShouldNotChangeAnything",
 			topics:   []string{"t1", "t2", "t3", "t4"},
 			realtime: []string{},
-			topicsLag: []topicLag{
-				topicLag{
+			topicsLast: []topicLast{
+				topicLast{
 					topic: "t1",
 					lag:   1500,
 				},
-				topicLag{
+				topicLast{
 					topic: "t2",
 					lag:   1500,
 				},
-				topicLag{
+				topicLast{
 					topic: "t3",
 					lag:   2,
 				},
-				topicLag{
+				topicLast{
 					topic: "t4",
 					lag:   1,
 				},
@@ -187,20 +187,20 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			name:     "FifthCaseOneRealtimeOneMovesin",
 			topics:   []string{"t1", "t2", "t3", "t4"},
 			realtime: []string{"t3"},
-			topicsLag: []topicLag{
-				topicLag{
+			topicsLast: []topicLast{
+				topicLast{
 					topic: "t1",
 					lag:   1500,
 				},
-				topicLag{
+				topicLast{
 					topic: "t2",
 					lag:   1500,
 				},
-				topicLag{
+				topicLast{
 					topic: "t3",
 					lag:   2,
 				},
-				topicLag{
+				topicLast{
 					topic: "t4",
 					lag:   1,
 				},
@@ -230,20 +230,20 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			name:     "SixthCaseAllRealtime",
 			topics:   []string{"t1", "t2", "t3", "t4"},
 			realtime: []string{"t1", "t2", "t3", "t4"},
-			topicsLag: []topicLag{
-				topicLag{
+			topicsLast: []topicLast{
+				topicLast{
 					topic: "t1",
 					lag:   1,
 				},
-				topicLag{
+				topicLast{
 					topic: "t2",
 					lag:   1,
 				},
-				topicLag{
+				topicLast{
 					topic: "t3",
 					lag:   2,
 				},
-				topicLag{
+				topicLast{
 					topic: "t4",
 					lag:   1,
 				},
@@ -265,7 +265,7 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			allocator := newUnitAllocator(
 				tc.topics,
 				tc.realtime,
-				tc.topicsLag,
+				tc.topicsLast,
 				tc.maxReloadingUnits,
 				tc.currentReloadingTopics,
 				nil, // TODO add test cases for them also
