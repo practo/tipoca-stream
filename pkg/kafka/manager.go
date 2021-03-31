@@ -164,6 +164,7 @@ func (c *Manager) SyncTopics(
 
 	ticker := time.NewTicker(time.Second * time.Duration(c.tickSeconds))
 	for {
+		klog.V(2).Info("fetching topics...")
 		err := c.refreshTopics()
 		if err != nil {
 			klog.Errorf("error refreshing topic, err:%v\n", err)
