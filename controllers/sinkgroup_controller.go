@@ -562,14 +562,14 @@ func (s *sinkGroup) cleanup(
 		return nil, err
 	}
 	for _, deploy := range deploymentList.Items {
-		klog.V(3).Infof("Cleanup suspect deployment: %v", deploy.Name)
+		klog.V(4).Infof("Cleanup suspect deployment: %v", deploy.Name)
 		labelValue, ok := deploy.Labels[InstanceName]
 		if !ok {
 			continue
 		}
 		_, ok = neededDeployments[labelValue]
 		if !ok {
-			klog.V(3).Infof("Cleanup deployment: %v", labelValue)
+			klog.V(2).Infof("rsk/%s Deleting deployment: %v", s.rsk.Name, labelValue)
 			event, err := deleteDeployment(ctx, s.client, &deploy, s.rsk)
 			if err != nil {
 				return nil, err
@@ -602,7 +602,7 @@ func (s *sinkGroup) cleanup(
 		}
 		_, ok = neededConfigMaps[labelValue]
 		if !ok {
-			klog.V(2).Infof("Cleanup configmap: %s", labelValue)
+			klog.V(2).Infof("rsk/%s Deleting configmap: %s", s.rsk.Name, labelValue)
 			event, err := deleteConfigMap(ctx, s.client, &config, s.rsk)
 			if err != nil {
 				return nil, err
