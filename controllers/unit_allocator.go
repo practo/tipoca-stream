@@ -98,8 +98,11 @@ func (u *unitAllocator) allocateReloadingUnits() {
 		len(u.currentReloadingTopics),
 		u.currentReloadingTopics,
 	)
-	// don't shuffle the already reloading topics unless realtime
+
+	reloadingTopics := make(map[string]bool)
 	reloadingUnits := []deploymentUnit{}
+
+	// don't shuffle the already reloading topics unless realtime
 	for _, topic := range u.currentReloadingTopics {
 		_, ok := realtime[topic]
 		if ok {
@@ -110,6 +113,7 @@ func (u *unitAllocator) allocateReloadingUnits() {
 			sinkGroupSpec: u.reloadSinkGroupSpec,
 			topics:        []string{topic},
 		})
+		reloadingTopics[topic] = true
 	}
 	klog.V(3).Infof(
 		"rsk/%s reloadingUnits(based on current): %v %v",
@@ -134,9 +138,13 @@ func (u *unitAllocator) allocateReloadingUnits() {
 	}
 
 	topicsByLastAsc := sortTopicsByLastOffset(u.topicsLast)
-	klog.V(4).Infof("rsk/%s sortByLast: %v", u.rskName, topicsByLastAsc)
+	klog.V(3).Infof("rsk/%s sortByLast: %v", u.rskName, topicsByLastAsc)
 	for _, topic := range topicsByLastAsc {
 		_, ok := realtime[topic]
+		if ok {
+			continue
+		}
+		_, ok = reloadingTopics[topic]
 		if ok {
 			continue
 		}
@@ -148,6 +156,7 @@ func (u *unitAllocator) allocateReloadingUnits() {
 			sinkGroupSpec: u.reloadSinkGroupSpec,
 			topics:        []string{topic},
 		})
+		reloadingTopics[topic] = true
 	}
 
 	u.units = reloadingUnits

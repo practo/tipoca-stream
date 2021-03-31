@@ -258,6 +258,69 @@ func TestAllocateReloadingUnits(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "UnitsGoingAboveMax",
+			topics:   []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3", "db.inventory.t4", "db.inventory.t5", "db.inventory.t6", "db.inventory.t7", "db.inventory.t8", "db.inventory.t9"},
+			realtime: []string{"db.inventory.t1"},
+			topicsLast: []topicLast{
+				topicLast{
+					topic: "db.inventory.t1",
+					last:  1,
+				},
+				topicLast{
+					topic: "db.inventory.t2",
+					last:  10,
+				},
+				topicLast{
+					topic: "db.inventory.t3",
+					last:  100,
+				},
+				topicLast{
+					topic: "db.inventory.t4",
+					last:  1000,
+				},
+				topicLast{
+					topic: "db.inventory.t5",
+					last:  10000,
+				},
+				topicLast{
+					topic: "db.inventory.t6",
+					last:  20000,
+				},
+				topicLast{
+					topic: "db.inventory.t7",
+					last:  100000,
+				},
+			},
+			maxReloadingUnits:      5,
+			currentReloadingTopics: []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3", "db.inventory.t4", "db.inventory.t5"},
+			units: []deploymentUnit{
+				deploymentUnit{
+					id:     "t2",
+					topics: []string{"db.inventory.t2"},
+				},
+				deploymentUnit{
+					id:     "t3",
+					topics: []string{"db.inventory.t3"},
+				},
+				deploymentUnit{
+					id:     "t4",
+					topics: []string{"db.inventory.t4"},
+				},
+				deploymentUnit{
+					id:     "t5",
+					topics: []string{"db.inventory.t5"},
+				},
+				deploymentUnit{
+					id:     "t6",
+					topics: []string{"db.inventory.t6"},
+				},
+				deploymentUnit{
+					id:     "realtime",
+					topics: []string{"db.inventory.t1"},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
