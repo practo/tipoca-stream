@@ -432,6 +432,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			rsk.Name,
 			status.realtime,
 		)
+		status.updateBatcherReloadingTopics(rsk.Status.BatcherReloadingTopics)
 		return resultRequeueMilliSeconds(1500), nil, nil
 	}
 	klog.V(2).Infof("rsk/%v reconciling all sinkGroups", rsk.Name)
