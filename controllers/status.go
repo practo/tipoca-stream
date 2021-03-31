@@ -491,16 +491,26 @@ func (s *status) updateTopicGroup(topic string) {
 	updateTopicGroup(s.rsk, topic, group)
 }
 
-func (s *status) updateBatcherReloadingTopics(topics []string) {
+func (s *status) updateBatcherReloadingTopics(topics []string, batcherRealtime []string) {
 	reloadingTopics := []string{}
 
 	// remove topics which have become realtime
 	realtime := toMap(s.realtime)
+	realtimeBatcher := toMap(batcherRealtime)
 	for _, t := range topics {
+		// remove topics which have become realtime (both batcher and loader)
 		_, ok := realtime[t]
-		if !ok {
-			reloadingTopics = append(reloadingTopics, t)
+		if ok {
+			continue
+
 		}
+		// remove topics which have become batcher realtime
+		_, ok = realtimeBatcher[t]
+		if ok {
+			continue
+		}
+
+		reloadingTopics = append(reloadingTopics, t)
 	}
 
 	klog.V(2).Infof("rsk/%s currentReloading: %d %v", s.rsk.Name, len(reloadingTopics), reloadingTopics)

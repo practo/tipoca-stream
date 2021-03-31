@@ -321,6 +321,69 @@ func TestAllocateReloadingUnits(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "UnitsGoingAboveMaxCase2",
+			topics:   []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3", "db.inventory.t4", "db.inventory.t5", "db.inventory.t6", "db.inventory.t7", "db.inventory.t8", "db.inventory.t9"},
+			realtime: []string{"db.inventory.t3", "db.inventory.t4"},
+			topicsLast: []topicLast{
+				topicLast{
+					topic: "db.inventory.t1",
+					last:  1,
+				},
+				topicLast{
+					topic: "db.inventory.t2",
+					last:  10,
+				},
+				topicLast{
+					topic: "db.inventory.t3",
+					last:  100,
+				},
+				topicLast{
+					topic: "db.inventory.t4",
+					last:  1000,
+				},
+				topicLast{
+					topic: "db.inventory.t5",
+					last:  10000,
+				},
+				topicLast{
+					topic: "db.inventory.t6",
+					last:  20000,
+				},
+				topicLast{
+					topic: "db.inventory.t7",
+					last:  100000,
+				},
+			},
+			maxReloadingUnits:      5,
+			currentReloadingTopics: []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3", "db.inventory.t4", "db.inventory.t5"},
+			units: []deploymentUnit{
+				deploymentUnit{
+					id:     "t1",
+					topics: []string{"db.inventory.t1"},
+				},
+				deploymentUnit{
+					id:     "t2",
+					topics: []string{"db.inventory.t2"},
+				},
+				deploymentUnit{
+					id:     "t5",
+					topics: []string{"db.inventory.t5"},
+				},
+				deploymentUnit{
+					id:     "t6",
+					topics: []string{"db.inventory.t6"},
+				},
+				deploymentUnit{
+					id:     "t7",
+					topics: []string{"db.inventory.t7"},
+				},
+				deploymentUnit{
+					id:     "realtime",
+					topics: []string{"db.inventory.t3", "db.inventory.t4"},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -338,7 +401,7 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			)
 			allocator.allocateReloadingUnits()
 			if !reflect.DeepEqual(allocator.units, tc.units) {
-				t.Errorf("expected: %+v, got: %+v\n", tc.units, allocator.units)
+				t.Errorf("\nexpected (%v): %+v\ngot (%v): %+v\n", len(tc.units), tc.units, len(allocator.units), allocator.units)
 			}
 		})
 	}
