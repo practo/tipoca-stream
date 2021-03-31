@@ -152,8 +152,14 @@ func (sb *buildSinkGroup) buildBatchers(
 			sb.sgType,
 			defaultImage,
 		)
-		var units []deploymentUnit
-		if sb.calc != nil {
+		units := []deploymentUnit{
+			deploymentUnit{
+				id:            "",
+				sinkGroupSpec: sinkGroupSpec,
+				topics:        sb.topics,
+			},
+		}
+		if len(sb.topics) > 0 && sb.calc != nil { // overwrite units if currently reloading and calculation is available
 			if len(sb.calc.batchersRealtime) > 0 {
 				mainSinkGroupSpec = applyBatcherSinkGroupDefaults(
 					sb.rsk,
@@ -162,6 +168,7 @@ func (sb *buildSinkGroup) buildBatchers(
 				)
 			}
 			allocator := newUnitAllocator(
+				sb.rsk.Name,
 				sb.topics,
 				sb.calc.batchersRealtime,
 				sb.calc.batchersLast,
@@ -172,14 +179,6 @@ func (sb *buildSinkGroup) buildBatchers(
 			)
 			allocator.allocateReloadingUnits()
 			units = allocator.units
-		} else {
-			units = []deploymentUnit{
-				deploymentUnit{
-					id:            "",
-					sinkGroupSpec: sinkGroupSpec,
-					topics:        sb.topics,
-				},
-			}
 		}
 		for _, unit := range units {
 			consumerGroups, err := computeConsumerGroups(

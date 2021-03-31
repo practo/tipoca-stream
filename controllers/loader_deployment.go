@@ -46,7 +46,6 @@ func applyLoaderSinkGroupDefaults(
 	var maxReloadingUnits *int32
 
 	// defaults by sinkgroup
-	var specifiedSpec *tipocav1.SinkGroupSpec
 	switch sgType {
 	case MainSinkGroup:
 		maxSizePerBatch = toQuantityPtr(resource.MustParse("1Gi"))
@@ -66,6 +65,7 @@ func applyLoaderSinkGroupDefaults(
 		image = &defaultImage
 	}
 
+	var specifiedSpec *tipocav1.SinkGroupSpec
 	// apply the sinkGroup spec rules
 	if rsk.Spec.Loader.SinkGroup.All != nil {
 		specifiedSpec = rsk.Spec.Loader.SinkGroup.All
