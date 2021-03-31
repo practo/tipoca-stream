@@ -419,8 +419,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 	calc := newRealtimeCalculator(rsk, kafkaWatcher, reloadTopicGroup, r.KafkaRealtimeCache)
 	currentRealtime := calc.calculate(status.reloading, status.realtime)
 	if len(status.reloading) > 0 {
-		klog.V(2).Infof("rsk/%v batchers realtime: %d / %d", rsk.Name, len(calc.batchersRealtime), len(status.reloading))
-		klog.V(2).Infof("rsk/%v loaders  realtime: %d / %d", rsk.Name, len(calc.loadersRealtime), len(status.reloading))
+		klog.V(2).Infof("rsk/%v batchersRealtime: %d / %d (current=%d)", rsk.Name, len(calc.batchersRealtime), len(status.reloading), len(rsk.Status.BatcherReloadingTopics))
+		klog.V(2).Infof("rsk/%v loadersRealtime:  %d / %d", rsk.Name, len(calc.loadersRealtime), len(status.reloading))
 	}
 
 	if !subSetSlice(currentRealtime, status.realtime) {
@@ -515,7 +515,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	if len(status.realtime) >= MaxTopicRelease {
 		releaseCandidates = status.realtime[:MaxTopicRelease]
 	}
-	klog.V(2).Infof("rsk/%s release candidates: %v", rsk.Name, releaseCandidates)
+	klog.V(2).Infof("rsk/%s releaseCandidates: %v", rsk.Name, releaseCandidates)
 
 	var releaser *releaser
 	if len(releaseCandidates) > 0 {

@@ -65,7 +65,7 @@ func sortTopicsByLastOffset(topicsLast []topicLast) []string {
 }
 
 func k8sCompatibleName(name string) string {
-	// satisfy regex
+	// satisfy k8s name regex
 	// '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*'
 	return strings.ToLower(strings.ReplaceAll(name, "_", "-"))
 }
@@ -114,6 +114,9 @@ func (u *unitAllocator) allocateReloadingUnits() {
 			topics:        []string{topic},
 		})
 		reloadingTopics[topic] = true
+		if len(reloadingUnits) >= u.maxReloadingUnits {
+			break
+		}
 	}
 	klog.V(3).Infof(
 		"rsk/%s reloadingUnits(based on current): %v %v",
