@@ -5,6 +5,7 @@ import (
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	transformer "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"sort"
+	"strings"
 )
 
 type unitAllocator struct {
@@ -60,8 +61,17 @@ func sortTopicsByLastOffset(topicsLast []topicLast) []string {
 	return topics
 }
 
+func k8sCompatibleName(name string) string {
+	// satisfy regex
+	// '[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*'
+	return strings.ToLower(strings.ReplaceAll(name, "_", "-"))
+}
+
 func (u *unitAllocator) unitID(topic string) string {
 	_, _, table := transformer.ParseTopic(topic)
+
+	table = k8sCompatibleName(table)
+
 	if len(table) > 10 {
 		return table[:10]
 	}
