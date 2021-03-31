@@ -280,7 +280,7 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 
 		// compute realtime
 		maxBatcherLag, maxLoaderLag := r.maxLag(topic)
-		if info.batcher != nil && info.batcher.last != nil && info.batcher.current != nil {
+		if info.batcher != nil && info.batcher.last != nil {
 			if info.batcher.current != nil {
 				if *info.batcher.last-*info.batcher.current <= maxBatcherLag {
 					klog.V(3).Infof("rsk/%s: %s batcher realtime", r.rsk.Name, topic)
