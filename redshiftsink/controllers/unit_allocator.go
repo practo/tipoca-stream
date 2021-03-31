@@ -75,8 +75,8 @@ func (u *unitAllocator) unitID(topic string) string {
 
 	table = k8sCompatibleName(table)
 
-	if len(table) > 10 {
-		return table[:10]
+	if len(table) > 20 {
+		return table[:20]
 	}
 
 	return table
