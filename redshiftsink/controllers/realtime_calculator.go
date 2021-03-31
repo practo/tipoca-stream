@@ -321,7 +321,14 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 			klog.V(2).Infof("rsk/%s: %s realtime", r.rsk.Name, topic)
 			realtimeTopics = append(realtimeTopics, topic)
 		} else {
-			klog.V(2).Infof("%v: waiting to reach realtime", topic)
+			if info.batcherRealtime == false && info.loaderRealtime == false {
+				klog.V(2).Infof("%v: waiting to reach realtime", topic)
+				klog.V(2).Infof("%v: waiting to reach realtime", ltopic)
+			} else if info.batcherRealtime == false {
+				klog.V(2).Infof("%v: waiting to reach realtime", topic)
+			} else if info.loaderRealtime == false {
+				klog.V(2).Infof("%v: waiting to reach realtime", ltopic)
+			}
 		}
 
 		if !hit {
