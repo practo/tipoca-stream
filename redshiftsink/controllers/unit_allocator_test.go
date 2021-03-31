@@ -6,7 +6,7 @@ import (
 )
 
 func TestAllocateReloadingUnits(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	tests := []struct {
 		name                   string
@@ -19,7 +19,7 @@ func TestAllocateReloadingUnits(t *testing.T) {
 	}{
 		{
 			name:                   "RealFirstCaseWhenTopicLagEmpty",
-			topics:                 []string{"t1", "t2"},
+			topics:                 []string{"db.inventory.t1", "db.inventory.t2"},
 			realtime:               []string{},
 			topicsLast:             []topicLast{},
 			maxReloadingUnits:      3,
@@ -27,34 +27,34 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			units: []deploymentUnit{
 				deploymentUnit{
 					id:     "t1",
-					topics: []string{"t1"},
+					topics: []string{"db.inventory.t1"},
 				},
 				deploymentUnit{
 					id:     "t2",
-					topics: []string{"t2"},
+					topics: []string{"db.inventory.t2"},
 				},
 			},
 		},
 		{
 			name:     "FirstCase",
-			topics:   []string{"t1", "t2", "t3", "t4"},
+			topics:   []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3", "db.inventory.t4"},
 			realtime: []string{},
 			topicsLast: []topicLast{
 				topicLast{
-					topic: "t1",
-					lag:   1500,
+					topic: "db.inventory.t1",
+					last:  1500,
 				},
 				topicLast{
-					topic: "t2",
-					lag:   1500,
+					topic: "db.inventory.t2",
+					last:  1500,
 				},
 				topicLast{
-					topic: "t3",
-					lag:   1400,
+					topic: "db.inventory.t3",
+					last:  1400,
 				},
 				topicLast{
-					topic: "t4",
-					lag:   1400,
+					topic: "db.inventory.t4",
+					last:  1400,
 				},
 			},
 			maxReloadingUnits:      1,
@@ -62,30 +62,30 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			units: []deploymentUnit{
 				deploymentUnit{
 					id:     "t3",
-					topics: []string{"t3"},
+					topics: []string{"db.inventory.t3"},
 				},
 			},
 		},
 		{
 			name:     "SecondCaseMax3",
-			topics:   []string{"t1", "t2", "t3", "t4"},
+			topics:   []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3", "db.inventory.t4"},
 			realtime: []string{},
 			topicsLast: []topicLast{
 				topicLast{
-					topic: "t1",
-					lag:   1500,
+					topic: "db.inventory.t1",
+					last:  1500,
 				},
 				topicLast{
-					topic: "t2",
-					lag:   1500,
+					topic: "db.inventory.t2",
+					last:  1500,
 				},
 				topicLast{
-					topic: "t3",
-					lag:   1400,
+					topic: "db.inventory.t3",
+					last:  1400,
 				},
 				topicLast{
-					topic: "t4",
-					lag:   1400,
+					topic: "db.inventory.t4",
+					last:  1400,
 				},
 			},
 			maxReloadingUnits:      3,
@@ -93,167 +93,186 @@ func TestAllocateReloadingUnits(t *testing.T) {
 			units: []deploymentUnit{
 				deploymentUnit{
 					id:     "t3",
-					topics: []string{"t3"},
+					topics: []string{"db.inventory.t3"},
 				},
 				deploymentUnit{
 					id:     "t4",
-					topics: []string{"t4"},
+					topics: []string{"db.inventory.t4"},
 				},
 				deploymentUnit{
 					id:     "t1",
-					topics: []string{"t1"},
+					topics: []string{"db.inventory.t1"},
 				},
 			},
 		},
 		{
 			name:     "ThirdCaseCurrentThere",
-			topics:   []string{"t1", "t2", "t3", "t4"},
+			topics:   []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3", "db.inventory.t4"},
 			realtime: []string{},
 			topicsLast: []topicLast{
 				topicLast{
-					topic: "t1",
-					lag:   1500,
+					topic: "db.inventory.t1",
+					last:  1500,
 				},
 				topicLast{
-					topic: "t2",
-					lag:   1500,
+					topic: "db.inventory.t2",
+					last:  1500,
 				},
 				topicLast{
-					topic: "t3",
-					lag:   1400,
+					topic: "db.inventory.t3",
+					last:  1400,
 				},
 				topicLast{
-					topic: "t4",
-					lag:   1400,
+					topic: "db.inventory.t4",
+					last:  1400,
 				},
 			},
 			maxReloadingUnits:      3,
-			currentReloadingTopics: []string{"t1", "t2", "t3"},
+			currentReloadingTopics: []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3"},
 			units: []deploymentUnit{
 				deploymentUnit{
 					id:     "t1",
-					topics: []string{"t1"},
+					topics: []string{"db.inventory.t1"},
 				},
 				deploymentUnit{
 					id:     "t2",
-					topics: []string{"t2"},
+					topics: []string{"db.inventory.t2"},
 				},
 				deploymentUnit{
 					id:     "t3",
-					topics: []string{"t3"},
+					topics: []string{"db.inventory.t3"},
 				},
 			},
 		},
 		{
 			name:     "FourthCaseLagChangedShouldNotChangeAnything",
-			topics:   []string{"t1", "t2", "t3", "t4"},
+			topics:   []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3", "db.inventory.t4"},
 			realtime: []string{},
 			topicsLast: []topicLast{
 				topicLast{
-					topic: "t1",
-					lag:   1500,
+					topic: "db.inventory.t1",
+					last:  1500,
 				},
 				topicLast{
-					topic: "t2",
-					lag:   1500,
+					topic: "db.inventory.t2",
+					last:  1500,
 				},
 				topicLast{
-					topic: "t3",
-					lag:   2,
+					topic: "db.inventory.t3",
+					last:  2,
 				},
 				topicLast{
-					topic: "t4",
-					lag:   1,
+					topic: "db.inventory.t4",
+					last:  1,
 				},
 			},
 			maxReloadingUnits:      3,
-			currentReloadingTopics: []string{"t1", "t2", "t3"},
+			currentReloadingTopics: []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3"},
 			units: []deploymentUnit{
 				deploymentUnit{
 					id:     "t1",
-					topics: []string{"t1"},
+					topics: []string{"db.inventory.t1"},
 				},
 				deploymentUnit{
 					id:     "t2",
-					topics: []string{"t2"},
+					topics: []string{"db.inventory.t2"},
 				},
 				deploymentUnit{
 					id:     "t3",
-					topics: []string{"t3"},
+					topics: []string{"db.inventory.t3"},
 				},
 			},
 		},
 		{
 			name:     "FifthCaseOneRealtimeOneMovesin",
-			topics:   []string{"t1", "t2", "t3", "t4"},
-			realtime: []string{"t3"},
+			topics:   []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3", "db.inventory.t4"},
+			realtime: []string{"db.inventory.t3"},
 			topicsLast: []topicLast{
 				topicLast{
-					topic: "t1",
-					lag:   1500,
+					topic: "db.inventory.t1",
+					last:  1500,
 				},
 				topicLast{
-					topic: "t2",
-					lag:   1500,
+					topic: "db.inventory.t2",
+					last:  1500,
 				},
 				topicLast{
-					topic: "t3",
-					lag:   2,
+					topic: "db.inventory.t3",
+					last:  2,
 				},
 				topicLast{
-					topic: "t4",
-					lag:   1,
+					topic: "db.inventory.t4",
+					last:  1,
 				},
 			},
 			maxReloadingUnits:      3,
-			currentReloadingTopics: []string{"t1", "t2", "t3"},
+			currentReloadingTopics: []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3"},
 			units: []deploymentUnit{
 				deploymentUnit{
 					id:     "t1",
-					topics: []string{"t1"},
+					topics: []string{"db.inventory.t1"},
 				},
 				deploymentUnit{
 					id:     "t2",
-					topics: []string{"t2"},
+					topics: []string{"db.inventory.t2"},
 				},
 				deploymentUnit{
 					id:     "t4",
-					topics: []string{"t4"},
+					topics: []string{"db.inventory.t4"},
 				},
 				deploymentUnit{
 					id:     "realtime",
-					topics: []string{"t3"},
+					topics: []string{"db.inventory.t3"},
 				},
 			},
 		},
 		{
 			name:     "SixthCaseAllRealtime",
-			topics:   []string{"t1", "t2", "t3", "t4"},
-			realtime: []string{"t1", "t2", "t3", "t4"},
+			topics:   []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3", "db.inventory.t4"},
+			realtime: []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3", "db.inventory.t4"},
 			topicsLast: []topicLast{
 				topicLast{
-					topic: "t1",
-					lag:   1,
+					topic: "db.inventory.t1",
+					last:  1,
 				},
 				topicLast{
-					topic: "t2",
-					lag:   1,
+					topic: "db.inventory.t2",
+					last:  1,
 				},
 				topicLast{
-					topic: "t3",
-					lag:   2,
+					topic: "db.inventory.t3",
+					last:  2,
 				},
 				topicLast{
-					topic: "t4",
-					lag:   1,
+					topic: "db.inventory.t4",
+					last:  1,
 				},
 			},
 			maxReloadingUnits:      3,
-			currentReloadingTopics: []string{"t1", "t2", "t4", "t3"},
+			currentReloadingTopics: []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t4", "db.inventory.t3"},
 			units: []deploymentUnit{
 				deploymentUnit{
 					id:     "realtime",
-					topics: []string{"t1", "t2", "t3", "t4"},
+					topics: []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3", "db.inventory.t4"},
+				},
+			},
+		},
+		{
+			name:     "K8sNameCompatibility",
+			topics:   []string{"db.inventory.t1_aks"},
+			realtime: []string{},
+			topicsLast: []topicLast{
+				topicLast{
+					topic: "db.inventory.t1_aks",
+					last:  1,
+				},
+			},
+			maxReloadingUnits:      3,
+			currentReloadingTopics: []string{},
+			units: []deploymentUnit{
+				deploymentUnit{
+					id:     "t1-aks",
+					topics: []string{"db.inventory.t1_aks"},
 				},
 			},
 		},
