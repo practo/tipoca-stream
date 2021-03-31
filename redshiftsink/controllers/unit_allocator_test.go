@@ -18,24 +18,6 @@ func TestAllocateReloadingUnits(t *testing.T) {
 		units                  []deploymentUnit
 	}{
 		{
-			name:                   "RealFirstCaseWhenTopicLagEmpty",
-			topics:                 []string{"db.inventory.t1", "db.inventory.t2"},
-			realtime:               []string{},
-			topicsLast:             []topicLast{},
-			maxReloadingUnits:      3,
-			currentReloadingTopics: []string{},
-			units: []deploymentUnit{
-				deploymentUnit{
-					id:     "t1",
-					topics: []string{"db.inventory.t1"},
-				},
-				deploymentUnit{
-					id:     "t2",
-					topics: []string{"db.inventory.t2"},
-				},
-			},
-		},
-		{
 			name:     "FirstCase",
 			topics:   []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3", "db.inventory.t4"},
 			realtime: []string{},
@@ -282,6 +264,7 @@ func TestAllocateReloadingUnits(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			allocator := newUnitAllocator(
+				"testrsk",
 				tc.topics,
 				tc.realtime,
 				tc.topicsLast,

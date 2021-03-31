@@ -492,6 +492,7 @@ func (s *status) updateTopicGroup(topic string) {
 }
 
 func (s *status) updateBatcherReloadingTopics(topics []string) {
+	klog.V(3).Infof("rsk/%s currentReloading: %d %v", s.rsk.Name, len(topics), topics)
 	s.rsk.Status.BatcherReloadingTopics = topics
 }
 

@@ -9,6 +9,7 @@ import (
 )
 
 type unitAllocator struct {
+	rskName  string
 	topics   []string
 	realtime []string
 
@@ -22,6 +23,7 @@ type unitAllocator struct {
 }
 
 func newUnitAllocator(
+	rskName string,
 	topics,
 	realtime []string,
 	topicsLast []topicLast,
@@ -31,6 +33,7 @@ func newUnitAllocator(
 	reload *tipocav1.SinkGroupSpec,
 ) *unitAllocator {
 	return &unitAllocator{
+		rskName:                rskName,
 		topics:                 topics,
 		realtime:               realtime,
 		topicsLast:             topicsLast,
@@ -82,12 +85,19 @@ func (u *unitAllocator) unitID(topic string) string {
 // for the reloading sinkGroup
 func (u *unitAllocator) allocateReloadingUnits() {
 	realtime := toMap(u.realtime)
-	realtimeUnit := deploymentUnit{
-		id:            "realtime",
-		sinkGroupSpec: u.mainSinkGroupSpec,
-		topics:        u.realtime,
-	}
+	klog.V(3).Infof(
+		"rsk/%s realtime: %v, max: %v",
+		u.rskName,
+		u.realtime,
+		u.maxReloadingUnits,
+	)
 
+	klog.V(3).Infof(
+		"rsk/%s currentUnits: %v %v",
+		u.rskName,
+		len(u.currentReloadingTopics),
+		u.currentReloadingTopics,
+	)
 	// don't shuffle the already reloading topics unless realtime
 	reloadingUnits := []deploymentUnit{}
 	for _, topic := range u.currentReloadingTopics {
@@ -101,20 +111,30 @@ func (u *unitAllocator) allocateReloadingUnits() {
 			topics:        []string{topic},
 		})
 	}
+	klog.V(3).Infof(
+		"rsk/%s reloadingUnits(based on current): %v %v",
+		u.rskName,
+		len(reloadingUnits),
+		reloadingUnits,
+	)
+
+	realtimeUnit := deploymentUnit{
+		id:            "realtime",
+		sinkGroupSpec: u.mainSinkGroupSpec,
+		topics:        u.realtime,
+	}
 
 	if len(reloadingUnits) >= u.maxReloadingUnits {
 		u.units = reloadingUnits
 		if len(realtimeUnit.topics) > 0 {
 			u.units = append(u.units, realtimeUnit)
 		}
+		klog.V(2).Infof("rsk/%s units: %v", u.rskName, len(u.units))
 		return
 	}
 
 	topicsByLastAsc := sortTopicsByLastOffset(u.topicsLast)
-	if len(topicsByLastAsc) == 0 && len(u.topics) != 0 {
-		klog.Infof("empty topicsLast, using %+v", u.topics)
-		topicsByLastAsc = u.topics
-	}
+	klog.V(4).Infof("rsk/%s sortByLast: %v", u.rskName, topicsByLastAsc)
 	for _, topic := range topicsByLastAsc {
 		_, ok := realtime[topic]
 		if ok {
@@ -134,4 +154,5 @@ func (u *unitAllocator) allocateReloadingUnits() {
 	if len(realtimeUnit.topics) > 0 {
 		u.units = append(u.units, realtimeUnit)
 	}
+	klog.V(2).Infof("rsk/%s units: %v", u.rskName, len(u.units))
 }
