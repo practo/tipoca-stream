@@ -492,8 +492,19 @@ func (s *status) updateTopicGroup(topic string) {
 }
 
 func (s *status) updateBatcherReloadingTopics(topics []string) {
-	klog.V(3).Infof("rsk/%s currentReloading: %d %v", s.rsk.Name, len(topics), topics)
-	s.rsk.Status.BatcherReloadingTopics = topics
+	reloadingTopics := []string{}
+
+	// remove topics which have become realtime
+	realtime := toMap(s.realtime)
+	for _, t := range topics {
+		_, ok := realtime[t]
+		if !ok {
+			reloadingTopics = append(reloadingTopics, t)
+		}
+	}
+
+	klog.V(2).Infof("rsk/%s currentReloading: %d %v", s.rsk.Name, len(reloadingTopics), reloadingTopics)
+	s.rsk.Status.BatcherReloadingTopics = reloadingTopics
 }
 
 func updateTopicGroup(rsk *tipocav1.RedshiftSink, topic string, group tipocav1.Group) {
