@@ -282,8 +282,10 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 		maxBatcherLag, maxLoaderLag := r.maxLag(topic)
 		if info.batcher != nil && info.batcher.last != nil {
 			if info.batcher.current != nil {
-				if *info.batcher.last-*info.batcher.current <= maxBatcherLag {
-					klog.V(3).Infof("rsk/%s: %s batcher realtime", r.rsk.Name, topic)
+				lag := *info.batcher.last - *info.batcher.current
+				klog.V(2).Infof("rsk/%s: %s lag=%v", r.rsk.Name, topic, lag)
+				if lag <= maxBatcherLag {
+					klog.V(2).Infof("rsk/%s: %s batcher realtime", r.rsk.Name, topic)
 					info.batcherRealtime = true
 					r.batchersRealtime = append(r.batchersRealtime, topic)
 				}
@@ -298,8 +300,10 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 		}
 		if info.loader != nil && info.loader.last != nil {
 			if info.loader.current != nil {
-				if *info.loader.last-*info.loader.current <= maxLoaderLag {
-					klog.V(3).Infof("rsk/%s: %s loader realtime", r.rsk.Name, ltopic)
+				lag := *info.loader.last - *info.loader.current
+				klog.V(2).Infof("rsk/%s: %s lag=%v", r.rsk.Name, ltopic, lag)
+				if lag <= maxLoaderLag {
+					klog.V(2).Infof("rsk/%s: %s loader realtime", r.rsk.Name, ltopic)
 					info.loaderRealtime = true
 					r.loadersRealtime = append(r.loadersRealtime, ltopic)
 				}
