@@ -305,6 +305,7 @@ func (b *loadProcessor) insertIntoTargetTable(ctx context.Context, tx *sql.Tx) e
 
 	s3CopyDir := filepath.Join(
 		viper.GetString("s3sink.bucketDir"),
+		b.consumerGroupID,
 		b.topic,
 		util.NewUUIDString(),
 		"unload_",
@@ -509,6 +510,7 @@ func (b *loadProcessor) migrateTable(
 
 	s3CopyDir := filepath.Join(
 		viper.GetString("s3sink.bucketDir"),
+		b.consumerGroupID,
 		b.topic,
 		util.NewUUIDString(),
 		"migrating_unload_",
@@ -610,8 +612,11 @@ func (b *loadProcessor) migrateSchema(ctx context.Context, schemaId int, inputTa
 func (b *loadProcessor) processBatch(
 	ctx context.Context,
 	msgBuf []*serializer.Message,
-) error {
-
+) (
+	int64,
+	error,
+) {
+	var bytesProcessed int64
 	if b.redshiftStats {
 		klog.V(2).Infof("dbstats: %+v\n", b.redshifter.Stats())
 	}
@@ -627,11 +632,13 @@ func (b *loadProcessor) processBatch(
 	for id, message := range msgBuf {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("session ctx done, err: %v", ctx.Err())
+			return bytesProcessed, fmt.Errorf(
+				"session ctx done, err: %v", ctx.Err())
 		default:
 			job := StringMapToJob(message.Value.(map[string]interface{}))
 			schemaId = job.SchemaId
 			b.batchEndOffset = message.Offset
+			bytesProcessed += job.BatchBytes
 
 			// this assumes all messages in a batch have same schema id
 			if id == 0 {
@@ -647,7 +654,7 @@ func (b *loadProcessor) processBatch(
 					job.MaskSchema,
 				)
 				if err != nil {
-					return fmt.Errorf(
+					return bytesProcessed, fmt.Errorf(
 						"Transforming schema:%d => inputTable failed: %v\n",
 						schemaId,
 						err,
@@ -660,7 +667,7 @@ func (b *loadProcessor) processBatch(
 					inputTable.Name + b.tableSuffix)
 				err = b.migrateSchema(ctx, schemaId, inputTable)
 				if err != nil {
-					return err
+					return bytesProcessed, err
 				}
 			}
 			entries = append(
@@ -676,13 +683,14 @@ func (b *loadProcessor) processBatch(
 	// upload s3 manifest file to bulk copy data to staging table
 	s3ManifestKey := filepath.Join(
 		viper.GetString("s3sink.bucketDir"),
+		b.consumerGroupID,
 		b.topic,
 		util.NewUUIDString(),
 		"manifest.json",
 	)
 	err = b.s3sink.UploadS3Manifest(s3ManifestKey, entries)
 	if err != nil {
-		return fmt.Errorf(
+		return bytesProcessed, fmt.Errorf(
 			"Error uploading manifest: %s to s3, err:%v\n",
 			s3ManifestKey,
 			err,
@@ -693,7 +701,7 @@ func (b *loadProcessor) processBatch(
 	klog.V(2).Infof("%s, load staging\n", b.topic)
 	err = b.createStagingTable(ctx, schemaId, inputTable)
 	if err != nil {
-		return err
+		return bytesProcessed, err
 	}
 	err = b.loadTable(
 		ctx,
@@ -702,20 +710,20 @@ func (b *loadProcessor) processBatch(
 		s3ManifestKey,
 	)
 	if err != nil {
-		return err
+		return bytesProcessed, err
 	}
 
 	// merge
 	err = b.merge(ctx)
 	if err != nil {
-		return err
+		return bytesProcessed, err
 	}
 
 	if b.redshiftStats {
 		klog.V(3).Infof("endbatch dbstats: %+v\n", b.redshifter.Stats())
 	}
 
-	return nil
+	return bytesProcessed, nil
 }
 
 // Process implements serializer.MessageBatchSyncProcessor
@@ -728,10 +736,10 @@ func (b *loadProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*s
 	if err != nil {
 		return err
 	}
-	klog.Infof("%s, batchId:%d, size:%d: Processing...\n",
+	klog.Infof("%s, batchId:%d, size:%d: processing...\n",
 		b.topic, b.batchId, len(msgBuf),
 	)
-	err = b.processBatch(ctx, msgBuf)
+	bytesProcessed, err := b.processBatch(ctx, msgBuf)
 	if err != nil {
 		b.printCurrentState()
 		return err
@@ -750,15 +758,16 @@ func (b *loadProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*s
 		timeTaken = fmt.Sprintf("%.0fs", secondsTaken)
 	}
 
-	klog.Infof(
-		"%s, batchId:%d, size:%d, end:%d:, Processed in %s",
-		b.topic, b.batchId, len(msgBuf), b.batchEndOffset, timeTaken,
-	)
-
-	setMsgsProcessedPerSecond(
+	setMetrics(
 		b.consumerGroupID,
 		b.topic,
+		float64(bytesProcessed)/secondsTaken,
 		float64(len(msgBuf))/secondsTaken,
+	)
+
+	klog.Infof(
+		"%s, batchId:%d, size:%d, end:%d:, processed in %s",
+		b.topic, b.batchId, len(msgBuf), b.batchEndOffset, timeTaken,
 	)
 
 	return nil

@@ -3,8 +3,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"math/rand"
-	"sync"
 	"time"
 
 	klog "github.com/practo/klog/v2"
@@ -19,26 +17,31 @@ import (
 )
 
 const (
-	MainSinkGroup        = "main"
-	ReloadSinkGroup      = "reload"
-	ReloadDupeSinkGroup  = "reload-dupe"
+	AllSinkGroup        = "all"
+	MainSinkGroup       = "main"
+	ReloadSinkGroup     = "reload"
+	ReloadDupeSinkGroup = "reload-dupe"
+
 	DefaultMaxBatcherLag = int64(100)
 	DefautMaxLoaderLag   = int64(10)
-	ReloadTableSuffix    = "_ts_adx_reload"
+
+	ReloadTableSuffix = "_ts_adx_reload"
 )
 
 type sinkGroupInterface interface {
-	Reconcile(ctx context.Context) (ctrl.Result, ReconcilerEvent, error)
-	RealtimeTopics(currentRealtime []string, watcher kafka.Watcher, cache *sync.Map) []string
+	batcherDeploymentTopics() []string
+	loaderDeploymentTopics() []string
+	reconcile(ctx context.Context) (ctrl.Result, ReconcilerEvent, error)
 }
 
 type Deployment interface {
 	Name() string
 	Namespace() string
-	Deployment() *appsv1.Deployment
 	Config() *corev1.ConfigMap
+	Deployment() *appsv1.Deployment
 	UpdateConfig(current *corev1.ConfigMap) bool
 	UpdateDeployment(current *appsv1.Deployment) bool
+	Topics() []string
 }
 
 type sinkGroup struct {
@@ -48,8 +51,10 @@ type sinkGroup struct {
 	sgType      string
 	topics      []string
 	topicGroups map[string]tipocav1.Group
-	batcher     Deployment
-	loader      Deployment
+	calc        *realtimeCalculator
+
+	batchers []Deployment
+	loaders  []Deployment
 }
 
 type sinkGroupBuilder interface {
@@ -60,8 +65,11 @@ type sinkGroupBuilder interface {
 	setTopics(topics []string) sinkGroupBuilder
 	setMaskVersion(version string) sinkGroupBuilder
 	setTopicGroups() sinkGroupBuilder
-	buildBatcher(secret map[string]string, defaultImage, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig) sinkGroupBuilder
-	buildLoader(secret map[string]string, defaultImage, tableSuffix string, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig, defaultMaxOpenConns int, defaultMaxIdleConns int) sinkGroupBuilder
+	setRealtimeCalculator(calc *realtimeCalculator) sinkGroupBuilder
+
+	buildBatchers(secret map[string]string, defaultImage, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig) sinkGroupBuilder
+	buildLoaders(secret map[string]string, defaultImage, tableSuffix string, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig, defaultMaxOpenConns int, defaultMaxIdleConns int) sinkGroupBuilder
+
 	build() *sinkGroup
 }
 
@@ -77,8 +85,10 @@ type buildSinkGroup struct {
 	topics      []string
 	topicGroups map[string]tipocav1.Group
 	maskVersion string
-	batcher     Deployment
-	loader      Deployment
+	calc        *realtimeCalculator
+
+	batchers []Deployment
+	loaders  []Deployment
 }
 
 func (sb *buildSinkGroup) setRedshiftSink(rsk *tipocav1.RedshiftSink) sinkGroupBuilder {
@@ -122,35 +132,107 @@ func (sb *buildSinkGroup) setTopicGroups() sinkGroupBuilder {
 	return sb
 }
 
-func (sb *buildSinkGroup) buildBatcher(
+func (sb *buildSinkGroup) setRealtimeCalculator(calc *realtimeCalculator) sinkGroupBuilder {
+	sb.calc = calc
+
+	return sb
+}
+
+func (sb *buildSinkGroup) buildBatchers(
 	secret map[string]string,
 	defaultImage string,
 	defaultKafkaVersion string,
 	tlsConfig *kafka.TLSConfig,
 ) sinkGroupBuilder {
-	consumerGroups, err := computeConsumerGroups(sb.topicGroups, sb.topics)
-	if err != nil {
-		klog.Fatalf("Error computing consumer group from status, err: %v", err)
+	batchers := []Deployment{}
+	if sb.rsk.Spec.Batcher.SinkGroup != nil {
+		var sinkGroupSpec, mainSinkGroupSpec *tipocav1.SinkGroupSpec
+		sinkGroupSpec = applyBatcherSinkGroupDefaults(
+			sb.rsk,
+			sb.sgType,
+			defaultImage,
+		)
+		units := []deploymentUnit{
+			deploymentUnit{
+				id:            "",
+				sinkGroupSpec: sinkGroupSpec,
+				topics:        sb.topics,
+			},
+		}
+		if len(sb.topics) > 0 && sb.calc != nil { // overwrite units if currently reloading and calculation is available
+			if len(sb.calc.batchersRealtime) > 0 {
+				mainSinkGroupSpec = applyBatcherSinkGroupDefaults(
+					sb.rsk,
+					MainSinkGroup,
+					defaultImage,
+				)
+			}
+			allocator := newUnitAllocator(
+				sb.rsk.Name,
+				sb.topics,
+				sb.calc.batchersRealtime,
+				sb.calc.batchersLast,
+				*sinkGroupSpec.MaxReloadingUnits,
+				sb.rsk.Status.BatcherReloadingTopics,
+				mainSinkGroupSpec,
+				sinkGroupSpec,
+			)
+			allocator.allocateReloadingUnits()
+			units = allocator.units
+		}
+		for _, unit := range units {
+			consumerGroups, err := computeConsumerGroups(
+				sb.topicGroups, unit.topics)
+			if err != nil {
+				klog.Fatalf(
+					"Error computing consumer group from status, err: %v", err)
+			}
+			batcher, err := NewBatcher(
+				batcherName(sb.rsk.Name, sb.sgType, unit.id),
+				sb.rsk,
+				sb.maskVersion,
+				secret,
+				sb.sgType,
+				unit.sinkGroupSpec,
+				consumerGroups,
+				defaultImage,
+				defaultKafkaVersion,
+				tlsConfig,
+			)
+			if err != nil {
+				klog.Fatalf("Error making batcher: %v", err)
+			}
+			batchers = append(batchers, batcher)
+		}
+	} else { // Deprecated
+		consumerGroups, err := computeConsumerGroups(sb.topicGroups, sb.topics)
+		if err != nil {
+			klog.Fatalf(
+				"Error computing consumer group from status, err: %v", err)
+		}
+		batcher, err := NewBatcher(
+			batcherName(sb.rsk.Name, sb.sgType, ""),
+			sb.rsk,
+			sb.maskVersion,
+			secret,
+			sb.sgType,
+			nil,
+			consumerGroups,
+			defaultImage,
+			defaultKafkaVersion,
+			tlsConfig,
+		)
+		if err != nil {
+			klog.Fatalf("Error making batcher: %v", err)
+		}
+		batchers = append(batchers, batcher)
 	}
-	batcher, err := NewBatcher(
-		batcherName(sb.rsk.Name, sb.sgType),
-		sb.rsk,
-		sb.maskVersion,
-		secret,
-		sb.sgType,
-		consumerGroups,
-		defaultImage,
-		defaultKafkaVersion,
-		tlsConfig,
-	)
-	if err != nil {
-		klog.Fatalf("Error making batcher: %v", err)
-	}
-	sb.batcher = batcher
+
+	sb.batchers = batchers
 	return sb
 }
 
-func (sb *buildSinkGroup) buildLoader(
+func (sb *buildSinkGroup) buildLoaders(
 	secret map[string]string,
 	defaultImage string,
 	tableSuffix string,
@@ -159,27 +241,72 @@ func (sb *buildSinkGroup) buildLoader(
 	defaultMaxOpenConns int,
 	defaultMaxIdleConns int,
 ) sinkGroupBuilder {
-	consumerGroups, err := computeConsumerGroups(sb.topicGroups, sb.topics)
-	if err != nil {
-		klog.Fatalf("Error computing consumer group from status, err: %v", err)
+	loaders := []Deployment{}
+	if sb.rsk.Spec.Loader.SinkGroup != nil {
+		sinkGroupSpec := applyLoaderSinkGroupDefaults(
+			sb.rsk,
+			sb.sgType,
+			defaultImage,
+		)
+		units := []deploymentUnit{
+			deploymentUnit{
+				id:     "",
+				topics: sb.topics,
+			},
+		}
+		for _, unit := range units {
+			consumerGroups, err := computeConsumerGroups(
+				sb.topicGroups, unit.topics)
+			if err != nil {
+				klog.Fatalf(
+					"Error computing consumer group from status, err: %v", err)
+			}
+			loader, err := NewLoader(
+				loaderName(sb.rsk.Name, sb.sgType, unit.id),
+				sb.rsk,
+				tableSuffix,
+				secret,
+				sb.sgType,
+				sinkGroupSpec,
+				consumerGroups,
+				defaultImage,
+				defaultKafkaVersion,
+				tlsConfig,
+				defaultMaxOpenConns,
+				defaultMaxIdleConns,
+			)
+			if err != nil {
+				klog.Fatalf("Error making loader: %v", err)
+			}
+			loaders = append(loaders, loader)
+		}
+	} else { // Deprecated
+		consumerGroups, err := computeConsumerGroups(sb.topicGroups, sb.topics)
+		if err != nil {
+			klog.Fatalf(
+				"Error computing consumer group from status, err: %v", err)
+		}
+		loader, err := NewLoader(
+			loaderName(sb.rsk.Name, sb.sgType, ""),
+			sb.rsk,
+			tableSuffix,
+			secret,
+			sb.sgType,
+			nil,
+			consumerGroups,
+			defaultImage,
+			defaultKafkaVersion,
+			tlsConfig,
+			defaultMaxOpenConns,
+			defaultMaxIdleConns,
+		)
+		if err != nil {
+			klog.Fatalf("Error making loader: %v", err)
+		}
+		loaders = append(loaders, loader)
 	}
-	loader, err := NewLoader(
-		loaderName(sb.rsk.Name, sb.sgType),
-		sb.rsk,
-		tableSuffix,
-		secret,
-		sb.sgType,
-		consumerGroups,
-		defaultImage,
-		defaultKafkaVersion,
-		tlsConfig,
-		defaultMaxOpenConns,
-		defaultMaxIdleConns,
-	)
-	if err != nil {
-		klog.Fatalf("Error making loader: %v", err)
-	}
-	sb.loader = loader
+
+	sb.loaders = loaders
 	return sb
 }
 
@@ -191,8 +318,9 @@ func (sb *buildSinkGroup) build() *sinkGroup {
 		sgType:      sb.sgType,
 		topics:      sb.topics,
 		topicGroups: sb.topicGroups,
-		batcher:     sb.batcher,
-		loader:      sb.loader,
+
+		batchers: sb.batchers,
+		loaders:  sb.loaders,
 	}
 }
 
@@ -350,7 +478,7 @@ func (s *sinkGroup) reconcileConfigMap(
 		return nil, err
 	}
 
-	klog.V(2).Infof("Creating configMap: %v", config.Name)
+	klog.V(2).Infof("rsk/%s Creating configMap: %v", s.rsk.Name, config.Name)
 	event, err := createConfigMap(ctx, s.client, config, s.rsk)
 	if err != nil {
 		return nil, err
@@ -361,15 +489,12 @@ func (s *sinkGroup) reconcileConfigMap(
 
 func (s *sinkGroup) reconcileDeployment(
 	ctx context.Context,
-	labelInstance string,
 	d Deployment,
 ) (
 	ReconcilerEvent,
 	error,
 ) {
 	deployment := d.Deployment()
-	configMap := d.Config()
-
 	current, exists, err := getDeployment(
 		ctx,
 		s.client,
@@ -389,7 +514,7 @@ func (s *sinkGroup) reconcileDeployment(
 			return nil, err
 		}
 
-		klog.V(2).Infof("Updating deployment: %v", deployment.Name)
+		klog.V(2).Infof("rsk/%s Updating deployment: %v", s.rsk.Name, deployment.Name)
 		event, err := updateDeployment(ctx, s.client, deployment, s.rsk)
 		if err != nil {
 			return nil, err
@@ -397,30 +522,54 @@ func (s *sinkGroup) reconcileDeployment(
 		if event != nil {
 			return event, nil
 		}
-		return nil, nil
 	}
 
-	klog.V(3).Infof("[Cleanup] Attempt deploy, current: %v", deployment.Name)
-	// find and cleanup dead deployments
+	err = ctrlutil.SetOwnerReference(s.rsk, deployment, s.scheme)
+	if err != nil {
+		return nil, err
+	}
+
+	// create new deployment pointing to new config map
+	klog.V(2).Infof("rsk/%s Creating deployment: %v", s.rsk.Name, deployment.Name)
+	event, err := createDeployment(ctx, s.client, deployment, s.rsk)
+	if err != nil {
+		return nil, err
+	}
+
+	return event, nil
+}
+
+func (s *sinkGroup) cleanup(
+	ctx context.Context,
+	labelInstance string,
+	neededDeployments map[string]bool,
+	neededConfigMaps map[string]bool,
+) (
+	ReconcilerEvent,
+	error,
+) {
+	klog.V(3).Infof("Current active deployments, needed: %+v", neededDeployments)
+	// query all deployment for the sinkgroup
 	deploymentList, err := listDeployments(
 		ctx,
 		s.client,
 		labelInstance,
 		s.sgType,
-		d.Namespace(),
+		s.rsk.Namespace,
 		s.rsk.Name,
 	)
 	if err != nil {
 		return nil, err
 	}
 	for _, deploy := range deploymentList.Items {
-		klog.V(3).Infof("[Cleanup] Attempting deploy: %v", deploy.Name)
+		klog.V(4).Infof("Cleanup suspect deployment: %v", deploy.Name)
 		labelValue, ok := deploy.Labels[InstanceName]
 		if !ok {
 			continue
 		}
-		if labelValue != deployment.Name {
-			klog.V(2).Infof("[Cleanup] Deleting deploy: %s", labelValue)
+		_, ok = neededDeployments[labelValue]
+		if !ok {
+			klog.V(2).Infof("rsk/%s Deleting deployment: %v", s.rsk.Name, labelValue)
 			event, err := deleteDeployment(ctx, s.client, &deploy, s.rsk)
 			if err != nil {
 				return nil, err
@@ -431,14 +580,14 @@ func (s *sinkGroup) reconcileDeployment(
 		}
 	}
 
-	klog.V(3).Infof("[Cleanup] Attempt cm, current: %v", configMap.Name)
-	// find and cleanup dead config maps
+	klog.V(3).Infof("Current active configMaps, needed: %+v", neededConfigMaps)
+	// query all configmaps for the sinkgroup
 	configMapList, err := listConfigMaps(
 		ctx,
 		s.client,
 		labelInstance,
 		s.sgType,
-		d.Namespace(),
+		s.rsk.Namespace,
 		s.rsk.Name,
 	)
 	if err != nil {
@@ -446,13 +595,14 @@ func (s *sinkGroup) reconcileDeployment(
 	}
 
 	for _, config := range configMapList.Items {
-		klog.V(3).Infof("[Cleanup] Attempting cm: %v", config.Name)
+		klog.V(3).Infof("Cleanup configmap suspect cm: %v", config.Name)
 		labelValue, ok := config.Labels[InstanceName]
 		if !ok {
 			continue
 		}
-		if labelValue != configMap.Name {
-			klog.V(2).Infof("[Cleanup] Deleting cm: %s", labelValue)
+		_, ok = neededConfigMaps[labelValue]
+		if !ok {
+			klog.V(2).Infof("rsk/%s Deleting configmap: %s", s.rsk.Name, labelValue)
 			event, err := deleteConfigMap(ctx, s.client, &config, s.rsk)
 			if err != nil {
 				return nil, err
@@ -463,18 +613,7 @@ func (s *sinkGroup) reconcileDeployment(
 		}
 	}
 
-	err = ctrlutil.SetOwnerReference(s.rsk, deployment, s.scheme)
-	if err != nil {
-		return nil, err
-	}
-
-	// create new deployment pointing to new config map
-	klog.V(2).Infof("Creating deployment: %v", deployment.Name)
-	event, err := createDeployment(ctx, s.client, deployment, s.rsk)
-	if err != nil {
-		return nil, err
-	}
-	return event, nil
+	return nil, nil
 }
 
 func (s *sinkGroup) reconcileBatcher(
@@ -485,7 +624,7 @@ func (s *sinkGroup) reconcileBatcher(
 	error,
 ) {
 	// reconcile batcher configMap
-	event, err := s.reconcileConfigMap(ctx, s.batcher)
+	event, err := s.reconcileConfigMap(ctx, d)
 	if err != nil {
 		return nil, fmt.Errorf("Error reconciling batcher configMap, %v", err)
 	}
@@ -494,12 +633,52 @@ func (s *sinkGroup) reconcileBatcher(
 	}
 
 	// reconcile batcher deployment
-	event, err = s.reconcileDeployment(ctx, BatcherLabelInstance, s.batcher)
+	event, err = s.reconcileDeployment(ctx, d)
 	if err != nil {
 		return nil, fmt.Errorf("Error reconciling batcher deployment, %v", err)
 	}
 	if event != nil {
 		return event, nil
+	}
+
+	return nil, nil
+}
+
+func (s *sinkGroup) reconcileBatchers(
+	ctx context.Context,
+	deployments []Deployment,
+) (
+	ReconcilerEvent,
+	error,
+) {
+	// cleanup the ones which should be dead before creating new
+	var neededDeployments, neededConfigMaps []string
+	for _, d := range deployments {
+		neededDeployments = append(neededDeployments, d.Name())
+		neededConfigMaps = append(neededConfigMaps, d.Name())
+	}
+	event, err := s.cleanup(
+		ctx,
+		BatcherLabelInstance,
+		toMap(neededDeployments),
+		toMap(neededConfigMaps),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if event != nil {
+		return event, nil
+	}
+
+	// create or update
+	for _, d := range deployments {
+		event, err := s.reconcileBatcher(ctx, d)
+		if err != nil {
+			return nil, err
+		}
+		if event != nil {
+			return event, nil
+		}
 	}
 
 	return nil, nil
@@ -512,7 +691,7 @@ func (s *sinkGroup) reconcileLoader(
 	ReconcilerEvent,
 	error,
 ) {
-	event, err := s.reconcileConfigMap(ctx, s.loader)
+	event, err := s.reconcileConfigMap(ctx, d)
 	if err != nil {
 		return nil, fmt.Errorf("Error reconciling loader configMap, %v", err)
 	}
@@ -521,7 +700,7 @@ func (s *sinkGroup) reconcileLoader(
 	}
 
 	// reconcile loader deployment
-	event, err = s.reconcileDeployment(ctx, LoaderLabelInstance, s.loader)
+	event, err = s.reconcileDeployment(ctx, d)
 	if err != nil {
 		return nil, fmt.Errorf("Error reconciling loader deployment, %v", err)
 	}
@@ -532,255 +711,44 @@ func (s *sinkGroup) reconcileLoader(
 	return nil, nil
 }
 
-func maxLag(rsk *tipocav1.RedshiftSink, topic string) (int64, int64) {
-	var maxBatcherLag, maxLoaderLag int64
-	if rsk.Spec.ReleaseCondition == nil {
-		maxBatcherLag = DefaultMaxBatcherLag
-		maxLoaderLag = DefautMaxLoaderLag
-	} else {
-		if rsk.Spec.ReleaseCondition.MaxBatcherLag != nil {
-			maxBatcherLag = *rsk.Spec.ReleaseCondition.MaxBatcherLag
-		}
-		if rsk.Spec.ReleaseCondition.MaxLoaderLag != nil {
-			maxLoaderLag = *rsk.Spec.ReleaseCondition.MaxLoaderLag
-		}
-		if rsk.Spec.TopicReleaseCondition != nil {
-			d, ok := rsk.Spec.TopicReleaseCondition[topic]
-			if ok {
-				if d.MaxBatcherLag != nil {
-					maxBatcherLag = *d.MaxBatcherLag
-				}
-				if d.MaxLoaderLag != nil {
-					maxLoaderLag = *d.MaxLoaderLag
-				}
-			}
-		}
-	}
-
-	return maxBatcherLag, maxLoaderLag
-}
-
-func (s *sinkGroup) lagBelowThreshold(
-	topic string,
-	batcherLag,
-	loaderLag,
-	maxBatcherLag,
-	maxLoaderLag int64,
-) bool {
-	// if batcherLag <= maxBatcherLag && loaderLag == -1 {
-	// 	// TODO: this might lead to false positives, solve it
-	// 	// but without it some very low throughput topics wont go live.
-	// 	// may need to plugin prometheus time series data for analysis later
-	// 	// to solve it
-	// 	klog.Warningf("topic: %s assumed to have reached realtime as batcherLag<=threshold and loaderLag=-1 (consumer group not active)", topic)
-	// 	return true
-	// }
-
-	klog.V(4).Infof("topic: %s lag=%v", topic, batcherLag)
-	klog.V(4).Infof("topic: %s lag=%v", topic, loaderLag)
-
-	if batcherLag <= maxBatcherLag &&
-		loaderLag <= maxLoaderLag {
-
-		return true
-	}
-
-	return false
-}
-
-func cacheValid(validity time.Duration, lastCachedTime *int64) bool {
-	if lastCachedTime == nil {
-		return false
-	}
-
-	if (*lastCachedTime + validity.Nanoseconds()) > time.Now().UnixNano() {
-		return true
-	}
-
-	return false
-}
-
-type kafkaRealtimeCache struct {
-	lastCacheRefresh *int64
-	realtime         bool
-}
-
-func (s *sinkGroup) topicRealtime(
-	watcher kafka.Watcher,
-	topic string,
-	cache *sync.Map,
-	allTopics map[string]bool,
+func (s *sinkGroup) reconcileLoaders(
+	ctx context.Context,
+	deployments []Deployment,
 ) (
-	bool, *int64, error,
+	ReconcilerEvent,
+	error,
 ) {
-	// use cache to prevent calls to kafka
-	var realtimeCache kafkaRealtimeCache
-	cacheLoaded, ok := cache.Load(topic)
-	if ok {
-		realtimeCache = cacheLoaded.(kafkaRealtimeCache)
-		// 600 to 840 seconds
-		validitySeconds := rand.Intn(240) + 300
-		klog.V(5).Infof("rsk/%s validity seconds: %v topic: %s", s.rsk.Name, validitySeconds, topic)
-		if cacheValid(time.Second*time.Duration(validitySeconds), realtimeCache.lastCacheRefresh) {
-			klog.V(4).Infof("rsk/%s (realtime cache hit) topic: %s", s.rsk.Name, topic)
-			if realtimeCache.realtime {
-				return true, realtimeCache.lastCacheRefresh, nil
-			}
-			return false, realtimeCache.lastCacheRefresh, nil
-		}
+	// cleanup the ones which should be dead before creating new
+	var neededDeployments, neededConfigMaps []string
+	for _, d := range deployments {
+		neededDeployments = append(neededDeployments, d.Name())
+		neededConfigMaps = append(neededConfigMaps, d.Name())
 	}
-
-	// new cache refresh time so that topics are only checked after an interval
-	// reduces the request to Kafka by big factor
-	now := time.Now().UnixNano()
-	maxBatcherLag, maxLoaderLag := maxLag(s.rsk, topic)
-
-	klog.V(2).Infof("rsk/%s (fetching realtime stats) topic: %s", s.rsk.Name, topic)
-	group, ok := s.topicGroups[topic]
-	if !ok {
-		return false, &now, fmt.Errorf("consumerGroupID not found for %s", topic)
-	}
-
-	// batcher's lag analysis
-	batcherLastOffset, err := watcher.LastOffset(topic, 0)
-	if err != nil {
-		return false, &now, fmt.Errorf("Error getting current offset for %s", topic)
-	}
-	klog.V(4).Infof("%s, lastOffset=%v", topic, batcherLastOffset)
-
-	// This won't work for topics which have lastOffset less than lag
-	// klog.V(2).Infof("%s, lastOffset=%v", topic, batcherLastOffset)
-	// if batcherLastOffset < maxBatcherLag {
-	// 	klog.V(2).Infof("%s, lastOffset < %v, not realtime", topic, maxBatcherLag)
-	// 	return false, &now, nil
-	// }
-
-	batcherCGID := consumerGroupID(s.rsk.Name, s.rsk.Namespace, group.ID, "-batcher")
-	batcherCurrentOffset, err := watcher.CurrentOffset(
-		batcherCGID,
-		topic,
-		0,
+	event, err := s.cleanup(
+		ctx,
+		LoaderLabelInstance,
+		toMap(neededDeployments),
+		toMap(neededConfigMaps),
 	)
 	if err != nil {
-		return false, &now, err
+		return nil, err
 	}
-	klog.V(4).Infof("%s, currentOffset=%v", topic, batcherCurrentOffset)
-	if batcherCurrentOffset == -1 {
-		klog.V(2).Infof("%s, batcher cg 404, not realtime", topic)
-		return false, &now, nil
+	if event != nil {
+		return event, nil
 	}
 
-	// loader's lag analysis
-	loaderTopic := s.rsk.Spec.KafkaLoaderTopicPrefix + group.ID + "-" + topic
-	_, ok = allTopics[loaderTopic]
-	if !ok {
-		klog.V(2).Infof("%s topic 404, not realtime.", loaderTopic)
-		return false, &now, nil
-	}
-	loaderLastOffset, err := watcher.LastOffset(loaderTopic, 0)
-	if err != nil {
-		return false, &now, fmt.Errorf("Error getting last offset for %s", loaderTopic)
-	}
-	klog.V(4).Infof("%s, lastOffset=%v", loaderTopic, loaderLastOffset)
-
-	// This won't work for topics which have lastOffset less than lag
-	// if loaderLastOffset < maxLoaderLag {
-	// 	klog.V(2).Infof("%s, lastOffset < %v, not realtime", loaderTopic, maxLoaderLag)
-	// 	return false, &now, nil
-	// }
-	loaderCGID := consumerGroupID(s.rsk.Name, s.rsk.Namespace, group.ID, "-loader")
-	loaderCurrentOffset, err := watcher.CurrentOffset(
-		loaderCGID,
-		loaderTopic,
-		0,
-	)
-	if err != nil {
-		return false, &now, err
-	}
-	klog.V(4).Infof("%s, currentOffset=%v (queried)", loaderTopic, loaderCurrentOffset)
-	if loaderCurrentOffset == -1 {
-		// CurrentOffset can be -1 in two cases
-		// 1. When the Consumer Group was never created in that case we return and consider the topic not realtime
-		// 2. When the Consumer Group had processed before but now is showing -1 currentOffset as it is inactive due to less throughput,
-		//    On such a scenario, we consider it realtime.
-		//    we find this case by saving the currentOffset for the loader topcics in RedshiftSink Topic Group Status
-		if group.LoaderCurrentOffset == nil {
-			klog.V(2).Infof("%s, loader cg 404, not realtime", loaderTopic)
-			return false, &now, nil
-		}
-		klog.V(2).Infof("%s, currentOffset=%v (old), cg 404, try realtime", loaderTopic, *group.LoaderCurrentOffset)
-		// give the topic the opportunity to release based on its last found currentOffset
-		loaderCurrentOffset = *group.LoaderCurrentOffset
-	} else {
-		group.LoaderCurrentOffset = &loaderCurrentOffset
-		// updates the new queried lodaer offset
-		klog.V(4).Infof("%s, cg found", loaderTopic)
-		updateTopicGroup(s.rsk, topic, group)
-	}
-	klog.V(2).Infof("%s, currentOffset=%v, checking realtime", loaderTopic, *group.LoaderCurrentOffset)
-
-	// check realtime
-	if s.lagBelowThreshold(
-		topic,
-		batcherLastOffset-batcherCurrentOffset, // batcher lag
-		loaderLastOffset-loaderCurrentOffset,   // loader lag
-		maxBatcherLag,
-		maxLoaderLag,
-	) {
-		klog.V(2).Infof("%s, realtime", topic)
-		return true, &now, nil
-	} else {
-		klog.V(2).Infof("%v: waiting to reach realtime", topic)
-		return false, &now, nil
-	}
-}
-
-// realtimeTopics gives back the list of topics whose consumer lags are
-// less than or equal to the specified thresholds to be considered realtime
-func (s *sinkGroup) realtimeTopics(
-	currentRealtime []string,
-	watcher kafka.Watcher,
-	cache *sync.Map,
-) []string {
-	current := toMap(currentRealtime)
-	realtimeTopics := []string{}
-
-	allTopics, err := watcher.Topics()
-	if err != nil {
-		klog.Errorf(
-			"Ignoring realtime update. Error fetching all topics, err:%v",
-			err,
-		)
-		return currentRealtime
-	}
-
-	for _, topic := range s.topics {
-		realtime, lastRefresh, err := s.topicRealtime(
-			watcher, topic, cache, toMap(allTopics),
-		)
+	// create or update
+	for _, d := range deployments {
+		event, err := s.reconcileLoader(ctx, d)
 		if err != nil {
-			klog.Errorf(
-				"rsk/%s Error getting realtime for topic: %s, err: %v",
-				s.rsk.Name,
-				topic,
-				err,
-			)
-			_, ok := current[topic]
-			// if there is an error in finding lag
-			// and the topic was already in realtime consider it realtime
-			if ok {
-				cache.Store(topic, kafkaRealtimeCache{lastCacheRefresh: lastRefresh, realtime: true})
-				realtimeTopics = append(realtimeTopics, topic)
-				continue
-			}
+			return nil, err
 		}
-		if realtime {
-			realtimeTopics = append(realtimeTopics, topic)
+		if event != nil {
+			return event, nil
 		}
-		cache.Store(topic, kafkaRealtimeCache{lastCacheRefresh: lastRefresh, realtime: realtime})
 	}
 
-	return realtimeTopics
+	return nil, nil
 }
 
 func (s *sinkGroup) reconcile(
@@ -790,7 +758,7 @@ func (s *sinkGroup) reconcile(
 ) {
 	result := ctrl.Result{RequeueAfter: time.Second * 30}
 
-	event, err := s.reconcileBatcher(ctx, s.batcher)
+	event, err := s.reconcileBatchers(ctx, s.batchers)
 	if err != nil {
 		return result, nil, err
 	}
@@ -798,7 +766,7 @@ func (s *sinkGroup) reconcile(
 		return result, event, nil
 	}
 
-	event, err = s.reconcileLoader(ctx, s.loader)
+	event, err = s.reconcileLoaders(ctx, s.loaders)
 	if err != nil {
 		return result, nil, err
 	}
@@ -807,4 +775,22 @@ func (s *sinkGroup) reconcile(
 	}
 
 	return result, nil, nil
+}
+
+func (s *sinkGroup) batcherDeploymentTopics() []string {
+	t := []string{}
+	for _, d := range s.batchers {
+		t = append(t, d.Topics()...)
+	}
+
+	return t
+}
+
+func (s *sinkGroup) loaderDeploymentTopics() []string {
+	t := []string{}
+	for _, d := range s.loaders {
+		t = append(t, d.Topics()...)
+	}
+
+	return t
 }
