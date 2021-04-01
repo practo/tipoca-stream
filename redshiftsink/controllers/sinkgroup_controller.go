@@ -22,8 +22,8 @@ const (
 	ReloadSinkGroup     = "reload"
 	ReloadDupeSinkGroup = "reload-dupe"
 
-	DefaultMaxBatcherLag = int64(100)
-	DefautMaxLoaderLag   = int64(10)
+	DefaultMaxBatcherLag = int64(1000)
+	DefautMaxLoaderLag   = int64(100)
 
 	ReloadTableSuffix = "_ts_adx_reload"
 )

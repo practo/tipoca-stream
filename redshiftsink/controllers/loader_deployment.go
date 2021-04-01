@@ -48,21 +48,51 @@ func applyLoaderSinkGroupDefaults(
 	// defaults by sinkgroup
 	switch sgType {
 	case MainSinkGroup:
-		maxSizePerBatch = toQuantityPtr(resource.MustParse("1Gi"))
-		maxWaitSeconds = toIntPtr(60)
+		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Gi"))
+		maxWaitSeconds = toIntPtr(120)
 		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
 		image = &defaultImage
+		resources = &corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceCPU):    resource.MustParse("100m"),
+				corev1.ResourceName(corev1.ResourceMemory): resource.MustParse("128Mi"),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceCPU):    resource.MustParse("100m"),
+				corev1.ResourceName(corev1.ResourceMemory): resource.MustParse("128Mi"),
+			},
+		}
 	case ReloadSinkGroup:
-		maxSizePerBatch = toQuantityPtr(resource.MustParse("1Gi"))
-		maxWaitSeconds = toIntPtr(60)
+		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Gi"))
+		maxWaitSeconds = toIntPtr(600)
 		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
 		image = &defaultImage
 		maxReloadingUnits = toInt32Ptr(1) // loader only supports one for this at present (there is no need as of now to run multiple)
+		resources = &corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceCPU):    resource.MustParse("100m"),
+				corev1.ResourceName(corev1.ResourceMemory): resource.MustParse("128Mi"),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceCPU):    resource.MustParse("100m"),
+				corev1.ResourceName(corev1.ResourceMemory): resource.MustParse("128Mi"),
+			},
+		}
 	case ReloadDupeSinkGroup:
-		maxSizePerBatch = toQuantityPtr(resource.MustParse("1Gi"))
-		maxWaitSeconds = toIntPtr(60)
+		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Gi"))
+		maxWaitSeconds = toIntPtr(120)
 		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
 		image = &defaultImage
+		resources = &corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceCPU):    resource.MustParse("100m"),
+				corev1.ResourceName(corev1.ResourceMemory): resource.MustParse("128Mi"),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceCPU):    resource.MustParse("100m"),
+				corev1.ResourceName(corev1.ResourceMemory): resource.MustParse("128Mi"),
+			},
+		}
 	}
 
 	var specifiedSpec *tipocav1.SinkGroupSpec

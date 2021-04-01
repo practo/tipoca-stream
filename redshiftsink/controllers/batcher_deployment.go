@@ -49,23 +49,53 @@ func applyBatcherSinkGroupDefaults(
 	switch sgType {
 	case MainSinkGroup:
 		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Mi"))
-		maxWaitSeconds = toIntPtr(60)
+		maxWaitSeconds = toIntPtr(30)
 		maxConcurrency = toIntPtr(2)
 		maxProcessingTime = &redshiftbatcher.DefaultMaxProcessingTime
 		image = &defaultImage
+		resources = &corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceCPU):    resource.MustParse("100m"),
+				corev1.ResourceName(corev1.ResourceMemory): resource.MustParse("512Mi"),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceCPU):    resource.MustParse("100m"),
+				corev1.ResourceName(corev1.ResourceMemory): resource.MustParse("512Mi"),
+			},
+		}
 	case ReloadSinkGroup:
 		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Mi"))
 		maxWaitSeconds = toIntPtr(60)
 		maxConcurrency = toIntPtr(10)
 		maxProcessingTime = &redshiftbatcher.DefaultMaxProcessingTime
 		image = &defaultImage
-		maxReloadingUnits = toInt32Ptr(10)
+		maxReloadingUnits = toInt32Ptr(20)
+		resources = &corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceCPU):    resource.MustParse("4"),
+				corev1.ResourceName(corev1.ResourceMemory): resource.MustParse("512Mi"),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceCPU):    resource.MustParse("4"),
+				corev1.ResourceName(corev1.ResourceMemory): resource.MustParse("512Mi"),
+			},
+		}
 	case ReloadDupeSinkGroup:
 		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Mi"))
-		maxWaitSeconds = toIntPtr(60)
-		maxConcurrency = toIntPtr(10)
+		maxWaitSeconds = toIntPtr(30)
+		maxConcurrency = toIntPtr(2)
 		maxProcessingTime = &redshiftbatcher.DefaultMaxProcessingTime
 		image = &defaultImage
+		resources = &corev1.ResourceRequirements{
+			Requests: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceCPU):    resource.MustParse("100m"),
+				corev1.ResourceName(corev1.ResourceMemory): resource.MustParse("128Mi"),
+			},
+			Limits: corev1.ResourceList{
+				corev1.ResourceName(corev1.ResourceCPU):    resource.MustParse("100m"),
+				corev1.ResourceName(corev1.ResourceMemory): resource.MustParse("128Mi"),
+			},
+		}
 	}
 
 	var specifiedSpec *tipocav1.SinkGroupSpec
