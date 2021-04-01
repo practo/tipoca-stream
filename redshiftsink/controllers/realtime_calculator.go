@@ -139,16 +139,17 @@ func (r *realtimeCalculator) fetchRealtimeInfo(
 		loaderRealtime:  false,
 		lastUpdate:      &now,
 	}
+
 	// batcher's lag analysis: a) get last
-	last, err := r.watcher.LastOffset(topic, 0)
+	batcherLast, err := r.watcher.LastOffset(topic, 0)
 	if err != nil {
 		return info, fmt.Errorf("Error getting last offset for %s", topic)
 	}
-	info.batcher.last = &last
-	klog.V(4).Infof("rsk/%s %s, lastOffset=%v", r.rsk.Name, topic, last)
+	info.batcher.last = &batcherLast
+	klog.V(4).Infof("rsk/%s %s, lastOffset=%v", r.rsk.Name, topic, batcherLast)
 
 	// batcher's lag analysis: b) get current
-	current, err := r.watcher.CurrentOffset(
+	batcherCurrent, err := r.watcher.CurrentOffset(
 		consumerGroupID(r.rsk.Name, r.rsk.Namespace, group.ID, "-batcher"),
 		topic,
 		0,
@@ -156,13 +157,13 @@ func (r *realtimeCalculator) fetchRealtimeInfo(
 	if err != nil {
 		return info, err
 	}
-	klog.V(4).Infof("rsk/%s %s, currentOffset=%v (queried)", r.rsk.Name, topic, current)
-	if current == -1 {
+	klog.V(4).Infof("rsk/%s %s, currentOffset=%v (queried)", r.rsk.Name, topic, batcherCurrent)
+	if batcherCurrent == -1 {
 		info.batcher.current = nil
 		klog.V(4).Infof("rsk/%s %s, batcher cg 404, not realtime", r.rsk.Name, topic)
 		return info, nil
 	} else {
-		info.batcher.current = &current
+		info.batcher.current = &batcherCurrent
 	}
 
 	if loaderTopic == nil {
@@ -170,15 +171,15 @@ func (r *realtimeCalculator) fetchRealtimeInfo(
 	}
 
 	// loader's lag analysis: a) get last
-	last, err = r.watcher.LastOffset(*loaderTopic, 0)
+	loaderLast, err := r.watcher.LastOffset(*loaderTopic, 0)
 	if err != nil {
 		return info, fmt.Errorf("Error getting last offset for %s", *loaderTopic)
 	}
-	info.loader.last = &last
-	klog.V(4).Infof("rsk/%s %s, lastOffset=%v", r.rsk.Name, *loaderTopic, last)
+	info.loader.last = &loaderLast
+	klog.V(4).Infof("rsk/%s %s, lastOffset=%v", r.rsk.Name, *loaderTopic, loaderLast)
 
 	// loader's lag analysis: b) get current
-	current, err = r.watcher.CurrentOffset(
+	loaderCurrent, err := r.watcher.CurrentOffset(
 		consumerGroupID(r.rsk.Name, r.rsk.Namespace, group.ID, "-loader"),
 		*loaderTopic,
 		0,
@@ -186,8 +187,8 @@ func (r *realtimeCalculator) fetchRealtimeInfo(
 	if err != nil {
 		return info, err
 	}
-	klog.V(4).Infof("rsk/%s %s, currentOffset=%v (queried)", r.rsk.Name, *loaderTopic, current)
-	if current == -1 {
+	klog.V(4).Infof("rsk/%s %s, currentOffset=%v (queried)", r.rsk.Name, *loaderTopic, loaderCurrent)
+	if loaderCurrent == -1 {
 		// CurrentOffset can be -1 in two cases (this may be required in batcher also)
 		// 1. When the Consumer Group was never created in that case we return and consider the topic not realtime
 		// 2. When the Consumer Group had processed before but now is showing -1 currentOffset as it is inactive due to less throughput.
@@ -200,11 +201,11 @@ func (r *realtimeCalculator) fetchRealtimeInfo(
 		// give the topic the opportunity to release based on its last found currentOffset
 		info.loader.current = group.LoaderCurrentOffset
 	} else {
-		group.LoaderCurrentOffset = &current
+		group.LoaderCurrentOffset = &loaderCurrent
 		// updates the new queried loader offset
 		klog.V(4).Infof("rsk/%s %s, cg found", r.rsk.Name, *loaderTopic)
 		updateTopicGroup(r.rsk, topic, group)
-		info.loader.current = &current
+		info.loader.current = &loaderCurrent
 	}
 
 	return info, nil
