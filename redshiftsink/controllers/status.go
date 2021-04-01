@@ -68,11 +68,13 @@ func (sb *buildStatus) setDesiredVersion(version string) statusBuilder {
 
 func (sb *buildStatus) setAllTopics(topics []string) statusBuilder {
 	sb.allTopics = topics
+	sortStringSlice(sb.allTopics)
 	return sb
 }
 
 func (sb *buildStatus) setDiffTopics(topics []string) statusBuilder {
 	sb.diffTopics = topics
+	sortStringSlice(sb.diffTopics)
 	return sb
 }
 
@@ -108,6 +110,7 @@ func (sb *buildStatus) computeReleased() statusBuilder {
 		klog.V(2).Infof("rsk/%s, Status empty, released=0 ", sb.rsk.Name)
 	}
 	sb.released = released
+	sortStringSlice(sb.released)
 
 	return sb
 }
@@ -116,6 +119,8 @@ func (sb *buildStatus) setRealtime() statusBuilder {
 	sb.realtime = currentTopicsByMaskStatus(
 		sb.rsk, tipocav1.MaskRealtime, sb.desiredVersion,
 	)
+	sortStringSlice(sb.realtime)
+
 	return sb
 }
 
@@ -124,6 +129,7 @@ func (sb *buildStatus) computeReloading() statusBuilder {
 		sb.rsk.Status.MaskStatus.CurrentMaskStatus == nil {
 		klog.V(2).Infof("rsk/%s, Status empty, reloading=diffTopics ", sb.rsk.Name)
 		sb.reloading = sb.diffTopics
+		sortStringSlice(sb.reloading)
 		return sb
 	}
 
@@ -160,6 +166,7 @@ func (sb *buildStatus) computeReloading() statusBuilder {
 	}
 
 	sb.reloading = reConstructingReloading
+	sortStringSlice(sb.reloading)
 	return sb
 }
 
@@ -180,6 +187,7 @@ func (sb *buildStatus) computeReloadingDupe() statusBuilder {
 	}
 
 	sb.reloadingDupe = reloadDupeTopics
+	sortStringSlice(sb.reloadingDupe)
 	return sb
 }
 
@@ -301,9 +309,6 @@ func (s *status) info() {
 	klog.V(2).Infof("%s reloading:  %d %v", rskName, len(s.reloading), s.reloading)
 	klog.V(2).Infof("%s rDupe:      %d %v", rskName, len(s.reloadingDupe), s.reloadingDupe)
 	klog.V(2).Infof("%s realtime:   %d %v", rskName, len(s.realtime), s.realtime)
-	if len(s.reloading) > MaxConcurrentReloading {
-		klog.V(2).Infof("%s reloadingC: %d %v", rskName, MaxConcurrentReloading, s.reloading[:MaxConcurrentReloading])
-	}
 }
 
 // manyReloading checks the percentage of reloading topics of the total topics
@@ -484,6 +489,32 @@ func (s *status) updateTopicGroup(topic string) {
 		ID:                  groupID,
 	}
 	updateTopicGroup(s.rsk, topic, group)
+}
+
+func (s *status) updateBatcherReloadingTopics(topics []string, batcherRealtime []string) {
+	reloadingTopics := []string{}
+
+	// remove topics which have become realtime
+	realtime := toMap(s.realtime)
+	realtimeBatcher := toMap(batcherRealtime)
+	for _, t := range topics {
+		// remove topics which have become realtime (both batcher and loader)
+		_, ok := realtime[t]
+		if ok {
+			continue
+
+		}
+		// remove topics which have become batcher realtime
+		_, ok = realtimeBatcher[t]
+		if ok {
+			continue
+		}
+
+		reloadingTopics = append(reloadingTopics, t)
+	}
+
+	klog.V(2).Infof("rsk/%s currentReloading: %d %v", s.rsk.Name, len(reloadingTopics), reloadingTopics)
+	s.rsk.Status.BatcherReloadingTopics = reloadingTopics
 }
 
 func updateTopicGroup(rsk *tipocav1.RedshiftSink, topic string, group tipocav1.Group) {

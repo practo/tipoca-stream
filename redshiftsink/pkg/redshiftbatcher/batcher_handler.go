@@ -14,9 +14,10 @@ import (
 	"time"
 )
 
-const (
-	DefaultMaxConcurrency    = 10
-	DefaultMaxProcessingTime = 180000
+var (
+	DefaultMaxWaitSeconds    int   = 30
+	DefaultMaxConcurrency    int   = 10
+	DefaultMaxProcessingTime int32 = 180000
 )
 
 type BatcherConfig struct {
@@ -38,12 +39,20 @@ type BatcherConfig struct {
 
 	// MaxSize is the maximum size of a batch, on exceeding this batch is pushed
 	// regarless of the wait time.
+	// Deprecated: in favour of MaxBytesPerBatch
 	MaxSize int `yaml:"maxSize,omitempty"`
-	// MaxWaitSeconds after which the bash would be pushed regardless of its size.
-	MaxWaitSeconds int `yaml:"maxWaitSeconds,omitempty"`
-	// MaxConcurrency is the maximum number of concurrent batch processing to run
+
+	// MaxWaitSeconds after which the batch would be flushed
+	// Defaults to 30
+	MaxWaitSeconds *int `yaml:"maxWaitSeconds,omitempty"`
+	// MaxConcurrency is the maximum number of concurrent processing to run
 	// Defaults to 10
-	MaxConcurrency int `yaml:"maxConcurrency,omitempty"`
+	MaxConcurrency *int `yaml:"maxConcurrency,omitempty"`
+	// MaxBytesPerBatch is the maximum bytes per batch. Default is there
+	// if the user has not specified a default will be applied.
+	// If this is specified, maxSize specification is not considered.
+	// Default would be specified after MaxSize is gone
+	MaxBytesPerBatch *int64 `yaml:"maxBytesPerBatch,omitempty"`
 }
 
 // batcherHandler is the sarama consumer handler
@@ -52,12 +61,13 @@ type batcherHandler struct {
 	ready chan bool
 	ctx   context.Context
 
-	maxSize        int
-	maxWaitSeconds int
-	maxConcurrency int
+	maxSize int // Deprecated in favour of maxBytesPerBatch
 
-	consumerGroupID string
+	maxWaitSeconds   *int
+	maxConcurrency   *int
+	maxBytesPerBatch *int64
 
+	consumerGroupID        string
 	kafkaConfig            kafka.KafkaConfig
 	saramaConfig           kafka.SaramaConfig
 	maskConfig             masker.MaskConfig
@@ -77,8 +87,11 @@ func NewHandler(
 ) *batcherHandler {
 
 	// apply defaults
-	if batcherConfig.MaxConcurrency == 0 {
-		batcherConfig.MaxConcurrency = DefaultMaxConcurrency
+	if batcherConfig.MaxWaitSeconds == nil {
+		batcherConfig.MaxWaitSeconds = &DefaultMaxWaitSeconds
+	}
+	if batcherConfig.MaxConcurrency == nil {
+		batcherConfig.MaxConcurrency = &DefaultMaxConcurrency
 	}
 
 	return &batcherHandler{
@@ -87,9 +100,11 @@ func NewHandler(
 
 		consumerGroupID: consumerGroupID,
 
-		maxSize:        batcherConfig.MaxSize,
-		maxWaitSeconds: batcherConfig.MaxWaitSeconds,
-		maxConcurrency: batcherConfig.MaxConcurrency,
+		maxSize: batcherConfig.MaxSize, // Deprecated
+
+		maxWaitSeconds:   batcherConfig.MaxWaitSeconds,
+		maxConcurrency:   batcherConfig.MaxConcurrency,
+		maxBytesPerBatch: batcherConfig.MaxBytesPerBatch,
 
 		kafkaConfig:            kafkaConfig,
 		saramaConfig:           saramaConfig,
@@ -134,7 +149,7 @@ func (h *batcherHandler) ConsumeClaim(
 	)
 
 	var lastSchemaId *int
-	processChan := make(chan []*serializer.Message, h.maxConcurrency)
+	processChan := make(chan []*serializer.Message, *h.maxConcurrency)
 	errChan := make(chan error)
 	processor := newBatchProcessor(
 		h.consumerGroupID,
@@ -145,16 +160,22 @@ func (h *batcherHandler) ConsumeClaim(
 		h.saramaConfig,
 		h.maskConfig,
 		h.kafkaLoaderTopicPrefix,
-		h.maxConcurrency,
+		*h.maxConcurrency,
 	)
+	maxBufSize := h.maxSize
+	if h.maxBytesPerBatch != nil {
+		maxBufSize = serializer.DefaultMessageBufferSize
+	}
 	msgBatch := serializer.NewMessageAsyncBatch(
 		claim.Topic(),
 		claim.Partition(),
-		h.maxSize,
+		h.maxSize, // Deprecated
+		maxBufSize,
+		h.maxBytesPerBatch,
 		processChan,
 	)
 	maxWaitTicker := time.NewTicker(
-		time.Duration(h.maxWaitSeconds) * time.Second,
+		time.Duration(*h.maxWaitSeconds) * time.Second,
 	)
 
 	wg := &sync.WaitGroup{}
@@ -227,7 +248,7 @@ func (h *batcherHandler) ConsumeClaim(
 				// Flush the batch due to schema change
 				msgBatch.Flush(session.Context())
 			}
-			// Flush the batch by size or insert in batch
+			// Flush the batch by maxBytes or size on insert in batch
 			msgBatch.Insert(session.Context(), msg)
 			*lastSchemaId = msg.SchemaId
 		case <-maxWaitTicker.C:

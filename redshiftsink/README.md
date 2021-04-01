@@ -50,28 +50,35 @@ spec:
     maxLoaderLag: 10
   batcher:
     suspend: false
-    maxSize: 10
-    maxWaitSeconds: 30
-    maxConcurrency: 10
     mask: true
     maskFile: "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker/database.yaml"
-    podTemplate:
-      resources:
-        requests:
-          cpu: 100m
-          memory: 200Mi
+    sinkGroup:
+        all:
+          maxSizePerBatch: 10Mi
+          maxWaitSeconds: 30
+          maxConcurrency: 10
+          deploymentUnit:
+              podTemplate:
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 200Mi
   loader:
     suspend: false
-    maxSize: 10
-    maxWaitSeconds: 30
-    maxProcessingTime: 60000
     redshiftSchema: "inventory"
     redshiftGroup:  "sales"
-    podTemplate:
-      resources:
-        requests:
-          cpu: 100m
-          memory: 200Mi
+    sinkGroup:
+        all:
+          maxSizePerBatch: 1Gi
+          maxWaitSeconds: 30
+          maxProcessingTime: 60000
+          deploymentUnit:
+              podTemplate:
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 200Mi
+
 ```
 
 ```bash
@@ -81,11 +88,6 @@ kubectl create -f config/samples/tipoca_v1_redshiftsink.yaml
 This will start syncing all the Kakfa topics matching regex `"^db.inventory*"` from Kafka to Redshift via S3. If masking is turned on it will also mask the data. More on masking [here](./MASKING.MD)
 
 ### Configuration
-
-### Redshiftsink Spec Documentation (TODO):
-| Spec          | Description   | Mandatory |
-| :------------ | :----------- |:------------|
-
 
 ## RedshiftSink Managed Pods
 Redshiftsink performs the sink by creating two pods. Creating a RedshiftSink CRD installs the batcher and loader pods. Batcher and loader pods details are below:
@@ -113,7 +115,8 @@ Flags:
 
 #### Metrics
 ```
-rsk_batcher_messages_processed_per_second
+rsk_batcher_bytes_processed
+rsk_batcher_messages_processed
 ```
 
 ### Configuration
@@ -144,7 +147,8 @@ Flags:
 
 #### Metrics
 ```
-rsk_loader_messages_processed_per_second
+rsk_loader_bytes_loaded
+rsk_loader_messages_loaded
 ```
 
 ### Configuration

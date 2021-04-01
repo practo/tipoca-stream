@@ -61,14 +61,12 @@ type RedshiftSinkReconciler struct {
 	DefaultSecretRefName        string
 	DefaultSecretRefNamespace   string
 	DefaultKafkaVersion         string
-	ReleaseWaitSeconds          int64
 	DefaultRedshiftMaxIdleConns int
 	DefaultRedshiftMaxOpenConns int
 }
 
 const (
-	MaxConcurrentReloading = 30
-	MaxTopicRelease        = 50
+	MaxTopicRelease = 50
 )
 
 // +kubebuilder:rbac:groups=tipoca.k8s.practo.dev,resources=redshiftsinks,verbs=get;list;watch;create;update;patch;delete
@@ -341,8 +339,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 			setType(MainSinkGroup).
 			setTopics(kafkaTopics).
 			setMaskVersion("").
-			buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-			buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+			buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
+			buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 			build()
 		result, event, err := maskLessSinkGroup.reconcile(ctx)
 		return result, event, err
@@ -366,7 +364,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 	var currentMaskVersion string
 	if rsk.Status.MaskStatus != nil &&
 		rsk.Status.MaskStatus.CurrentMaskVersion != nil {
-
 		currentMaskVersion = *rsk.Status.MaskStatus.CurrentMaskVersion
 	} else {
 		klog.V(2).Infof("rsk/%s, Status empty, currentVersion=''", rsk.Name)
@@ -415,6 +412,31 @@ func (r *RedshiftSinkReconciler) reconcile(
 		klog.Fatalf("rsk/%s unexpected status, no diff but reloading", rsk.Name)
 	}
 
+	// Realtime status is always calculated to keep the CurrentOffset
+	// info updated in the rsk status. This is required so that low throughput
+	// release do not get blocked due to missing consumer group currentOffset.
+	reloadTopicGroup := topicGroupBySinkGroup(rsk, ReloadSinkGroup, status.reloading, status.desiredVersion, rsk.Spec.KafkaLoaderTopicPrefix)
+	calc := newRealtimeCalculator(rsk, kafkaWatcher, reloadTopicGroup, r.KafkaRealtimeCache)
+	currentRealtime := calc.calculate(status.reloading, status.realtime)
+	if len(status.reloading) > 0 {
+		klog.V(2).Infof("rsk/%v batchersRealtime: %d / %d (current=%d)", rsk.Name, len(calc.batchersRealtime), len(status.reloading), len(rsk.Status.BatcherReloadingTopics))
+		klog.V(2).Infof("rsk/%v loadersRealtime:  %d / %d", rsk.Name, len(calc.loadersRealtime), len(status.reloading))
+	}
+
+	if !subSetSlice(currentRealtime, status.realtime) {
+		for _, moreRealtime := range currentRealtime {
+			status.realtime = appendIfMissing(status.realtime, moreRealtime)
+		}
+		klog.V(2).Infof(
+			"rsk/%s reconcile needed, realtime topics updated: %v",
+			rsk.Name,
+			status.realtime,
+		)
+		status.updateBatcherReloadingTopics(rsk.Status.BatcherReloadingTopics, calc.batchersRealtime)
+		return resultRequeueMilliSeconds(1500), nil, nil
+	}
+	klog.V(2).Infof("rsk/%v reconciling all sinkGroups", rsk.Name)
+
 	// SinkGroup are of following types:
 	// 1. main: sink group which has desiredMaskVersion
 	//      and has topics which have been released
@@ -431,60 +453,17 @@ func (r *RedshiftSinkReconciler) reconcile(
 	//      tableSuffix: ""
 	var reload, reloadDupe, main *sinkGroup
 
-	allowedReloadingTopics := status.reloading
-	if len(status.reloading) > MaxConcurrentReloading {
-		allowedReloadingTopics = status.reloading[:MaxConcurrentReloading]
-	}
 	reload = sgBuilder.
 		setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).
 		setType(ReloadSinkGroup).
-		setTopics(allowedReloadingTopics).
+		setTopics(status.reloading).
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
-		buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-		buildLoader(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+		setRealtimeCalculator(calc).
+		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
+		buildLoaders(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 		build()
-
-	reloadingRatio := status.reloadingRatio()
-	allowShuffle := true
-	if reloadingRatio > 0.2 {
-		rcloaded, ok := r.ReleaseCache.Load(rsk.Namespace + rsk.Name)
-		if ok {
-			cache := rcloaded.(releaseCache)
-			if cacheValid(time.Second*time.Duration(r.ReleaseWaitSeconds), cache.lastCacheRefresh) {
-				allowShuffle = false
-			}
-			// } else {
-			// 	klog.V(2).Infof("rsk/%v init release cache", rsk.Name)
-			// 	now := time.Now().UnixNano()
-			// 	r.ReleaseCache.Store(
-			// 		rsk.Namespace+rsk.Name,
-			// 		releaseCache{lastCacheRefresh: &now},
-			// 	)
-			// 	return resultRequeueMilliSeconds(100), nil, nil
-		}
-	}
-	klog.V(2).Infof("rsk/%v allowShuffle=%v, reloadingRatio=%v", rsk.Name, allowShuffle, reloadingRatio)
-
-	// Realtime status is always calculated to keep the CurrentOffset
-	// info updated in the rsk status. This is required so that low throughput
-	// release do not get blocked due to missing consumer group currentOffset.
-	currentRealtime := reload.realtimeTopics(status.realtime, kafkaWatcher, r.KafkaRealtimeCache)
-
-	// Allow realtime update only during release window, to minimize shuffle
-	if allowShuffle {
-		if !subSetSlice(currentRealtime, status.realtime) {
-			for _, moreRealtime := range currentRealtime {
-				status.realtime = appendIfMissing(status.realtime, moreRealtime)
-			}
-			klog.V(2).Infof(
-				"Reconcile needed, realtime topics updated: %v", status.realtime)
-			return resultRequeueMilliSeconds(1500), nil, nil
-		}
-		klog.V(2).Infof("rsk/%v reconciling all sinkGroups", rsk.Name)
-	} else {
-		klog.V(2).Infof("rsk/%s realtime (waiting): %d %v", rsk.Name, len(currentRealtime), currentRealtime)
-	}
+	status.updateBatcherReloadingTopics(reload.batcherDeploymentTopics(), calc.batchersRealtime)
 
 	reloadDupe = sgBuilder.
 		setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).
@@ -492,8 +471,9 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopics(status.reloadingDupe).
 		setMaskVersion(status.currentVersion).
 		setTopicGroups().
-		buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-		buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+		setRealtimeCalculator(nil).
+		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
+		buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 		build()
 
 	main = sgBuilder.
@@ -502,8 +482,9 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopics(status.released).
 		setMaskVersion(status.desiredVersion).
 		setTopicGroups().
-		buildBatcher(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-		buildLoader(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+		setRealtimeCalculator(nil).
+		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
+		buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 		build()
 
 	sinkGroups := []*sinkGroup{reloadDupe, reload, main}
@@ -534,7 +515,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	if len(status.realtime) >= MaxTopicRelease {
 		releaseCandidates = status.realtime[:MaxTopicRelease]
 	}
-	klog.V(2).Infof("release candidates: %v", releaseCandidates)
+	klog.V(2).Infof("rsk/%s releaseCandidates: %v", rsk.Name, releaseCandidates)
 
 	var releaser *releaser
 	if len(releaseCandidates) > 0 {

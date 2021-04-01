@@ -14,23 +14,31 @@ spec:
     maxLoaderLag: 10
   batcher:
     suspend: false
-    maxSize: 10
-    maxWaitSeconds: 30
     mask: true
     maskFile: "https://github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker/database.yaml"
-    podTemplate:
-      resources:
-        requests:
-          cpu: 100m
-          memory: 200Mi
+    sinkGroup:
+        all:
+            maxSizePerBatch: 10Mi
+            maxWaitSeconds: 30
+            deploymentUnit:
+                maxTopics: 30
+                podTemplate:
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 200Mi
   loader:
     suspend: false
-    maxSize: 10
-    maxWaitSeconds: 30
     redshiftSchema: "inventory"
     redshiftGroup:  "sales"
-    podTemplate:
-      resources:
-        requests:
-          cpu: 100m
-          memory: 200Mi
+    sinkGroup:
+        all:
+            maxSizePerBatch: 1Gi
+            maxWaitSeconds: 30
+            deploymentUnit:
+                maxTopics: 30
+                podTemplate:
+                  resources:
+                    requests:
+                      cpu: 100m
+                      memory: 200Mi
