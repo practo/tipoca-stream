@@ -66,7 +66,7 @@ func (c *AvroProducer) CreateSchema(
 	schemeStr = strings.ReplaceAll(schemeStr, " ", "")
 
 	schema, err := schemaregistry.GetLatestSchemaWithRetry(
-		c.registry, topic, false, 10,
+		c.registry, topic, false, 2,
 	)
 	if schema == nil || schema.Schema() != schemeStr {
 		klog.V(2).Infof("Creating schema version. topic: %s", topic)
