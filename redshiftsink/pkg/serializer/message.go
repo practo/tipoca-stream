@@ -167,34 +167,23 @@ func (b *MessageSyncBatch) Process(session sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-// insert makes the batch and also calls the processor if batchSize >= maxSize
-func (b *MessageSyncBatch) Insert(
-	session sarama.ConsumerGroupSession,
-	msg *Message,
-	batchBytes int64,
-) error {
-	b.msgBuf = append(b.msgBuf, msg)
-
+func (b *MessageSyncBatch) SizeHit(batchBytes int64) bool {
 	if b.maxBytesPerBatch != nil && batchBytes != 0 {
 		b.msgBufBytes += batchBytes
 		if b.msgBufBytes >= *b.maxBytesPerBatch {
-			klog.V(2).Infof(
-				"%s: maxBytesPerBatch hit",
-				msg.Topic,
-			)
-			return b.Process(session)
+			return true
 		}
-		return nil
+		return false
 	}
 
 	// Deprecated
 	if len(b.msgBuf) >= b.maxSize {
-		klog.V(2).Infof(
-			"%s: maxSize hit",
-			msg.Topic,
-		)
-		return b.Process(session)
+		return true
 	}
 
-	return nil
+	return false
+}
+
+func (b *MessageSyncBatch) Insert(msg *Message) {
+	b.msgBuf = append(b.msgBuf, msg)
 }

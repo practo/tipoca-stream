@@ -162,7 +162,6 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			)
 			return fmt.Errorf("session ctx done, err: %v", session.Context().Err())
 		case message, ok := <-claimMsgChan:
-			maxWaitTicker.Stop()
 			if !ok {
 				klog.V(2).Infof(
 					"%s: consumeClaim returning. read msg channel closed",
@@ -170,7 +169,6 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				)
 				return nil
 			}
-
 			select {
 			default:
 			case <-h.ctx.Done():
@@ -200,7 +198,6 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			// Process the batch by schemaID
 			job := StringMapToJob(msg.Value.(map[string]interface{}))
 			upstreamJobSchemaId := job.SchemaId
-
 			if lastSchemaId == nil {
 				lastSchemaId = new(int)
 			} else if *lastSchemaId != upstreamJobSchemaId {
@@ -210,18 +207,29 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 					*lastSchemaId,
 					upstreamJobSchemaId,
 				)
+				maxWaitTicker.Stop()
 				err = msgBatch.Process(session)
+				maxWaitTicker.Reset(time.Duration(*h.maxWaitSeconds) * time.Second)
 				if err != nil {
 					return err
 				}
 			}
-			// Process the batch by size or insert in batch
-			err = msgBatch.Insert(session, msg, job.BatchBytes)
-			if err != nil {
-				return err
+
+			// Process the batch by size hit
+			msgBatch.Insert(msg)
+			if msgBatch.SizeHit(job.BatchBytes) {
+				klog.V(2).Infof(
+					"%s: maxSize hit",
+					msg.Topic,
+				)
+				maxWaitTicker.Stop()
+				err = msgBatch.Process(session)
+				maxWaitTicker.Reset(time.Duration(*h.maxWaitSeconds) * time.Second)
+				if err != nil {
+					return err
+				}
 			}
 			*lastSchemaId = upstreamJobSchemaId
-			maxWaitTicker.Reset(time.Duration(*h.maxWaitSeconds) * time.Second)
 		case <-maxWaitTicker.C:
 			// Process the batch by time
 			klog.V(2).Infof(
