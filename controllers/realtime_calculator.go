@@ -312,7 +312,7 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 			r.loadersLast = append(
 				r.loadersLast,
 				topicLast{
-					topic: topic,
+					topic: ltopic,
 					last:  *info.loader.last,
 				},
 			)
