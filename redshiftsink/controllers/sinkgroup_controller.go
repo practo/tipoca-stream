@@ -275,12 +275,19 @@ func (sb *buildSinkGroup) buildLoaders(
 				sinkGroupSpec,
 			)
 			allocator.allocateReloadingUnits()
-			units = allocator.units
+			units = []deploymentUnit{}
+			for _, unit := range allocator.units {
+				units = append(units, deploymentUnit{
+					id:            unit.id,
+					sinkGroupSpec: unit.sinkGroupSpec,
+					topics:        makeBatcherTopics(unit.topics),
+				})
+			}
 		}
 
 		for _, unit := range units {
 			consumerGroups, err := computeConsumerGroups(
-				sb.topicGroups, makeBatcherTopics(unit.topics))
+				sb.topicGroups, unit.topics)
 			if err != nil {
 				klog.Fatalf(
 					"Error computing consumer group from status, err: %v", err)
