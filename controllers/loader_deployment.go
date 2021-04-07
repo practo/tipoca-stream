@@ -254,16 +254,15 @@ func NewLoader(
 	totalTopics := 0
 	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
-		topics = append(topics, group.topics...)
+		loaderTopics := makeLoaderTopics(
+			group.loaderTopicPrefix,
+			group.topics,
+		)
+		topics = append(topics, loaderTopics...)
 		totalTopics += len(group.topics)
 		groupConfigs = append(groupConfigs, kafka.ConsumerGroupConfig{
-			GroupID: consumerGroupID(rsk.Name, rsk.Namespace, groupID, "-loader"),
-			TopicRegexes: expandTopicsToRegex(
-				makeLoaderTopics(
-					group.loaderTopicPrefix,
-					group.topics,
-				),
-			),
+			GroupID:      consumerGroupID(rsk.Name, rsk.Namespace, groupID, "-loader"),
+			TopicRegexes: expandTopicsToRegex(loaderTopics),
 			Kafka: kafka.KafkaConfig{
 				Brokers:   rsk.Spec.KafkaBrokers,
 				Version:   kafkaVersion,
