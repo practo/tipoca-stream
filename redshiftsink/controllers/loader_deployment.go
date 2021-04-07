@@ -52,6 +52,7 @@ func applyLoaderSinkGroupDefaults(
 		maxWaitSeconds = toIntPtr(60)
 		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
 		image = &defaultImage
+		maxReloadingUnits = toInt32Ptr(10)
 	case ReloadSinkGroup:
 		maxSizePerBatch = toQuantityPtr(resource.MustParse("1Gi"))
 		maxWaitSeconds = toIntPtr(60)
@@ -63,6 +64,7 @@ func applyLoaderSinkGroupDefaults(
 		maxWaitSeconds = toIntPtr(60)
 		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
 		image = &defaultImage
+		maxReloadingUnits = toInt32Ptr(10)
 	}
 
 	var specifiedSpec *tipocav1.SinkGroupSpec
