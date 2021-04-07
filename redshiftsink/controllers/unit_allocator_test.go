@@ -447,6 +447,65 @@ func TestAllocateReloadingUnits(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "LoaderTopicTest2",
+			topics: []string{
+				"loader-ned4ea-ts.inventory.address",
+				"loader-ned4ea-ts.inventory.users",
+				"loader-ned4ea-ts.inventory.abc_slugs_published",
+				"loader-ned4ea-ts.inventory.abc_slugs",
+				"loader-ned4ea-ts.inventory.provider_slugs",
+				"loader-ned4ea-ts.inventory.provider_slugs2",
+			},
+			realtime: []string{},
+			topicsLast: []topicLast{
+				topicLast{
+					topic: "ts.inventory.address",
+					last:  94,
+				},
+				topicLast{
+					topic: "ts.inventory.users",
+					last:  187,
+				},
+				topicLast{
+					topic: "ts.inventory.abc_slugs_published",
+					last:  5198,
+				},
+				topicLast{
+					topic: "ts.inventory.abc_slugs",
+					last:  3776,
+				},
+				topicLast{
+					topic: "ts.inventory.address",
+					last:  110,
+				},
+				topicLast{
+					topic: "ts.inventory.provider_slugs",
+					last:  1650,
+				},
+				topicLast{
+					topic: "ts.inventory.provider_slugs2",
+					last:  1651,
+				},
+			},
+			maxReloadingUnits: 2,
+			currentReloadingTopics: []string{
+				"loader-ned4ea-ts.inventory.address",
+				"loader-ned4ea-ts.inventory.users",
+				"loader-ned4ea-ts.inventory.abc_slugs_published",
+				"loader-ned4ea-ts.inventory.abc_slugs",
+			},
+			units: []deploymentUnit{
+				deploymentUnit{
+					id:     "address",
+					topics: []string{"loader-ned4ea-ts.inventory.address"},
+				},
+				deploymentUnit{
+					id:     "users",
+					topics: []string{"loader-ned4ea-ts.inventory.users"},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
