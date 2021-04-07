@@ -53,6 +53,7 @@ func applyBatcherSinkGroupDefaults(
 		maxConcurrency = toIntPtr(2)
 		maxProcessingTime = &redshiftbatcher.DefaultMaxProcessingTime
 		image = &defaultImage
+		maxReloadingUnits = toInt32Ptr(10)
 	case ReloadSinkGroup:
 		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Mi"))
 		maxWaitSeconds = toIntPtr(60)
@@ -66,6 +67,7 @@ func applyBatcherSinkGroupDefaults(
 		maxConcurrency = toIntPtr(10)
 		maxProcessingTime = &redshiftbatcher.DefaultMaxProcessingTime
 		image = &defaultImage
+		maxReloadingUnits = toInt32Ptr(10)
 	}
 
 	var specifiedSpec *tipocav1.SinkGroupSpec

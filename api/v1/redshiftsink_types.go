@@ -76,7 +76,6 @@ type SinkGroupSpec struct {
 
 	// MaxReloadingUnits is the maximum number of units(pods) that can be launched
 	// based on the DeploymentUnit specification. Only valid for Reloading SinkGroup.
-	// This value is at present supported to be configurable only for batcher
 	// +optional
 	MaxReloadingUnits *int32 `json:"maxReloadingUnits,omitempty"`
 	// DeploymentUnit(pod) is the unit of deployment for the batcher or the loader.
@@ -332,9 +331,15 @@ type RedshiftSinkStatus struct {
 
 	// BatcherReloadingTopics stores the list of topics which are currently reloading
 	// for the batcher deployments in the reload sink group.
-	// There is a limit to maximum topics that can be reloaded. (MaxReloadingUnits)
+	// There is a limit to maximum topics that can be reloaded at a time. (MaxReloadingUnits)
 	// +optional
 	BatcherReloadingTopics []string `json:"batcherReloadingTopics,omitempty"`
+
+	// LoaderReloadingTopics stores the list of topics which are currently reloading
+	// for the loader deployments in the reload sink group.
+	// There is a limit to maximum topics that can be reloaded at a time. (MaxReloadingUnits)
+	// +optional
+	LoaderReloadingTopics []string `json:"loaderReloadingTopics,omitempty"`
 }
 
 // +kubebuilder:resource:path=redshiftsinks,shortName=rsk;rsks
