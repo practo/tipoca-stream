@@ -217,7 +217,7 @@ func makeBatcherTopics(topics []string) []string {
 	for _, topic := range topics {
 		splitted := strings.Split(topic, "-")
 		if len(splitted) > 2 {
-			prefixRemovedTopics = append(prefixRemovedTopics, strings.Join(splitted, "-"))
+			prefixRemovedTopics = append(prefixRemovedTopics, strings.Join(splitted[2:], "-"))
 		} else {
 			klog.Warningf("ignored topic: %s", topic)
 		}
