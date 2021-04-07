@@ -280,7 +280,7 @@ func (sb *buildSinkGroup) buildLoaders(
 
 		for _, unit := range units {
 			consumerGroups, err := computeConsumerGroups(
-				sb.topicGroups, unit.topics)
+				sb.topicGroups, makeBatcherTopics(unit.topics))
 			if err != nil {
 				klog.Fatalf(
 					"Error computing consumer group from status, err: %v", err)

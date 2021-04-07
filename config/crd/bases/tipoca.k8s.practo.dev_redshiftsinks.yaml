@@ -692,6 +692,11 @@ spec:
                 watch
               type: string
             kafkaLoaderTopicPrefix:
+              description: 'KafkaLoaderTopicPrefix is the prefix to use for loader
+                topic loader topic is this prefix "-" + batcher topic batcherTopic:
+                ts.inventory.customers and prefix is loader- then the loaderTopic:
+                loader-ts.inventory.customers the prefix can contain at max 1 hyphen
+                "-"'
               type: string
             kafkaTopicRegexes:
               type: string
@@ -1413,15 +1418,16 @@ spec:
             batcherReloadingTopics:
               description: BatcherReloadingTopics stores the list of topics which
                 are currently reloading for the batcher deployments in the reload
-                sink group. There is a limit to maximum topics that can be reloaded.
-                (MaxReloadingUnits)
+                sink group. There is a limit to maximum topics that can be reloaded
+                at a time. (MaxReloadingUnits)
               items:
                 type: string
               type: array
             loaderReloadingTopics:
               description: LoaderReloadingTopics stores the list of topics which are
                 currently reloading for the loader deployments in the reload sink
-                group. There is a limit to maximum topics that can be reloaded. (MaxReloadingUnits)
+                group. There is a limit to maximum topics that can be reloaded at
+                a time. (MaxReloadingUnits)
               items:
                 type: string
               type: array

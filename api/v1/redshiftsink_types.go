@@ -212,6 +212,11 @@ type RedshiftSinkSpec struct {
 	// +optional
 	KafkaVersion      string `json:"kafkaVersion"`
 	KafkaTopicRegexes string `json:"kafkaTopicRegexes"`
+	// KafkaLoaderTopicPrefix is the prefix to use for loader topic
+	// loader topic is this prefix "-" + batcher topic
+	// batcherTopic: ts.inventory.customers and prefix is loader-
+	// then the loaderTopic: loader-ts.inventory.customers
+	// the prefix can contain at max 1 hyphen "-"
 	// +optional
 	KafkaLoaderTopicPrefix string `json:"kafkaLoaderTopicPrefix,omitempty"`
 

@@ -211,6 +211,21 @@ func makeLoaderTopics(prefix string, topics []string) []string {
 	return prefixedTopics
 }
 
+// TODO: fix me please, prefix cannot contain "-" because of this
+func makeBatcherTopics(topics []string) []string {
+	var prefixRemovedTopics []string
+	for _, topic := range topics {
+		splitted := strings.Split(topic, "-")
+		if len(splitted) > 2 {
+			prefixRemovedTopics = append(prefixRemovedTopics, strings.Join(splitted, "-"))
+		} else {
+			klog.Warningf("ignored topic: %s", topic)
+		}
+	}
+
+	return prefixRemovedTopics
+}
+
 func fullMatchRegexForTopic(topic string) string {
 	return "^" + topic + "$"
 }
