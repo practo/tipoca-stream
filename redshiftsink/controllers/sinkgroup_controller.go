@@ -265,12 +265,12 @@ func (sb *buildSinkGroup) buildLoaders(
 				)
 			}
 			allocator := newUnitAllocator(
-				sb.rsk.Name+" batcher",
+				sb.rsk.Name+" loader",
 				sb.topics,
 				sb.calc.loadersRealtime,
 				sb.calc.loadersLast,
 				*sinkGroupSpec.MaxReloadingUnits,
-				sb.rsk.Status.BatcherReloadingTopics,
+				sb.rsk.Status.LoaderReloadingTopics,
 				mainSinkGroupSpec,
 				sinkGroupSpec,
 			)
