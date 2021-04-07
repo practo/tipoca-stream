@@ -168,7 +168,7 @@ func (sb *buildSinkGroup) buildBatchers(
 				)
 			}
 			allocator := newUnitAllocator(
-				sb.rsk.Name,
+				sb.rsk.Name+" batcher",
 				sb.topics,
 				sb.calc.batchersRealtime,
 				sb.calc.batchersLast,
@@ -243,17 +243,41 @@ func (sb *buildSinkGroup) buildLoaders(
 ) sinkGroupBuilder {
 	loaders := []Deployment{}
 	if sb.rsk.Spec.Loader.SinkGroup != nil {
-		sinkGroupSpec := applyLoaderSinkGroupDefaults(
+		var sinkGroupSpec, mainSinkGroupSpec *tipocav1.SinkGroupSpec
+		sinkGroupSpec = applyLoaderSinkGroupDefaults(
 			sb.rsk,
 			sb.sgType,
 			defaultImage,
 		)
 		units := []deploymentUnit{
 			deploymentUnit{
-				id:     "",
-				topics: sb.topics,
+				id:            "",
+				sinkGroupSpec: sinkGroupSpec,
+				topics:        sb.topics,
 			},
 		}
+		if len(sb.topics) > 0 && sb.calc != nil { // overwrite units if currently reloading and calculation is available
+			if len(sb.calc.loadersRealtime) > 0 {
+				mainSinkGroupSpec = applyLoaderSinkGroupDefaults(
+					sb.rsk,
+					MainSinkGroup,
+					defaultImage,
+				)
+			}
+			allocator := newUnitAllocator(
+				sb.rsk.Name+" loader",
+				sb.topics,
+				sb.calc.loadersRealtime,
+				sb.calc.loadersLast,
+				*sinkGroupSpec.MaxReloadingUnits,
+				sb.rsk.Status.LoaderReloadingTopics,
+				mainSinkGroupSpec,
+				sinkGroupSpec,
+			)
+			allocator.allocateReloadingUnits()
+			units = allocator.units
+		}
+
 		for _, unit := range units {
 			consumerGroups, err := computeConsumerGroups(
 				sb.topicGroups, unit.topics)
@@ -267,7 +291,7 @@ func (sb *buildSinkGroup) buildLoaders(
 				tableSuffix,
 				secret,
 				sb.sgType,
-				sinkGroupSpec,
+				unit.sinkGroupSpec,
 				consumerGroups,
 				defaultImage,
 				defaultKafkaVersion,
@@ -580,7 +604,7 @@ func (s *sinkGroup) cleanup(
 		}
 	}
 
-	klog.V(3).Infof("Current active configMaps, needed: %+v", neededConfigMaps)
+	klog.V(4).Infof("Current active configMaps, needed: %+v", neededConfigMaps)
 	// query all configmaps for the sinkgroup
 	configMapList, err := listConfigMaps(
 		ctx,
@@ -595,7 +619,7 @@ func (s *sinkGroup) cleanup(
 	}
 
 	for _, config := range configMapList.Items {
-		klog.V(3).Infof("Cleanup configmap suspect cm: %v", config.Name)
+		klog.V(4).Infof("Cleanup configmap suspect cm: %v", config.Name)
 		labelValue, ok := config.Labels[InstanceName]
 		if !ok {
 			continue

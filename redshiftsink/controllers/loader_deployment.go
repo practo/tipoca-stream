@@ -52,17 +52,19 @@ func applyLoaderSinkGroupDefaults(
 		maxWaitSeconds = toIntPtr(60)
 		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
 		image = &defaultImage
+		maxReloadingUnits = toInt32Ptr(10)
 	case ReloadSinkGroup:
 		maxSizePerBatch = toQuantityPtr(resource.MustParse("1Gi"))
 		maxWaitSeconds = toIntPtr(60)
 		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
 		image = &defaultImage
-		maxReloadingUnits = toInt32Ptr(1) // loader only supports one for this at present (there is no need as of now to run multiple)
+		maxReloadingUnits = toInt32Ptr(10)
 	case ReloadDupeSinkGroup:
 		maxSizePerBatch = toQuantityPtr(resource.MustParse("1Gi"))
 		maxWaitSeconds = toIntPtr(60)
 		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
 		image = &defaultImage
+		maxReloadingUnits = toInt32Ptr(10)
 	}
 
 	var specifiedSpec *tipocav1.SinkGroupSpec
@@ -96,10 +98,9 @@ func applyLoaderSinkGroupDefaults(
 		if specifiedSpec.MaxProcessingTime != nil {
 			maxProcessingTime = specifiedSpec.MaxProcessingTime
 		}
-		// Loader does not support MaxReloadingUnits yet
-		// if specifiedSpec.MaxReloadingUnits != nil {
-		// 	maxReloadingUnits = specifiedSpec.MaxReloadingUnits
-		// }
+		if specifiedSpec.MaxReloadingUnits != nil {
+			maxReloadingUnits = specifiedSpec.MaxReloadingUnits
+		}
 		if specifiedSpec.DeploymentUnit != nil {
 			if specifiedSpec.DeploymentUnit.PodTemplate != nil {
 				if specifiedSpec.DeploymentUnit.PodTemplate.Image != nil {
@@ -254,16 +255,15 @@ func NewLoader(
 	totalTopics := 0
 	var groupConfigs []kafka.ConsumerGroupConfig
 	for groupID, group := range consumerGroups {
-		topics = append(topics, group.topics...)
+		loaderTopics := makeLoaderTopics(
+			group.loaderTopicPrefix,
+			group.topics,
+		)
+		topics = append(topics, loaderTopics...)
 		totalTopics += len(group.topics)
 		groupConfigs = append(groupConfigs, kafka.ConsumerGroupConfig{
-			GroupID: consumerGroupID(rsk.Name, rsk.Namespace, groupID, "-loader"),
-			TopicRegexes: expandTopicsToRegex(
-				makeLoaderTopics(
-					group.loaderTopicPrefix,
-					group.topics,
-				),
-			),
+			GroupID:      consumerGroupID(rsk.Name, rsk.Namespace, groupID, "-loader"),
+			TopicRegexes: expandTopicsToRegex(loaderTopics),
 			Kafka: kafka.KafkaConfig{
 				Brokers:   rsk.Spec.KafkaBrokers,
 				Version:   kafkaVersion,
