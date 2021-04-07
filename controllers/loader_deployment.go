@@ -98,10 +98,9 @@ func applyLoaderSinkGroupDefaults(
 		if specifiedSpec.MaxProcessingTime != nil {
 			maxProcessingTime = specifiedSpec.MaxProcessingTime
 		}
-		// Loader does not support MaxReloadingUnits yet
-		// if specifiedSpec.MaxReloadingUnits != nil {
-		// 	maxReloadingUnits = specifiedSpec.MaxReloadingUnits
-		// }
+		if specifiedSpec.MaxReloadingUnits != nil {
+			maxReloadingUnits = specifiedSpec.MaxReloadingUnits
+		}
 		if specifiedSpec.DeploymentUnit != nil {
 			if specifiedSpec.DeploymentUnit.PodTemplate != nil {
 				if specifiedSpec.DeploymentUnit.PodTemplate.Image != nil {
