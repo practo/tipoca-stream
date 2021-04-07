@@ -263,9 +263,7 @@ spec:
                         maxReloadingUnits:
                           description: MaxReloadingUnits is the maximum number of
                             units(pods) that can be launched based on the DeploymentUnit
-                            specification. Only valid for Reloading SinkGroup. This
-                            value is at present supported to be configurable only
-                            for batcher
+                            specification. Only valid for Reloading SinkGroup.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -398,9 +396,7 @@ spec:
                         maxReloadingUnits:
                           description: MaxReloadingUnits is the maximum number of
                             units(pods) that can be launched based on the DeploymentUnit
-                            specification. Only valid for Reloading SinkGroup. This
-                            value is at present supported to be configurable only
-                            for batcher
+                            specification. Only valid for Reloading SinkGroup.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -533,9 +529,7 @@ spec:
                         maxReloadingUnits:
                           description: MaxReloadingUnits is the maximum number of
                             units(pods) that can be launched based on the DeploymentUnit
-                            specification. Only valid for Reloading SinkGroup. This
-                            value is at present supported to be configurable only
-                            for batcher
+                            specification. Only valid for Reloading SinkGroup.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -668,9 +662,7 @@ spec:
                         maxReloadingUnits:
                           description: MaxReloadingUnits is the maximum number of
                             units(pods) that can be launched based on the DeploymentUnit
-                            specification. Only valid for Reloading SinkGroup. This
-                            value is at present supported to be configurable only
-                            for batcher
+                            specification. Only valid for Reloading SinkGroup.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -935,9 +927,7 @@ spec:
                         maxReloadingUnits:
                           description: MaxReloadingUnits is the maximum number of
                             units(pods) that can be launched based on the DeploymentUnit
-                            specification. Only valid for Reloading SinkGroup. This
-                            value is at present supported to be configurable only
-                            for batcher
+                            specification. Only valid for Reloading SinkGroup.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -1070,9 +1060,7 @@ spec:
                         maxReloadingUnits:
                           description: MaxReloadingUnits is the maximum number of
                             units(pods) that can be launched based on the DeploymentUnit
-                            specification. Only valid for Reloading SinkGroup. This
-                            value is at present supported to be configurable only
-                            for batcher
+                            specification. Only valid for Reloading SinkGroup.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -1205,9 +1193,7 @@ spec:
                         maxReloadingUnits:
                           description: MaxReloadingUnits is the maximum number of
                             units(pods) that can be launched based on the DeploymentUnit
-                            specification. Only valid for Reloading SinkGroup. This
-                            value is at present supported to be configurable only
-                            for batcher
+                            specification. Only valid for Reloading SinkGroup.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -1340,9 +1326,7 @@ spec:
                         maxReloadingUnits:
                           description: MaxReloadingUnits is the maximum number of
                             units(pods) that can be launched based on the DeploymentUnit
-                            specification. Only valid for Reloading SinkGroup. This
-                            value is at present supported to be configurable only
-                            for batcher
+                            specification. Only valid for Reloading SinkGroup.
                           format: int32
                           type: integer
                         maxSizePerBatch:
@@ -1431,6 +1415,13 @@ spec:
                 are currently reloading for the batcher deployments in the reload
                 sink group. There is a limit to maximum topics that can be reloaded.
                 (MaxReloadingUnits)
+              items:
+                type: string
+              type: array
+            loaderReloadingTopics:
+              description: LoaderReloadingTopics stores the list of topics which are
+                currently reloading for the loader deployments in the reload sink
+                group. There is a limit to maximum topics that can be reloaded. (MaxReloadingUnits)
               items:
                 type: string
               type: array

@@ -140,12 +140,12 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		time.Duration(*h.maxWaitSeconds) * time.Second,
 	)
 
+	klog.V(4).Infof("%s: read msgs", claim.Topic())
 	// NOTE:
 	// Do not move the code below to a goroutine.
 	// The `ConsumeClaim` itself is called within a goroutine, see:
 	// https://github.com/Shopify/sarama/blob/master/consumer_group.go#L27-L29
 	claimMsgChan := claim.Messages()
-
 	for {
 		select {
 		case <-h.ctx.Done():

@@ -433,6 +433,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			status.realtime,
 		)
 		status.updateBatcherReloadingTopics(rsk.Status.BatcherReloadingTopics, calc.batchersRealtime)
+		status.updateLoaderReloadingTopics(rsk.Status.LoaderReloadingTopics, calc.loadersRealtime)
 		return resultRequeueMilliSeconds(1500), nil, nil
 	}
 	klog.V(2).Infof("rsk/%v reconciling all sinkGroups", rsk.Name)
@@ -464,6 +465,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		buildLoaders(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 		build()
 	status.updateBatcherReloadingTopics(reload.batcherDeploymentTopics(), calc.batchersRealtime)
+	status.updateLoaderReloadingTopics(reload.loaderDeploymentTopics(), calc.loadersRealtime)
 
 	reloadDupe = sgBuilder.
 		setRedshiftSink(rsk).setClient(r.Client).setScheme(r.Scheme).

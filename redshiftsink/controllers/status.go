@@ -7,6 +7,7 @@ import (
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	"reflect"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
+	"strings"
 )
 
 type status struct {
@@ -493,13 +494,12 @@ func (s *status) updateTopicGroup(topic string) {
 
 func (s *status) updateBatcherReloadingTopics(topics []string, batcherRealtime []string) {
 	reloadingTopics := []string{}
-
-	// remove topics which have become realtime
-	realtime := toMap(s.realtime)
+	allRealtime := toMap(s.realtime)
 	realtimeBatcher := toMap(batcherRealtime)
+
 	for _, t := range topics {
 		// remove topics which have become realtime (both batcher and loader)
-		_, ok := realtime[t]
+		_, ok := allRealtime[t]
 		if ok {
 			continue
 
@@ -513,8 +513,43 @@ func (s *status) updateBatcherReloadingTopics(topics []string, batcherRealtime [
 		reloadingTopics = append(reloadingTopics, t)
 	}
 
-	klog.V(2).Infof("rsk/%s currentReloading: %d %v", s.rsk.Name, len(reloadingTopics), reloadingTopics)
+	klog.V(2).Infof("rsk/%s currentReloading(batcher): %d %v", s.rsk.Name, len(reloadingTopics), reloadingTopics)
 	s.rsk.Status.BatcherReloadingTopics = reloadingTopics
+}
+
+func (s *status) updateLoaderReloadingTopics(topics []string, loadersRealtime []string) {
+	reloadingTopics := []string{}
+	allRealtime := make(map[string]bool)
+	realtimeLoader := toMap(loadersRealtime)
+
+	// TODO: improve me :( realtime does not have loader topic info
+	// topicGroup has info on it in status
+	for _, t := range s.realtime {
+		for _, reloadingTopic := range topics {
+			if strings.HasSuffix(reloadingTopic, t) {
+				allRealtime[reloadingTopic] = true
+			}
+		}
+	}
+
+	for _, t := range topics {
+		// remove topics which have become realtime (both batcher and loader)
+		_, ok := allRealtime[t]
+		if ok {
+			continue
+
+		}
+		// remove topics which have become loader realtime
+		_, ok = realtimeLoader[t]
+		if ok {
+			continue
+		}
+
+		reloadingTopics = append(reloadingTopics, t)
+	}
+
+	klog.V(2).Infof("rsk/%s currentReloading(loader): %d %v", s.rsk.Name, len(reloadingTopics), reloadingTopics)
+	s.rsk.Status.LoaderReloadingTopics = reloadingTopics
 }
 
 func updateTopicGroup(rsk *tipocav1.RedshiftSink, topic string, group tipocav1.Group) {
