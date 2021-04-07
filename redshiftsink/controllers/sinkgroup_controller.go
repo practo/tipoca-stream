@@ -168,7 +168,7 @@ func (sb *buildSinkGroup) buildBatchers(
 				)
 			}
 			allocator := newUnitAllocator(
-				sb.rsk.Name,
+				sb.rsk.Name+" batcher",
 				sb.topics,
 				sb.calc.batchersRealtime,
 				sb.calc.batchersLast,
@@ -265,7 +265,7 @@ func (sb *buildSinkGroup) buildLoaders(
 				)
 			}
 			allocator := newUnitAllocator(
-				sb.rsk.Name,
+				sb.rsk.Name+" batcher",
 				sb.topics,
 				sb.calc.loadersRealtime,
 				sb.calc.loadersLast,

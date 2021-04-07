@@ -331,13 +331,13 @@ type RedshiftSinkStatus struct {
 
 	// BatcherReloadingTopics stores the list of topics which are currently reloading
 	// for the batcher deployments in the reload sink group.
-	// There is a limit to maximum topics that can be reloaded. (MaxReloadingUnits)
+	// There is a limit to maximum topics that can be reloaded at a time. (MaxReloadingUnits)
 	// +optional
 	BatcherReloadingTopics []string `json:"batcherReloadingTopics,omitempty"`
 
 	// LoaderReloadingTopics stores the list of topics which are currently reloading
 	// for the loader deployments in the reload sink group.
-	// There is a limit to maximum topics that can be reloaded. (MaxReloadingUnits)
+	// There is a limit to maximum topics that can be reloaded at a time. (MaxReloadingUnits)
 	// +optional
 	LoaderReloadingTopics []string `json:"loaderReloadingTopics,omitempty"`
 }

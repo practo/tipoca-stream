@@ -6,7 +6,7 @@ import (
 )
 
 func TestAllocateReloadingUnits(t *testing.T) {
-	// t.Parallel()
+	t.Parallel()
 
 	tests := []struct {
 		name                   string
@@ -381,6 +381,69 @@ func TestAllocateReloadingUnits(t *testing.T) {
 				deploymentUnit{
 					id:     "realtime",
 					topics: []string{"db.inventory.t3", "db.inventory.t4"},
+				},
+			},
+		},
+		{
+			name:     "LoaderTopicTest",
+			topics:   []string{"loader-373ebe-db.inventory.t1", "loader-373ebe-db.inventory.t2", "loader-373ebe-db.inventory.t3", "loader-373ebe-db.inventory.t4", "loader-373ebe-db.inventory.t5", "loader-373ebe-db.inventory.t6", "loader-373ebe-db.inventory.t7", "loader-373ebe-db.inventory.t8", "loader-373ebe-db.inventory.t9"},
+			realtime: []string{"loader-373ebe-db.inventory.t3", "loader-373ebe-db.inventory.t4"},
+			topicsLast: []topicLast{
+				topicLast{
+					topic: "loader-373ebe-db.inventory.t1",
+					last:  1,
+				},
+				topicLast{
+					topic: "loader-373ebe-db.inventory.t2",
+					last:  10,
+				},
+				topicLast{
+					topic: "loader-373ebe-db.inventory.t3",
+					last:  100,
+				},
+				topicLast{
+					topic: "loader-373ebe-db.inventory.t4",
+					last:  1000,
+				},
+				topicLast{
+					topic: "loader-373ebe-db.inventory.t5",
+					last:  10000,
+				},
+				topicLast{
+					topic: "loader-373ebe-db.inventory.t6",
+					last:  20000,
+				},
+				topicLast{
+					topic: "loader-373ebe-db.inventory.t7",
+					last:  100000,
+				},
+			},
+			maxReloadingUnits:      5,
+			currentReloadingTopics: []string{"loader-373ebe-db.inventory.t1", "loader-373ebe-db.inventory.t2", "loader-373ebe-db.inventory.t3", "loader-373ebe-db.inventory.t4", "loader-373ebe-db.inventory.t5"},
+			units: []deploymentUnit{
+				deploymentUnit{
+					id:     "t1",
+					topics: []string{"loader-373ebe-db.inventory.t1"},
+				},
+				deploymentUnit{
+					id:     "t2",
+					topics: []string{"loader-373ebe-db.inventory.t2"},
+				},
+				deploymentUnit{
+					id:     "t5",
+					topics: []string{"loader-373ebe-db.inventory.t5"},
+				},
+				deploymentUnit{
+					id:     "t6",
+					topics: []string{"loader-373ebe-db.inventory.t6"},
+				},
+				deploymentUnit{
+					id:     "t7",
+					topics: []string{"loader-373ebe-db.inventory.t7"},
+				},
+				deploymentUnit{
+					id:     "realtime",
+					topics: []string{"loader-373ebe-db.inventory.t3", "loader-373ebe-db.inventory.t4"},
 				},
 			},
 		},
