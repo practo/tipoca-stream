@@ -401,7 +401,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 	// Safety checks
 	if currentMaskVersion == desiredMaskVersion {
 		if len(status.reloading) > 0 && len(status.diffTopics) == 0 {
-			klog.Fatalf("rsk/%s unexpected status, no diff but reloading", rsk.Name)
+			klog.Errorf("rsk/%s unexpected status, no diff but reloading", rsk.Name)
+			status.fixMaskStatus()
 		}
 
 		if len(status.released) == 0 {
@@ -409,7 +410,9 @@ func (r *RedshiftSinkReconciler) reconcile(
 		}
 	}
 	if len(status.diffTopics) == 0 && len(status.reloading) > 0 {
-		klog.Fatalf("rsk/%s unexpected status, no diff but reloading", rsk.Name)
+		klog.Errorf("rsk/%s unexpected status, no diff but reloading", rsk.Name)
+		status.fixMaskStatus()
+		return result, nil, nil
 	}
 
 	// Realtime status is always calculated to keep the CurrentOffset
