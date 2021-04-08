@@ -552,6 +552,29 @@ func (s *status) updateLoaderReloadingTopics(topics []string, loadersRealtime []
 	s.rsk.Status.LoaderReloadingTopics = reloadingTopics
 }
 
+// fixMaskStatus fixes the status due to not proper updates to the mask status
+func (s *status) fixMaskStatus() {
+	klog.V(2).Infof("rsk/%s fixing mask status", s.rsk.Name)
+	if len(s.diffTopics) == 0 && len(s.reloading) > 0 {
+		if s.desiredVersion == s.currentVersion {
+			klog.V(2).Infof("rsk/%s fixing mask status (desired=current)", s.rsk.Name)
+			// fix
+			s.released = s.allTopics
+			s.realtime = []string{}
+			s.reloading = []string{}
+
+			maskStatus := tipocav1.MaskStatus{
+				CurrentMaskStatus:  s.computerCurrentMaskStatus(),
+				DesiredMaskStatus:  s.computeDesiredMaskStatus(),
+				CurrentMaskVersion: &s.currentVersion,
+				DesiredMaskVersion: &s.desiredVersion,
+			}
+			s.rsk.Status.MaskStatus = &maskStatus
+			klog.V(2).Infof("rsk/%s fixed maskStatus: %+v", s.rsk.Name, maskStatus)
+		}
+	}
+}
+
 func updateTopicGroup(rsk *tipocav1.RedshiftSink, topic string, group tipocav1.Group) {
 	if rsk.Status.TopicGroup == nil {
 		rsk.Status.TopicGroup = make(map[string]tipocav1.Group)
