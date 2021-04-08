@@ -5,23 +5,20 @@ import (
 	"fmt"
 	"github.com/Shopify/sarama"
 	"github.com/linkedin/goavro/v2"
-	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/schemaregistry"
-	"strings"
 	"time"
 )
 
 type AvroProducer struct {
 	producer sarama.SyncProducer
-	registry schemaregistry.SchemaRegistry
 }
 
 func NewAvroProducer(
 	brokers []string,
 	kafkaVersion string,
-	schemaRegistryURL string,
 	configTLS TLSConfig,
-) (*AvroProducer, error) {
+) (
+	*AvroProducer, error,
+) {
 	version, err := sarama.ParseKafkaVersion(kafkaVersion)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing Kafka version: %v\n", err)
@@ -52,34 +49,7 @@ func NewAvroProducer(
 
 	return &AvroProducer{
 		producer: producer,
-		registry: schemaregistry.NewRegistry(schemaRegistryURL),
 	}, nil
-}
-
-// CreateSchema creates schema if it does not exist
-func (c *AvroProducer) CreateSchema(
-	topic string, scheme string) (int, bool, error) {
-
-	created := false
-
-	schemeStr := strings.ReplaceAll(scheme, "\n", "")
-	schemeStr = strings.ReplaceAll(schemeStr, " ", "")
-
-	schema, err := schemaregistry.GetLatestSchemaWithRetry(
-		c.registry, topic, false, 2,
-	)
-	if schema == nil || schema.Schema() != schemeStr {
-		klog.V(2).Infof("%s: Creating schema for the topic", topic)
-		schema, err = c.registry.CreateSchema(
-			topic, scheme, schemaregistry.Avro, false,
-		)
-		if err != nil {
-			return 0, false, err
-		}
-		created = true
-	}
-
-	return schema.ID(), created, nil
 }
 
 func (c *AvroProducer) Add(
