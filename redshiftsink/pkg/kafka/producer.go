@@ -69,7 +69,7 @@ func (c *AvroProducer) CreateSchema(
 		c.registry, topic, false, 2,
 	)
 	if schema == nil || schema.Schema() != schemeStr {
-		klog.V(2).Infof("Creating schema version. topic: %s", topic)
+		klog.V(2).Infof("%s: Creating schema for the topic", topic)
 		schema, err = c.registry.CreateSchema(
 			topic, scheme, schemaregistry.Avro, false,
 		)
@@ -82,14 +82,13 @@ func (c *AvroProducer) CreateSchema(
 	return schema.ID(), created, nil
 }
 
-func (c *AvroProducer) Add(topic string, schema string,
-	key []byte, value map[string]interface{}) error {
-
-	schemaId, _, err := c.CreateSchema(topic, schema)
-	if err != nil {
-		return err
-	}
-
+func (c *AvroProducer) Add(
+	topic string,
+	schema string,
+	schemaID int,
+	key []byte,
+	value map[string]interface{},
+) error {
 	avroCodec, err := goavro.NewCodec(schema)
 	if err != nil {
 		return err
@@ -101,7 +100,7 @@ func (c *AvroProducer) Add(topic string, schema string,
 	}
 
 	binaryMsg := &AvroEncoder{
-		SchemaID: schemaId,
+		SchemaID: schemaID,
 		Content:  binaryValue,
 	}
 

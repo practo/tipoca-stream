@@ -52,6 +52,9 @@ type batchProcessor struct {
 	signaler *kafka.AvroProducer
 
 	maxConcurrency int
+
+	// loaderSchemaID informations for the loader topic
+	loaderSchemaID int
 }
 
 func newBatchProcessor(
@@ -64,7 +67,10 @@ func newBatchProcessor(
 	maskConfig masker.MaskConfig,
 	kafkaLoaderTopicPrefix string,
 	maxConcurrency int,
-) serializer.MessageBatchAsyncProcessor {
+) (
+	serializer.MessageBatchAsyncProcessor,
+	error,
+) {
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
 		viper.GetString("s3sink.secretAccessKey"),
@@ -72,7 +78,7 @@ func newBatchProcessor(
 		viper.GetString("s3sink.bucket"),
 	)
 	if err != nil {
-		klog.Fatalf("Error creating s3 client: %v\n", err)
+		return nil, fmt.Errorf("Error creating s3 client: %v\n", err)
 	}
 
 	signaler, err := kafka.NewAvroProducer(
@@ -82,7 +88,7 @@ func newBatchProcessor(
 		kafkaConfig.TLSConfig,
 	)
 	if err != nil {
-		klog.Fatalf("unable to make signaler client, err:%v\n", err)
+		return nil, fmt.Errorf("unable to make signaler client, err:%v\n", err)
 	}
 
 	var msgMasker transformer.MessageTransformer
@@ -95,7 +101,16 @@ func newBatchProcessor(
 		)
 	}
 
-	klog.Infof("%s: autoCommit: %v", topic, saramaConfig.AutoCommit)
+	loaderSchemaID, _, err := signaler.CreateSchema(
+		kafkaLoaderTopicPrefix+topic,
+		loader.JobAvroSchema,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"Error creating schema for topic: %s, err: %v", topic, err)
+	}
+
+	klog.V(2).Infof("%s: autoCommit: %v", topic, saramaConfig.AutoCommit)
 
 	return &batchProcessor{
 		topic:              topic,
@@ -112,7 +127,8 @@ func newBatchProcessor(
 		maskMessages:   maskMessages,
 		signaler:       signaler,
 		maxConcurrency: maxConcurrency,
-	}
+		loaderSchemaID: loaderSchemaID,
+	}, nil
 }
 
 type response struct {
@@ -221,6 +237,7 @@ func (b *batchProcessor) signalLoad(resp *response) error {
 	err := b.signaler.Add(
 		b.loaderTopicPrefix+b.topic,
 		loader.JobAvroSchema,
+		b.loaderSchemaID,
 		[]byte(time.Now().String()),
 		job.ToStringMap(),
 	)
