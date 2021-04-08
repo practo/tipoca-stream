@@ -151,7 +151,7 @@ func (h *batcherHandler) ConsumeClaim(
 	var lastSchemaId *int
 	processChan := make(chan []*serializer.Message, *h.maxConcurrency)
 	errChan := make(chan error)
-	processor := newBatchProcessor(
+	processor, err := newBatchProcessor(
 		h.consumerGroupID,
 		claim.Topic(),
 		claim.Partition(),
@@ -162,6 +162,15 @@ func (h *batcherHandler) ConsumeClaim(
 		h.kafkaLoaderTopicPrefix,
 		*h.maxConcurrency,
 	)
+	if err != nil {
+		klog.Errorf(
+			"Error making the batch processor for topic: %v, err: %v",
+			claim.Topic(),
+			err,
+		)
+		return err
+	}
+
 	maxBufSize := h.maxSize
 	if h.maxBytesPerBatch != nil {
 		maxBufSize = serializer.DefaultMessageBufferSize
