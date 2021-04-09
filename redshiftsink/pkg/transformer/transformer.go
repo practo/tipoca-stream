@@ -21,13 +21,20 @@ type MessageTransformer interface {
 }
 
 type SchemaTransformer interface {
+	// PrimaryKeys returns the list of primary keys for the schema
+	PrimaryKeys(schemaID int) ([]string, error)
+	// Transform value transforms the schemaId for various use cases.
+	// it uses maskSchema to change the type of the schema datatypes if required
+	TransformValue(
+		topic string,
+		schemaId int,
+		schemaIdKey int,
+		maskSchema map[string]serializer.MaskInfo) (interface{}, error)
+
+	// Deprecated:
 	// TransformKey transforms the topic schema into name of the primary
 	// key and its type.
 	TransformKey(topic string) ([]string, error)
-	// Transform value transforms the schemaId for various use cases.
-	// it uses maskSchema to change the type of the schema datatypes if required
-	TransformValue(topic string, schemaId int,
-		maskSchema map[string]serializer.MaskInfo) (interface{}, error)
 }
 
 // ParseTopic breaks down the topic string into server, database, table

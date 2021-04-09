@@ -6,6 +6,7 @@ import (
 	"github.com/practo/klog/v2"
 	"github.com/riferrei/srclient"
 	"math/rand"
+	"strings"
 	"time"
 )
 
@@ -53,42 +54,6 @@ func NewRegistry(url string) SchemaRegistry {
 	}
 }
 
-type cSchemaRegistry struct {
-	client *srclient.SchemaRegistryClient
-}
-
-func (c *cSchemaRegistry) GetSchema(schemaID int) (*Schema, error) {
-	cSchema, err := c.client.GetSchema(schemaID)
-	if err != nil {
-		return nil, err
-	}
-
-	return toSchema(cSchema), nil
-}
-
-func (c *cSchemaRegistry) GetLatestSchema(
-	subject string, key bool) (*Schema, error) {
-	cSchema, err := c.client.GetLatestSchema(subject, key)
-	if err != nil {
-		return nil, err
-	}
-
-	return toSchema(cSchema), nil
-}
-
-func (c *cSchemaRegistry) CreateSchema(
-	subject string, schema string,
-	schemaType SchemaType, key bool) (*Schema, error) {
-
-	cSchema, err := c.client.CreateSchema(
-		subject, schema, tocSchemaType(schemaType), key)
-	if err != nil {
-		return nil, err
-	}
-
-	return toSchema(cSchema), nil
-}
-
 func toSchema(cSchema *srclient.Schema) *Schema {
 	return &Schema{
 		id:      cSchema.ID(),
@@ -107,6 +72,46 @@ func tocSchemaType(schemaType SchemaType) srclient.SchemaType {
 	return ""
 }
 
+type cSchemaRegistry struct {
+	client *srclient.SchemaRegistryClient
+}
+
+// GetSchema returns the cached response if cache hit
+func (c *cSchemaRegistry) GetSchema(schemaID int) (*Schema, error) {
+	cSchema, err := c.client.GetSchema(schemaID)
+	if err != nil {
+		return nil, err
+	}
+
+	return toSchema(cSchema), nil
+}
+
+// GetLatestSchema always makes a call to registry everytime
+func (c *cSchemaRegistry) GetLatestSchema(
+	subject string, key bool) (*Schema, error) {
+	cSchema, err := c.client.GetLatestSchema(subject, key)
+	if err != nil {
+		return nil, err
+	}
+
+	return toSchema(cSchema), nil
+}
+
+// CreateSchema creates schema in registry if the schema if not present
+func (c *cSchemaRegistry) CreateSchema(
+	subject string, schema string,
+	schemaType SchemaType, key bool) (*Schema, error) {
+
+	cSchema, err := c.client.CreateSchema(
+		subject, schema, tocSchemaType(schemaType), key)
+	if err != nil {
+		return nil, err
+	}
+
+	return toSchema(cSchema), nil
+}
+
+// GetSchemaWithRetry gets the schema from registry, it gives cached response
 func GetSchemaWithRetry(
 	registry SchemaRegistry,
 	schemaId int,
@@ -132,6 +137,7 @@ func GetSchemaWithRetry(
 	}
 }
 
+// GetLatestSchemaWithRetry gets the schema from registry everytime
 func GetLatestSchemaWithRetry(
 	registry SchemaRegistry,
 	topic string,
@@ -156,4 +162,27 @@ func GetLatestSchemaWithRetry(
 		sleepFor := rand.Intn(30-2+1) + 2
 		time.Sleep(time.Duration(sleepFor) * time.Second)
 	}
+}
+
+// CreateSchema creates schema for both key and value of the topic
+func CreateSchema(
+	registry SchemaRegistry,
+	topic string,
+	scheme string,
+	key bool,
+) (int, bool, error) {
+	created := false
+	schemeStr := strings.ReplaceAll(scheme, "\n", "")
+	schemeStr = strings.ReplaceAll(schemeStr, " ", "")
+	schema, err := GetLatestSchemaWithRetry(registry, topic, key, 2)
+	if schema == nil || schema.Schema() != schemeStr {
+		klog.V(2).Infof("%s: Creating schema for the topic", topic)
+		schema, err = registry.CreateSchema(topic, scheme, Avro, key)
+		if err != nil {
+			return 0, false, err
+		}
+		created = true
+	}
+
+	return schema.ID(), created, nil
 }
