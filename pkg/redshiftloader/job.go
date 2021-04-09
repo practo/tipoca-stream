@@ -16,7 +16,7 @@ var JobAvroSchema string = `{
         {"name": "csvDialect", "type": "string"},
         {"name": "s3Path", "type": "string"},
         {"name": "schemaId", "type": "int"},
-        {"name": "schemaIdKey", "type": "int", default: -1},
+        {"name": "schemaIdKey", "type": "int", "default": -1},
         {"name": "maskSchema", "type": "string"},
         {"name": "skipMerge", "type": "string", "default": ""},
         {"name": "batchBytes", "type": "long", "default": 0}
