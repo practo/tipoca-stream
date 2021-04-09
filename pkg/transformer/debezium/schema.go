@@ -317,16 +317,13 @@ func (c *schemaTransformer) TransformValue(
 	}
 
 	var primaryKeys []string
-	if schemaIdKey != -1 {
-		primaryKeys, err = c.PrimaryKeys(schemaIdKey)
-		if err != nil {
-			return nil, err
-		}
-	} else { // Deprecated as below is expensive and does not use cache
+	if schemaIdKey == -1 || schemaIdKey == 0 { // Deprecated as below is expensive and does not use cache
 		primaryKeys, err = c.TransformKey(topic)
-		if err != nil {
-			return nil, err
-		}
+	} else { // below is the new faster way to get primary keys
+		primaryKeys, err = c.PrimaryKeys(schemaIdKey)
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	return c.transformSchemaValue(
