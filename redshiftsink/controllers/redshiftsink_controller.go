@@ -418,8 +418,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	// Realtime status is always calculated to keep the CurrentOffset
 	// info updated in the rsk status. This is required so that low throughput
 	// release do not get blocked due to missing consumer group currentOffset.
-	reloadTopicGroup := topicGroupBySinkGroup(rsk, ReloadSinkGroup, status.reloading, status.desiredVersion, rsk.Spec.KafkaLoaderTopicPrefix)
-	calc := newRealtimeCalculator(rsk, kafkaWatcher, reloadTopicGroup, r.KafkaRealtimeCache)
+	calc := newRealtimeCalculator(rsk, kafkaWatcher, r.KafkaRealtimeCache, desiredMaskVersion)
 	currentRealtime := calc.calculate(status.reloading, status.realtime)
 	if len(status.reloading) > 0 {
 		klog.V(2).Infof("rsk/%v batchersRealtime: %d / %d (current=%d)", rsk.Name, len(calc.batchersRealtime), len(status.reloading), len(rsk.Status.BatcherReloadingTopics))
