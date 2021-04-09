@@ -12,6 +12,7 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	loader "github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftloader"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/s3sink"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/schemaregistry"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/debezium"
@@ -53,8 +54,12 @@ type batchProcessor struct {
 
 	maxConcurrency int
 
-	// loaderSchemaID informations for the loader topic
+	// loaderSchemaID stores the schema ID for the loader topic-value
 	loaderSchemaID int
+
+	// schemaIDKey stores the schema ID for the batcher topic-key
+	// loader would use these to fetch primaryKeys for the table
+	schemaIDKey int
 }
 
 func newBatchProcessor(
@@ -84,7 +89,6 @@ func newBatchProcessor(
 	signaler, err := kafka.NewAvroProducer(
 		strings.Split(kafkaConfig.Brokers, ","),
 		kafkaConfig.Version,
-		viper.GetString("schemaRegistryURL"),
 		kafkaConfig.TLSConfig,
 	)
 	if err != nil {
@@ -101,13 +105,35 @@ func newBatchProcessor(
 		)
 	}
 
-	loaderSchemaID, _, err := signaler.CreateSchema(
+	registry := schemaregistry.NewRegistry(viper.GetString("schemaRegistryURL"))
+	// creates the loader schema for value if not present
+	loaderSchemaID, _, err := schemaregistry.CreateSchema(
+		registry,
 		kafkaLoaderTopicPrefix+topic,
 		loader.JobAvroSchema,
+		false, // key is false means its for the value
 	)
 	if err != nil {
 		return nil, fmt.Errorf(
-			"Error creating schema for topic: %s, err: %v", topic, err)
+			"Error creating schema for topic: %s, err: %v",
+			kafkaLoaderTopicPrefix+topic, err)
+	}
+	schemaKey, err := schemaregistry.GetLatestSchemaWithRetry(
+		registry,
+		topic,
+		true, // key is true means its for the key
+		2,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"Error fetching schema for topic-key for topic: %s, err: %v",
+			topic, err)
+	}
+	if schemaKey == nil {
+		return nil, fmt.Errorf(
+			"Error since schema came as nil for topic-key for topic: %s",
+			topic,
+		)
 	}
 
 	klog.V(2).Infof("%s: autoCommit: %v", topic, saramaConfig.AutoCommit)
@@ -128,6 +154,7 @@ func newBatchProcessor(
 		signaler:       signaler,
 		maxConcurrency: maxConcurrency,
 		loaderSchemaID: loaderSchemaID,
+		schemaIDKey:    schemaKey.ID(),
 	}, nil
 }
 
@@ -228,7 +255,8 @@ func (b *batchProcessor) signalLoad(resp *response) error {
 		resp.endOffset,
 		",",
 		b.s3sink.GetKeyURI(resp.s3Key),
-		resp.batchSchemaID, // schema of upstream topic
+		resp.batchSchemaID, // schema of upstream topic's value
+		b.schemaIDKey,      // schema of upstream topic's key
 		resp.maskSchema,
 		resp.skipMerge,
 		resp.bytesProcessed,
@@ -288,6 +316,7 @@ func (b *batchProcessor) processMessage(
 		r, err := b.schemaTransformer.TransformValue(
 			b.topic,
 			resp.batchSchemaID,
+			b.schemaIDKey,
 			resp.maskSchema,
 		)
 		if err != nil {

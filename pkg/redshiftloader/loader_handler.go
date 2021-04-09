@@ -117,13 +117,18 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 
 	var lastSchemaId *int
 	var err error
-	processor := newLoadProcessor(
+	processor, err := newLoadProcessor(
 		h.consumerGroupID,
 		claim.Topic(),
 		claim.Partition(),
 		h.saramaConfig,
 		h.redshifter,
 	)
+	if err != nil {
+		return fmt.Errorf(
+			"Error making the load processor for topic: %s, err: %v",
+			claim.Topic(), err)
+	}
 	maxBufSize := h.maxSize
 	if h.maxBytesPerBatch != nil {
 		maxBufSize = serializer.DefaultMessageBufferSize

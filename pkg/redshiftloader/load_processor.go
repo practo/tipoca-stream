@@ -91,7 +91,7 @@ func newLoadProcessor(
 	partition int32,
 	saramaConfig kafka.SaramaConfig,
 	redshifter *redshift.Redshift,
-) serializer.MessageBatchSyncProcessor {
+) (serializer.MessageBatchSyncProcessor, error) {
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
 		viper.GetString("s3sink.secretAccessKey"),
@@ -99,7 +99,7 @@ func newLoadProcessor(
 		viper.GetString("s3sink.bucket"),
 	)
 	if err != nil {
-		klog.Fatalf("Error creating s3 client: %v\n", err)
+		return nil, fmt.Errorf("Error creating s3 client: %v\n", err)
 	}
 
 	klog.V(3).Infof("%s: auto-commit: %v", topic, saramaConfig.AutoCommit)
@@ -119,7 +119,7 @@ func newLoadProcessor(
 		targetTable:    nil,
 		tableSuffix:    viper.GetString("redshift.tableSuffix"),
 		redshiftStats:  viper.GetBool("redshift.stats"),
-	}
+	}, nil
 }
 
 func (b *loadProcessor) ctxCancelled(ctx context.Context) error {
@@ -425,8 +425,11 @@ func (b *loadProcessor) merge(ctx context.Context) error {
 // batch messages.
 // this also intializes b.stagingTable
 func (b *loadProcessor) createStagingTable(
-	ctx context.Context, schemaId int, inputTable redshift.Table) error {
-
+	ctx context.Context,
+	schemaId int,
+	schemaIdKey int,
+	inputTable redshift.Table,
+) error {
 	b.stagingTable = redshift.NewTable(inputTable)
 	b.stagingTable.Name = b.stagingTable.Name + "_staged"
 
@@ -449,8 +452,12 @@ func (b *loadProcessor) createStagingTable(
 		return fmt.Errorf("Error dropping staging table: %v\n", err)
 	}
 
-	primaryKeys, err := b.schemaTransformer.TransformKey(
-		b.upstreamTopic)
+	var primaryKeys []string
+	if schemaIdKey == -1 || schemaIdKey == 0 { // Deprecated as below is expensive and does not use cache
+		primaryKeys, err = b.schemaTransformer.TransformKey(b.upstreamTopic)
+	} else { // below is the new faster way to get primary keys
+		primaryKeys, err = b.schemaTransformer.PrimaryKeys(schemaIdKey)
+	}
 	if err != nil {
 		return fmt.Errorf("Error getting primarykey for: %s, err: %v\n", b.topic, err)
 	}
@@ -622,8 +629,8 @@ func (b *loadProcessor) processBatch(
 	}
 
 	var inputTable redshift.Table
-	var schemaId int
 	var err error
+	var schemaId, schemaIdKey int
 	b.stagingTable = nil
 	b.targetTable = nil
 	b.upstreamTopic = ""
@@ -637,6 +644,7 @@ func (b *loadProcessor) processBatch(
 		default:
 			job := StringMapToJob(message.Value.(map[string]interface{}))
 			schemaId = job.SchemaId
+			schemaIdKey = job.SchemaIdKey
 			b.batchEndOffset = message.Offset
 			bytesProcessed += job.BatchBytes
 
@@ -651,6 +659,7 @@ func (b *loadProcessor) processBatch(
 				resp, err := b.schemaTransformer.TransformValue(
 					b.upstreamTopic,
 					schemaId,
+					schemaIdKey,
 					job.MaskSchema,
 				)
 				if err != nil {
@@ -699,7 +708,7 @@ func (b *loadProcessor) processBatch(
 
 	// load
 	klog.V(2).Infof("%s, load staging\n", b.topic)
-	err = b.createStagingTable(ctx, schemaId, inputTable)
+	err = b.createStagingTable(ctx, schemaId, schemaIdKey, inputTable)
 	if err != nil {
 		return bytesProcessed, err
 	}

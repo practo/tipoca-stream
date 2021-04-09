@@ -20,6 +20,7 @@ func TestToStringMap(t *testing.T) {
 		",",
 		"s3path",
 		1,
+		2,
 		maskSchema,
 		false,
 		10,

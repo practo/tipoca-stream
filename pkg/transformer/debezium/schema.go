@@ -239,8 +239,19 @@ type schemaTransformer struct {
 	registry   schemaregistry.SchemaRegistry
 }
 
+// TransformKey is deprecated as it makes expensive GetLatestSchemaWithRetry calls
+// Use PrimaryKeys instead
 func (c *schemaTransformer) TransformKey(topic string) ([]string, error) {
 	s, err := schemaregistry.GetLatestSchemaWithRetry(c.registry, topic, true, 10)
+	if err != nil {
+		return []string{}, err
+	}
+
+	return c.transformSchemaKey(s.Schema())
+}
+
+func (c *schemaTransformer) PrimaryKeys(schemaID int) ([]string, error) {
+	s, err := schemaregistry.GetSchemaWithRetry(c.registry, schemaID, 3)
 	if err != nil {
 		return []string{}, err
 	}
@@ -294,7 +305,10 @@ func isPrimaryKey(columnName string, primaryKeys []string) bool {
 	return false
 }
 
-func (c *schemaTransformer) TransformValue(topic string, schemaId int,
+func (c *schemaTransformer) TransformValue(
+	topic string,
+	schemaId int,
+	schemaIdKey int,
 	maskSchema map[string]serializer.MaskInfo) (interface{}, error) {
 
 	s, err := schemaregistry.GetSchemaWithRetry(c.registry, schemaId, 10)
@@ -302,7 +316,12 @@ func (c *schemaTransformer) TransformValue(topic string, schemaId int,
 		return nil, err
 	}
 
-	primaryKeys, err := c.TransformKey(topic)
+	var primaryKeys []string
+	if schemaIdKey == -1 || schemaIdKey == 0 { // Deprecated as below is expensive and does not use cache
+		primaryKeys, err = c.TransformKey(topic)
+	} else { // below is the new faster way to get primary keys
+		primaryKeys, err = c.PrimaryKeys(schemaIdKey)
+	}
 	if err != nil {
 		return nil, err
 	}
