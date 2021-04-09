@@ -116,7 +116,11 @@ func StringMapToJob(data map[string]interface{}) Job {
 				job.BatchBytes = 0
 			}
 		}
+	}
 
+	// backward compatibility
+	if job.SchemaIdKey == 0 {
+		job.SchemaIdKey = -1
 	}
 
 	return job

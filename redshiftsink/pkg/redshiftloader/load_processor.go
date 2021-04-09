@@ -453,16 +453,13 @@ func (b *loadProcessor) createStagingTable(
 	}
 
 	var primaryKeys []string
-	if schemaIdKey == -1 {
-		primaryKeys, err = b.schemaTransformer.PrimaryKeys(schemaIdKey)
-		if err != nil {
-			return fmt.Errorf("Error getting primarykey for: %s, err: %v\n", b.topic, err)
-		}
-	} else { // Deprecated as below is expensive and does not use cache
+	if schemaIdKey == -1 || schemaIdKey == 0 { // Deprecated as below is expensive and does not use cache
 		primaryKeys, err = b.schemaTransformer.TransformKey(b.upstreamTopic)
-		if err != nil {
-			return fmt.Errorf("Error getting primarykey for: %s, err: %v\n", b.topic, err)
-		}
+	} else { // below is the new faster way to get primary keys
+		primaryKeys, err = b.schemaTransformer.PrimaryKeys(schemaIdKey)
+	}
+	if err != nil {
+		return fmt.Errorf("Error getting primarykey for: %s, err: %v\n", b.topic, err)
 	}
 	b.primaryKeys = primaryKeys
 
