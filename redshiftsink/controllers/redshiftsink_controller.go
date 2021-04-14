@@ -297,9 +297,11 @@ func (r *RedshiftSinkReconciler) reconcile(
 	patcher *statusPatcher,
 ) (
 	ctrl.Result,
-	ReconcilerEvent,
+	[]ReconcilerEvent,
 	error,
 ) {
+	var events []ReconcilerEvent
+
 	result := ctrl.Result{RequeueAfter: time.Second * 30}
 
 	secret, err := r.fetchSecretMap(
@@ -308,28 +310,29 @@ func (r *RedshiftSinkReconciler) reconcile(
 		rsk.Spec.SecretRefNamespace,
 	)
 	if err != nil {
-		return result, nil, err
+		return result, events, err
 	}
 
 	tlsConfig, err := r.makeTLSConfig(secret)
 	if err != nil {
-		return result, nil, err
+		return result, events, err
 	}
 
 	kafkaWatcher, err := r.loadKafkaWatcher(rsk, tlsConfig)
 	if err != nil {
-		return result, nil, fmt.Errorf("Error fetching kafka watcher, %v", err)
+		return result, events, fmt.Errorf("Error fetching kafka watcher, %v", err)
 	}
 
 	kafkaTopics, err := r.fetchLatestTopics(
 		kafkaWatcher, rsk.Spec.KafkaTopicRegexes,
 	)
 	if err != nil {
-		return result, nil, fmt.Errorf("Error fetching topics, err: %v", err)
+		return result, events, fmt.Errorf("Error fetching topics, err: %v", err)
 	}
 	if len(kafkaTopics) == 0 {
 		klog.Warningf(
 			"Kafka topics not found for regex: %s", rsk.Spec.KafkaTopicRegexes)
+		return result, events, nil
 	}
 
 	sgBuilder := newSinkGroupBuilder()
@@ -342,13 +345,16 @@ func (r *RedshiftSinkReconciler) reconcile(
 			buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
 			buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
 			build()
-		result, event, err := maskLessSinkGroup.reconcile(ctx)
-		return result, event, err
+		result, maskLessSinkGroupEvent, err := maskLessSinkGroup.reconcile(ctx)
+		if len(maskLessSinkGroupEvent) > 0 {
+			events = append(events, maskLessSinkGroupEvent...)
+		}
+		return result, events, err
 	}
 
 	gitToken, err := secretByKey(secret, "gitAccessToken")
 	if err != nil {
-		return result, nil, err
+		return result, events, err
 	}
 
 	desiredMaskVersion, repo, filePath, err := r.fetchLatestMaskFileVersion(
@@ -356,7 +362,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		gitToken,
 	)
 	if err != nil {
-		return result, nil, fmt.Errorf(
+		return result, events, fmt.Errorf(
 			"Error fetching latest mask file version, err: %v\n", err)
 	}
 	klog.V(2).Infof("rsk/%s desiredMaskVersion=%v", rsk.Name, desiredMaskVersion)
@@ -380,7 +386,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		r.KafkaTopicsCache,
 	)
 	if err != nil {
-		return result, nil, fmt.Errorf("Error doing mask diff, err: %v", err)
+		return result, events, fmt.Errorf("Error doing mask diff, err: %v", err)
 	}
 
 	sBuilder := newStatusBuilder()
@@ -401,7 +407,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 	// Safety checks
 	if currentMaskVersion == desiredMaskVersion {
 		if len(status.reloading) > 0 && len(status.diffTopics) == 0 {
-			klog.Errorf("rsk/%s unexpected status, no diff but reloading", rsk.Name)
+			klog.Errorf(
+				"rsk/%s unexpected status, no diff but reloading", rsk.Name)
 			status.fixMaskStatus()
 		}
 
@@ -412,7 +419,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	if len(status.diffTopics) == 0 && len(status.reloading) > 0 {
 		klog.Errorf("rsk/%s unexpected status, no diff but reloading", rsk.Name)
 		status.fixMaskStatus()
-		return result, nil, nil
+		return result, events, nil
 	}
 
 	// Realtime status is always calculated to keep the CurrentOffset
@@ -436,7 +443,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		)
 		status.updateBatcherReloadingTopics(rsk.Status.BatcherReloadingTopics, calc.batchersRealtime)
 		status.updateLoaderReloadingTopics(rsk.Status.LoaderReloadingTopics, calc.loadersRealtime)
-		return resultRequeueMilliSeconds(1500), nil, nil
+		return resultRequeueMilliSeconds(1500), events, nil
 	}
 	klog.V(2).Infof("rsk/%v reconciling all sinkGroups", rsk.Name)
 
@@ -497,18 +504,22 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 
 	for _, sinkGroup := range sinkGroups {
-		result, event, err := sinkGroup.reconcile(ctx)
+		result, sinkGroupEvents, err := sinkGroup.reconcile(ctx)
 		if err != nil {
 			return result, nil, err
 		}
-		if event != nil {
-			return resultRequeueMilliSeconds(3000), event, nil
+		if len(sinkGroupEvents) > 0 {
+			events = append(events, sinkGroupEvents...)
 		}
+	}
+
+	if len(events) > 0 {
+		return resultRequeueMilliSeconds(3000), events, nil
 	}
 
 	if len(status.realtime) == 0 {
 		klog.V(2).Infof("rsk/%s nothing done in reconcile", rsk.Name)
-		return result, nil, nil
+		return result, events, nil
 	}
 
 	// release the realtime topics, topics in realtime (MaxTopicRelease) are
@@ -532,7 +543,8 @@ func (r *RedshiftSinkReconciler) reconcile(
 			secret,
 		)
 		if err != nil {
-			return result, nil, fmt.Errorf("Error making releaser, err: %v", err)
+			return result, events, fmt.Errorf(
+				"Error making releaser, err: %v", err)
 		}
 	}
 
@@ -576,15 +588,15 @@ func (r *RedshiftSinkReconciler) reconcile(
 		status.notifyRelease(secret, repo, filePath)
 	}
 	if releaseError != nil {
-		return result, nil, releaseError
+		return result, events, releaseError
 	}
 	if len(releasedTopics) > 0 {
 		klog.V(2).Infof("rsk/%v: all topics were released succesfully!", rsk.Name)
-		return result, nil, nil
+		return result, events, nil
 	}
 
 	// not possible to reach here
-	return result, nil, nil
+	return result, events, nil
 }
 
 func (r *RedshiftSinkReconciler) Reconcile(
@@ -614,7 +626,8 @@ func (r *RedshiftSinkReconciler) Reconcile(
 	// Always attempt to patch the status after each reconciliation.
 	defer func() {
 		if !patcher.allowMain {
-			klog.V(2).Infof("rsk/%s patching is not allowed for main", redshiftsink.Name)
+			klog.V(4).Infof(
+				"rsk/%s patching is not allowed for main", redshiftsink.Name)
 			return
 		}
 
@@ -631,14 +644,14 @@ func (r *RedshiftSinkReconciler) Reconcile(
 	}()
 
 	// Perform a reconcile, getting back the desired result, any utilerrors
-	result, event, err := r.reconcile(ctx, &redshiftsink, patcher)
+	result, events, err := r.reconcile(ctx, &redshiftsink, patcher)
 	if err != nil {
 		err = fmt.Errorf("Failed to reconcile: %s", err)
 	}
 
 	// Finally, the event is used to generate a Kubernetes event by
 	// calling `Record` and passing in the recorder.
-	if event != nil {
+	for _, event := range events {
 		event.Record(r.Recorder)
 	}
 
