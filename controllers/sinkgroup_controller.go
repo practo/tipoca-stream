@@ -576,9 +576,11 @@ func (s *sinkGroup) cleanup(
 	neededDeployments map[string]bool,
 	neededConfigMaps map[string]bool,
 ) (
-	ReconcilerEvent,
+	[]ReconcilerEvent,
 	error,
 ) {
+	var events []ReconcilerEvent
+
 	klog.V(3).Infof("Current active deployments, needed: %+v", neededDeployments)
 	// query all deployment for the sinkgroup
 	deploymentList, err := listDeployments(
@@ -590,7 +592,7 @@ func (s *sinkGroup) cleanup(
 		s.rsk.Name,
 	)
 	if err != nil {
-		return nil, err
+		return events, err
 	}
 	for _, deploy := range deploymentList.Items {
 		klog.V(4).Infof("Cleanup suspect deployment: %v", deploy.Name)
@@ -603,10 +605,10 @@ func (s *sinkGroup) cleanup(
 			klog.V(2).Infof("rsk/%s Deleting deployment: %v", s.rsk.Name, labelValue)
 			event, err := deleteDeployment(ctx, s.client, &deploy, s.rsk)
 			if err != nil {
-				return nil, err
+				return events, err
 			}
 			if event != nil {
-				return event, nil
+				events = append(events, event)
 			}
 		}
 	}
@@ -622,7 +624,7 @@ func (s *sinkGroup) cleanup(
 		s.rsk.Name,
 	)
 	if err != nil {
-		return nil, err
+		return events, err
 	}
 
 	for _, config := range configMapList.Items {
@@ -636,176 +638,189 @@ func (s *sinkGroup) cleanup(
 			klog.V(2).Infof("rsk/%s Deleting configmap: %s", s.rsk.Name, labelValue)
 			event, err := deleteConfigMap(ctx, s.client, &config, s.rsk)
 			if err != nil {
-				return nil, err
+				return events, err
 			}
 			if event != nil {
-				return event, nil
+				events = append(events, event)
 			}
 		}
 	}
 
-	return nil, nil
+	return events, nil
 }
 
 func (s *sinkGroup) reconcileBatcher(
 	ctx context.Context,
 	d Deployment,
 ) (
-	ReconcilerEvent,
+	[]ReconcilerEvent,
 	error,
 ) {
+	var events []ReconcilerEvent
+
 	// reconcile batcher configMap
 	event, err := s.reconcileConfigMap(ctx, d)
 	if err != nil {
-		return nil, fmt.Errorf("Error reconciling batcher configMap, %v", err)
+		return events, fmt.Errorf(
+			"Error reconciling batcher configMap, %v", err)
 	}
 	if event != nil {
-		return event, nil
+		events = append(events, event)
 	}
 
 	// reconcile batcher deployment
 	event, err = s.reconcileDeployment(ctx, d)
 	if err != nil {
-		return nil, fmt.Errorf("Error reconciling batcher deployment, %v", err)
+		return events, fmt.Errorf(
+			"Error reconciling batcher deployment, %v", err)
 	}
 	if event != nil {
-		return event, nil
+		events = append(events, event)
 	}
 
-	return nil, nil
+	return events, nil
 }
 
 func (s *sinkGroup) reconcileBatchers(
 	ctx context.Context,
 	deployments []Deployment,
 ) (
-	ReconcilerEvent,
+	[]ReconcilerEvent,
 	error,
 ) {
+	var events []ReconcilerEvent
+
 	// cleanup the ones which should be dead before creating new
 	var neededDeployments, neededConfigMaps []string
 	for _, d := range deployments {
 		neededDeployments = append(neededDeployments, d.Name())
 		neededConfigMaps = append(neededConfigMaps, d.Name())
 	}
-	event, err := s.cleanup(
+	cleanupEvents, err := s.cleanup(
 		ctx,
 		BatcherLabelInstance,
 		toMap(neededDeployments),
 		toMap(neededConfigMaps),
 	)
 	if err != nil {
-		return nil, err
+		return events, err
 	}
-	if event != nil {
-		return event, nil
+	if len(cleanupEvents) > 0 {
+		events = append(events, cleanupEvents...)
 	}
 
 	// create or update
 	for _, d := range deployments {
-		event, err := s.reconcileBatcher(ctx, d)
+		batcherEvents, err := s.reconcileBatcher(ctx, d)
 		if err != nil {
-			return nil, err
+			return events, err
 		}
-		if event != nil {
-			return event, nil
+		if len(batcherEvents) > 0 {
+			events = append(events, batcherEvents...)
 		}
 	}
 
-	return nil, nil
+	return events, nil
 }
 
 func (s *sinkGroup) reconcileLoader(
 	ctx context.Context,
 	d Deployment,
 ) (
-	ReconcilerEvent,
+	[]ReconcilerEvent,
 	error,
 ) {
+	var events []ReconcilerEvent
+
 	event, err := s.reconcileConfigMap(ctx, d)
 	if err != nil {
-		return nil, fmt.Errorf("Error reconciling loader configMap, %v", err)
+		return events, fmt.Errorf("Error reconciling loader configMap, %v", err)
 	}
 	if event != nil {
-		return event, nil
+		events = append(events, event)
 	}
 
 	// reconcile loader deployment
 	event, err = s.reconcileDeployment(ctx, d)
 	if err != nil {
-		return nil, fmt.Errorf("Error reconciling loader deployment, %v", err)
+		return events, fmt.Errorf("Error reconciling loader deployment, %v", err)
 	}
 	if event != nil {
-		return event, nil
+		events = append(events, event)
 	}
 
-	return nil, nil
+	return events, nil
 }
 
 func (s *sinkGroup) reconcileLoaders(
 	ctx context.Context,
 	deployments []Deployment,
 ) (
-	ReconcilerEvent,
+	[]ReconcilerEvent,
 	error,
 ) {
+	var events []ReconcilerEvent
+
 	// cleanup the ones which should be dead before creating new
 	var neededDeployments, neededConfigMaps []string
 	for _, d := range deployments {
 		neededDeployments = append(neededDeployments, d.Name())
 		neededConfigMaps = append(neededConfigMaps, d.Name())
 	}
-	event, err := s.cleanup(
+	cleanupEvents, err := s.cleanup(
 		ctx,
 		LoaderLabelInstance,
 		toMap(neededDeployments),
 		toMap(neededConfigMaps),
 	)
 	if err != nil {
-		return nil, err
+		return events, err
 	}
-	if event != nil {
-		return event, nil
+	if len(cleanupEvents) > 0 {
+		events = append(events, cleanupEvents...)
 	}
 
 	// create or update
 	for _, d := range deployments {
-		event, err := s.reconcileLoader(ctx, d)
+		loaderEvents, err := s.reconcileLoader(ctx, d)
 		if err != nil {
-			return nil, err
+			return events, err
 		}
-		if event != nil {
-			return event, nil
+		if len(loaderEvents) > 0 {
+			events = append(events, loaderEvents...)
 		}
 	}
 
-	return nil, nil
+	return events, nil
 }
 
 func (s *sinkGroup) reconcile(
 	ctx context.Context,
 ) (
-	ctrl.Result, ReconcilerEvent, error,
+	ctrl.Result,
+	[]ReconcilerEvent,
+	error,
 ) {
 	result := ctrl.Result{RequeueAfter: time.Second * 30}
+	events := []ReconcilerEvent{}
 
-	event, err := s.reconcileBatchers(ctx, s.batchers)
+	batcherEvents, err := s.reconcileBatchers(ctx, s.batchers)
 	if err != nil {
-		return result, nil, err
+		return result, events, err
 	}
-	if event != nil {
-		return result, event, nil
+	if len(batcherEvents) > 0 {
+		events = append(events, batcherEvents...)
 	}
 
-	event, err = s.reconcileLoaders(ctx, s.loaders)
+	loaderEvents, err := s.reconcileLoaders(ctx, s.loaders)
 	if err != nil {
-		return result, nil, err
+		return result, events, err
 	}
-	if event != nil {
-		return result, event, nil
+	if len(loaderEvents) > 0 {
+		events = append(events, loaderEvents...)
 	}
 
-	return result, nil, nil
+	return result, events, nil
 }
 
 func (s *sinkGroup) batcherDeploymentTopics() []string {
