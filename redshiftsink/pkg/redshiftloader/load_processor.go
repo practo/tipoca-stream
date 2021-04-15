@@ -67,6 +67,9 @@ type loadProcessor struct {
 	// redshiftSchema schema to operate on
 	redshiftSchema string
 
+	// redshiftGroup to gives access to
+	redshiftGroup *string
+
 	// redshiftStats stats show the db stats info in logs when enabled
 	redshiftStats bool
 
@@ -91,6 +94,7 @@ func newLoadProcessor(
 	partition int32,
 	saramaConfig kafka.SaramaConfig,
 	redshifter *redshift.Redshift,
+	redshiftGroup *string,
 ) (serializer.MessageBatchSyncProcessor, error) {
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
@@ -115,6 +119,7 @@ func newLoadProcessor(
 			viper.GetString("schemaRegistryURL")),
 		redshifter:     redshifter,
 		redshiftSchema: viper.GetString("redshift.schema"),
+		redshiftGroup:  redshiftGroup,
 		stagingTable:   nil,
 		targetTable:    nil,
 		tableSuffix:    viper.GetString("redshift.tableSuffix"),
@@ -533,6 +538,15 @@ func (b *loadProcessor) migrateTable(
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("Error migrating table, err:%v\n", err)
+	}
+
+	if b.redshiftGroup != nil {
+		klog.V(2).Infof("%s, granting schema access for table: %v to group: %v", b.topic, inputTable.Name, *b.redshiftGroup)
+		err = b.redshifter.GrantSchemaAccess(ctx, tx, inputTable.Meta.Schema, inputTable.Name, *b.redshiftGroup)
+		if err != nil {
+			return err
+		}
+		return err
 	}
 
 	err = tx.Commit()

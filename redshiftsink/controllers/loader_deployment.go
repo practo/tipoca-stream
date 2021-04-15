@@ -311,6 +311,7 @@ func NewLoader(
 			MaxOpenConns: maxOpenConns,
 			MaxIdleConns: maxIdleConns,
 		},
+		RedshiftGroup: rsk.Spec.Loader.RedshiftGroup,
 	}
 	confBytes, err := yaml.Marshal(conf)
 	if err != nil {

@@ -48,9 +48,10 @@ type loaderHandler struct {
 	maxWaitSeconds   *int
 	maxBytesPerBatch *int64
 
-	saramaConfig kafka.SaramaConfig
-	redshifter   *redshift.Redshift
-	serializer   serializer.Serializer
+	saramaConfig  kafka.SaramaConfig
+	redshifter    *redshift.Redshift
+	redshiftGroup *string
+	serializer    serializer.Serializer
 }
 
 func NewHandler(
@@ -60,6 +61,7 @@ func NewHandler(
 	loaderConfig LoaderConfig,
 	saramaConfig kafka.SaramaConfig,
 	redshifter *redshift.Redshift,
+	redshiftGroup *string,
 ) *loaderHandler {
 	// apply defaults
 	if loaderConfig.MaxWaitSeconds == nil {
@@ -77,9 +79,10 @@ func NewHandler(
 		maxWaitSeconds:   loaderConfig.MaxWaitSeconds,
 		maxBytesPerBatch: loaderConfig.MaxBytesPerBatch,
 
-		saramaConfig: saramaConfig,
-		redshifter:   redshifter,
-		serializer:   serializer.NewSerializer(viper.GetString("schemaRegistryURL")),
+		saramaConfig:  saramaConfig,
+		redshifter:    redshifter,
+		redshiftGroup: redshiftGroup,
+		serializer:    serializer.NewSerializer(viper.GetString("schemaRegistryURL")),
 	}
 }
 
@@ -123,6 +126,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		claim.Partition(),
 		h.saramaConfig,
 		h.redshifter,
+		h.redshiftGroup,
 	)
 	if err != nil {
 		return fmt.Errorf(
