@@ -110,6 +110,7 @@ func run(cmd *cobra.Command, args []string) {
 				config.Loader,
 				groupConfig.Sarama,
 				redshifter,
+				config.RedshiftGroup,
 			),
 		)
 		if err != nil {
