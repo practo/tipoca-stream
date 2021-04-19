@@ -476,16 +476,9 @@ func (s *status) updateTopicGroup(topic string) {
 
 	groupID := groupIDFromTopicVersion(topic, s.desiredVersion)
 	prefix := loaderPrefixFromVersion(s.rsk.Spec.KafkaLoaderTopicPrefix, s.desiredVersion)
-	var currentOffset *int64
-	if s.rsk.Status.TopicGroup != nil {
-		existingGroup, ok := s.rsk.Status.TopicGroup[topic]
-		if ok {
-			currentOffset = existingGroup.LoaderCurrentOffset
-		}
-	}
 
 	group := tipocav1.Group{
-		LoaderCurrentOffset: currentOffset,
+		LoaderCurrentOffset: nil, // Deprecated
 		LoaderTopicPrefix:   prefix,
 		ID:                  groupID,
 	}
@@ -575,12 +568,50 @@ func (s *status) fixMaskStatus() {
 	}
 }
 
+func (s *status) deleteLoaderTopicGroupCurrentOffset(topic string) {
+	if s.rsk.Status.LoaderTopicGroupCurrentOffset == nil {
+		return
+	}
+
+	groupID := groupIDFromTopicVersion(topic, s.desiredVersion)
+	tg := fmt.Sprintf("%s-%s", topic, groupID)
+
+	delete(s.rsk.Status.LoaderTopicGroupCurrentOffset, tg)
+}
+
 func updateTopicGroup(rsk *tipocav1.RedshiftSink, topic string, group tipocav1.Group) {
 	if rsk.Status.TopicGroup == nil {
 		rsk.Status.TopicGroup = make(map[string]tipocav1.Group)
 	}
 
 	rsk.Status.TopicGroup[topic] = group
+}
+
+func updateLoaderTopicGroupCurrentOffset(rsk *tipocav1.RedshiftSink, topic, groupID string, offset int64) {
+	if rsk.Status.LoaderTopicGroupCurrentOffset == nil {
+		rsk.Status.LoaderTopicGroupCurrentOffset = make(map[string]int64)
+	}
+	tg := fmt.Sprintf("%s-%s", topic, groupID)
+	rsk.Status.LoaderTopicGroupCurrentOffset[tg] = offset
+}
+
+func loaderTopicGroupCurrentOffset(rsk *tipocav1.RedshiftSink, topic, groupID string) *int64 {
+	if rsk.Status.LoaderTopicGroupCurrentOffset == nil {
+		rsk.Status.LoaderTopicGroupCurrentOffset = make(map[string]int64)
+		return nil
+	}
+
+	tg := fmt.Sprintf("%s-%s", topic, groupID)
+	offset, ok := rsk.Status.LoaderTopicGroupCurrentOffset[tg]
+	if ok {
+		return &offset
+	}
+
+	return nil
+}
+
+func addDeadConsumerGroups(rsk *tipocav1.RedshiftSink, consumerGroupID string) {
+	rsk.Status.DeadConsumerGroups = append(rsk.Status.DeadConsumerGroups, consumerGroupID)
 }
 
 // statusPatcher is used to update the status of rsk

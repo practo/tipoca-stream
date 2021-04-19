@@ -306,6 +306,12 @@ type Group struct {
 	// LoaderTopicPrefix stores the name of the loader topic prefix
 	LoaderTopicPrefix string `json:"loaderTopicPrefix,omitempty"`
 
+	// ID stores the name of the consumer group for the topic
+	// based on this batcher and loader consumer groups are made
+	ID string `json:"id"`
+
+	// Deprecated: as the Group would store the informaton of only topic groups which have released
+	// Using TopicGroupCurrentOffset instead of this
 	// LoaderCurrentOffset stores the last read current offset of the consumer group
 	// This is required to determine if the consumer group has performed any
 	// processing in the past. As for low throughput topics,
@@ -315,10 +321,6 @@ type Group struct {
 	// TODO: This is not dead field once a group moves to released and
 	// should be cleaned after that(status needs to be updated)
 	LoaderCurrentOffset *int64 `json:"currentOffset,omitempty"`
-
-	// ID stores the name of the consumer group for the topic
-	// based on this batcher and loader consumer groups are made
-	ID string `json:"id"`
 }
 
 // RedshiftSinkStatus defines the observed state of RedshiftSink
@@ -345,6 +347,13 @@ type RedshiftSinkStatus struct {
 	// There is a limit to maximum topics that can be reloaded at a time. (MaxReloadingUnits)
 	// +optional
 	LoaderReloadingTopics []string `json:"loaderReloadingTopics,omitempty"`
+
+	// LoaderTopicGroupCurrentOffset stores the topic + group ID = currentOffset
+	// this is used for realtime calculation, after release it is not useful and is cleaned up
+	LoaderTopicGroupCurrentOffset map[string]int64 `json:"loaderTopicGroupCurrentOffset,omitempty"`
+
+	// DeadConsumerGroups stores the list of consumer groups that should be cleaned after release is done
+	DeadConsumerGroups []string `json:"deadConsumerGroups,omitempty"`
 }
 
 // +kubebuilder:resource:path=redshiftsinks,shortName=rsk;rsks

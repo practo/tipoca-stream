@@ -540,6 +540,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			currentMaskVersion,
 			desiredMaskVersion,
 			secret,
+			rsk,
 		)
 		if err != nil {
 			return result, events, fmt.Errorf(
