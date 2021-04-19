@@ -8,6 +8,7 @@ import (
 	klog "github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	kafka "github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
+	transformer "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -377,16 +378,16 @@ func topicGroupBySinkGroup(
 ) map[string]tipocav1.Group {
 
 	groups := make(map[string]tipocav1.Group)
-	groupID := groupIDFromVersion(version)
 
 	switch sinkGroupName {
 	case ReloadSinkGroup:
 		for _, topic := range topics {
+			groupID := groupIDFromTopicVersion(topic, version)
 			groups[topic] = tipocav1.Group{
 				ID: groupID,
-				LoaderTopicPrefix: loaderPrefixFromGroupID(
+				LoaderTopicPrefix: loaderPrefixFromVersion(
 					prefix,
-					groupID,
+					version,
 				),
 			}
 		}
@@ -395,7 +396,7 @@ func topicGroupBySinkGroup(
 		for _, topic := range topics {
 			group := topicGroup(rsk, topic)
 			if group == nil {
-				// do not sink topics which sinking for first time
+				// do not sink topics which are sinking for the first time
 				continue
 			} else {
 				groups[topic] = *group
@@ -406,11 +407,12 @@ func topicGroupBySinkGroup(
 		for _, topic := range topics {
 			group := topicGroup(rsk, topic)
 			if group == nil {
+				groupID := groupIDFromTopicVersion(topic, version)
 				groups[topic] = tipocav1.Group{
 					ID: groupID,
-					LoaderTopicPrefix: loaderPrefixFromGroupID(
+					LoaderTopicPrefix: loaderPrefixFromVersion(
 						prefix,
-						groupID,
+						version,
 					),
 				}
 			} else {
@@ -426,17 +428,24 @@ func consumerGroupID(rskName, rskNamespace, groupID string, suffix string) strin
 	return rskNamespace + "-" + rskName + "-" + groupID + suffix
 }
 
-func groupIDFromVersion(version string) string {
+func groupIDFromTopicVersion(topic string, version string) string {
+	_, _, table := transformer.ParseTopic(topic)
+
 	groupID := version
 	if len(version) >= 6 {
 		groupID = groupID[:6]
 	}
 
-	return groupID
+	return fmt.Sprintf("%s-%s", table, groupID)
 }
 
-func loaderPrefixFromGroupID(prefix string, version string) string {
-	return prefix + version + "-"
+func loaderPrefixFromVersion(prefix string, version string) string {
+	sVersion := version
+	if len(sVersion) >= 6 {
+		sVersion = sVersion[:6]
+	}
+
+	return prefix + sVersion + "-"
 }
 
 type consumerGroup struct {
@@ -467,7 +476,7 @@ func computeConsumerGroups(
 				topics:            []string{topic},
 				loaderTopicPrefix: topicGroup.LoaderTopicPrefix,
 			}
-		} else {
+		} else { // Deprecated, every topic now runs in a separate consumer group
 			if existingGroup.loaderTopicPrefix != topicGroup.LoaderTopicPrefix {
 				return nil, fmt.Errorf(
 					"Mismatch in loaderTopicPrefix in status: %v for topic: %v",

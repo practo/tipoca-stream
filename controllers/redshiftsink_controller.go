@@ -301,7 +301,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 	error,
 ) {
 	var events []ReconcilerEvent
-
 	result := ctrl.Result{RequeueAfter: time.Second * 30}
 
 	secret, err := r.fetchSecretMap(
