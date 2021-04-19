@@ -234,7 +234,7 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 		// extract or compute consumer group info
 		var currentGroupID string
 		var loaderCurrentOffset *int64
-		desiredGroupID := groupIDFromVersion(r.desiredVersion)
+		desiredGroupID := groupIDFromTopicVersion(topic, r.desiredVersion)
 
 		group := topicGroup(r.rsk, topic)
 		if group != nil { // not the first release
@@ -245,7 +245,11 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 		}
 
 		var loaderTopic *string
-		ltopic := r.rsk.Spec.KafkaLoaderTopicPrefix + desiredGroupID + "-" + topic
+		ltopic := fmt.Sprintf(
+			"%s%s",
+			loaderPrefixFromVersion(r.rsk.Spec.KafkaLoaderTopicPrefix, r.desiredVersion),
+			topic,
+		)
 		_, ok := allTopicsMap[ltopic]
 		if !ok {
 			klog.V(2).Infof("%s topic 404, not realtime.", ltopic)
@@ -318,7 +322,7 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 				// this is for updating the LoaderCurrentOffset
 				updateTopicGroup(r.rsk, topic, tipocav1.Group{
 					LoaderCurrentOffset: info.loader.current,
-					LoaderTopicPrefix:   loaderPrefixFromGroupID(r.rsk.Spec.KafkaLoaderTopicPrefix, currentGroupID),
+					LoaderTopicPrefix:   loaderPrefixFromVersion(r.rsk.Spec.KafkaLoaderTopicPrefix, r.desiredVersion),
 					ID:                  currentGroupID,
 				})
 			}

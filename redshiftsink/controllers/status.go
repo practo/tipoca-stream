@@ -474,8 +474,8 @@ func (s *status) updateMaskStatus() {
 func (s *status) updateTopicGroup(topic string) {
 	klog.V(5).Infof("updating topic group: %s %+v", topic, s.rsk.Status)
 
-	groupID := groupIDFromVersion(s.desiredVersion)
-	prefix := loaderPrefixFromGroupID(s.rsk.Spec.KafkaLoaderTopicPrefix, groupID)
+	groupID := groupIDFromTopicVersion(topic, s.desiredVersion)
+	prefix := loaderPrefixFromVersion(s.rsk.Spec.KafkaLoaderTopicPrefix, s.desiredVersion)
 	var currentOffset *int64
 	if s.rsk.Status.TopicGroup != nil {
 		existingGroup, ok := s.rsk.Status.TopicGroup[topic]
