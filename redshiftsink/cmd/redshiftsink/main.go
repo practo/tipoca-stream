@@ -100,6 +100,7 @@ func main() {
 		KafkaRealtimeCache:          new(sync.Map),
 		ReleaseCache:                new(sync.Map),
 		GitCache:                    new(sync.Map),
+		IncludeTablesCache:          new(sync.Map),
 		DefaultBatcherImage:         batcherImage,
 		DefaultLoaderImage:          loaderImage,
 		DefaultSecretRefName:        secretRefName,

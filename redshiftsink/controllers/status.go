@@ -14,6 +14,7 @@ type status struct {
 	rsk            *tipocav1.RedshiftSink
 	currentVersion string
 	desiredVersion string
+	includeTables  []string
 
 	allTopics     []string
 	diffTopics    []string
@@ -27,6 +28,7 @@ type statusBuilder interface {
 	setRedshiftSink(rsk *tipocav1.RedshiftSink) statusBuilder
 	setCurrentVersion(version string) statusBuilder
 	setDesiredVersion(version string) statusBuilder
+	setIncludeTables(tables []string) statusBuilder
 	setAllTopics(topics []string) statusBuilder
 	setDiffTopics(topics []string) statusBuilder
 	computeReleased() statusBuilder
@@ -43,6 +45,7 @@ func newStatusBuilder() statusBuilder {
 type buildStatus struct {
 	currentVersion string
 	desiredVersion string
+	includeTables  []string
 	rsk            *tipocav1.RedshiftSink
 	allTopics      []string
 	diffTopics     []string
@@ -64,6 +67,12 @@ func (sb *buildStatus) setCurrentVersion(version string) statusBuilder {
 
 func (sb *buildStatus) setDesiredVersion(version string) statusBuilder {
 	sb.desiredVersion = version
+	return sb
+}
+
+func (sb *buildStatus) setIncludeTables(tables []string) statusBuilder {
+	sb.includeTables = tables
+	sortStringSlice(sb.includeTables)
 	return sb
 }
 
@@ -458,8 +467,11 @@ func (s *status) updateMaskStatus() {
 	currentVersion := &s.currentVersion
 	if len(s.allTopics) == len(s.released) &&
 		len(s.reloading) == 0 && len(s.realtime) == 0 {
-
-		currentVersion = &s.desiredVersion
+		if len(s.released) != len(s.includeTables) {
+			klog.V(2).Infof("rsk/%s not marking as all released, since not all included tables are released (first time sinking?)", s.rsk.Name)
+		} else {
+			currentVersion = &s.desiredVersion
+		}
 	}
 
 	maskStatus := tipocav1.MaskStatus{
