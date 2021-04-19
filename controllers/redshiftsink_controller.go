@@ -55,6 +55,7 @@ type RedshiftSinkReconciler struct {
 	KafkaRealtimeCache *sync.Map
 	ReleaseCache       *sync.Map
 	GitCache           *sync.Map
+	IncludeTablesCache *sync.Map
 
 	DefaultBatcherImage         string
 	DefaultLoaderImage          string
@@ -376,13 +377,14 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 	klog.V(2).Infof("rsk/%s currentMaskVersion=%v", rsk.Name, currentMaskVersion)
 
-	diffTopics, kafkaTopics, err := MaskDiff(
+	diffTopics, kafkaTopics, includeTables, err := MaskDiff(
 		kafkaTopics,
 		rsk.Spec.Batcher.MaskFile,
 		desiredMaskVersion,
 		currentMaskVersion,
 		gitToken,
 		r.KafkaTopicsCache,
+		r.IncludeTablesCache,
 	)
 	if err != nil {
 		return result, events, fmt.Errorf("Error doing mask diff, err: %v", err)
@@ -393,6 +395,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setRedshiftSink(rsk).
 		setCurrentVersion(currentMaskVersion).
 		setDesiredVersion(desiredMaskVersion).
+		setIncludeTables(includeTables).
 		setAllTopics(kafkaTopics).
 		setDiffTopics(diffTopics).
 		computeReleased().
