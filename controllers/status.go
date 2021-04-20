@@ -206,6 +206,7 @@ func (sb *buildStatus) build() *status {
 		rsk:            sb.rsk,
 		currentVersion: sb.currentVersion,
 		desiredVersion: sb.desiredVersion,
+    includeTables:  sb.includeTables,
 		allTopics:      sb.allTopics,
 		diffTopics:     sb.diffTopics,
 		released:       sb.released,
@@ -313,12 +314,13 @@ func (s *status) deepCopy() *status {
 
 func (s *status) info() {
 	rskName := fmt.Sprintf("rsk/%s", s.rsk.Name)
-	klog.V(2).Infof("%s allTopics:  %d", rskName, len(s.allTopics))
-	klog.V(2).Infof("%s diffTopics: %d", rskName, len(s.diffTopics))
-	klog.V(2).Infof("%s released:   %d", rskName, len(s.released))
-	klog.V(2).Infof("%s reloading:  %d %v", rskName, len(s.reloading), s.reloading)
-	klog.V(2).Infof("%s rDupe:      %d %v", rskName, len(s.reloadingDupe), s.reloadingDupe)
-	klog.V(2).Infof("%s realtime:   %d %v", rskName, len(s.realtime), s.realtime)
+	klog.V(2).Infof("%s allTopics:      %d", rskName, len(s.allTopics))
+	klog.V(2).Infof("%s includeTables:  %d", rskName, len(s.includeTables))
+	klog.V(2).Infof("%s diffTopics:     %d", rskName, len(s.diffTopics))
+	klog.V(2).Infof("%s released:       %d", rskName, len(s.released))
+	klog.V(2).Infof("%s reloading:      %d %v", rskName, len(s.reloading), s.reloading)
+	klog.V(2).Infof("%s rDupe:          %d %v", rskName, len(s.reloadingDupe), s.reloadingDupe)
+	klog.V(2).Infof("%s realtime:       %d %v", rskName, len(s.realtime), s.realtime)
 }
 
 // manyReloading checks the percentage of reloading topics of the total topics
@@ -468,7 +470,7 @@ func (s *status) updateMaskStatus() {
 	if len(s.allTopics) == len(s.released) &&
 		len(s.reloading) == 0 && len(s.realtime) == 0 {
 		if len(s.released) != len(s.includeTables) {
-			klog.V(2).Infof("rsk/%s not marking as all released, since not all included tables are released (first time sinking?)", s.rsk.Name)
+			klog.V(2).Infof("rsk/%s released(%v) != includeTables(%v), not marking released!", s.rsk.Name, len(s.released), len(s.includeTables))
 		} else {
 			currentVersion = &s.desiredVersion
 		}
