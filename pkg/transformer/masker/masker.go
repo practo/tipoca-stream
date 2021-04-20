@@ -89,6 +89,8 @@ func (m *masker) Transform(
 		lengthKey := m.config.LengthKey(m.table, cName)
 		mobileKey := m.config.MobileKey(m.table, cName)
 		mappingPIIKey := m.config.MappingPIIKey(m.table, cName)
+		dependentNonPiiKey := m.config.DependentNonPiiKey(m.table, cName)
+		conditionalNonPiiKey := m.config.ConditionalNonPiiKey(m.table, cName)
 
 		if lengthKey {
 			var length int
@@ -142,23 +144,23 @@ func (m *masker) Transform(
 			columns[cName] = Mask(*cVal, m.salt)
 		}
 
-		// This determines the type of the mask schema, the value is taken care
-		// above so now we can decide what should be the type of the column
-		// based on whether it is defined as any of the following keys
-		// (overide for these)
-		// 1. DependentNonPii 2. ConditionalNonPii
+		// This has no meaning, and is not used, as StringMax is used
+		// based on ConditionalNonPIICol and DependentNonPIICol
+		// Just keeping it masked as majority of rows are expected to be that
 		if m.config.DependentNonPiiKey(m.table, cName) ||
 			m.config.ConditionalNonPiiKey(m.table, cName) {
 			unmasked = false
 		}
 
 		maskSchema[cName] = serializer.MaskInfo{
-			Masked:        !unmasked,
-			SortCol:       sortKey,
-			DistCol:       distKey,
-			LengthCol:     lengthKey,
-			MobileCol:     mobileKey,
-			MappingPIICol: mappingPIIKey,
+			Masked:               !unmasked,
+			SortCol:              sortKey,
+			DistCol:              distKey,
+			LengthCol:            lengthKey,
+			MobileCol:            mobileKey,
+			MappingPIICol:        mappingPIIKey,
+			ConditionalNonPIICol: conditionalNonPiiKey,
+			DependentNonPIICol:   dependentNonPiiKey,
 		}
 	}
 
