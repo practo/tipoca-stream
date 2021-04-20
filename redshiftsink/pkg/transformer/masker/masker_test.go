@@ -105,10 +105,12 @@ func testMasker(t *testing.T, salt, topic, cName string,
 		return
 	}
 
-	if *maskedColumns[cName] != *result {
-		t.Errorf(
-			"Expected %s=%s, got %v\n", cName, *result, *maskedColumns[cName],
-		)
+	if result != nil && maskedColumns != nil {
+		if *maskedColumns[cName] != *result {
+			t.Errorf(
+				"Expected %s=%s, got %v\n", cName, *result, *maskedColumns[cName],
+			)
+		}
 	}
 }
 
@@ -411,6 +413,25 @@ func TestMasker(t *testing.T) {
 					},
 					redshift.ColInfo{
 						Name: "plan_enabled",
+					},
+				},
+			},
+		},
+		{
+			name:  "test17: conditional and non conditonal non pii datatype test",
+			topic: "dbserver.database.customers",
+			cName: "notes",
+			columns: map[string]*string{
+				"notes": stringPtr("I am not interested in politics"),
+			},
+			resultVal: stringPtr("I am not interested in politics"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"notes": serializer.MaskInfo{Masked: true},
+			},
+			redshiftTable: redshift.Table{
+				Columns: []redshift.ColInfo{
+					redshift.ColInfo{
+						Name: "notes",
 					},
 				},
 			},
