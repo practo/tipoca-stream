@@ -407,6 +407,9 @@ func (r *RedshiftSinkReconciler) reconcile(
 	defer status.updateMaskStatus()
 
 	// Safety checks
+  if len(status.includeTables) == 0 {
+    klog.Fatalf("rsk/%s includeTables cannot be zero", rsk.Name)
+  }
 	if currentMaskVersion == desiredMaskVersion {
 		if len(status.reloading) > 0 && len(status.diffTopics) == 0 {
 			klog.Errorf(
