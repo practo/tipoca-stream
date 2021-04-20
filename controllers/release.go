@@ -7,6 +7,7 @@ import (
 
 	"database/sql"
 	"github.com/practo/klog/v2"
+	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/notify"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
@@ -20,6 +21,7 @@ type releaser struct {
 	desiredVersion string
 	redshifter     *redshift.Redshift
 	notifier       notify.Notifier
+	rsk            *tipocav1.RedshiftSink
 }
 
 func newReleaser(
@@ -29,6 +31,7 @@ func newReleaser(
 	currentVersion string,
 	desiredVersion string,
 	secret map[string]string,
+	rsk *tipocav1.RedshiftSink,
 ) (
 	*releaser,
 	error,
@@ -77,6 +80,7 @@ func newReleaser(
 		currentVersion: currentVersion,
 		desiredVersion: desiredVersion,
 		notifier:       makeNotifier(secret),
+		rsk:            rsk,
 	}, nil
 }
 
@@ -135,8 +139,20 @@ func (r *releaser) releaseTopic(
 
 	statusCopy := status.deepCopy()
 
+	// store info to cleanup dead consumer group after release
+	tg := topicGroup(r.rsk, topic)
+	if tg != nil {
+		addDeadConsumerGroups(r.rsk, consumerGroupID(
+			r.rsk.Name, r.rsk.Namespace, tg.ID, "-batcher"),
+		)
+		addDeadConsumerGroups(r.rsk, consumerGroupID(
+			r.rsk.Name, r.rsk.Namespace, tg.ID, "-loader"),
+		)
+	}
+
 	status.updateTopicsOnRelease(topic)
 	status.updateTopicGroup(topic)
+	status.deleteLoaderTopicGroupCurrentOffset(topic)
 	status.updateMaskStatus()
 	status.info()
 

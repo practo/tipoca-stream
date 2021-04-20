@@ -1423,6 +1423,12 @@ spec:
               items:
                 type: string
               type: array
+            deadConsumerGroups:
+              description: DeadConsumerGroups stores the list of consumer groups that
+                should be cleaned after release is done
+              items:
+                type: string
+              type: array
             loaderReloadingTopics:
               description: LoaderReloadingTopics stores the list of topics which are
                 currently reloading for the loader deployments in the reload sink
@@ -1431,6 +1437,14 @@ spec:
               items:
                 type: string
               type: array
+            loaderTopicGroupCurrentOffset:
+              additionalProperties:
+                format: int64
+                type: integer
+              description: LoaderTopicGroupCurrentOffset stores the topic + group
+                ID = currentOffset this is used for realtime calculation, after release
+                it is not useful and is cleaned up
+              type: object
             maskStatus:
               description: MaskStatus stores the status of masking for topics if masking
                 is enabled
@@ -1488,7 +1502,9 @@ spec:
               additionalProperties:
                 properties:
                   currentOffset:
-                    description: 'LoaderCurrentOffset stores the last read current
+                    description: 'Deprecated: as the Group would store the informaton
+                      of only topic groups which have released Using TopicGroupCurrentOffset
+                      instead of this LoaderCurrentOffset stores the last read current
                       offset of the consumer group This is required to determine if
                       the consumer group has performed any processing in the past.
                       As for low throughput topics, the consumer group disappears
