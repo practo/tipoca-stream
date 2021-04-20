@@ -35,7 +35,7 @@ func MaskDiff(
 		includeTables = iTablesLoaded.([]string)
 	}
 
-	if currentVersion == desiredVersion && ok {
+	if currentVersion == desiredVersion && ok && len(includeTables) != 0 {
 		// this is required to prevent network IO: git pull and computations
 		// but would eat up some memory, but keep opeartor fast
 		cacheLoaded, ok := kafkaTopicsCache.Load(cacheKey)
