@@ -9,9 +9,10 @@ import (
 	"sync"
 )
 
-// MaskDiff reads two database mask configurations and returns the list of
-// topics whose mask values has changed.
-// also returns the updated list of kafka topics
+// MaskDiff reads two database mask configurations and
+// returns the list of topics whose mask values has changed.
+// returns the updated list of kafka topics
+// return the list of include tables based on desired mask config
 func MaskDiff(
 	topics []string,
 	maskFile string,
@@ -19,26 +20,35 @@ func MaskDiff(
 	currentVersion string,
 	gitToken string,
 	kafkaTopicsCache *sync.Map,
+	includeTablesCache *sync.Map,
 ) (
+	[]string,
 	[]string,
 	[]string,
 	error,
 ) {
 	cacheKey := maskFile + desiredVersion
-	if currentVersion == desiredVersion {
+
+	includeTables := []string{}
+	iTablesLoaded, ok := includeTablesCache.Load(cacheKey)
+	if ok {
+		includeTables = iTablesLoaded.([]string)
+	}
+
+	if currentVersion == desiredVersion && ok {
 		// this is required to prevent network IO: git pull and computations
 		// but would eat up some memory, but keep opeartor fast
 		cacheLoaded, ok := kafkaTopicsCache.Load(cacheKey)
 		if ok {
 			topics = cacheLoaded.([]string)
-			return []string{}, topics, nil
+			return []string{}, topics, includeTables, nil
 		}
 		klog.V(3).Info("Cache miss for shrinking topics, computing...")
 	}
 
 	currentDir, err := os.Getwd()
 	if err != nil {
-		return []string{}, topics, nil
+		return []string{}, topics, includeTables, nil
 	}
 	maskDir := filepath.Join(currentDir, "maskdiff")
 	os.Mkdir(maskDir, 0755)
@@ -46,7 +56,7 @@ func MaskDiff(
 	desiredMaskConfig, err := masker.NewMaskConfig(
 		maskDir, maskFile, desiredVersion, gitToken)
 	if err != nil {
-		return []string{}, topics, err
+		return []string{}, topics, includeTables, err
 	}
 
 	var includedTabesMap map[string]bool
@@ -63,27 +73,29 @@ func MaskDiff(
 		}
 		topics = shrinkedTopics
 		kafkaTopicsCache.Store(cacheKey, topics)
+		includeTables = *desiredMaskConfig.IncludeTables
+		includeTablesCache.Store(cacheKey, includeTables)
 	}
 
 	if currentVersion == "" {
-		return topics, topics, nil
+		return topics, topics, includeTables, nil
 	}
 
 	currentMaskConfig, err := masker.NewMaskConfig(
 		maskDir, maskFile, currentVersion, gitToken)
 	if err != nil {
-		return []string{}, topics, err
+		return []string{}, topics, includeTables, err
 	}
 
 	differ := masker.NewMaskDiffer(currentMaskConfig, desiredMaskConfig)
 	differ.Diff()
 	tablesModified := differ.ModifiedTables()
 	if len(tablesModified) == 0 {
-		return []string{}, topics, nil
+		return []string{}, topics, includeTables, nil
 	}
 
 	if desiredMaskConfig.IncludeTables != nil {
-		// ignore the tables which aer not part of include tables
+		// ignore the tables which are not part of include tables
 		newTablesModified := make(map[string]bool)
 		for table, _ := range tablesModified {
 			_, ok := includedTabesMap[table]
@@ -112,5 +124,5 @@ func MaskDiff(
 		)
 	}
 
-	return modifiedTopics, topics, nil
+	return modifiedTopics, topics, includeTables, nil
 }
