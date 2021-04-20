@@ -206,7 +206,7 @@ func (sb *buildStatus) build() *status {
 		rsk:            sb.rsk,
 		currentVersion: sb.currentVersion,
 		desiredVersion: sb.desiredVersion,
-    includeTables:  sb.includeTables,
+		includeTables:  sb.includeTables,
 		allTopics:      sb.allTopics,
 		diffTopics:     sb.diffTopics,
 		released:       sb.released,
