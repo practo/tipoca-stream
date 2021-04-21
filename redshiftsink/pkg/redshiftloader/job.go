@@ -164,7 +164,7 @@ func ToSchemaMap(r string) map[string]serializer.MaskInfo {
 				mappingPIICol = true
 			}
 		}
-		if len(info) == 8 {
+		if len(info) == 9 {
 			if info[7] == "true" {
 				conditionalNonPIICol = true
 			}
