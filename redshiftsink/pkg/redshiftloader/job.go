@@ -197,7 +197,7 @@ func ToSchemaString(m map[string]serializer.MaskInfo) string {
 
 	for name, info := range m {
 		col := fmt.Sprintf(
-			"%s,%t,%t,%t,%t,%t,%t",
+			"%s,%t,%t,%t,%t,%t,%t,%t,%t",
 			name,
 			info.Masked,
 			info.SortCol,
