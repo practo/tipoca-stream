@@ -147,8 +147,7 @@ func (m *masker) Transform(
 		// This has no meaning, and is not used, as StringMax is used
 		// based on ConditionalNonPIICol and DependentNonPIICol
 		// Just keeping it masked as majority of rows are expected to be that
-		if m.config.DependentNonPiiKey(m.table, cName) ||
-			m.config.ConditionalNonPiiKey(m.table, cName) {
+		if conditionalNonPiiKey || dependentNonPiiKey {
 			unmasked = false
 		}
 
