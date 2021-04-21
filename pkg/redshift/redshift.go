@@ -854,8 +854,10 @@ func (r *Redshift) Copy(ctx context.Context, tx *sql.Tx,
 		statupdate = "STATUPDATE OFF"
 	}
 
+	truncateColumns := "TRUNCATECOLUMNS"
+
 	copySQL := fmt.Sprintf(
-		`COPY "%s"."%s" FROM '%s' %s manifest %s %s %s %s`,
+		`COPY "%s"."%s" FROM '%s' %s manifest %s %s %s %s %s`,
 		schema,
 		table,
 		s3ManifestURI,
@@ -864,6 +866,7 @@ func (r *Redshift) Copy(ctx context.Context, tx *sql.Tx,
 		csv,
 		comupdate,
 		statupdate,
+		truncateColumns,
 	)
 	klog.V(2).Infof("Running: COPY from s3 to: %s\n", table)
 	klog.V(5).Infof("Running: %s\n", copySQL)
