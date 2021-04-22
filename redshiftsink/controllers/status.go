@@ -469,7 +469,7 @@ func (s *status) updateMaskStatus() {
 	currentVersion := &s.currentVersion
 	if len(s.allTopics) == len(s.released) &&
 		len(s.reloading) == 0 && len(s.realtime) == 0 {
-		if len(s.released) != len(s.includeTables) {
+		if s.currentVersion == "" && len(s.released) != len(s.includeTables) {
 			klog.V(2).Infof("rsk/%s released(%v) != includeTables(%v), not marking released!", s.rsk.Name, len(s.released), len(s.includeTables))
 		} else {
 			currentVersion = &s.desiredVersion
