@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"github.com/practo/klog/v2"
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	transformer "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
@@ -8,16 +9,19 @@ import (
 	"strings"
 )
 
+// unitAllocator allocates reloading units
 type unitAllocator struct {
-	rskName  string
+	rskName string
+
 	topics   []string
 	realtime []string
 
 	topicsLast             []topicLast
 	maxReloadingUnits      int
 	currentReloadingTopics []string
-	mainSinkGroupSpec      *tipocav1.SinkGroupSpec
-	reloadSinkGroupSpec    *tipocav1.SinkGroupSpec
+
+	mainSinkGroupSpec   *tipocav1.SinkGroupSpec
+	reloadSinkGroupSpec *tipocav1.SinkGroupSpec
 
 	units []deploymentUnit
 }
@@ -167,4 +171,46 @@ func (u *unitAllocator) allocateReloadingUnits() {
 		u.units = append(u.units, realtimeUnit)
 	}
 	klog.V(2).Infof("rsk/%s units: %v", u.rskName, len(u.units))
+}
+
+func chunkSlice(slice []string, chunkSize int) [][]string {
+	var chunks [][]string
+	for {
+		if len(slice) == 0 {
+			break
+		}
+
+		// necessary check to avoid slicing beyond
+		// slice capacity
+		if len(slice) < chunkSize {
+			chunkSize = len(slice)
+		}
+
+		chunks = append(chunks, slice[0:chunkSize])
+		slice = slice[chunkSize:]
+	}
+
+	return chunks
+}
+
+// allocateUnitWithChunks allocates units in chunks
+// used by Main and ReloadDupeSinkGroup
+func allocateUnitWithChunks(
+	topics []string,
+	sinkGroupSpec *tipocav1.SinkGroupSpec,
+	chunkSize int,
+) []deploymentUnit {
+	units := []deploymentUnit{}
+
+	topicChunks := chunkSlice(topics, chunkSize)
+
+	for id, topicChunk := range topicChunks {
+		units = append(units, deploymentUnit{
+			id:            fmt.Sprintf("%v", id),
+			sinkGroupSpec: sinkGroupSpec,
+			topics:        topicChunk,
+		})
+	}
+
+	return units
 }

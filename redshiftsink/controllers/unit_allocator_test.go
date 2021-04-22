@@ -5,6 +5,63 @@ import (
 	"testing"
 )
 
+func TestAllocateUnitChunks(t *testing.T) {
+	t.Parallel()
+	//go test -v ./controllers/... -run ^TestAllocateUnitChunks
+
+	tests := []struct {
+		name      string
+		topics    []string
+		chunkSize int
+		units     []deploymentUnit
+	}{
+		{
+			name:      "singleChunk",
+			topics:    []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3", "db.inventory.t4"},
+			chunkSize: 100,
+			units: []deploymentUnit{
+				deploymentUnit{
+					id:     "0",
+					topics: []string{"db.inventory.t1", "db.inventory.t2", "db.inventory.t3", "db.inventory.t4"},
+				},
+			},
+		},
+		{
+			name:      "multiChunk",
+			topics:    []string{"t1", "t2", "t3", "t4", "t5", "t6", "t7", "t8", "t9", "t10"},
+			chunkSize: 3,
+			units: []deploymentUnit{
+				deploymentUnit{
+					id:     "0",
+					topics: []string{"t1", "t2", "t3"},
+				},
+				deploymentUnit{
+					id:     "1",
+					topics: []string{"t4", "t5", "t6"},
+				},
+				deploymentUnit{
+					id:     "2",
+					topics: []string{"t7", "t8", "t9"},
+				},
+				deploymentUnit{
+					id:     "3",
+					topics: []string{"t10"},
+				},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			gotUnits := allocateUnitWithChunks(tc.topics, nil, tc.chunkSize)
+			if !reflect.DeepEqual(gotUnits, tc.units) {
+				t.Errorf("\nexpected (%v): %+v\ngot (%v): %+v\n", len(tc.units), tc.units, len(gotUnits), gotUnits)
+			}
+		})
+	}
+}
+
 func TestAllocateReloadingUnits(t *testing.T) {
 	t.Parallel()
 
