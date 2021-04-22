@@ -141,6 +141,10 @@ func getHashStructure(v interface{}) (string, error) {
 	return hash[:6], nil
 }
 
+func toStrPtr(s string) *string {
+	return &s
+}
+
 func toIntPtr(i int) *int {
 	return &i
 }
