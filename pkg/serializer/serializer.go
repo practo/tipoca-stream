@@ -14,12 +14,14 @@ const (
 )
 
 type MaskInfo struct {
-	Masked        bool
-	SortCol       bool
-	DistCol       bool
-	LengthCol     bool
-	MobileCol     bool
-	MappingPIICol bool
+	Masked               bool
+	SortCol              bool
+	DistCol              bool
+	LengthCol            bool
+	MobileCol            bool
+	MappingPIICol        bool
+	ConditionalNonPIICol bool
+	DependentNonPIICol   bool
 }
 
 type Serializer interface {

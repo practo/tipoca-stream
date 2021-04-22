@@ -361,6 +361,7 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 		sortKey := false
 		distKey := false
 		columnMasked := false
+		useStringMax := false
 		if len(maskSchema) != 0 {
 			mschema, ok := maskSchema[strings.ToLower(column.Name)]
 			if ok {
@@ -413,18 +414,27 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 						SourceType:   redshift.SourceType{}, // not required
 					})
 				}
+				if mschema.ConditionalNonPIICol || mschema.DependentNonPIICol {
+					useStringMax = true
+				}
 			}
 		}
-		redshiftDataType, err := redshift.GetRedshiftDataType(
-			d.sqlType(),
-			column.Type,
-			column.SourceType.ColumnType,
-			column.SourceType.ColumnLength,
-			column.SourceType.ColumnScale,
-			columnMasked,
-		)
-		if err != nil {
-			return nil, err
+
+		var redshiftDataType string
+		if useStringMax {
+			redshiftDataType = redshift.RedshiftStringMax
+		} else {
+			redshiftDataType, err = redshift.GetRedshiftDataType(
+				d.sqlType(),
+				column.Type,
+				column.SourceType.ColumnType,
+				column.SourceType.ColumnLength,
+				column.SourceType.ColumnScale,
+				columnMasked,
+			)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		sortOrdinal := 0
