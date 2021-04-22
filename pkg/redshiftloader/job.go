@@ -159,12 +159,12 @@ func ToSchemaMap(r string) map[string]serializer.MaskInfo {
 		if info[5] == "true" {
 			mobileCol = true
 		}
-		if len(info) == 9 {
+		if len(info) >= 7 {
 			if info[6] == "true" {
 				mappingPIICol = true
 			}
 		}
-		if len(info) == 9 {
+		if len(info) >= 8 {
 			if info[7] == "true" {
 				conditionalNonPIICol = true
 			}
