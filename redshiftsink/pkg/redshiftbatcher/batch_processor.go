@@ -17,6 +17,7 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/debezium"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/util"
 	"github.com/spf13/viper"
 	"path/filepath"
 	"strings"
@@ -194,7 +195,7 @@ func constructS3key(
 	offset int64,
 ) string {
 	s3FileName := fmt.Sprintf(
-		"%d_offset_%d_partition.json",
+		"%d_offset_%d_partition.json.gz",
 		offset,
 		partition,
 	)
@@ -366,8 +367,16 @@ func (b *batchProcessor) processMessage(
 		return bytesProcessed, fmt.Errorf(
 			"Error marshalling message.Value, message: %+v", message)
 	}
-	resp.bodyBuf.Write(messageValueBytes)
-	resp.bodyBuf.Write([]byte{'\n'})
+
+	err = util.GzipWrite(resp.bodyBuf, messageValueBytes)
+	if err != nil {
+		return bytesProcessed, fmt.Errorf("Compression error: %v", err)
+	}
+	err = util.GzipWrite(resp.bodyBuf, []byte{'\n'})
+	if err != nil {
+		return bytesProcessed, fmt.Errorf("Compression error: %v", err)
+	}
+
 	bytesProcessed += message.Bytes
 
 	if b.maskMessages && len(resp.maskSchema) == 0 {
