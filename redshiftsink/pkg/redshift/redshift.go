@@ -1087,13 +1087,14 @@ func checkColumnsAndOrdering(
 	targetTableSortColumns := getSortColumns(targetTable)
 	if !checkColumnsExactlySame(inputTableSortColumns, targetTableSortColumns) {
 		klog.V(5).Infof(
-			"SortKeys needs migration: before: %v, now: %v\n",
+			"%s, SortKey is different, SortKey in config: %v, target: %v\n",
+			inputTable.Name,
 			inputTableSortColumns,
 			targetTableSortColumns,
 		)
 		if len(inputTableSortColumns) == 0 {
-			klog.Warningf(
-				"SortKey in table %s looks manually modified, skipped.",
+			klog.V(3).Infof(
+				"%s, SortKey is AUTO or manually modified, skipped.",
 				inputTable.Name,
 			)
 		} else {
@@ -1111,7 +1112,21 @@ func checkColumnsAndOrdering(
 	inputTableDistColumns := getDistColumns(inputTable)
 	targetTableDistColumns := getDistColumns(targetTable)
 	if !checkColumnsExactlySame(inputTableDistColumns, targetTableDistColumns) {
-		columnOps = append(columnOps, "ALTER DISTKEY using table migration")
+		klog.V(5).Infof(
+			"%s, DistKey is different, DistKey in config: %v, target: %v\n",
+			inputTable.Name,
+			inputTableDistColumns,
+			targetTableDistColumns,
+		)
+		if len(inputTableDistColumns) == 0 {
+			klog.V(3).Infof(
+				"%s, DistKey is AUTO or manually modified, skipped.",
+				inputTable.Name,
+			)
+		} else {
+			// TODO: #121 DISTKEY support is required
+			columnOps = append(columnOps, "ALTER DISTKEY using table migration")
+		}
 	}
 
 	return transactColumnOps, columnOps, varCharColumnOps, errors
