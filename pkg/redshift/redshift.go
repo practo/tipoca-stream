@@ -830,7 +830,7 @@ func (r *Redshift) Copy(ctx context.Context, tx *sql.Tx,
 
 	json := ""
 	if typeJson == true {
-		json = "json 'auto'"
+		json = "json 'auto' gzip"
 	}
 
 	csv := ""

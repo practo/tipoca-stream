@@ -17,6 +17,7 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/debezium"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/util"
 	"github.com/spf13/viper"
 	"path/filepath"
 	"strings"
@@ -194,7 +195,7 @@ func constructS3key(
 	offset int64,
 ) string {
 	s3FileName := fmt.Sprintf(
-		"%d_offset_%d_partition.json",
+		"%d_offset_%d_partition.json.gz",
 		offset,
 		partition,
 	)
@@ -366,8 +367,10 @@ func (b *batchProcessor) processMessage(
 		return bytesProcessed, fmt.Errorf(
 			"Error marshalling message.Value, message: %+v", message)
 	}
+
 	resp.bodyBuf.Write(messageValueBytes)
 	resp.bodyBuf.Write([]byte{'\n'})
+
 	bytesProcessed += message.Bytes
 
 	if b.maskMessages && len(resp.maskSchema) == 0 {
@@ -393,7 +396,6 @@ func (b *batchProcessor) processMessages(
 	msgBuf []*serializer.Message,
 	resp *response,
 ) (int64, error) {
-
 	var totalBytesProcessed int64
 	for messageID, message := range msgBuf {
 		select {
@@ -439,7 +441,15 @@ func (b *batchProcessor) processBatch(
 	klog.V(4).Infof("%s: batchId:%d, size:%d: uploading...",
 		b.topic, resp.batchID, len(msgBuf),
 	)
-	err = b.s3sink.Upload(resp.s3Key, resp.bodyBuf)
+
+	// Compress
+	gzBodyBuf := bytes.NewBuffer(make([]byte, 0, 4096))
+	err = util.GzipWrite(gzBodyBuf, resp.bodyBuf.Bytes())
+	if err != nil {
+		klog.Fatalf("Error in compressing, exitting, err:%v", err)
+	}
+
+	err = b.s3sink.Upload(resp.s3Key, gzBodyBuf)
 	if err != nil {
 		resp.err = fmt.Errorf("Error writing to s3, err=%v", err)
 		return
@@ -449,6 +459,7 @@ func (b *batchProcessor) processBatch(
 		b.topic, resp.batchID, resp.startOffset, resp.endOffset,
 	)
 	resp.bodyBuf.Truncate(0)
+	gzBodyBuf.Truncate(0)
 	resp.messagesProcessed = len(msgBuf)
 }
 
