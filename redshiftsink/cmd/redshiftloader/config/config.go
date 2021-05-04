@@ -19,6 +19,7 @@ type Config struct {
 	SchemaRegistryURL string                      `yaml:"schemaRegistryURL"`
 	Redshift          redshift.RedshiftConfig     `yaml:"redshift"`
 	RedshiftGroup     *string                     `yaml:"redshiftGroup,omitempty"`
+	SinkGroup         string                      `yaml:"sinkGroup,omitempty"`
 }
 
 func LoadConfig(cmd *cobra.Command) (Config, error) {
