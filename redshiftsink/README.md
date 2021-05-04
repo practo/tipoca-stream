@@ -115,8 +115,8 @@ Flags:
 
 #### Metrics
 ```
-rsk_batcher_bytes_processed
-rsk_batcher_messages_processed
+rsk_batcher_bytes_processed{consumergroup="", topic="", sinkGroup=""}
+rsk_batcher_messages_processed{consumergroup="", topic="", sinkGroup=""}
 ```
 
 ### Configuration
@@ -147,8 +147,15 @@ Flags:
 
 #### Metrics
 ```
-rsk_loader_bytes_loaded
-rsk_loader_messages_loaded
+rsk_loader_bytes_loaded{consumergroup="", topic="", sinkGroup=""}
+rsk_loader_messages_loaded{consumergroup="", topic="", sinkGroup=""}
+
+rsk_loader_seconds{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+rsk_loader_copystage_seconds{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+rsk_loader_dedupe_seconds{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+rsk_loader_deletecommon_seconds{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+rsk_loader_deleteop_seconds{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+rsk_loader_copytarget_seconds{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
 ```
 
 ### Configuration

@@ -804,11 +804,9 @@ func (b *loadProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*s
 	}
 
 	// set cumulative metrics
-	bytesLoaded := float64(bytesProcessed) / secondsTaken
-	messagesLoaded := float64(len(msgBuf)) / secondsTaken
-	b.metric.setBytesLoaded(bytesLoaded)
-	b.metric.setMsgsLoaded(messagesLoaded)
-	b.metric.setLoadSeconds(bytesLoaded, messagesLoaded, secondsTaken)
+	b.metric.setBytesLoaded(bytesProcessed)
+	b.metric.setMsgsLoaded(len(msgBuf))
+	b.metric.setLoadSeconds(bytesProcessed, len(msgBuf), secondsTaken)
 
 	klog.Infof(
 		"%s, batchId:%d, size:%d, end:%d:, processed in %s",
