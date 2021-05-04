@@ -86,6 +86,9 @@ type loadProcessor struct {
 
 	// primaryKeys is the primary key columns for the topics corresponding table
 	primaryKeys []string
+
+	// metricSetter sets the load metrics
+	metric metricSetter
 }
 
 func newLoadProcessor(
@@ -124,6 +127,11 @@ func newLoadProcessor(
 		targetTable:    nil,
 		tableSuffix:    viper.GetString("redshift.tableSuffix"),
 		redshiftStats:  viper.GetBool("redshift.stats"),
+		metric: metricSetter{
+			consumergroup: consumerGroupID,
+			topic:         topic,
+			sinkGroup:     viper.GetString("sinkGroup"),
+		},
 	}, nil
 }
 
@@ -386,7 +394,9 @@ func (b *loadProcessor) dropTable(ctx context.Context, schema string, table stri
 // 4. insert all the rows from staging table to target table
 // 5. drop the staging table
 // end transaction
-func (b *loadProcessor) merge(ctx context.Context) error {
+func (b *loadProcessor) merge(ctx context.Context, bytes int64, messages int) error {
+	start := time.Now()
+
 	tx, err := b.redshifter.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("Error creating database tx, err: %v\n", err)
@@ -396,18 +406,28 @@ func (b *loadProcessor) merge(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	b.metric.setDedupeSeconds(bytes, messages, time.Since(start).Seconds())
+
+	start = time.Now()
 	err = b.deleteCommonRowsInTargetTable(ctx, tx)
 	if err != nil {
 		return err
 	}
+	b.metric.setDeleteCommonSeconds(bytes, messages, time.Since(start).Seconds())
+
+	start = time.Now()
 	err = b.deleteRowsWithDeleteOpInStagingTable(ctx, tx)
 	if err != nil {
 		return err
 	}
+	b.metric.setDeleteOpStageSeconds(bytes, messages, time.Since(start).Seconds())
+
+	start = time.Now()
 	err = b.insertIntoTargetTable(ctx, tx)
 	if err != nil {
 		return err
 	}
+	b.metric.setCopyTargetSeconds(bytes, messages, time.Since(start).Seconds())
 
 	err = tx.Commit()
 	if err != nil {
@@ -720,7 +740,8 @@ func (b *loadProcessor) processBatch(
 		)
 	}
 
-	// load
+	// load in staging
+	start := time.Now()
 	klog.V(2).Infof("%s, load staging\n", b.topic)
 	err = b.createStagingTable(ctx, schemaId, schemaIdKey, inputTable)
 	if err != nil {
@@ -735,9 +756,10 @@ func (b *loadProcessor) processBatch(
 	if err != nil {
 		return bytesProcessed, err
 	}
+	b.metric.setCopyStageSeconds(bytesProcessed, len(msgBuf), time.Since(start).Seconds())
 
-	// merge
-	err = b.merge(ctx)
+	// merge and load in target
+	err = b.merge(ctx, bytesProcessed, len(msgBuf))
 	if err != nil {
 		return bytesProcessed, err
 	}
@@ -781,12 +803,12 @@ func (b *loadProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*s
 		timeTaken = fmt.Sprintf("%.0fs", secondsTaken)
 	}
 
-	setMetrics(
-		b.consumerGroupID,
-		b.topic,
-		float64(bytesProcessed)/secondsTaken,
-		float64(len(msgBuf))/secondsTaken,
-	)
+	// set cumulative metrics
+	bytesLoaded := float64(bytesProcessed) / secondsTaken
+	messagesLoaded := float64(len(msgBuf)) / secondsTaken
+	b.metric.setBytesLoaded(bytesLoaded)
+	b.metric.setMsgsLoaded(messagesLoaded)
+	b.metric.setLoadSeconds(bytesLoaded, messagesLoaded, secondsTaken)
 
 	klog.Infof(
 		"%s, batchId:%d, size:%d, end:%d:, processed in %s",
