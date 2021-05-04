@@ -12,7 +12,7 @@ var (
 			Name:      "bytes_processed",
 			Help:      "total number of bytes processed",
 		},
-		[]string{"consumergroup", "topic"},
+		[]string{"consumergroup", "topic", "sinkGroup"},
 	)
 	msgsProcessedMetric = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -21,7 +21,7 @@ var (
 			Name:      "messages_processed",
 			Help:      "total number of messages processed",
 		},
-		[]string{"consumergroup", "topic"},
+		[]string{"consumergroup", "topic", "sinkGroup"},
 	)
 )
 
@@ -30,21 +30,24 @@ func init() {
 	prometheus.MustRegister(msgsProcessedMetric)
 }
 
-func setBytesProcessed(consumergroup string, topic string, bytes float64) {
+type metricSetter struct {
+	consumergroup string
+	topic         string
+	sinkGroup     string
+}
+
+func (m metricSetter) setBytesProcessed(bytes int64) {
 	bytesProcessedMetric.WithLabelValues(
-		consumergroup,
-		topic,
-	).Add(bytes)
+		m.consumergroup,
+		m.topic,
+		m.sinkGroup,
+	).Add(float64(bytes))
 }
 
-func setMsgsProcessed(consumergroup string, topic string, msgs float64) {
+func (m metricSetter) setMsgsProcessed(msgs int) {
 	msgsProcessedMetric.WithLabelValues(
-		consumergroup,
-		topic,
-	).Add(msgs)
-}
-
-func setMetrics(consumergroup, topic string, bytes, msgs float64) {
-	setBytesProcessed(consumergroup, topic, bytes)
-	setMsgsProcessed(consumergroup, topic, msgs)
+		m.consumergroup,
+		m.topic,
+		m.sinkGroup,
+	).Add(float64(msgs))
 }

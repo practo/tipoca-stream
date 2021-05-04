@@ -99,26 +99,25 @@ type metricSetter struct {
 	consumergroup string
 	topic         string
 	sinkGroup     string
-	bytes         float64
 }
 
-func (m metricSetter) setBytesLoaded(bytes float64) {
+func (m metricSetter) setBytesLoaded(bytes int64) {
 	bytesLoadedMetric.WithLabelValues(
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
-	).Add(bytes)
+	).Add(float64(bytes))
 }
 
-func (m metricSetter) setMsgsLoaded(msgs float64) {
+func (m metricSetter) setMsgsLoaded(msgs int) {
 	msgsLoadedMetric.WithLabelValues(
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
-	).Add(msgs)
+	).Add(float64(msgs))
 }
 
-func (m metricSetter) setLoadSeconds(bytes float64, msgs float64, seconds float64) {
+func (m metricSetter) setLoadSeconds(bytes int64, msgs int, seconds float64) {
 	durationMetric.WithLabelValues(
 		m.consumergroup,
 		m.topic,

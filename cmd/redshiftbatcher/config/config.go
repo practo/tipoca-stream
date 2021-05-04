@@ -17,6 +17,7 @@ type Config struct {
 	S3Sink            s3sink.Config                 `yaml:"s3sink"`
 	SchemaRegistryURL string                        `yaml:"schemaRegistryURL"`
 	GitAccessToken    string                        `yaml:"gitAccessToken"`
+	SinkGroup         string                        `yaml:"sinkGroup,omitempty"`
 }
 
 func LoadConfig(cmd *cobra.Command) (Config, error) {

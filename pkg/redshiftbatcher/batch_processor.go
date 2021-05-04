@@ -61,6 +61,9 @@ type batchProcessor struct {
 	// schemaIDKey stores the schema ID for the batcher topic-key
 	// loader would use these to fetch primaryKeys for the table
 	schemaIDKey int
+
+	// metricSetter sets the batch metrics
+	metric metricSetter
 }
 
 func newBatchProcessor(
@@ -156,6 +159,11 @@ func newBatchProcessor(
 		maxConcurrency: maxConcurrency,
 		loaderSchemaID: loaderSchemaID,
 		schemaIDKey:    schemaKey.ID(),
+		metric: metricSetter{
+			consumergroup: consumerGroupID,
+			topic:         topic,
+			sinkGroup:     viper.GetString("sinkGroup"),
+		},
 	}, nil
 }
 
@@ -476,7 +484,6 @@ func (b *batchProcessor) Process(
 	klog.V(4).Infof("%s: processor started", b.topic)
 
 	for {
-		now := time.Now()
 		breakLoop := false
 		msgBufs := [][]*serializer.Message{}
 
@@ -620,12 +627,9 @@ func (b *batchProcessor) Process(
 		last := responses[len(responses)-1]
 		b.markOffset(session, b.topic, 0, last.endOffset, b.autoCommit)
 
-		setMetrics(
-			b.consumerGroupID,
-			b.topic,
-			float64(totalBytesProcessed)/time.Since(now).Seconds(),
-			float64(totalMessagesProcessed)/time.Since(now).Seconds(),
-		)
+		// set cumulative metrics
+		b.metric.setBytesProcessed(totalBytesProcessed)
+		b.metric.setMsgsProcessed(totalMessagesProcessed)
 
 		klog.V(2).Infof(
 			"%s: startOffset:%d, endOffset:%d, processed",
