@@ -115,9 +115,14 @@ Flags:
 
 #### Metrics
 ```
-rsk_batcher_bytes_processed{consumergroup="", topic="", sinkGroup=""}
-rsk_batcher_messages_processed{consumergroup="", topic="", sinkGroup=""}
+rsk_batcher_bytes_processed_sum{consumergroup="", topic="", sinkGroup=""}
+rsk_batcher_bytes_processed_sum{consumergroup="", topic="", sinkGroup=""}
+
+rsk_batcher_messages_processed_count{consumergroup="", topic="", sinkGroup=""}
+rsk_batcher_messages_processed_count{consumergroup="", topic="", sinkGroup=""}
 ```
+
+The metrics are histograms in default buckets.
 
 ### Configuration
 Create a file config.yaml, refer [config-sample.yaml](./cmd/redshiftbatcher/config/config_sample.yaml).
@@ -147,11 +152,13 @@ Flags:
 
 #### Metrics
 ```
-rsk_loader_bytes_loaded{consumergroup="", topic="", sinkGroup=""}
-rsk_loader_messages_loaded{consumergroup="", topic="", sinkGroup=""}
+rsk_loader_bytes_loaded_sum{consumergroup="", topic="", sinkGroup=""}
+rsk_loader_bytes_loaded_sum{consumergroup="", topic="", sinkGroup=""}
+
+rsk_loader_messages_loaded_sum{consumergroup="", topic="", sinkGroup=""}
+rsk_loader_messages_loaded_sum{consumergroup="", topic="", sinkGroup=""}
 ```
 
-Histograms for the duration metrics
 ```
 rsk_loader_seconds_sum{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
 rsk_loader_seconds_count{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
@@ -169,7 +176,7 @@ rsk_loader_deleteop_seconds_sum{consumergroup="", topic="", sinkGroup="", messag
 rsk_loader_copytarget_seconds_count{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
 ```
 
-The above histograms are in the buckets: `10, 30, 60, 120, 180, 240, 300, 480, 600, 900`
+The metrics are histograms in buckets: `10, 30, 60, 120, 180, 240, 300, 480, 600, 900`
 
 ### Configuration
 Create a file config.yaml, refer [config-sample.yaml](./cmd/redshiftbatcher/config/config_sample.yaml).

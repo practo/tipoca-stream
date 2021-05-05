@@ -7,21 +7,23 @@ import (
 var (
 	buckets = []float64{10, 30, 60, 120, 180, 240, 300, 480, 600, 900}
 
-	bytesLoadedMetric = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	bytesLoadedMetric = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
 			Namespace: "rsk",
 			Subsystem: "loader",
 			Name:      "bytes_loaded",
 			Help:      "total number of bytes loaded",
+			Buckets:   buckets,
 		},
 		[]string{"consumergroup", "topic", "sink_group"},
 	)
-	msgsLoadedMetric = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	msgsLoadedMetric = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
 			Namespace: "rsk",
 			Subsystem: "loader",
 			Name:      "messages_loaded",
 			Help:      "total number of messages loaded",
+			Buckets:   buckets,
 		},
 		[]string{"consumergroup", "topic", "sink_group"},
 	)
@@ -113,7 +115,7 @@ func (m metricSetter) setBytesLoaded(bytes int64) {
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
-	).Add(float64(bytes))
+	).Observe(float64(bytes))
 }
 
 func (m metricSetter) setMsgsLoaded(msgs int) {
@@ -121,7 +123,7 @@ func (m metricSetter) setMsgsLoaded(msgs int) {
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
-	).Add(float64(msgs))
+	).Observe(float64(msgs))
 }
 
 // duration metrics below
