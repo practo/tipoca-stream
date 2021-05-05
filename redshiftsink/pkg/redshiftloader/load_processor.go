@@ -86,6 +86,9 @@ type loadProcessor struct {
 
 	// primaryKeys is the primary key columns for the topics corresponding table
 	primaryKeys []string
+
+	// metricSetter sets the load metrics
+	metric metricSetter
 }
 
 func newLoadProcessor(
@@ -124,6 +127,11 @@ func newLoadProcessor(
 		targetTable:    nil,
 		tableSuffix:    viper.GetString("redshift.tableSuffix"),
 		redshiftStats:  viper.GetBool("redshift.stats"),
+		metric: metricSetter{
+			consumergroup: consumerGroupID,
+			topic:         topic,
+			sinkGroup:     viper.GetString("sinkGroup"),
+		},
 	}, nil
 }
 
@@ -387,6 +395,8 @@ func (b *loadProcessor) dropTable(ctx context.Context, schema string, table stri
 // 5. drop the staging table
 // end transaction
 func (b *loadProcessor) merge(ctx context.Context) error {
+	start := time.Now()
+
 	tx, err := b.redshifter.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("Error creating database tx, err: %v\n", err)
@@ -396,18 +406,28 @@ func (b *loadProcessor) merge(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	b.metric.setDedupeSeconds(time.Since(start).Seconds())
+
+	start = time.Now()
 	err = b.deleteCommonRowsInTargetTable(ctx, tx)
 	if err != nil {
 		return err
 	}
+	b.metric.setDeleteCommonSeconds(time.Since(start).Seconds())
+
+	start = time.Now()
 	err = b.deleteRowsWithDeleteOpInStagingTable(ctx, tx)
 	if err != nil {
 		return err
 	}
+	b.metric.setDeleteOpStageSeconds(time.Since(start).Seconds())
+
+	start = time.Now()
 	err = b.insertIntoTargetTable(ctx, tx)
 	if err != nil {
 		return err
 	}
+	b.metric.setCopyTargetSeconds(time.Since(start).Seconds())
 
 	err = tx.Commit()
 	if err != nil {
@@ -720,7 +740,8 @@ func (b *loadProcessor) processBatch(
 		)
 	}
 
-	// load
+	// load in staging
+	start := time.Now()
 	klog.V(2).Infof("%s, load staging\n", b.topic)
 	err = b.createStagingTable(ctx, schemaId, schemaIdKey, inputTable)
 	if err != nil {
@@ -735,8 +756,9 @@ func (b *loadProcessor) processBatch(
 	if err != nil {
 		return bytesProcessed, err
 	}
+	b.metric.setCopyStageSeconds(time.Since(start).Seconds())
 
-	// merge
+	// merge and load in target
 	err = b.merge(ctx)
 	if err != nil {
 		return bytesProcessed, err
@@ -752,6 +774,7 @@ func (b *loadProcessor) processBatch(
 // Process implements serializer.MessageBatchSyncProcessor
 func (b *loadProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*serializer.Message) error {
 	start := time.Now()
+	b.metric.setStartRunning()
 	b.setBatchId()
 	ctx := session.Context()
 
@@ -772,6 +795,7 @@ func (b *loadProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*s
 		return err
 	}
 	b.markOffset(session, msgBuf)
+	b.metric.setStopRunning()
 
 	var timeTaken string
 	secondsTaken := time.Since(start).Seconds()
@@ -781,12 +805,10 @@ func (b *loadProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*s
 		timeTaken = fmt.Sprintf("%.0fs", secondsTaken)
 	}
 
-	setMetrics(
-		b.consumerGroupID,
-		b.topic,
-		float64(bytesProcessed)/secondsTaken,
-		float64(len(msgBuf))/secondsTaken,
-	)
+	// set cumulative metrics
+	b.metric.setBytesLoaded(bytesProcessed)
+	b.metric.setMsgsLoaded(len(msgBuf))
+	b.metric.setLoadSeconds(secondsTaken)
 
 	klog.Infof(
 		"%s, batchId:%d, size:%d, end:%d:, processed in %s",

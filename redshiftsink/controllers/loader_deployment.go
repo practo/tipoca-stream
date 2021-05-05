@@ -312,6 +312,7 @@ func NewLoader(
 			MaxIdleConns: maxIdleConns,
 		},
 		RedshiftGroup: rsk.Spec.Loader.RedshiftGroup,
+		SinkGroup:     sinkGroup,
 	}
 	confBytes, err := yaml.Marshal(conf)
 	if err != nil {
