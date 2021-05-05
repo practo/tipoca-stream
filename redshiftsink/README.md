@@ -178,6 +178,10 @@ rsk_loader_copytarget_seconds_count{consumergroup="", topic="", sinkGroup="", me
 
 The metrics are histograms in buckets: `10, 30, 60, 120, 180, 240, 300, 480, 600, 900`
 
+```
+rsk_loader_running{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+```
+
 ### Configuration
 Create a file config.yaml, refer [config-sample.yaml](./cmd/redshiftbatcher/config/config_sample.yaml).
 ```bash

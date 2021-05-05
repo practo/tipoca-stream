@@ -89,6 +89,16 @@ var (
 		},
 		[]string{"consumergroup", "topic", "sink_group"},
 	)
+
+	runningMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "rsk",
+			Subsystem: "loader",
+			Name:      "running",
+			Help:      "total number of running loads",
+		},
+		[]string{"consumergroup", "topic", "sink_group"},
+	)
 )
 
 func init() {
@@ -102,6 +112,8 @@ func init() {
 	prometheus.MustRegister(deleteCommonMetric)
 	prometheus.MustRegister(deleteOpStageMetric)
 	prometheus.MustRegister(copyTargetMetric)
+
+	prometheus.MustRegister(runningMetric)
 }
 
 type metricSetter struct {
@@ -174,4 +186,20 @@ func (m metricSetter) setCopyTargetSeconds(seconds float64) {
 		m.topic,
 		m.sinkGroup,
 	).Observe(seconds)
+}
+
+func (m metricSetter) setStartRunning() {
+	runningMetric.WithLabelValues(
+		m.consumergroup,
+		m.topic,
+		m.sinkGroup,
+	).Set(1)
+}
+
+func (m metricSetter) setStopRunning() {
+	runningMetric.WithLabelValues(
+		m.consumergroup,
+		m.topic,
+		m.sinkGroup,
+	).Set(0)
 }
