@@ -19,6 +19,7 @@ type Config struct {
 	SchemaRegistryURL string                      `yaml:"schemaRegistryURL"`
 	Redshift          redshift.RedshiftConfig     `yaml:"redshift"`
 	RedshiftGroup     *string                     `yaml:"redshiftGroup,omitempty"`
+	Rsk               string                      `yaml:"rsk,omitempty"`
 	SinkGroup         string                      `yaml:"sinkGroup,omitempty"`
 }
 

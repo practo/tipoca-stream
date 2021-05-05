@@ -130,6 +130,7 @@ func newLoadProcessor(
 		metric: metricSetter{
 			consumergroup: consumerGroupID,
 			topic:         topic,
+			rsk:           viper.GetString("rsk"),
 			sinkGroup:     viper.GetString("sinkGroup"),
 		},
 	}, nil
