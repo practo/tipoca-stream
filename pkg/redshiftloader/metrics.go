@@ -15,7 +15,7 @@ var (
 			Help:      "total number of bytes loaded",
 			Buckets:   buckets,
 		},
-		[]string{"consumergroup", "topic", "sink_group"},
+		[]string{"rsk", "consumergroup", "topic", "sink_group"},
 	)
 	msgsLoadedMetric = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -25,7 +25,7 @@ var (
 			Help:      "total number of messages loaded",
 			Buckets:   buckets,
 		},
-		[]string{"consumergroup", "topic", "sink_group"},
+		[]string{"rsk", "consumergroup", "topic", "sink_group"},
 	)
 
 	// duration metrics
@@ -37,7 +37,7 @@ var (
 			Help:      "total time taken to load data in Redshift in seconds",
 			Buckets:   buckets,
 		},
-		[]string{"consumergroup", "topic", "sink_group"},
+		[]string{"rsk", "consumergroup", "topic", "sink_group"},
 	)
 	copyStageMetric = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -47,7 +47,7 @@ var (
 			Help:      "time taken to create staging table and load data in it in seconds",
 			Buckets:   buckets,
 		},
-		[]string{"consumergroup", "topic", "sink_group"},
+		[]string{"rsk", "consumergroup", "topic", "sink_group"},
 	)
 	deDupeMetric = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -57,7 +57,7 @@ var (
 			Help:      "time taken to de duplicate table in staging in seconds",
 			Buckets:   buckets,
 		},
-		[]string{"consumergroup", "topic", "sink_group"},
+		[]string{"rsk", "consumergroup", "topic", "sink_group"},
 	)
 	deleteCommonMetric = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -67,7 +67,7 @@ var (
 			Help:      "time taken to delete common in seconds",
 			Buckets:   buckets,
 		},
-		[]string{"consumergroup", "topic", "sink_group"},
+		[]string{"rsk", "consumergroup", "topic", "sink_group"},
 	)
 	deleteOpStageMetric = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -77,7 +77,7 @@ var (
 			Help:      "time taken to delete rows with operations delete in seconds",
 			Buckets:   buckets,
 		},
-		[]string{"consumergroup", "topic", "sink_group"},
+		[]string{"rsk", "consumergroup", "topic", "sink_group"},
 	)
 	copyTargetMetric = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -87,7 +87,7 @@ var (
 			Help:      "time taken to copy to target table from staging table",
 			Buckets:   buckets,
 		},
-		[]string{"consumergroup", "topic", "sink_group"},
+		[]string{"rsk", "consumergroup", "topic", "sink_group"},
 	)
 
 	runningMetric = prometheus.NewGaugeVec(
@@ -97,7 +97,7 @@ var (
 			Name:      "running",
 			Help:      "total number of running loads",
 		},
-		[]string{"consumergroup", "topic", "sink_group"},
+		[]string{"rsk", "consumergroup", "topic", "sink_group"},
 	)
 )
 
@@ -117,6 +117,7 @@ func init() {
 }
 
 type metricSetter struct {
+	rsk           string
 	consumergroup string
 	topic         string
 	sinkGroup     string
@@ -124,6 +125,7 @@ type metricSetter struct {
 
 func (m metricSetter) setBytesLoaded(bytes int64) {
 	bytesLoadedMetric.WithLabelValues(
+		m.rsk,
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
@@ -132,6 +134,7 @@ func (m metricSetter) setBytesLoaded(bytes int64) {
 
 func (m metricSetter) setMsgsLoaded(msgs int) {
 	msgsLoadedMetric.WithLabelValues(
+		m.rsk,
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
@@ -142,6 +145,7 @@ func (m metricSetter) setMsgsLoaded(msgs int) {
 
 func (m metricSetter) setLoadSeconds(seconds float64) {
 	durationMetric.WithLabelValues(
+		m.rsk,
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
@@ -150,6 +154,7 @@ func (m metricSetter) setLoadSeconds(seconds float64) {
 
 func (m metricSetter) setCopyStageSeconds(seconds float64) {
 	copyStageMetric.WithLabelValues(
+		m.rsk,
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
@@ -158,6 +163,7 @@ func (m metricSetter) setCopyStageSeconds(seconds float64) {
 
 func (m metricSetter) setDedupeSeconds(seconds float64) {
 	deDupeMetric.WithLabelValues(
+		m.rsk,
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
@@ -166,6 +172,7 @@ func (m metricSetter) setDedupeSeconds(seconds float64) {
 
 func (m metricSetter) setDeleteCommonSeconds(seconds float64) {
 	deleteCommonMetric.WithLabelValues(
+		m.rsk,
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
@@ -174,6 +181,7 @@ func (m metricSetter) setDeleteCommonSeconds(seconds float64) {
 
 func (m metricSetter) setDeleteOpStageSeconds(seconds float64) {
 	deleteOpStageMetric.WithLabelValues(
+		m.rsk,
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
@@ -182,6 +190,7 @@ func (m metricSetter) setDeleteOpStageSeconds(seconds float64) {
 
 func (m metricSetter) setCopyTargetSeconds(seconds float64) {
 	copyTargetMetric.WithLabelValues(
+		m.rsk,
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
@@ -190,6 +199,7 @@ func (m metricSetter) setCopyTargetSeconds(seconds float64) {
 
 func (m metricSetter) setStartRunning() {
 	runningMetric.WithLabelValues(
+		m.rsk,
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
@@ -198,6 +208,7 @@ func (m metricSetter) setStartRunning() {
 
 func (m metricSetter) setStopRunning() {
 	runningMetric.WithLabelValues(
+		m.rsk,
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
