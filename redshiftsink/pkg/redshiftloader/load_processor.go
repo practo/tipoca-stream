@@ -394,7 +394,7 @@ func (b *loadProcessor) dropTable(ctx context.Context, schema string, table stri
 // 4. insert all the rows from staging table to target table
 // 5. drop the staging table
 // end transaction
-func (b *loadProcessor) merge(ctx context.Context, bytes int64, messages int) error {
+func (b *loadProcessor) merge(ctx context.Context) error {
 	start := time.Now()
 
 	tx, err := b.redshifter.Begin(ctx)
@@ -406,28 +406,28 @@ func (b *loadProcessor) merge(ctx context.Context, bytes int64, messages int) er
 	if err != nil {
 		return err
 	}
-	b.metric.setDedupeSeconds(bytes, messages, time.Since(start).Seconds())
+	b.metric.setDedupeSeconds(time.Since(start).Seconds())
 
 	start = time.Now()
 	err = b.deleteCommonRowsInTargetTable(ctx, tx)
 	if err != nil {
 		return err
 	}
-	b.metric.setDeleteCommonSeconds(bytes, messages, time.Since(start).Seconds())
+	b.metric.setDeleteCommonSeconds(time.Since(start).Seconds())
 
 	start = time.Now()
 	err = b.deleteRowsWithDeleteOpInStagingTable(ctx, tx)
 	if err != nil {
 		return err
 	}
-	b.metric.setDeleteOpStageSeconds(bytes, messages, time.Since(start).Seconds())
+	b.metric.setDeleteOpStageSeconds(time.Since(start).Seconds())
 
 	start = time.Now()
 	err = b.insertIntoTargetTable(ctx, tx)
 	if err != nil {
 		return err
 	}
-	b.metric.setCopyTargetSeconds(bytes, messages, time.Since(start).Seconds())
+	b.metric.setCopyTargetSeconds(time.Since(start).Seconds())
 
 	err = tx.Commit()
 	if err != nil {
@@ -756,10 +756,10 @@ func (b *loadProcessor) processBatch(
 	if err != nil {
 		return bytesProcessed, err
 	}
-	b.metric.setCopyStageSeconds(bytesProcessed, len(msgBuf), time.Since(start).Seconds())
+	b.metric.setCopyStageSeconds(time.Since(start).Seconds())
 
 	// merge and load in target
-	err = b.merge(ctx, bytesProcessed, len(msgBuf))
+	err = b.merge(ctx)
 	if err != nil {
 		return bytesProcessed, err
 	}
@@ -806,7 +806,7 @@ func (b *loadProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*s
 	// set cumulative metrics
 	b.metric.setBytesLoaded(bytesProcessed)
 	b.metric.setMsgsLoaded(len(msgBuf))
-	b.metric.setLoadSeconds(bytesProcessed, len(msgBuf), secondsTaken)
+	b.metric.setLoadSeconds(secondsTaken)
 
 	klog.Infof(
 		"%s, batchId:%d, size:%d, end:%d:, processed in %s",
