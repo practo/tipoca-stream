@@ -774,6 +774,7 @@ func (b *loadProcessor) processBatch(
 // Process implements serializer.MessageBatchSyncProcessor
 func (b *loadProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*serializer.Message) error {
 	start := time.Now()
+	b.metric.setStartRunning()
 	b.setBatchId()
 	ctx := session.Context()
 
@@ -794,6 +795,7 @@ func (b *loadProcessor) Process(session sarama.ConsumerGroupSession, msgBuf []*s
 		return err
 	}
 	b.markOffset(session, msgBuf)
+	b.metric.setStopRunning()
 
 	var timeTaken string
 	secondsTaken := time.Since(start).Seconds()
