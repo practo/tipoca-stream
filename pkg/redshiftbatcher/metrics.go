@@ -5,8 +5,8 @@ import (
 )
 
 var (
-	bytesProcessedMetric = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	bytesProcessedMetric = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
 			Namespace: "rsk",
 			Subsystem: "batcher",
 			Name:      "bytes_processed",
@@ -14,8 +14,8 @@ var (
 		},
 		[]string{"consumergroup", "topic", "sinkGroup"},
 	)
-	msgsProcessedMetric = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	msgsProcessedMetric = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
 			Namespace: "rsk",
 			Subsystem: "batcher",
 			Name:      "messages_processed",
@@ -41,7 +41,7 @@ func (m metricSetter) setBytesProcessed(bytes int64) {
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
-	).Add(float64(bytes))
+	).Observe(float64(bytes))
 }
 
 func (m metricSetter) setMsgsProcessed(msgs int) {
@@ -49,5 +49,5 @@ func (m metricSetter) setMsgsProcessed(msgs int) {
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
-	).Add(float64(msgs))
+	).Observe(float64(msgs))
 }
