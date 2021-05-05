@@ -1,7 +1,6 @@
 package redshiftloader
 
 import (
-	"fmt"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -36,7 +35,7 @@ var (
 			Help:      "total time taken to load data in Redshift in seconds",
 			Buckets:   buckets,
 		},
-		[]string{"consumergroup", "topic", "sink_group", "messages", "bytes"},
+		[]string{"consumergroup", "topic", "sink_group"},
 	)
 	copyStageMetric = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -46,7 +45,7 @@ var (
 			Help:      "time taken to create staging table and load data in it in seconds",
 			Buckets:   buckets,
 		},
-		[]string{"consumergroup", "topic", "sink_group", "messages", "bytes"},
+		[]string{"consumergroup", "topic", "sink_group"},
 	)
 	deDupeMetric = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -56,7 +55,7 @@ var (
 			Help:      "time taken to de duplicate table in staging in seconds",
 			Buckets:   buckets,
 		},
-		[]string{"consumergroup", "topic", "sink_group", "messages", "bytes"},
+		[]string{"consumergroup", "topic", "sink_group"},
 	)
 	deleteCommonMetric = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -66,7 +65,7 @@ var (
 			Help:      "time taken to delete common in seconds",
 			Buckets:   buckets,
 		},
-		[]string{"consumergroup", "topic", "sink_group", "messages", "bytes"},
+		[]string{"consumergroup", "topic", "sink_group"},
 	)
 	deleteOpStageMetric = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -76,7 +75,7 @@ var (
 			Help:      "time taken to delete rows with operations delete in seconds",
 			Buckets:   buckets,
 		},
-		[]string{"consumergroup", "topic", "sink_group", "messages", "bytes"},
+		[]string{"consumergroup", "topic", "sink_group"},
 	)
 	copyTargetMetric = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -86,7 +85,7 @@ var (
 			Help:      "time taken to copy to target table from staging table",
 			Buckets:   buckets,
 		},
-		[]string{"consumergroup", "topic", "sink_group", "messages", "bytes"},
+		[]string{"consumergroup", "topic", "sink_group"},
 	)
 )
 
@@ -127,62 +126,50 @@ func (m metricSetter) setMsgsLoaded(msgs int) {
 
 // duration metrics below
 
-func (m metricSetter) setLoadSeconds(bytes int64, msgs int, seconds float64) {
+func (m metricSetter) setLoadSeconds(seconds float64) {
 	durationMetric.WithLabelValues(
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
-		fmt.Sprintf("%v", bytes),
-		fmt.Sprintf("%v", msgs),
 	).Observe(seconds)
 }
 
-func (m metricSetter) setCopyStageSeconds(bytes int64, msgs int, seconds float64) {
+func (m metricSetter) setCopyStageSeconds(seconds float64) {
 	copyStageMetric.WithLabelValues(
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
-		fmt.Sprintf("%v", bytes),
-		fmt.Sprintf("%v", msgs),
 	).Observe(seconds)
 }
 
-func (m metricSetter) setDedupeSeconds(bytes int64, msgs int, seconds float64) {
+func (m metricSetter) setDedupeSeconds(seconds float64) {
 	deDupeMetric.WithLabelValues(
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
-		fmt.Sprintf("%v", bytes),
-		fmt.Sprintf("%v", msgs),
 	).Observe(seconds)
 }
 
-func (m metricSetter) setDeleteCommonSeconds(bytes int64, msgs int, seconds float64) {
+func (m metricSetter) setDeleteCommonSeconds(seconds float64) {
 	deleteCommonMetric.WithLabelValues(
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
-		fmt.Sprintf("%v", bytes),
-		fmt.Sprintf("%v", msgs),
 	).Observe(seconds)
 }
 
-func (m metricSetter) setDeleteOpStageSeconds(bytes int64, msgs int, seconds float64) {
+func (m metricSetter) setDeleteOpStageSeconds(seconds float64) {
 	deleteOpStageMetric.WithLabelValues(
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
-		fmt.Sprintf("%v", bytes),
-		fmt.Sprintf("%v", msgs),
 	).Observe(seconds)
 }
 
-func (m metricSetter) setCopyTargetSeconds(bytes int64, msgs int, seconds float64) {
+func (m metricSetter) setCopyTargetSeconds(seconds float64) {
 	copyTargetMetric.WithLabelValues(
 		m.consumergroup,
 		m.topic,
 		m.sinkGroup,
-		fmt.Sprintf("%v", bytes),
-		fmt.Sprintf("%v", msgs),
 	).Observe(seconds)
 }
