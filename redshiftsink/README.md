@@ -149,14 +149,27 @@ Flags:
 ```
 rsk_loader_bytes_loaded{consumergroup="", topic="", sinkGroup=""}
 rsk_loader_messages_loaded{consumergroup="", topic="", sinkGroup=""}
-
-rsk_loader_seconds{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
-rsk_loader_copystage_seconds{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
-rsk_loader_dedupe_seconds{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
-rsk_loader_deletecommon_seconds{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
-rsk_loader_deleteop_seconds{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
-rsk_loader_copytarget_seconds{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
 ```
+
+Histograms for the duration metrics
+```
+rsk_loader_seconds_sum{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+rsk_loader_seconds_count{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+
+rsk_loader_copystage_seconds_sum{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+rsk_loader_copystage_seconds_count{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+
+rsk_loader_dedupe_seconds_sum{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+rsk_loader_dedupe_seconds_count{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+
+rsk_loader_deletecommon_seconds_sum{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+rsk_loader_deletecommon_seconds_count{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+
+rsk_loader_deleteop_seconds_sum{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+rsk_loader_copytarget_seconds_count{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+```
+
+The above histograms are in the buckets: `10, 30, 60, 120, 180, 240, 300, 480, 600, 900`
 
 ### Configuration
 Create a file config.yaml, refer [config-sample.yaml](./cmd/redshiftbatcher/config/config_sample.yaml).

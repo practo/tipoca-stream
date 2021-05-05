@@ -6,6 +6,8 @@ import (
 )
 
 var (
+	buckets = []float64{10, 30, 60, 120, 180, 240, 300, 480, 600, 900}
+
 	bytesLoadedMetric = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "rsk",
@@ -26,57 +28,63 @@ var (
 	)
 
 	// duration metrics
-	durationMetric = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
+	durationMetric = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
 			Namespace: "rsk",
 			Subsystem: "loader",
 			Name:      "seconds",
 			Help:      "total time taken to load data in Redshift in seconds",
+			Buckets:   buckets,
 		},
 		[]string{"consumergroup", "topic", "sink_group", "messages", "bytes"},
 	)
-	copyStageMetric = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
+	copyStageMetric = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
 			Namespace: "rsk",
 			Subsystem: "loader",
 			Name:      "copystage_seconds",
 			Help:      "time taken to create staging table and load data in it in seconds",
+			Buckets:   buckets,
 		},
 		[]string{"consumergroup", "topic", "sink_group", "messages", "bytes"},
 	)
-	deDupeMetric = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
+	deDupeMetric = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
 			Namespace: "rsk",
 			Subsystem: "loader",
 			Name:      "dedupe_seconds",
 			Help:      "time taken to de duplicate table in staging in seconds",
+			Buckets:   buckets,
 		},
 		[]string{"consumergroup", "topic", "sink_group", "messages", "bytes"},
 	)
-	deleteCommonMetric = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
+	deleteCommonMetric = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
 			Namespace: "rsk",
 			Subsystem: "loader",
 			Name:      "deletecommon_seconds",
 			Help:      "time taken to delete common in seconds",
+			Buckets:   buckets,
 		},
 		[]string{"consumergroup", "topic", "sink_group", "messages", "bytes"},
 	)
-	deleteOpStageMetric = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
+	deleteOpStageMetric = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
 			Namespace: "rsk",
 			Subsystem: "loader",
 			Name:      "deleteop_seconds",
 			Help:      "time taken to delete rows with operations delete in seconds",
+			Buckets:   buckets,
 		},
 		[]string{"consumergroup", "topic", "sink_group", "messages", "bytes"},
 	)
-	copyTargetMetric = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
+	copyTargetMetric = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
 			Namespace: "rsk",
 			Subsystem: "loader",
 			Name:      "copytarget_seconds",
 			Help:      "time taken to copy to target table from staging table",
+			Buckets:   buckets,
 		},
 		[]string{"consumergroup", "topic", "sink_group", "messages", "bytes"},
 	)
@@ -117,6 +125,8 @@ func (m metricSetter) setMsgsLoaded(msgs int) {
 	).Add(float64(msgs))
 }
 
+// duration metrics below
+
 func (m metricSetter) setLoadSeconds(bytes int64, msgs int, seconds float64) {
 	durationMetric.WithLabelValues(
 		m.consumergroup,
@@ -124,7 +134,7 @@ func (m metricSetter) setLoadSeconds(bytes int64, msgs int, seconds float64) {
 		m.sinkGroup,
 		fmt.Sprintf("%v", bytes),
 		fmt.Sprintf("%v", msgs),
-	).Set(seconds)
+	).Observe(seconds)
 }
 
 func (m metricSetter) setCopyStageSeconds(bytes int64, msgs int, seconds float64) {
@@ -134,7 +144,7 @@ func (m metricSetter) setCopyStageSeconds(bytes int64, msgs int, seconds float64
 		m.sinkGroup,
 		fmt.Sprintf("%v", bytes),
 		fmt.Sprintf("%v", msgs),
-	).Set(seconds)
+	).Observe(seconds)
 }
 
 func (m metricSetter) setDedupeSeconds(bytes int64, msgs int, seconds float64) {
@@ -144,7 +154,7 @@ func (m metricSetter) setDedupeSeconds(bytes int64, msgs int, seconds float64) {
 		m.sinkGroup,
 		fmt.Sprintf("%v", bytes),
 		fmt.Sprintf("%v", msgs),
-	).Set(seconds)
+	).Observe(seconds)
 }
 
 func (m metricSetter) setDeleteCommonSeconds(bytes int64, msgs int, seconds float64) {
@@ -154,7 +164,7 @@ func (m metricSetter) setDeleteCommonSeconds(bytes int64, msgs int, seconds floa
 		m.sinkGroup,
 		fmt.Sprintf("%v", bytes),
 		fmt.Sprintf("%v", msgs),
-	).Set(seconds)
+	).Observe(seconds)
 }
 
 func (m metricSetter) setDeleteOpStageSeconds(bytes int64, msgs int, seconds float64) {
@@ -164,7 +174,7 @@ func (m metricSetter) setDeleteOpStageSeconds(bytes int64, msgs int, seconds flo
 		m.sinkGroup,
 		fmt.Sprintf("%v", bytes),
 		fmt.Sprintf("%v", msgs),
-	).Set(seconds)
+	).Observe(seconds)
 }
 
 func (m metricSetter) setCopyTargetSeconds(bytes int64, msgs int, seconds float64) {
@@ -174,5 +184,5 @@ func (m metricSetter) setCopyTargetSeconds(bytes int64, msgs int, seconds float6
 		m.sinkGroup,
 		fmt.Sprintf("%v", bytes),
 		fmt.Sprintf("%v", msgs),
-	).Set(seconds)
+	).Observe(seconds)
 }
