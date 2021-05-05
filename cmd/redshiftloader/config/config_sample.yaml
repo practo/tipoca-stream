@@ -1,5 +1,6 @@
+# requires update
 loader:
-    maxSize: 10
+    maxSizePerBatch: 10
     maxWaitSeconds: 20
 consumerGroups:
     -
