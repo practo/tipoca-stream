@@ -48,8 +48,8 @@ func applyBatcherSinkGroupDefaults(
 	// defaults by sinkgroup
 	switch sgType {
 	case MainSinkGroup:
-		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Mi"))
-		maxWaitSeconds = toIntPtr(60)
+		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.8Mi"))
+		maxWaitSeconds = toIntPtr(450)
 		maxConcurrency = toIntPtr(2)
 		maxProcessingTime = &redshiftbatcher.DefaultMaxProcessingTime
 		image = &defaultImage
