@@ -103,7 +103,7 @@ func run(cmd *cobra.Command, args []string) {
 		ready := make(chan bool)
 		groupID := groupConfig.GroupID
 		if config.Loader.MaxWaitSeconds != nil {
-			randomMaxWait := util.Randomize(*config.Loader.MaxWaitSeconds, 20)
+			randomMaxWait := util.Randomize(*config.Loader.MaxWaitSeconds, 0.20)
 			config.Loader.MaxWaitSeconds = &randomMaxWait
 		}
 
