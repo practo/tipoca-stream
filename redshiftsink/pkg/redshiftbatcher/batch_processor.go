@@ -466,6 +466,7 @@ func (b *batchProcessor) processBatch(
 		"%s: batchID:%d, startOffset:%d, endOffset:%d: uploaded",
 		b.topic, resp.batchID, resp.startOffset, resp.endOffset,
 	)
+	klog.V(2).Infof("%s: bytes: %v, s3Key: %v", b.topic, resp.bytesProcessed, resp.s3Key)
 	resp.bodyBuf.Truncate(0)
 	gzBodyBuf.Truncate(0)
 	resp.messagesProcessed = len(msgBuf)
