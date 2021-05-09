@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	DefaultMaxWaitSeconds    int   = 60
+	DefaultMaxWaitSeconds    int   = 1800
 	DefaultMaxProcessingTime int32 = 600000
 )
 

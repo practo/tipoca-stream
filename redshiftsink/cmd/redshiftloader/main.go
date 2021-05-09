@@ -98,12 +98,16 @@ func run(cmd *cobra.Command, args []string) {
 	consumerGroups := make(map[string]kafka.ConsumerGroupInterface)
 	var consumersReady []chan bool
 	wg := &sync.WaitGroup{}
+	maxWait := config.Loader.MaxWaitSeconds
+	if maxWait == nil {
+		maxWait = &redshiftloader.DefaultMaxWaitSeconds
+	}
 
 	for _, groupConfig := range config.ConsumerGroups {
 		ready := make(chan bool)
 		groupID := groupConfig.GroupID
 		if config.Loader.MaxWaitSeconds != nil {
-			randomMaxWait := util.Randomize(*config.Loader.MaxWaitSeconds, 0.20)
+			randomMaxWait := util.Randomize(*maxWait, 0.20)
 			config.Loader.MaxWaitSeconds = &randomMaxWait
 		}
 
