@@ -109,6 +109,7 @@ func run(cmd *cobra.Command, args []string) {
 		if config.Loader.MaxWaitSeconds != nil {
 			randomMaxWait := util.Randomize(*maxWait, 0.20)
 			config.Loader.MaxWaitSeconds = &randomMaxWait
+			klog.V(2).Infof("cg: %v maxWait: %v", groupID, randomMaxWait)
 		}
 
 		consumerGroup, err := kafka.NewConsumerGroup(
