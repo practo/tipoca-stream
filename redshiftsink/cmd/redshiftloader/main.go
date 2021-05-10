@@ -20,6 +20,7 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftloader"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/util"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -97,10 +98,20 @@ func run(cmd *cobra.Command, args []string) {
 	consumerGroups := make(map[string]kafka.ConsumerGroupInterface)
 	var consumersReady []chan bool
 	wg := &sync.WaitGroup{}
+	maxWait := config.Loader.MaxWaitSeconds
+	if maxWait == nil {
+		maxWait = &redshiftloader.DefaultMaxWaitSeconds
+	}
 
 	for _, groupConfig := range config.ConsumerGroups {
 		ready := make(chan bool)
 		groupID := groupConfig.GroupID
+		if config.Loader.MaxWaitSeconds != nil {
+			randomMaxWait := util.Randomize(*maxWait, 0.20)
+			config.Loader.MaxWaitSeconds = &randomMaxWait
+			klog.V(2).Infof("cg: %v maxWait: %v", groupID, randomMaxWait)
+		}
+
 		consumerGroup, err := kafka.NewConsumerGroup(
 			groupConfig,
 			redshiftloader.NewHandler(
