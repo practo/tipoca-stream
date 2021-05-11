@@ -10,6 +10,7 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/spf13/viper"
+	"sync"
 	"time"
 )
 
@@ -18,6 +19,7 @@ var (
 	DefaultMaxProcessingTime int32   = 600000
 	MaxRunningLoaders        float64 = 10
 	ThrottlingBudget         int     = 10
+	FirstThrottlingBudget    int     = 60
 )
 
 type LoaderConfig struct {
@@ -51,11 +53,19 @@ type loaderHandler struct {
 	maxWaitSeconds   *int
 	maxBytesPerBatch *int64
 
-	saramaConfig     kafka.SaramaConfig
-	redshifter       *redshift.Redshift
-	redshiftGroup    *string
-	serializer       serializer.Serializer
+	saramaConfig  kafka.SaramaConfig
+	redshifter    *redshift.Redshift
+	redshiftGroup *string
+	serializer    serializer.Serializer
+
+	// prometheusClient is used to query the running loaders
+	// so that concurrency of load can be maintained below a threshold
 	prometheusClient prometheus.Client
+
+	// loadedOnce alow throttling the first request to longer time
+	// this is required as a new default image updates triggers a lot of load
+	// together
+	loadedOnce *sync.Map
 }
 
 func NewHandler(
@@ -98,6 +108,7 @@ func NewHandler(
 		redshiftGroup:    redshiftGroup,
 		serializer:       serializer.NewSerializer(viper.GetString("schemaRegistryURL")),
 		prometheusClient: prometheusClient,
+		loadedOnce:       new(sync.Map),
 	}
 }
 
@@ -129,7 +140,13 @@ func (h *loaderHandler) throttle(topic string) error {
 		return nil
 	}
 
-	for i := 0; i < ThrottlingBudget; i++ {
+	throttleBudget := FirstThrottlingBudget
+	_, ok := h.loadedOnce.Load(topic)
+	if ok {
+		throttleBudget = ThrottlingBudget
+	}
+
+	for i := 0; i < throttleBudget; i++ {
 		runningLoaders, err := h.prometheusClient.Query("sum(rsk_loader_running > 0)")
 		if err != nil {
 			return err
@@ -139,10 +156,11 @@ func (h *loaderHandler) throttle(topic string) error {
 			return nil
 		}
 
-		klog.V(2).Infof("%s: throttling loader for 15seconds, running loaders: %v", topic, runningLoaders)
+		klog.V(2).Infof("%s: running loaders: %v, throttled for 15s", topic, runningLoaders)
 		time.Sleep(15 * time.Second)
 	}
-	klog.V(2).Infof("%s: throttling budget exhausted! no more throttling.", topic)
+
+	klog.V(2).Infof("%s: throttle budget exhausted, go load!", topic)
 
 	return nil
 }
@@ -283,12 +301,14 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				}
 			}
 			*lastSchemaId = upstreamJobSchemaId
+			h.loadedOnce.Store(claim.Topic, true)
 		case <-maxWaitTicker.C:
 			// Process the batch by time
 			klog.V(2).Infof(
 				"%s: maxWaitSeconds hit",
 				claim.Topic(),
 			)
+			maxWaitTicker.Stop()
 			if msgBatch.Size() > 0 {
 				err = h.throttle(claim.Topic())
 				if err != nil {
@@ -296,9 +316,11 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				}
 			}
 			err = msgBatch.Process(session)
+			maxWaitTicker.Reset(time.Duration(*h.maxWaitSeconds) * time.Second)
 			if err != nil {
 				return err
 			}
+			h.loadedOnce.Store(claim.Topic, true)
 		}
 	}
 }
