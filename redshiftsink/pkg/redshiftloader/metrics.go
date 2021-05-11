@@ -5,8 +5,7 @@ import (
 )
 
 var (
-	buckets = []float64{10, 30, 60, 120, 180, 240, 300, 480, 600, 900}
-
+	buckets           = []float64{10, 30, 60, 120, 180, 240, 300, 480, 600, 900}
 	bytesLoadedMetric = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: "rsk",

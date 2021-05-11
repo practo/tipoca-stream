@@ -6,6 +6,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/prometheus"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/spf13/viper"
@@ -13,8 +14,10 @@ import (
 )
 
 var (
-	DefaultMaxWaitSeconds    int   = 1800
-	DefaultMaxProcessingTime int32 = 600000
+	DefaultMaxWaitSeconds    int     = 1800
+	DefaultMaxProcessingTime int32   = 600000
+	MaxRunningLoaders        float64 = 10
+	ThrottlingBudget         int     = 10
 )
 
 type LoaderConfig struct {
@@ -48,10 +51,11 @@ type loaderHandler struct {
 	maxWaitSeconds   *int
 	maxBytesPerBatch *int64
 
-	saramaConfig  kafka.SaramaConfig
-	redshifter    *redshift.Redshift
-	redshiftGroup *string
-	serializer    serializer.Serializer
+	saramaConfig     kafka.SaramaConfig
+	redshifter       *redshift.Redshift
+	redshiftGroup    *string
+	serializer       serializer.Serializer
+	prometheusClient prometheus.Client
 }
 
 func NewHandler(
@@ -68,6 +72,16 @@ func NewHandler(
 		loaderConfig.MaxWaitSeconds = &DefaultMaxWaitSeconds
 	}
 
+	var err error
+	var prometheusClient prometheus.Client
+	prometheusURL := viper.GetString("prometheusURL")
+	if prometheusURL != "" {
+		prometheusClient, err = prometheus.NewClient(prometheusURL)
+		if err != nil {
+			klog.Fatalf("Error initializing prometheus client, err: %v", err)
+		}
+	}
+
 	return &loaderHandler{
 		ready: ready,
 		ctx:   ctx,
@@ -79,10 +93,11 @@ func NewHandler(
 		maxWaitSeconds:   loaderConfig.MaxWaitSeconds,
 		maxBytesPerBatch: loaderConfig.MaxBytesPerBatch,
 
-		saramaConfig:  saramaConfig,
-		redshifter:    redshifter,
-		redshiftGroup: redshiftGroup,
-		serializer:    serializer.NewSerializer(viper.GetString("schemaRegistryURL")),
+		saramaConfig:     saramaConfig,
+		redshifter:       redshifter,
+		redshiftGroup:    redshiftGroup,
+		serializer:       serializer.NewSerializer(viper.GetString("schemaRegistryURL")),
+		prometheusClient: prometheusClient,
 	}
 }
 
@@ -104,6 +119,31 @@ func (h *loaderHandler) Setup(sarama.ConsumerGroupSession) error {
 // Cleanup is run at the end of a session, once all ConsumeClaim goroutines have exited
 func (h *loaderHandler) Cleanup(sarama.ConsumerGroupSession) error {
 	klog.V(1).Info("cleaning up handler")
+	return nil
+}
+
+func (h *loaderHandler) throttle(topic string) error {
+	// never throttle if promtheus client is not set
+	// this makes throttling using prometheus an addon feature
+	if h.prometheusClient == nil {
+		return nil
+	}
+
+	for i := 0; i < ThrottlingBudget; i++ {
+		runningLoaders, err := h.prometheusClient.Query("rsk_loader_running")
+		if err != nil {
+			return err
+		}
+
+		if runningLoaders <= MaxRunningLoaders {
+			return nil
+		}
+
+		klog.V(2).Infof("%s: throttling loader for 15seconds, running loaders: %v", topic, runningLoaders)
+		time.Sleep(15 * time.Second)
+	}
+	klog.V(2).Infof("%s: throttling budget exhausted! no more throttling.", topic)
+
 	return nil
 }
 
@@ -232,6 +272,10 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 					msg.Topic,
 				)
 				maxWaitTicker.Stop()
+				err = h.throttle(claim.Topic())
+				if err != nil {
+					return err
+				}
 				err = msgBatch.Process(session)
 				maxWaitTicker.Reset(time.Duration(*h.maxWaitSeconds) * time.Second)
 				if err != nil {
@@ -245,6 +289,10 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				"%s: maxWaitSeconds hit",
 				claim.Topic(),
 			)
+			err = h.throttle(claim.Topic())
+			if err != nil {
+				return err
+			}
 			err = msgBatch.Process(session)
 			if err != nil {
 				return err
