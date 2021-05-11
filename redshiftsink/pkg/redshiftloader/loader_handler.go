@@ -130,7 +130,7 @@ func (h *loaderHandler) throttle(topic string) error {
 	}
 
 	for i := 0; i < ThrottlingBudget; i++ {
-		runningLoaders, err := h.prometheusClient.Query("rsk_loader_running")
+		runningLoaders, err := h.prometheusClient.Query("sum(rsk_loader_running > 0)")
 		if err != nil {
 			return err
 		}
