@@ -19,7 +19,7 @@ var (
 	DefaultMaxProcessingTime int32   = 600000
 	MaxRunningLoaders        float64 = 10
 	ThrottlingBudget         int     = 10
-	FirstThrottlingBudget    int     = 60
+	FirstThrottlingBudget    int     = 120
 )
 
 type LoaderConfig struct {
@@ -62,10 +62,10 @@ type loaderHandler struct {
 	// so that concurrency of load can be maintained below a threshold
 	prometheusClient prometheus.Client
 
-	// loadedOnce alow throttling the first request to longer time
-	// this is required as a new default image updates triggers a lot of load
-	// together
-	loadedOnce *sync.Map
+	// loadRunning is used for two purpose
+	// 1. to track total running loaders
+	// 2. to allow more throttling seconds in case of first load
+	loadRunning *sync.Map
 }
 
 func NewHandler(
@@ -108,7 +108,7 @@ func NewHandler(
 		redshiftGroup:    redshiftGroup,
 		serializer:       serializer.NewSerializer(viper.GetString("schemaRegistryURL")),
 		prometheusClient: prometheusClient,
-		loadedOnce:       new(sync.Map),
+		loadRunning:      new(sync.Map),
 	}
 }
 
@@ -140,8 +140,17 @@ func (h *loaderHandler) throttle(topic string) error {
 		return nil
 	}
 
+	localLoadRunning := 0.0
+	h.loadRunning.Range(func(key, value interface{}) bool {
+		running := value.(bool)
+		if running {
+			localLoadRunning += 1
+		}
+		return true
+	})
+
 	throttleBudget := FirstThrottlingBudget
-	_, ok := h.loadedOnce.Load(topic)
+	_, ok := h.loadRunning.Load(topic)
 	if ok {
 		throttleBudget = ThrottlingBudget
 	}
@@ -152,11 +161,12 @@ func (h *loaderHandler) throttle(topic string) error {
 			return err
 		}
 
-		if runningLoaders <= MaxRunningLoaders {
+		if (runningLoaders <= MaxRunningLoaders) && (localLoadRunning <= MaxRunningLoaders) {
 			return nil
 		}
 
-		klog.V(2).Infof("%s: running loaders: %v, throttled for 15s", topic, runningLoaders)
+		klog.V(2).Infof("%s: running loaders(metric): %v, running loaders(local): %v", topic, runningLoaders, localLoadRunning)
+		klog.V(2).Infof("%s: throttled for 15s", topic)
 		time.Sleep(15 * time.Second)
 	}
 
@@ -294,14 +304,16 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				if err != nil {
 					return err
 				}
+				h.loadRunning.Store(claim.Topic(), true)
 				err = msgBatch.Process(session)
 				maxWaitTicker.Reset(time.Duration(*h.maxWaitSeconds) * time.Second)
 				if err != nil {
+					h.loadRunning.Store(claim.Topic(), false)
 					return err
 				}
 			}
 			*lastSchemaId = upstreamJobSchemaId
-			h.loadedOnce.Store(claim.Topic(), true)
+			h.loadRunning.Store(claim.Topic(), false)
 		case <-maxWaitTicker.C:
 			// Process the batch by time
 			klog.V(2).Infof(
@@ -315,12 +327,14 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 					return err
 				}
 			}
+			h.loadRunning.Store(claim.Topic(), true)
 			err = msgBatch.Process(session)
 			maxWaitTicker.Reset(time.Duration(*h.maxWaitSeconds) * time.Second)
 			if err != nil {
+				h.loadRunning.Store(claim.Topic(), false)
 				return err
 			}
-			h.loadedOnce.Store(claim.Topic(), true)
+			h.loadRunning.Store(claim.Topic(), false)
 		}
 	}
 }
