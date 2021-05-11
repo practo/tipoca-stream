@@ -301,7 +301,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				}
 			}
 			*lastSchemaId = upstreamJobSchemaId
-			h.loadedOnce.Store(claim.Topic, true)
+			h.loadedOnce.Store(claim.Topic(), true)
 		case <-maxWaitTicker.C:
 			// Process the batch by time
 			klog.V(2).Infof(
@@ -320,7 +320,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			if err != nil {
 				return err
 			}
-			h.loadedOnce.Store(claim.Topic, true)
+			h.loadedOnce.Store(claim.Topic(), true)
 		}
 	}
 }
