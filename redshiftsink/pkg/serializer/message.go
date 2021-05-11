@@ -144,6 +144,10 @@ func NewMessageSyncBatch(
 	}
 }
 
+func (b *MessageSyncBatch) Size() int {
+	return len(b.msgBuf)
+}
+
 // process calls the processor to process the batch
 func (b *MessageSyncBatch) Process(session sarama.ConsumerGroupSession) error {
 	if len(b.msgBuf) > 0 {

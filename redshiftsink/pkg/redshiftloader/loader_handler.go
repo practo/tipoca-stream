@@ -289,9 +289,11 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				"%s: maxWaitSeconds hit",
 				claim.Topic(),
 			)
-			err = h.throttle(claim.Topic())
-			if err != nil {
-				return err
+			if msgBatch.Size() > 0 {
+				err = h.throttle(claim.Topic())
+				if err != nil {
+					return err
+				}
 			}
 			err = msgBatch.Process(session)
 			if err != nil {
