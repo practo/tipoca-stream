@@ -17,7 +17,7 @@ type Config struct {
 	ConsumerGroups    []kafka.ConsumerGroupConfig `yaml:"consumerGroups"`
 	S3Sink            s3sink.Config               `yaml:"s3sink"`
 	SchemaRegistryURL string                      `yaml:"schemaRegistryURL"`
-	prometheusURL     string                      `yaml:"prometheusURL"`
+	PrometheusURL     string                      `yaml:"prometheusURL"`
 	Redshift          redshift.RedshiftConfig     `yaml:"redshift"`
 	RedshiftGroup     *string                     `yaml:"redshiftGroup,omitempty"`
 	Rsk               string                      `yaml:"rsk,omitempty"`

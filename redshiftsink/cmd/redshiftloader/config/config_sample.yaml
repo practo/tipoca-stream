@@ -17,6 +17,7 @@ consumerGroups:
             log: false
             autoCommit: false
 schemaRegistryURL: "https://schema-registry.example.com"
+prometheusURL: "https://prometheus.example.com"
 s3sink:
     region: "us-west-1"
     accessKeyId: "sample-aws-access-key-id"
