@@ -137,6 +137,7 @@ func (h *loaderHandler) throttle(topic string) error {
 	// never throttle if promtheus client is not set
 	// this makes throttling using prometheus an addon feature
 	if h.prometheusClient == nil {
+		klog.V(2).Infof("%s: promtheus is not enabled, throttling feature disabled", topic)
 		return nil
 	}
 
@@ -148,6 +149,7 @@ func (h *loaderHandler) throttle(topic string) error {
 		}
 		return true
 	})
+	klog.V(2).Infof("%s: running loaders(local): %v", topic, localLoadRunning)
 
 	throttleBudget := FirstThrottlingBudget
 	_, ok := h.loadRunning.Load(topic)
@@ -160,12 +162,12 @@ func (h *loaderHandler) throttle(topic string) error {
 		if err != nil {
 			return err
 		}
+		klog.V(2).Infof("%s: running loaders(metric): %v", topic, runningLoaders)
 
 		if (runningLoaders <= MaxRunningLoaders) && (localLoadRunning <= MaxRunningLoaders) {
 			return nil
 		}
 
-		klog.V(2).Infof("%s: running loaders(metric): %v, running loaders(local): %v", topic, runningLoaders, localLoadRunning)
 		klog.V(2).Infof("%s: throttled for 15s", topic)
 		time.Sleep(15 * time.Second)
 	}
