@@ -6,15 +6,20 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/prometheus"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/spf13/viper"
+	"sync"
 	"time"
 )
 
 var (
-	DefaultMaxWaitSeconds    int   = 1800
-	DefaultMaxProcessingTime int32 = 600000
+	DefaultMaxWaitSeconds    int     = 1800
+	DefaultMaxProcessingTime int32   = 600000
+	MaxRunningLoaders        float64 = 10
+	ThrottlingBudget         int     = 10
+	FirstThrottlingBudget    int     = 120
 )
 
 type LoaderConfig struct {
@@ -52,6 +57,15 @@ type loaderHandler struct {
 	redshifter    *redshift.Redshift
 	redshiftGroup *string
 	serializer    serializer.Serializer
+
+	// prometheusClient is used to query the running loaders
+	// so that concurrency of load can be maintained below a threshold
+	prometheusClient prometheus.Client
+
+	// loadRunning is used for two purpose
+	// 1. to track total running loaders
+	// 2. to allow more throttling seconds in case of first load
+	loadRunning *sync.Map
 }
 
 func NewHandler(
@@ -68,6 +82,16 @@ func NewHandler(
 		loaderConfig.MaxWaitSeconds = &DefaultMaxWaitSeconds
 	}
 
+	var err error
+	var prometheusClient prometheus.Client
+	prometheusURL := viper.GetString("prometheusURL")
+	if prometheusURL != "" {
+		prometheusClient, err = prometheus.NewClient(prometheusURL)
+		if err != nil {
+			klog.Fatalf("Error initializing prometheus client, err: %v", err)
+		}
+	}
+
 	return &loaderHandler{
 		ready: ready,
 		ctx:   ctx,
@@ -79,10 +103,12 @@ func NewHandler(
 		maxWaitSeconds:   loaderConfig.MaxWaitSeconds,
 		maxBytesPerBatch: loaderConfig.MaxBytesPerBatch,
 
-		saramaConfig:  saramaConfig,
-		redshifter:    redshifter,
-		redshiftGroup: redshiftGroup,
-		serializer:    serializer.NewSerializer(viper.GetString("schemaRegistryURL")),
+		saramaConfig:     saramaConfig,
+		redshifter:       redshifter,
+		redshiftGroup:    redshiftGroup,
+		serializer:       serializer.NewSerializer(viper.GetString("schemaRegistryURL")),
+		prometheusClient: prometheusClient,
+		loadRunning:      new(sync.Map),
 	}
 }
 
@@ -104,6 +130,50 @@ func (h *loaderHandler) Setup(sarama.ConsumerGroupSession) error {
 // Cleanup is run at the end of a session, once all ConsumeClaim goroutines have exited
 func (h *loaderHandler) Cleanup(sarama.ConsumerGroupSession) error {
 	klog.V(1).Info("cleaning up handler")
+	return nil
+}
+
+func (h *loaderHandler) throttle(topic string) error {
+	// never throttle if promtheus client is not set
+	// this makes throttling using prometheus an addon feature
+	if h.prometheusClient == nil {
+		klog.V(2).Infof("%s: promtheus is not enabled, throttling feature disabled", topic)
+		return nil
+	}
+
+	localLoadRunning := 0.0
+	h.loadRunning.Range(func(key, value interface{}) bool {
+		running := value.(bool)
+		if running {
+			localLoadRunning += 1
+		}
+		return true
+	})
+	klog.V(4).Infof("%s: running loaders(local): %v", topic, localLoadRunning)
+
+	throttleBudget := FirstThrottlingBudget
+	_, ok := h.loadRunning.Load(topic)
+	if ok {
+		throttleBudget = ThrottlingBudget
+	}
+
+	for i := 0; i < throttleBudget; i++ {
+		runningLoaders, err := h.prometheusClient.Query("sum(rsk_loader_running > 0)")
+		if err != nil {
+			return err
+		}
+		klog.V(4).Infof("%s: running loaders(metric): %v", topic, runningLoaders)
+
+		if (runningLoaders <= MaxRunningLoaders) && (localLoadRunning <= MaxRunningLoaders) {
+			return nil
+		}
+
+		klog.V(2).Infof("%s: throttled for 15s", topic)
+		time.Sleep(15 * time.Second)
+	}
+
+	klog.V(2).Infof("%s: throttle budget exhausted, go load!", topic)
+
 	return nil
 }
 
@@ -232,23 +302,41 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 					msg.Topic,
 				)
 				maxWaitTicker.Stop()
+				err = h.throttle(claim.Topic())
+				if err != nil {
+					return err
+				}
+				h.loadRunning.Store(claim.Topic(), true)
 				err = msgBatch.Process(session)
 				maxWaitTicker.Reset(time.Duration(*h.maxWaitSeconds) * time.Second)
 				if err != nil {
+					h.loadRunning.Store(claim.Topic(), false)
 					return err
 				}
 			}
 			*lastSchemaId = upstreamJobSchemaId
+			h.loadRunning.Store(claim.Topic(), false)
 		case <-maxWaitTicker.C:
 			// Process the batch by time
 			klog.V(2).Infof(
 				"%s: maxWaitSeconds hit",
 				claim.Topic(),
 			)
+			maxWaitTicker.Stop()
+			if msgBatch.Size() > 0 {
+				err = h.throttle(claim.Topic())
+				if err != nil {
+					return err
+				}
+			}
+			h.loadRunning.Store(claim.Topic(), true)
 			err = msgBatch.Process(session)
+			maxWaitTicker.Reset(time.Duration(*h.maxWaitSeconds) * time.Second)
 			if err != nil {
+				h.loadRunning.Store(claim.Topic(), false)
 				return err
 			}
+			h.loadRunning.Store(claim.Topic(), false)
 		}
 	}
 }

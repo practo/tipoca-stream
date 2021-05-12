@@ -140,6 +140,7 @@ func loaderSecret(secret map[string]string) (map[string]string, error) {
 		"s3AccessKeyId",
 		"s3SecretAccessKey",
 		"schemaRegistryURL",
+		"prometheusURL",
 		"redshiftHost",
 		"redshiftPort",
 		"redshiftDatabase",
@@ -298,6 +299,7 @@ func NewLoader(
 			BucketDir:       secret["s3LoaderBucketDir"],
 		},
 		SchemaRegistryURL: secret["schemaRegistryURL"],
+		PrometheusURL:     secret["prometheusURL"],
 		Redshift: redshift.RedshiftConfig{
 			Schema:       rsk.Spec.Loader.RedshiftSchema,
 			TableSuffix:  tableSuffix,
