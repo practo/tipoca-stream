@@ -638,6 +638,7 @@ func (r *RedshiftSinkReconciler) Reconcile(
 		allowedResources := toMap(r.AllowedResources)
 		_, allowed := allowedResources[redshiftsink.Name]
 		if !allowed {
+			klog.V(2).Infof("Reconciling not allowed for %+v ...", req)
 			return ctrl.Result{Requeue: false}, nil
 		}
 	}
