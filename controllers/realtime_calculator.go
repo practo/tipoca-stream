@@ -131,7 +131,7 @@ func (r *realtimeCalculator) fetchRealtimeInfo(
 ) (
 	topicRealtimeInfo, error,
 ) {
-	klog.V(2).Infof("rsk/%s (fetching realtime) topic: %s", r.rsk.Name, topic)
+	klog.V(4).Infof("rsk/%s (fetching realtime) topic: %s", r.rsk.Name, topic)
 
 	now := time.Now().UnixNano()
 	info := topicRealtimeInfo{
@@ -196,7 +196,7 @@ func (r *realtimeCalculator) fetchRealtimeInfo(
 		// 2. When the Consumer Group had processed before but now is showing -1 currentOffset as it is inactive due to less throughput.
 		//    On such a scenario, we consider it realtime. We find this case by saving the currentOffset for the loader topcics in RedshiftSinkStatus.TopicGroup
 		if groupLoaderCurrentOffset == nil {
-			klog.V(2).Infof("%s, loader cg 404, not realtime", *loaderTopic)
+			klog.V(4).Infof("%s, loader cg 404, not realtime", *loaderTopic)
 			return info, nil
 		}
 		klog.V(4).Infof("rsk/%s %s, currentOffset=%v (old), cg 404, try realtime", r.rsk.Name, *loaderTopic, *groupLoaderCurrentOffset)
@@ -243,7 +243,7 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 		)
 		_, ok := allTopicsMap[ltopic]
 		if !ok {
-			klog.V(2).Infof("%s topic 404, not realtime.", ltopic)
+			klog.V(4).Infof("%s topic 404, not realtime.", ltopic)
 		} else {
 			loaderTopic = &ltopic
 		}
@@ -286,9 +286,9 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 		if info.batcher != nil && info.batcher.last != nil {
 			if info.batcher.current != nil {
 				lag := *info.batcher.last - *info.batcher.current
-				klog.V(2).Infof("rsk/%s: %s lag=%v", r.rsk.Name, topic, lag)
+				klog.V(4).Infof("rsk/%s: %s lag=%v", r.rsk.Name, topic, lag)
 				if lag <= maxBatcherLag {
-					klog.V(2).Infof("rsk/%s: %s batcher realtime", r.rsk.Name, topic)
+					klog.V(4).Infof("rsk/%s: %s batcher realtime", r.rsk.Name, topic)
 					info.batcherRealtime = true
 					r.batchersRealtime = append(r.batchersRealtime, topic)
 				}
@@ -304,9 +304,9 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 		if info.loader != nil && info.loader.last != nil {
 			if info.loader.current != nil {
 				lag := *info.loader.last - *info.loader.current
-				klog.V(2).Infof("rsk/%s: %s lag=%v", r.rsk.Name, ltopic, lag)
+				klog.V(4).Infof("rsk/%s: %s lag=%v", r.rsk.Name, ltopic, lag)
 				if lag <= maxLoaderLag {
-					klog.V(2).Infof("rsk/%s: %s loader realtime", r.rsk.Name, ltopic)
+					klog.V(4).Infof("rsk/%s: %s loader realtime", r.rsk.Name, ltopic)
 					info.loaderRealtime = true
 					r.loadersRealtime = append(r.loadersRealtime, ltopic)
 				}
@@ -323,16 +323,16 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 		}
 
 		if info.batcherRealtime && info.loaderRealtime {
-			klog.V(2).Infof("rsk/%s: %s realtime", r.rsk.Name, topic)
+			klog.V(4).Infof("rsk/%s: %s realtime", r.rsk.Name, topic)
 			realtimeTopics = append(realtimeTopics, topic)
 		} else {
 			if info.batcherRealtime == false && info.loaderRealtime == false {
-				klog.V(2).Infof("%v: waiting to reach realtime", topic)
-				klog.V(2).Infof("%v: waiting to reach realtime", ltopic)
+				klog.V(4).Infof("%v: waiting to reach realtime", topic)
+				klog.V(4).Infof("%v: waiting to reach realtime", ltopic)
 			} else if info.batcherRealtime == false {
-				klog.V(2).Infof("%v: waiting to reach realtime", topic)
+				klog.V(4).Infof("%v: waiting to reach realtime", topic)
 			} else if info.loaderRealtime == false {
-				klog.V(2).Infof("%v: waiting to reach realtime", ltopic)
+				klog.V(4).Infof("%v: waiting to reach realtime", ltopic)
 			}
 		}
 
