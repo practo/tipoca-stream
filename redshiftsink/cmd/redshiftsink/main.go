@@ -106,7 +106,7 @@ func main() {
 		Log:                         ctrl.Log.WithName("controllers").WithName("RedshiftSink"),
 		Scheme:                      mgr.GetScheme(),
 		Recorder:                    mgr.GetEventRecorderFor("redshiftsink-reconciler"),
-		KafkaWatchers:               new(sync.Map),
+		KafkaClients:                new(sync.Map),
 		KafkaTopicRegexes:           new(sync.Map),
 		KafkaTopicsCache:            new(sync.Map),
 		KafkaRealtimeCache:          new(sync.Map),
