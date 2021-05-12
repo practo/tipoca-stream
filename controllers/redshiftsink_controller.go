@@ -64,6 +64,8 @@ type RedshiftSinkReconciler struct {
 	DefaultKafkaVersion         string
 	DefaultRedshiftMaxIdleConns int
 	DefaultRedshiftMaxOpenConns int
+
+	AllowedResources []string
 }
 
 const (
@@ -524,7 +526,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 
 	if len(status.realtime) == 0 {
 		klog.V(2).Infof("rsk/%s nothing done in reconcile", rsk.Name)
-		return result, events, nil
+		return resultRequeueMilliSeconds(900000), events, nil
 	}
 
 	// release the realtime topics, topics in realtime (MaxTopicRelease) are
@@ -621,6 +623,15 @@ func (r *RedshiftSinkReconciler) Reconcile(
 	if err != nil {
 		return ctrl.Result{
 			RequeueAfter: time.Second * 30}, client.IgnoreNotFound(err)
+	}
+
+	// allow only few redshiftsink resources help to test new code in production
+	if len(r.AllowedResources) > 0 {
+		for _, resource := range r.AllowedResources {
+			if resource == redshiftsink.Name {
+				return ctrl.Result{Requeue: false}, nil
+			}
+		}
 	}
 
 	original := redshiftsink.DeepCopy()
