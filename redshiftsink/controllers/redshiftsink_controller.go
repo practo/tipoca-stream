@@ -636,7 +636,7 @@ func (r *RedshiftSinkReconciler) Reconcile(
 	// allow only few redshiftsink resources help to test new code in production
 	if len(r.AllowedResources) > 0 {
 		for _, resource := range r.AllowedResources {
-			if resource == redshiftsink.Name {
+			if resource != redshiftsink.Name {
 				return ctrl.Result{Requeue: false}, nil
 			}
 		}
