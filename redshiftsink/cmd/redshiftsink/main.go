@@ -54,7 +54,7 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	var enableLeaderElection bool
-	var batcherImage, loaderImage, secretRefName, secretRefNamespace, kafkaVersion, metricsAddr, rsks string
+	var batcherImage, loaderImage, secretRefName, secretRefNamespace, kafkaVersion, metricsAddr, allowedRsks string
 	var redshiftMaxOpenConns, redshiftMaxIdleConns int
 	flag.StringVar(&batcherImage, "default-batcher-image", "746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftbatcher:latest", "image to use for the redshiftbatcher")
 	flag.StringVar(&loaderImage, "default-loader-image", "746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftloader:latest", "image to use for the redshiftloader")
@@ -65,7 +65,7 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.IntVar(&redshiftMaxOpenConns, "default-redshift-max-open-conns", 10, "the maximum number of open connections allowed to redshift per redshiftsink resource")
 	flag.IntVar(&redshiftMaxIdleConns, "default-redshift-max-idle-conns", 2, "the maximum number of idle connections allowed to redshift per redshiftsink resource")
-	flags.StringVar(&rsks, "rsks", "", "comma separated list of names of rsk resources to allow, if empty all rsk resources are allowed")
+	flags.StringVar(&allowedRsks, "allowed-rsks", "", "comma separated list of names of rsk resources to allow, if empty all rsk resources are allowed")
 	flag.Parse()
 
 	ctrl.SetLogger(klogr.New())
@@ -110,7 +110,7 @@ func main() {
 		DefaultKafkaVersion:         kafkaVersion,
 		DefaultRedshiftMaxOpenConns: redshiftMaxOpenConns,
 		DefaultRedshiftMaxIdleConns: redshiftMaxIdleConns,
-		AllowedResources:            strings.Split(rsks, ","),
+		AllowedResources:            strings.Split(allowedRsks, ","),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RedshiftSink")
 		os.Exit(1)
