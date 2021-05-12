@@ -212,8 +212,17 @@ func (b *loadProcessor) loadTable(ctx context.Context, schema, table, s3Manifest
 	err = b.redshifter.Copy(
 		ctx, tx, schema, table, b.s3sink.GetKeyURI(s3ManifestKey),
 		true, false,
-		true, true,
+		true, true, true,
 	)
+	// backward compatiblity for gzip
+	if err != nil {
+		klog.V(2).Infof("%s, copy to stage failed, trying without gzip", b.topic)
+		err = b.redshifter.Copy(
+			ctx, tx, schema, table, b.s3sink.GetKeyURI(s3ManifestKey),
+			true, false,
+			true, true, false,
+		)
+	}
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("Error loading data in staging table, err:%v\n", err)
@@ -345,6 +354,7 @@ func (b *loadProcessor) insertIntoTargetTable(ctx context.Context, tx *sql.Tx) e
 		true,
 		true,
 		true,
+		false,
 	)
 	if err != nil {
 		tx.Rollback()
