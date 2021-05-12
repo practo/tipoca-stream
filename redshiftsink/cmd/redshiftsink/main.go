@@ -100,6 +100,10 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	var allowedResources []string
+	if allowedRsks != "" {
+		allowedResources = strings.Split(allowedRsks, ",")
+	}
 
 	if err = (&controllers.RedshiftSinkReconciler{
 		Client:                      uncachedClient,
@@ -120,7 +124,7 @@ func main() {
 		DefaultKafkaVersion:         kafkaVersion,
 		DefaultRedshiftMaxOpenConns: redshiftMaxOpenConns,
 		DefaultRedshiftMaxIdleConns: redshiftMaxIdleConns,
-		AllowedResources:            strings.Split(allowedRsks, ","),
+		AllowedResources:            allowedResources,
 		PrometheusClient:            prometheusClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RedshiftSink")
