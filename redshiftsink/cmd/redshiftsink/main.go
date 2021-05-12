@@ -18,10 +18,12 @@ import (
 	"flag"
 	"math/rand"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/practo/klog/v2"
+	prometheus "github.com/practo/tipoca-stream/redshiftsink/pkg/prometheus"
 	pflag "github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -53,7 +55,7 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	var enableLeaderElection bool
-	var batcherImage, loaderImage, secretRefName, secretRefNamespace, kafkaVersion, metricsAddr string
+	var batcherImage, loaderImage, secretRefName, secretRefNamespace, kafkaVersion, metricsAddr, allowedRsks, prometheusURL string
 	var redshiftMaxOpenConns, redshiftMaxIdleConns int
 	flag.StringVar(&batcherImage, "default-batcher-image", "746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftbatcher:latest", "image to use for the redshiftbatcher")
 	flag.StringVar(&loaderImage, "default-loader-image", "746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftloader:latest", "image to use for the redshiftloader")
@@ -64,6 +66,8 @@ func main() {
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.IntVar(&redshiftMaxOpenConns, "default-redshift-max-open-conns", 10, "the maximum number of open connections allowed to redshift per redshiftsink resource")
 	flag.IntVar(&redshiftMaxIdleConns, "default-redshift-max-idle-conns", 2, "the maximum number of idle connections allowed to redshift per redshiftsink resource")
+	flag.StringVar(&allowedRsks, "allowed-rsks", "", "comma separated list of names of rsk resources to allow, if empty all rsk resources are allowed")
+	flag.StringVar(&prometheusURL, "prometheus-url", "", "optional, giving prometheus makes the operator enable new features using time series data. Features: loader throttling, resetting offsets of 0 throughput topics.")
 	flag.Parse()
 
 	ctrl.SetLogger(klogr.New())
@@ -88,6 +92,14 @@ func main() {
 		setupLog.Error(err, "unable to make uncached client")
 		os.Exit(1)
 	}
+	var prometheusClient prometheus.Client
+	if prometheusURL != "" {
+		prometheusClient, err = prometheus.NewClient(prometheusURL)
+		if err != nil {
+			setupLog.Error(err, "unable to init prometheus")
+			os.Exit(1)
+		}
+	}
 
 	if err = (&controllers.RedshiftSinkReconciler{
 		Client:                      uncachedClient,
@@ -108,6 +120,8 @@ func main() {
 		DefaultKafkaVersion:         kafkaVersion,
 		DefaultRedshiftMaxOpenConns: redshiftMaxOpenConns,
 		DefaultRedshiftMaxIdleConns: redshiftMaxIdleConns,
+		AllowedResources:            strings.Split(allowedRsks, ","),
+		PrometheusClient:            prometheusClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RedshiftSink")
 		os.Exit(1)
