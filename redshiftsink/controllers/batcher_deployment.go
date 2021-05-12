@@ -63,7 +63,7 @@ func applyBatcherSinkGroupDefaults(
 		maxReloadingUnits = toInt32Ptr(10)
 	case ReloadDupeSinkGroup:
 		maxSizePerBatch = toQuantityPtr(resource.MustParse("0.5Mi"))
-		maxWaitSeconds = toIntPtr(60)
+		maxWaitSeconds = toIntPtr(450)
 		maxConcurrency = toIntPtr(10)
 		maxProcessingTime = &redshiftbatcher.DefaultMaxProcessingTime
 		image = &defaultImage
