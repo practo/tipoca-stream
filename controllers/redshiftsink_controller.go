@@ -31,6 +31,7 @@ import (
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	git "github.com/practo/tipoca-stream/redshiftsink/pkg/git"
 	kafka "github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
+	prometheus "github.com/practo/tipoca-stream/redshiftsink/pkg/prometheus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -64,6 +65,10 @@ type RedshiftSinkReconciler struct {
 	DefaultKafkaVersion         string
 	DefaultRedshiftMaxIdleConns int
 	DefaultRedshiftMaxOpenConns int
+
+	AllowedResources []string
+
+	PrometheusClient prometheus.Client
 }
 
 const (
@@ -335,6 +340,11 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, events, nil
 	}
 
+	var prometheusURL string
+	if r.PrometheusClient != nil {
+		prometheusURL = r.PrometheusClient.Address()
+	}
+
 	sgBuilder := newSinkGroupBuilder()
 	if rsk.Spec.Batcher.Mask == false {
 		maskLessSinkGroup := sgBuilder.
@@ -343,7 +353,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			setTopics(kafkaTopics).
 			setMaskVersion("").
 			buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-			buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+			buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns, prometheusURL).
 			build()
 		result, maskLessSinkGroupEvent, err := maskLessSinkGroup.reconcile(ctx)
 		if len(maskLessSinkGroupEvent) > 0 {
@@ -476,7 +486,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopicGroups().
 		setRealtimeCalculator(calc).
 		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-		buildLoaders(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+		buildLoaders(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns, prometheusURL).
 		build()
 	status.updateBatcherReloadingTopics(reload.batcherDeploymentTopics(), calc.batchersRealtime)
 	status.updateLoaderReloadingTopics(reload.loaderDeploymentTopics(), calc.loadersRealtime)
@@ -489,7 +499,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopicGroups().
 		setRealtimeCalculator(nil).
 		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-		buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+		buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns, prometheusURL).
 		build()
 
 	main = sgBuilder.
@@ -500,7 +510,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopicGroups().
 		setRealtimeCalculator(nil).
 		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-		buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+		buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns, prometheusURL).
 		build()
 
 	sinkGroups := []*sinkGroup{reloadDupe, reload, main}
@@ -524,7 +534,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 
 	if len(status.realtime) == 0 {
 		klog.V(2).Infof("rsk/%s nothing done in reconcile", rsk.Name)
-		return result, events, nil
+		return resultRequeueMilliSeconds(900000), events, nil
 	}
 
 	// release the realtime topics, topics in realtime (MaxTopicRelease) are
@@ -621,6 +631,15 @@ func (r *RedshiftSinkReconciler) Reconcile(
 	if err != nil {
 		return ctrl.Result{
 			RequeueAfter: time.Second * 30}, client.IgnoreNotFound(err)
+	}
+
+	// allow only few redshiftsink resources help to test new code in production
+	if len(r.AllowedResources) > 0 {
+		for _, resource := range r.AllowedResources {
+			if resource == redshiftsink.Name {
+				return ctrl.Result{Requeue: false}, nil
+			}
+		}
 	}
 
 	original := redshiftsink.DeepCopy()
