@@ -565,7 +565,6 @@ func (r *Redshift) ReplaceTable(
 		true,
 		true,
 		true,
-		false,
 	)
 	if err != nil {
 		return err
@@ -825,21 +824,13 @@ func (r *Redshift) Unload(ctx context.Context, tx *sql.Tx,
 // Copy using manifest file
 // into redshift using manifest file.
 // this is meant to be run in a transaction, so the first arg must be a sql.Tx
-func (r *Redshift) Copy(
-	ctx context.Context, tx *sql.Tx,
+func (r *Redshift) Copy(ctx context.Context, tx *sql.Tx,
 	schema string, table string, s3ManifestURI string,
-	typeJson bool, typeCsv bool,
-	comupdateOff bool,
-	statupdateOff bool,
-	gzip bool) error {
+	typeJson bool, typeCsv bool, comupdateOff bool, statupdateOff bool) error {
 
 	json := ""
 	if typeJson == true {
-		if gzip == true {
-			json = "json 'auto' gzip"
-		} else {
-			json = "json 'auto'"
-		}
+		json = "json 'auto' gzip"
 	}
 
 	csv := ""
