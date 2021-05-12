@@ -19,7 +19,6 @@ secretGenerator:
   - s3AccessKeyId=sample-access-key-id
   - s3SecretAccessKey=sample-secret-access-key
   - schemaRegistryURL=sample-reg-url
-  - prometheusURL=sample-optional-prometheus-url
   - tlsEnable=true
   - tlsUserCert=base64Encodedsample
   - tlsUserKey=base64Encodedsample

@@ -31,6 +31,7 @@ import (
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	git "github.com/practo/tipoca-stream/redshiftsink/pkg/git"
 	kafka "github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
+	prometheus "github.com/practo/tipoca-stream/redshiftsink/pkg/prometheus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -66,6 +67,8 @@ type RedshiftSinkReconciler struct {
 	DefaultRedshiftMaxOpenConns int
 
 	AllowedResources []string
+
+	PrometheusClient prometheus.Client
 }
 
 const (
@@ -337,6 +340,11 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, events, nil
 	}
 
+	var prometheusURL string
+	if r.PrometheusClient != nil {
+		prometheusURL = r.PrometheusClient.Address()
+	}
+
 	sgBuilder := newSinkGroupBuilder()
 	if rsk.Spec.Batcher.Mask == false {
 		maskLessSinkGroup := sgBuilder.
@@ -345,7 +353,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 			setTopics(kafkaTopics).
 			setMaskVersion("").
 			buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-			buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+			buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns, prometheusURL).
 			build()
 		result, maskLessSinkGroupEvent, err := maskLessSinkGroup.reconcile(ctx)
 		if len(maskLessSinkGroupEvent) > 0 {
@@ -478,7 +486,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopicGroups().
 		setRealtimeCalculator(calc).
 		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-		buildLoaders(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+		buildLoaders(secret, r.DefaultLoaderImage, ReloadTableSuffix, r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns, prometheusURL).
 		build()
 	status.updateBatcherReloadingTopics(reload.batcherDeploymentTopics(), calc.batchersRealtime)
 	status.updateLoaderReloadingTopics(reload.loaderDeploymentTopics(), calc.loadersRealtime)
@@ -491,7 +499,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopicGroups().
 		setRealtimeCalculator(nil).
 		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-		buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+		buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns, prometheusURL).
 		build()
 
 	main = sgBuilder.
@@ -502,7 +510,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 		setTopicGroups().
 		setRealtimeCalculator(nil).
 		buildBatchers(secret, r.DefaultBatcherImage, r.DefaultKafkaVersion, tlsConfig).
-		buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns).
+		buildLoaders(secret, r.DefaultLoaderImage, "", r.DefaultKafkaVersion, tlsConfig, r.DefaultRedshiftMaxOpenConns, r.DefaultRedshiftMaxIdleConns, prometheusURL).
 		build()
 
 	sinkGroups := []*sinkGroup{reloadDupe, reload, main}

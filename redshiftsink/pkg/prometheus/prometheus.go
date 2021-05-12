@@ -13,11 +13,13 @@ import (
 )
 
 type Client interface {
+	Address() string
 	Query(queryString string) (float64, error)
 }
 
 type promClient struct {
-	client prometheusv1.API
+	address string
+	client  prometheusv1.API
 
 	mutex sync.Mutex
 
@@ -37,6 +39,7 @@ func NewClient(address string) (Client, error) {
 	}
 
 	return &promClient{
+		address:            address,
 		client:             prometheusv1.NewAPI(client),
 		queryCache:         make(map[string]float64),
 		queryLastRun:       make(map[string]*int64),
@@ -82,6 +85,10 @@ func convertValueToFloat(val model.Value) float64 {
 		)
 		return 0
 	}
+}
+
+func (p *promClient) Address() string {
+	return p.address
 }
 
 func (p *promClient) Query(queryString string) (float64, error) {
