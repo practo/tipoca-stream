@@ -149,7 +149,7 @@ func (h *loaderHandler) throttle(topic string) error {
 		}
 		return true
 	})
-	klog.V(2).Infof("%s: running loaders(local): %v", topic, localLoadRunning)
+	klog.V(4).Infof("%s: running loaders(local): %v", topic, localLoadRunning)
 
 	throttleBudget := FirstThrottlingBudget
 	_, ok := h.loadRunning.Load(topic)
@@ -162,7 +162,7 @@ func (h *loaderHandler) throttle(topic string) error {
 		if err != nil {
 			return err
 		}
-		klog.V(2).Infof("%s: running loaders(metric): %v", topic, runningLoaders)
+		klog.V(4).Infof("%s: running loaders(metric): %v", topic, runningLoaders)
 
 		if (runningLoaders <= MaxRunningLoaders) && (localLoadRunning <= MaxRunningLoaders) {
 			return nil
