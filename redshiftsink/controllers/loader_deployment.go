@@ -49,7 +49,7 @@ func applyLoaderSinkGroupDefaults(
 	switch sgType {
 	case MainSinkGroup:
 		maxSizePerBatch = toQuantityPtr(resource.MustParse("1Gi"))
-		maxWaitSeconds = toIntPtr(1800)
+		maxWaitSeconds = toIntPtr(900)
 		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
 		image = &defaultImage
 		maxReloadingUnits = toInt32Ptr(10)
@@ -61,7 +61,7 @@ func applyLoaderSinkGroupDefaults(
 		maxReloadingUnits = toInt32Ptr(10)
 	case ReloadDupeSinkGroup:
 		maxSizePerBatch = toQuantityPtr(resource.MustParse("1Gi"))
-		maxWaitSeconds = toIntPtr(1800)
+		maxWaitSeconds = toIntPtr(900)
 		maxProcessingTime = &redshiftloader.DefaultMaxProcessingTime
 		image = &defaultImage
 		maxReloadingUnits = toInt32Ptr(10)
