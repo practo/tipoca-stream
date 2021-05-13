@@ -89,6 +89,10 @@ type loadProcessor struct {
 
 	// metricSetter sets the load metrics
 	metric metricSetter
+
+	// schemaTargetTable is the cache used to get the targetTable from
+	// schema ID without doing recomputation for the schema id
+	schemaTargetTable map[int]redshift.Table
 }
 
 func newLoadProcessor(
@@ -133,6 +137,7 @@ func newLoadProcessor(
 			rsk:           viper.GetString("rsk"),
 			sinkGroup:     viper.GetString("sinkGroup"),
 		},
+		schemaTargetTable: make(map[int]redshift.Table),
 	}, nil
 }
 
@@ -579,6 +584,7 @@ func (b *loadProcessor) migrateTable(
 }
 
 // migrateSchema construct the "inputTable" using schemaId in the message.
+// If it has processed the schemaID before it returns, this is done for reducing queries to redshift.
 // If the schema and table does not exist it creates and returns.
 // If not then it constructs the "targetTable" by querying the database.
 // It compares the targetTable and inputTable schema.
@@ -591,8 +597,13 @@ func (b *loadProcessor) migrateTable(
 // Supported: alter columns (supported via table migration)
 // TODO: NotSupported: row ordering changes and row renames
 func (b *loadProcessor) migrateSchema(ctx context.Context, schemaId int, inputTable redshift.Table) error {
-	// TODO: add cache here based on schema id and return
-	// save some database calls.
+	targetTableCache, ok := b.schemaTargetTable[schemaId]
+	if ok {
+		klog.V(2).Infof("%s using cache for targetTable", b.topic)
+		b.targetTable = &targetTableCache
+		return nil
+	}
+
 	tableExist, err := b.redshifter.TableExist(
 		ctx, inputTable.Meta.Schema, inputTable.Name,
 	)
@@ -623,6 +634,7 @@ func (b *loadProcessor) migrateSchema(ctx context.Context, schemaId int, inputTa
 			inputTable.Name,
 		)
 		b.targetTable = redshift.NewTable(inputTable)
+		b.schemaTargetTable[schemaId] = *b.targetTable
 		return nil
 	}
 
@@ -630,6 +642,7 @@ func (b *loadProcessor) migrateSchema(ctx context.Context, schemaId int, inputTa
 		ctx, inputTable.Meta.Schema, inputTable.Name,
 	)
 	b.targetTable = targetTable
+	b.schemaTargetTable[schemaId] = *b.targetTable
 	if err != nil {
 		return fmt.Errorf("Error querying targetTable, err: %v\n", err)
 	}
