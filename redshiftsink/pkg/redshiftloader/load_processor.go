@@ -209,12 +209,12 @@ func (b *loadProcessor) printCurrentState() {
 
 // loadTable loads the batch to redhsift table using
 // COPY command.
-func (b *loadProcessor) loadTable(ctx context.Context, schema, table, s3ManifestKey string) error {
-	tx, err := b.redshifter.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("Error creating database tx, err: %v\n", err)
-	}
-	err = b.redshifter.Copy(
+func (b *loadProcessor) loadTable(
+	ctx context.Context,
+	tx *sql.Tx,
+	schema, table, s3ManifestKey string,
+) error {
+	err := b.redshifter.Copy(
 		ctx, tx, schema, table, b.s3sink.GetKeyURI(s3ManifestKey),
 		true, false,
 		true, true,
@@ -451,14 +451,15 @@ func (b *loadProcessor) merge(ctx context.Context) error {
 	return nil
 }
 
-// createStagingTable creates a staging table based on the schema id of the
-// batch messages.
+// loadStagingTable creates a staging table based on the schema id of the
+// batch messages and loads it
 // this also intializes b.stagingTable
-func (b *loadProcessor) createStagingTable(
+func (b *loadProcessor) loadStagingTable(
 	ctx context.Context,
 	schemaId int,
 	schemaIdKey int,
 	inputTable redshift.Table,
+	s3ManifestKey string,
 ) error {
 	b.stagingTable = redshift.NewTable(inputTable)
 	b.stagingTable.Name = b.stagingTable.Name + "_staged"
@@ -523,12 +524,23 @@ func (b *loadProcessor) createStagingTable(
 		}
 		return orgiErr
 	}
+	klog.V(2).Infof("%s, created staging table", b.topic)
+	err = b.loadTable(
+		ctx,
+		tx,
+		b.stagingTable.Meta.Schema,
+		b.stagingTable.Name,
+		s3ManifestKey,
+	)
+	if err != nil {
+		return err
+	}
 	err = tx.Commit()
 	if err != nil {
 		return fmt.Errorf("Error committing tx, err:%v\n", err)
 	}
 	klog.V(3).Infof(
-		"%s, schemaId:%d: created staging %s \n",
+		"%s, schemaId:%d: loaded staging %s \n",
 		b.topic,
 		schemaId,
 		b.stagingTable.Name,
@@ -757,15 +769,12 @@ func (b *loadProcessor) processBatch(
 
 	// load in staging
 	start := time.Now()
-	klog.V(2).Infof("%s, load staging\n", b.topic)
-	err = b.createStagingTable(ctx, schemaId, schemaIdKey, inputTable)
-	if err != nil {
-		return bytesProcessed, err
-	}
-	err = b.loadTable(
+	klog.V(2).Infof("%s, load staging", b.topic)
+	err = b.loadStagingTable(
 		ctx,
-		b.stagingTable.Meta.Schema,
-		b.stagingTable.Name,
+		schemaId,
+		schemaIdKey,
+		inputTable,
 		s3ManifestKey,
 	)
 	if err != nil {
