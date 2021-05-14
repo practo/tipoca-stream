@@ -440,7 +440,6 @@ func (b *loadProcessor) merge(ctx context.Context) error {
 		return fmt.Errorf("Error committing tx, err:%v\n", err)
 	}
 
-	// error is warning in the below task since we clean on start
 	err = b.dropTable(ctx, b.stagingTable.Meta.Schema, b.stagingTable.Name)
 	if err != nil {
 		klog.Warningf("Dropping the table: %s failed!, err: %v\n",
@@ -478,11 +477,8 @@ func (b *loadProcessor) createStagingTable(
 			b.stagingTable.Columns[idx] = column
 		}
 	}
-	err := b.dropTable(ctx, b.stagingTable.Meta.Schema, b.stagingTable.Name)
-	if err != nil {
-		return fmt.Errorf("Error dropping staging table: %v\n", err)
-	}
 
+	var err error
 	var primaryKeys []string
 	if schemaIdKey == -1 || schemaIdKey == 0 { // Deprecated as below is expensive and does not use cache
 		primaryKeys, err = b.schemaTransformer.TransformKey(b.upstreamTopic)
@@ -520,7 +516,12 @@ func (b *loadProcessor) createStagingTable(
 	err = b.redshifter.CreateTable(ctx, tx, *b.stagingTable)
 	if err != nil {
 		tx.Rollback()
-		return fmt.Errorf("Error creating staging table, err: %v\n", err)
+		orgiErr := fmt.Errorf("Error creating staging table, err: %v\n", err)
+		err = b.dropTable(ctx, b.stagingTable.Meta.Schema, b.stagingTable.Name)
+		if err != nil {
+			klog.Errorf("Error trying to drop staging table: %v\n", err)
+		}
+		return orgiErr
 	}
 	err = tx.Commit()
 	if err != nil {
