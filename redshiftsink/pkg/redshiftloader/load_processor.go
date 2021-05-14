@@ -223,11 +223,6 @@ func (b *loadProcessor) loadTable(
 		tx.Rollback()
 		return fmt.Errorf("Error loading data in staging table, err:%v\n", err)
 	}
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("Error committing tx, err:%v\n", err)
-	}
-
 	klog.V(2).Infof(
 		"%s, copied staging\n",
 		b.topic,
