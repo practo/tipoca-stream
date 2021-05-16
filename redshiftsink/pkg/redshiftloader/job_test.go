@@ -24,6 +24,9 @@ func TestToStringMap(t *testing.T) {
 		maskSchema,
 		false,
 		10,
+		-1,
+		-1,
+		-1,
 	)
 	// fmt.Printf("job_now=%+v\n\n", job)
 
