@@ -779,6 +779,8 @@ func (b *loadProcessor) processBatch(
 		}
 	}
 
+	klog.V(2).Infof("%s, create:%v, update:%v, delete:%v events", b.topic, totalCreateEvents, totalUpdateEvents, totalDeleteEvents)
+
 	if allowMerge {
 		// load data in target using staging table merge
 		start := time.Now()
