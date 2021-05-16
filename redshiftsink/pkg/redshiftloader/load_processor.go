@@ -691,8 +691,9 @@ func (b *loadProcessor) processBatch(
 	b.targetTable = nil
 	b.upstreamTopic = ""
 
-	var skipMerge bool
+	var eventsInfoMissing bool
 	var entries []s3sink.S3ManifestEntry
+	var totalCreateEvents, totalUpdateEvents, totalDeleteEvents int64
 	for id, message := range msgBuf {
 		select {
 		case <-ctx.Done():
@@ -700,9 +701,14 @@ func (b *loadProcessor) processBatch(
 				"session ctx done, err: %v", ctx.Err())
 		default:
 			job := StringMapToJob(message.Value.(map[string]interface{}))
-			if job.SkipMerge {
-				skipMerge = true
+			// backward comaptibility
+			if job.CreateEvents == -1 || job.UpdateEvents == -1 || job.DeleteEvents == -1 {
+				eventsInfoMissing = true
 			}
+			totalCreateEvents += job.CreateEvents
+			totalUpdateEvents += job.UpdateEvents
+			totalDeleteEvents += job.DeleteEvents
+
 			schemaId = job.SchemaId
 			schemaIdKey = job.SchemaIdKey
 			b.batchEndOffset = message.Offset
@@ -766,7 +772,14 @@ func (b *loadProcessor) processBatch(
 		)
 	}
 
-	if !skipMerge {
+	allowMerge := true
+	if !eventsInfoMissing {
+		if totalCreateEvents > 0 && totalUpdateEvents == 0 && totalDeleteEvents == 0 {
+			allowMerge = false
+		}
+	}
+
+	if allowMerge {
 		// load data in target using staging table merge
 		start := time.Now()
 		klog.V(2).Infof("%s, load staging (use merge)", b.topic)
