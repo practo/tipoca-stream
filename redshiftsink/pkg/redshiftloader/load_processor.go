@@ -691,6 +691,7 @@ func (b *loadProcessor) processBatch(
 	b.targetTable = nil
 	b.upstreamTopic = ""
 
+	var skipMerge bool
 	var entries []s3sink.S3ManifestEntry
 	for id, message := range msgBuf {
 		select {
@@ -699,6 +700,9 @@ func (b *loadProcessor) processBatch(
 				"session ctx done, err: %v", ctx.Err())
 		default:
 			job := StringMapToJob(message.Value.(map[string]interface{}))
+			if job.SkipMerge {
+				skipMerge = true
+			}
 			schemaId = job.SchemaId
 			schemaIdKey = job.SchemaIdKey
 			b.batchEndOffset = message.Offset
@@ -762,25 +766,48 @@ func (b *loadProcessor) processBatch(
 		)
 	}
 
-	// load in staging
-	start := time.Now()
-	klog.V(2).Infof("%s, load staging", b.topic)
-	err = b.loadStagingTable(
-		ctx,
-		schemaId,
-		schemaIdKey,
-		inputTable,
-		s3ManifestKey,
-	)
-	if err != nil {
-		return bytesProcessed, err
-	}
-	b.metric.setCopyStageSeconds(time.Since(start).Seconds())
+	if !skipMerge {
+		// load data in target using staging table merge
+		start := time.Now()
+		klog.V(2).Infof("%s, load staging (use merge)", b.topic)
+		err = b.loadStagingTable(
+			ctx,
+			schemaId,
+			schemaIdKey,
+			inputTable,
+			s3ManifestKey,
+		)
+		if err != nil {
+			return bytesProcessed, err
+		}
+		b.metric.setCopyStageSeconds(time.Since(start).Seconds())
 
-	// merge and load in target
-	err = b.merge(ctx)
-	if err != nil {
-		return bytesProcessed, err
+		// merge and load in target
+		err = b.merge(ctx)
+		if err != nil {
+			return bytesProcessed, err
+		}
+	} else {
+		// directy load data in target table as there is no update or delete
+		klog.V(2).Infof("%s, load target (skip merge)", b.topic)
+		tx, err := b.redshifter.Begin(ctx)
+		if err != nil {
+			return bytesProcessed, fmt.Errorf("Error creating database tx, err: %v\n", err)
+		}
+		err = b.loadTable(
+			ctx,
+			tx,
+			b.targetTable.Meta.Schema,
+			b.targetTable.Name,
+			s3ManifestKey,
+		)
+		if err != nil {
+			return bytesProcessed, err
+		}
+		err = tx.Commit()
+		if err != nil {
+			return bytesProcessed, fmt.Errorf("Error committing tx, err:%v\n", err)
+		}
 	}
 
 	if b.redshiftStats {
