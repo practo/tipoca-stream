@@ -19,7 +19,10 @@ var JobAvroSchema string = `{
         {"name": "schemaIdKey", "type": "int", "default": -1},
         {"name": "maskSchema", "type": "string"},
         {"name": "skipMerge", "type": "string", "default": ""},
-        {"name": "batchBytes", "type": "long", "default": 0}
+        {"name": "batchBytes", "type": "long", "default": 0},
+        {"name": "createEvents", "type": "long", "default": 0},
+        {"name": "updateEvents", "type": "long", "default": 0},
+        {"name": "deleteEvents", "type": "long", "default": 0}
     ]
 }`
 
@@ -32,15 +35,18 @@ type Job struct {
 	SchemaId      int                            `json:"schemaId"`    // schema id of debezium event for the value for upstream topic (batcher topic)
 	SchemaIdKey   int                            `json:"schemaIdKey"` // schema id of debezium event for the key for upstream topic (batcher topic)
 	MaskSchema    map[string]serializer.MaskInfo `json:"maskSchema"`
-	SkipMerge     bool                           `json:"skipMerge"`  // to load using merge strategy or directy COPY
-	BatchBytes    int64                          `json:"batchBytes"` // batch bytes store sum of all message bytes in this batch
+	SkipMerge     bool                           `json:"skipMerge"`    // deprecated in favour of createEvents, updateEvents and deleteEvents
+	BatchBytes    int64                          `json:"batchBytes"`   // batch bytes store sum of all message bytes in this batch
+	CreateEvents  int64                          `json:"createEvents"` // stores count of create events
+	UpdateEvents  int64                          `json:"updateEvents"` // stores count of update events
+	DeleteEvents  int64                          `json:"deleteEvents"` // stores count of delete events
 }
 
 func NewJob(
 	upstreamTopic string, startOffset int64, endOffset int64,
 	csvDialect string, s3Path string, schemaId int, schemaIdKey int,
 	maskSchema map[string]serializer.MaskInfo, skipMerge bool,
-	batchBytes int64) Job {
+	batchBytes, createEvents, updateEvents, deleteEvents int64) Job {
 
 	return Job{
 		UpstreamTopic: upstreamTopic,
@@ -51,8 +57,11 @@ func NewJob(
 		SchemaId:      schemaId,
 		SchemaIdKey:   schemaIdKey,
 		MaskSchema:    maskSchema,
-		SkipMerge:     skipMerge,
+		SkipMerge:     skipMerge, // deprecated
 		BatchBytes:    batchBytes,
+		CreateEvents:  createEvents,
+		UpdateEvents:  updateEvents,
+		DeleteEvents:  deleteEvents,
 	}
 }
 
@@ -114,6 +123,24 @@ func StringMapToJob(data map[string]interface{}) Job {
 				job.BatchBytes = value
 			} else { // backward compatibility
 				job.BatchBytes = 0
+			}
+		case "createEvents":
+			if value, ok := v.(int64); ok {
+				job.CreateEvents = value
+			} else { // backward compatibility
+				job.CreateEvents = -1
+			}
+		case "updateEvents":
+			if value, ok := v.(int64); ok {
+				job.UpdateEvents = value
+			} else { // backward compatibility
+				job.UpdateEvents = -1
+			}
+		case "deleteEvents":
+			if value, ok := v.(int64); ok {
+				job.DeleteEvents = value
+			} else { // backward compatibility
+				job.DeleteEvents = -1
 			}
 		}
 	}
@@ -216,7 +243,7 @@ func ToSchemaString(m map[string]serializer.MaskInfo) string {
 
 // ToStringMap returns a map representation of the Job
 func (c Job) ToStringMap() map[string]interface{} {
-	skipMerge := "false"
+	skipMerge := "false" // deprecated not used anymore, backward compatibility
 	if c.SkipMerge {
 		skipMerge = "true"
 	}
@@ -231,5 +258,8 @@ func (c Job) ToStringMap() map[string]interface{} {
 		"skipMerge":     skipMerge,
 		"maskSchema":    ToSchemaString(c.MaskSchema),
 		"batchBytes":    c.BatchBytes,
+		"createEvents":  c.CreateEvents,
+		"updateEvents":  c.UpdateEvents,
+		"deleteEvents":  c.DeleteEvents,
 	}
 }

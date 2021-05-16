@@ -173,6 +173,9 @@ type response struct {
 	batchSchemaID     int
 	batchSchemaTable  redshift.Table
 	skipMerge         bool
+	createEvents      int64
+	updateEvents      int64
+	deleteEvents      int64
 	s3Key             string
 	bodyBuf           *bytes.Buffer
 	startOffset       int64
@@ -269,6 +272,9 @@ func (b *batchProcessor) signalLoad(resp *response) error {
 		resp.maskSchema,
 		resp.skipMerge,
 		resp.bytesProcessed,
+		resp.createEvents,
+		resp.updateEvents,
+		resp.deleteEvents,
 	)
 
 	err := b.signaler.Add(
@@ -384,9 +390,8 @@ func (b *batchProcessor) processMessage(
 	if b.maskMessages && len(resp.maskSchema) == 0 {
 		resp.maskSchema = message.MaskSchema
 	}
-	if message.Operation != serializer.OperationCreate {
-		resp.skipMerge = false
-	}
+
+	resp.skipMerge = false // deprecated
 	klog.V(5).Infof(
 		"%s: batchID:%d id:%d: transformed\n",
 		b.topic, resp.batchID, messageID,
@@ -415,6 +420,17 @@ func (b *batchProcessor) processMessages(
 				return totalBytesProcessed, err
 			}
 			totalBytesProcessed += bytesProcessed
+
+			switch message.Operation {
+			case serializer.OperationCreate:
+				resp.createEvents += 1
+			case serializer.OperationUpdate:
+				resp.updateEvents += 1
+			case serializer.OperationDelete:
+				resp.deleteEvents += 1
+			default:
+				klog.Fatalf("Unkown operation: %+v, message: %+v", message.Operation, message)
+			}
 		}
 	}
 
@@ -529,7 +545,10 @@ func (b *batchProcessor) Process(
 				err:           nil,
 				batchID:       i + 1,
 				batchSchemaID: -1,
-				skipMerge:     true,
+				skipMerge:     false,
+				createEvents:  0,
+				updateEvents:  0,
+				deleteEvents:  0,
 				s3Key:         "",
 				bodyBuf:       bytes.NewBuffer(make([]byte, 0, 4096)),
 				maskSchema:    make(map[string]serializer.MaskInfo),
