@@ -20,9 +20,9 @@ var JobAvroSchema string = `{
         {"name": "maskSchema", "type": "string"},
         {"name": "skipMerge", "type": "string", "default": ""},
         {"name": "batchBytes", "type": "long", "default": 0},
-        {"name": "createEvents", "type": "long", "default": 0},
-        {"name": "updateEvents", "type": "long", "default": 0},
-        {"name": "deleteEvents", "type": "long", "default": 0}
+        {"name": "createEvents", "type": "long", "default": -1},
+        {"name": "updateEvents", "type": "long", "default": -1},
+        {"name": "deleteEvents", "type": "long", "default": -1}
     ]
 }`
 
