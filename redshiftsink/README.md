@@ -151,6 +151,9 @@ Flags:
 - Loader performs the load of the data to Redshift by performing series of merge operations using Staging tables.
 
 #### Metrics
+
+
+### Histograms
 ```
 rsk_loader_bytes_loaded_sum{consumergroup="", topic="", sinkGroup=""}
 rsk_loader_bytes_loaded_sum{consumergroup="", topic="", sinkGroup=""}
@@ -178,8 +181,15 @@ rsk_loader_copytarget_seconds_count{consumergroup="", topic="", sinkGroup="", me
 
 The metrics are histograms in buckets: `10, 30, 60, 120, 180, 240, 300, 480, 600, 900`
 
+
+### Gauge
 ```
 rsk_loader_running{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
+```
+
+### Counter
+```
+rsk_loader_throttled_total{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
 ```
 
 ### Configuration
