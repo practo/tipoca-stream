@@ -333,7 +333,7 @@ func NewLoader(
 	if err != nil {
 		return nil, err
 	}
-	objectName := fmt.Sprintf("%s-%s", name, hash)
+	objectName := applyKubernetesNameLength(name, hash)
 	labels := getDefaultLabels(
 		LoaderLabelInstance, sinkGroup, objectName, rsk.Name,
 	)

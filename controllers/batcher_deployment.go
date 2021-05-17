@@ -310,7 +310,7 @@ func NewBatcher(
 	if err != nil {
 		return nil, err
 	}
-	objectName := fmt.Sprintf("%s-%s", name, hash)
+	objectName := applyKubernetesNameLength(name, hash)
 	labels := getDefaultLabels(
 		BatcherLabelInstance, sinkGroup, objectName, rsk.Name,
 	)
