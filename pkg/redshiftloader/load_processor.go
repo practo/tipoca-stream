@@ -102,6 +102,7 @@ func newLoadProcessor(
 	saramaConfig kafka.SaramaConfig,
 	redshifter *redshift.Redshift,
 	redshiftGroup *string,
+	metric metricSetter,
 ) (serializer.MessageBatchSyncProcessor, error) {
 	sink, err := s3sink.NewS3Sink(
 		viper.GetString("s3sink.accessKeyId"),
@@ -124,19 +125,14 @@ func newLoadProcessor(
 		messageTransformer: debezium.NewMessageTransformer(),
 		schemaTransformer: debezium.NewSchemaTransformer(
 			viper.GetString("schemaRegistryURL")),
-		redshifter:     redshifter,
-		redshiftSchema: viper.GetString("redshift.schema"),
-		redshiftGroup:  redshiftGroup,
-		stagingTable:   nil,
-		targetTable:    nil,
-		tableSuffix:    viper.GetString("redshift.tableSuffix"),
-		redshiftStats:  viper.GetBool("redshift.stats"),
-		metric: metricSetter{
-			consumergroup: consumerGroupID,
-			topic:         topic,
-			rsk:           viper.GetString("rsk"),
-			sinkGroup:     viper.GetString("sinkGroup"),
-		},
+		redshifter:        redshifter,
+		redshiftSchema:    viper.GetString("redshift.schema"),
+		redshiftGroup:     redshiftGroup,
+		stagingTable:      nil,
+		targetTable:       nil,
+		tableSuffix:       viper.GetString("redshift.tableSuffix"),
+		redshiftStats:     viper.GetBool("redshift.stats"),
+		metric:            metric,
 		schemaTargetTable: make(map[int]redshift.Table),
 	}, nil
 }
