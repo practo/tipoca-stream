@@ -607,7 +607,7 @@ func (b *loadProcessor) migrateTable(
 func (b *loadProcessor) migrateSchema(ctx context.Context, schemaId int, inputTable redshift.Table) error {
 	targetTableCache, ok := b.schemaTargetTable[schemaId]
 	if ok {
-		klog.V(2).Infof("%s using cache for targetTable", b.topic)
+		klog.V(2).Infof("%s, using cache for targetTable", b.topic)
 		b.targetTable = &targetTableCache
 		return nil
 	}
