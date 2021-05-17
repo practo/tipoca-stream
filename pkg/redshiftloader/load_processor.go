@@ -703,7 +703,7 @@ func (b *loadProcessor) processBatch(
 			job := StringMapToJob(message.Value.(map[string]interface{}))
 			// backward comaptibility
 			if job.CreateEvents <= 0 && job.UpdateEvents <= 0 && job.DeleteEvents <= 0 {
-        klog.V(2).Infof("%s, events info missing", b.topic)
+				klog.V(2).Infof("%s, events info missing", b.topic)
 				eventsInfoMissing = true
 			}
 			totalCreateEvents += job.CreateEvents
