@@ -702,7 +702,8 @@ func (b *loadProcessor) processBatch(
 		default:
 			job := StringMapToJob(message.Value.(map[string]interface{}))
 			// backward comaptibility
-			if job.CreateEvents == -1 || job.UpdateEvents == -1 || job.DeleteEvents == -1 {
+			if job.CreateEvents <= 0 && job.UpdateEvents <= 0 && job.DeleteEvents <= 0 {
+        klog.V(2).Infof("%s, events info missing", b.topic)
 				eventsInfoMissing = true
 			}
 			totalCreateEvents += job.CreateEvents
@@ -784,7 +785,7 @@ func (b *loadProcessor) processBatch(
 	if allowMerge {
 		// load data in target using staging table merge
 		start := time.Now()
-		klog.V(2).Infof("%s, load staging (use merge)", b.topic)
+		klog.V(2).Infof("%s, load staging (using merge)", b.topic)
 		err = b.loadStagingTable(
 			ctx,
 			schemaId,
@@ -804,7 +805,7 @@ func (b *loadProcessor) processBatch(
 		}
 	} else {
 		// directy load data in target table as there is no update or delete
-		klog.V(2).Infof("%s, load target (skip merge)", b.topic)
+		klog.V(2).Infof("%s, load target (skipping merge)", b.topic)
 		tx, err := b.redshifter.Begin(ctx)
 		if err != nil {
 			return bytesProcessed, fmt.Errorf("Error creating database tx, err: %v\n", err)
