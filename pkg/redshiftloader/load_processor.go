@@ -607,7 +607,7 @@ func (b *loadProcessor) migrateTable(
 func (b *loadProcessor) migrateSchema(ctx context.Context, schemaId int, inputTable redshift.Table) error {
 	targetTableCache, ok := b.schemaTargetTable[schemaId]
 	if ok {
-		klog.V(2).Infof("%s using cache for targetTable", b.topic)
+		klog.V(2).Infof("%s, using cache for targetTable", b.topic)
 		b.targetTable = &targetTableCache
 		return nil
 	}
@@ -691,7 +691,9 @@ func (b *loadProcessor) processBatch(
 	b.targetTable = nil
 	b.upstreamTopic = ""
 
+	var eventsInfoMissing bool
 	var entries []s3sink.S3ManifestEntry
+	var totalCreateEvents, totalUpdateEvents, totalDeleteEvents int64
 	for id, message := range msgBuf {
 		select {
 		case <-ctx.Done():
@@ -699,6 +701,15 @@ func (b *loadProcessor) processBatch(
 				"session ctx done, err: %v", ctx.Err())
 		default:
 			job := StringMapToJob(message.Value.(map[string]interface{}))
+			// backward comaptibility
+			if job.CreateEvents <= 0 && job.UpdateEvents <= 0 && job.DeleteEvents <= 0 {
+				klog.V(2).Infof("%s, events info missing", b.topic)
+				eventsInfoMissing = true
+			}
+			totalCreateEvents += job.CreateEvents
+			totalUpdateEvents += job.UpdateEvents
+			totalDeleteEvents += job.DeleteEvents
+
 			schemaId = job.SchemaId
 			schemaIdKey = job.SchemaIdKey
 			b.batchEndOffset = message.Offset
@@ -762,25 +773,57 @@ func (b *loadProcessor) processBatch(
 		)
 	}
 
-	// load in staging
-	start := time.Now()
-	klog.V(2).Infof("%s, load staging", b.topic)
-	err = b.loadStagingTable(
-		ctx,
-		schemaId,
-		schemaIdKey,
-		inputTable,
-		s3ManifestKey,
-	)
-	if err != nil {
-		return bytesProcessed, err
+	allowMerge := true
+	if !eventsInfoMissing {
+		if totalCreateEvents > 0 && totalUpdateEvents == 0 && totalDeleteEvents == 0 {
+			allowMerge = false
+		}
 	}
-	b.metric.setCopyStageSeconds(time.Since(start).Seconds())
 
-	// merge and load in target
-	err = b.merge(ctx)
-	if err != nil {
-		return bytesProcessed, err
+	klog.V(2).Infof("%s, create:%v, update:%v, delete:%v events", b.topic, totalCreateEvents, totalUpdateEvents, totalDeleteEvents)
+
+	if allowMerge {
+		// load data in target using staging table merge
+		start := time.Now()
+		klog.V(2).Infof("%s, load staging (using merge)", b.topic)
+		err = b.loadStagingTable(
+			ctx,
+			schemaId,
+			schemaIdKey,
+			inputTable,
+			s3ManifestKey,
+		)
+		if err != nil {
+			return bytesProcessed, err
+		}
+		b.metric.setCopyStageSeconds(time.Since(start).Seconds())
+
+		// merge and load in target
+		err = b.merge(ctx)
+		if err != nil {
+			return bytesProcessed, err
+		}
+	} else {
+		// directy load data in target table as there is no update or delete
+		klog.V(2).Infof("%s, load target (skipping merge)", b.topic)
+		tx, err := b.redshifter.Begin(ctx)
+		if err != nil {
+			return bytesProcessed, fmt.Errorf("Error creating database tx, err: %v\n", err)
+		}
+		err = b.loadTable(
+			ctx,
+			tx,
+			b.targetTable.Meta.Schema,
+			b.targetTable.Name,
+			s3ManifestKey,
+		)
+		if err != nil {
+			return bytesProcessed, err
+		}
+		err = tx.Commit()
+		if err != nil {
+			return bytesProcessed, fmt.Errorf("Error committing tx, err:%v\n", err)
+		}
 	}
 
 	if b.redshiftStats {
