@@ -161,6 +161,14 @@ func sortStringSlice(t []string) {
 	sort.Sort(sort.StringSlice(t))
 }
 
+func applyKubernetesNameLength(name, hash string) string {
+	if len(name) <= 55 {
+		return fmt.Sprintf("%s-%s", name, hash)
+	}
+
+	return fmt.Sprintf("%s-%s", name[:55], hash)
+}
+
 // getDefaultLabels gives back the default labels for the crd resources
 func getDefaultLabels(
 	instance, sinkGroup, objectName string,
