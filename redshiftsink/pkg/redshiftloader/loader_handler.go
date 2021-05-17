@@ -133,7 +133,7 @@ func (h *loaderHandler) Cleanup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
-func (h *loaderHandler) throttle(topic string) error {
+func (h *loaderHandler) throttle(topic string, metric metricSetter) error {
 	// never throttle if promtheus client is not set
 	// this makes throttling using prometheus an addon feature
 	if h.prometheusClient == nil {
@@ -169,6 +169,7 @@ func (h *loaderHandler) throttle(topic string) error {
 		}
 
 		klog.V(2).Infof("%s: throttled for 15s", topic)
+		metric.incThrottled()
 		time.Sleep(15 * time.Second)
 	}
 
@@ -190,6 +191,13 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 
 	var lastSchemaId *int
 	var err error
+
+	metric := metricSetter{
+		consumergroup: h.consumerGroupID,
+		topic:         claim.Topic(),
+		rsk:           viper.GetString("rsk"),
+		sinkGroup:     viper.GetString("sinkGroup"),
+	}
 	processor, err := newLoadProcessor(
 		h.consumerGroupID,
 		claim.Topic(),
@@ -197,6 +205,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		h.saramaConfig,
 		h.redshifter,
 		h.redshiftGroup,
+		metric,
 	)
 	if err != nil {
 		return fmt.Errorf(
@@ -302,7 +311,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 					msg.Topic,
 				)
 				maxWaitTicker.Stop()
-				err = h.throttle(claim.Topic())
+				err = h.throttle(claim.Topic(), metric)
 				if err != nil {
 					return err
 				}
@@ -324,7 +333,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			)
 			maxWaitTicker.Stop()
 			if msgBatch.Size() > 0 {
-				err = h.throttle(claim.Topic())
+				err = h.throttle(claim.Topic(), metric)
 				if err != nil {
 					return err
 				}

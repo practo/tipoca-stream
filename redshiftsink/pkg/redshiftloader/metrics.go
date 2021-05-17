@@ -98,6 +98,16 @@ var (
 		},
 		[]string{"rsk", "consumergroup", "topic", "sink_group"},
 	)
+
+	throttleMetric = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "rsk",
+			Subsystem: "loader",
+			Name:      "throttled_total",
+			Help:      "total number of times the loader was throttled",
+		},
+		[]string{"rsk", "consumergroup", "topic", "sink_group"},
+	)
 )
 
 func init() {
@@ -212,4 +222,13 @@ func (m metricSetter) setStopRunning() {
 		m.topic,
 		m.sinkGroup,
 	).Set(0)
+}
+
+func (m metricSetter) incThrottled() {
+	throttleMetric.WithLabelValues(
+		m.rsk,
+		m.consumergroup,
+		m.topic,
+		m.sinkGroup,
+	).Inc()
 }
