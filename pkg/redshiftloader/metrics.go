@@ -123,6 +123,7 @@ func init() {
 	prometheus.MustRegister(copyTargetMetric)
 
 	prometheus.MustRegister(runningMetric)
+	prometheus.MustRegister(throttleMetric)
 }
 
 type metricSetter struct {
