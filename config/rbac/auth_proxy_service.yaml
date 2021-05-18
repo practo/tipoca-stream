@@ -6,9 +6,13 @@ metadata:
   name: redshiftsink-operator
   namespace: kube-system
 spec:
+  clusterIP: None
   ports:
-  - name: https
+  - name: redshift-metrics
     port: 8443
-    targetPort: https
+    protocol: TCP
+    targetPort: 8443
   selector:
     app: redshiftsink-operator
+  sessionAffinity: None
+  type: ClusterIP
