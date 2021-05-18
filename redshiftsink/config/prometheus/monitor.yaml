@@ -13,7 +13,7 @@ spec:
     - kube-system
   endpoints:
     - path: /metrics
-      port: https
+      port: redshift-metrics
   selector:
     matchLabels:
       app: redshiftsink-operator
