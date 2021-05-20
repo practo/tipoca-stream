@@ -45,6 +45,7 @@ func TestSaltMask(t *testing.T) {
 func testMasker(t *testing.T, salt, topic, cName string,
 	columns map[string]*string, result *string,
 	resultMaskSchema map[string]serializer.MaskInfo,
+	extraMaskSchema map[string]serializer.ExtraMaskInfo,
 	redshiftTable redshift.Table) {
 
 	dir, err := os.Getwd()
@@ -84,6 +85,7 @@ func testMasker(t *testing.T, salt, topic, cName string,
 				t.Errorf("column=%+v, maskColumn=%+v missing\n", column, maskInfo)
 				continue
 			}
+
 			if maskColumn.Masked != maskInfo.Masked ||
 				maskColumn.SortCol != maskInfo.SortCol ||
 				maskColumn.DistCol != maskInfo.DistCol ||
@@ -92,6 +94,24 @@ func testMasker(t *testing.T, salt, topic, cName string,
 				t.Errorf(
 					"column=%v, maskColumn=%+v does not match %+v\n",
 					column, maskColumn, maskInfo)
+			}
+		}
+	}
+
+	if len(extraMaskSchema) > 0 {
+		for column, extraMaskInfo := range extraMaskSchema {
+			extraMaskColumn, ok := message.ExtraMaskSchema[column]
+			if !ok {
+				t.Errorf("column=%+v, maskColumn=%+v missing\n", column, extraMaskInfo)
+				continue
+			}
+
+			if extraMaskColumn.Masked != extraMaskInfo.Masked ||
+				extraMaskColumn.ColumnType != extraMaskInfo.ColumnType ||
+				extraMaskColumn.DefaultVal != extraMaskInfo.DefaultVal {
+				t.Errorf(
+					"extraColumn=%v, extraMaskColumn=%+v does not match %+v\n",
+					column, extraMaskColumn, extraMaskInfo)
 			}
 		}
 	}
@@ -125,6 +145,7 @@ func TestMasker(t *testing.T) {
 		columns          map[string]*string
 		resultVal        *string
 		resultMaskSchema map[string]serializer.MaskInfo
+		extraMaskSchema  map[string]serializer.ExtraMaskInfo
 		redshiftTable    redshift.Table
 	}{
 		{
@@ -141,6 +162,7 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal:        stringPtr("1001"),
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			extraMaskSchema:  make(map[string]serializer.ExtraMaskInfo),
 			redshiftTable:    redshift.Table{},
 		},
 		{
@@ -158,6 +180,7 @@ func TestMasker(t *testing.T) {
 			resultVal: stringPtr(
 				"9ba53e85b996f6278aa647d8da8f355aafd16149"),
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			extraMaskSchema:  make(map[string]serializer.ExtraMaskInfo),
 			redshiftTable:    redshift.Table{},
 		},
 		{
@@ -174,6 +197,7 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal:        nil,
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			extraMaskSchema:  make(map[string]serializer.ExtraMaskInfo),
 			redshiftTable:    redshift.Table{},
 		},
 		{
@@ -190,6 +214,7 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal:        stringPtr("2020-09-20 20:56:45"),
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			extraMaskSchema:  make(map[string]serializer.ExtraMaskInfo),
 			redshiftTable:    redshift.Table{},
 		},
 		{
@@ -206,6 +231,7 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal:        stringPtr("20"),
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			extraMaskSchema:  make(map[string]serializer.ExtraMaskInfo),
 			redshiftTable:    redshift.Table{},
 		},
 		{
@@ -222,6 +248,7 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal:        stringPtr("d129eef03b45b9679db4d35922786281ee805877"),
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			extraMaskSchema:  make(map[string]serializer.ExtraMaskInfo),
 			redshiftTable:    redshift.Table{},
 		},
 		{
@@ -238,6 +265,7 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal:        stringPtr("Batman"),
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			extraMaskSchema:  make(map[string]serializer.ExtraMaskInfo),
 			redshiftTable:    redshift.Table{},
 		},
 		{
@@ -263,7 +291,8 @@ func TestMasker(t *testing.T) {
 				"email": serializer.MaskInfo{
 					Masked: true, DistCol: true, LengthCol: true},
 			},
-			redshiftTable: redshift.Table{},
+			extraMaskSchema: make(map[string]serializer.ExtraMaskInfo),
+			redshiftTable:   redshift.Table{},
 		},
 		{
 			name:  "test9: mask schema test when field is not in config)",
@@ -290,7 +319,8 @@ func TestMasker(t *testing.T) {
 					Masked: true, DistCol: true, LengthCol: true},
 				"dob": serializer.MaskInfo{Masked: true},
 			},
-			redshiftTable: redshift.Table{},
+			extraMaskSchema: make(map[string]serializer.ExtraMaskInfo),
+			redshiftTable:   redshift.Table{},
 		},
 		{
 			name:  "test10: case insensitivity (sort keys, dist keys)",
@@ -309,7 +339,8 @@ func TestMasker(t *testing.T) {
 				"createdat": serializer.MaskInfo{SortCol: true},
 				"email":     serializer.MaskInfo{Masked: true},
 			},
-			redshiftTable: redshift.Table{},
+			extraMaskSchema: make(map[string]serializer.ExtraMaskInfo),
+			redshiftTable:   redshift.Table{},
 		},
 		{
 			name:  "test11: case insensitivity1 (conditionalNonPii)",
@@ -324,7 +355,8 @@ func TestMasker(t *testing.T) {
 				"justice": serializer.MaskInfo{Masked: true},
 				"reason":  serializer.MaskInfo{Masked: true},
 			},
-			redshiftTable: redshift.Table{},
+			extraMaskSchema: make(map[string]serializer.ExtraMaskInfo),
+			redshiftTable:   redshift.Table{},
 		},
 		{
 			name:  "test12: case insensitivity2 (conditionalNonPii)",
@@ -339,7 +371,8 @@ func TestMasker(t *testing.T) {
 				"justice": serializer.MaskInfo{Masked: true},
 				"reason":  serializer.MaskInfo{Masked: true},
 			},
-			redshiftTable: redshift.Table{},
+			extraMaskSchema: make(map[string]serializer.ExtraMaskInfo),
+			redshiftTable:   redshift.Table{},
 		},
 		{
 			name:  "test13: case insensitivity (dependentNonPii)",
@@ -354,7 +387,8 @@ func TestMasker(t *testing.T) {
 				"justice": serializer.MaskInfo{Masked: true},
 				"reason":  serializer.MaskInfo{Masked: true},
 			},
-			redshiftTable: redshift.Table{},
+			extraMaskSchema: make(map[string]serializer.ExtraMaskInfo),
+			redshiftTable:   redshift.Table{},
 		},
 		{
 			name:  "test14: mobile keys",
@@ -365,6 +399,7 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal:        stringPtr("+9198"),
 			resultMaskSchema: make(map[string]serializer.MaskInfo),
+			extraMaskSchema:  make(map[string]serializer.ExtraMaskInfo),
 			redshiftTable:    redshift.Table{},
 		},
 		{
@@ -376,8 +411,14 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal: stringPtr("9b8297b23539abcda0344522bca05a99feecba10"),
 			resultMaskSchema: map[string]serializer.MaskInfo{
-				"id":        serializer.MaskInfo{Masked: false},
-				"hashed_id": serializer.MaskInfo{Masked: true},
+				"id": serializer.MaskInfo{Masked: false},
+			},
+			extraMaskSchema: map[string]serializer.ExtraMaskInfo{
+				"hashed_id": serializer.ExtraMaskInfo{
+					Masked:     true,
+					ColumnType: "character varying(50)",
+					DefaultVal: "",
+				},
 			},
 			redshiftTable: redshift.Table{},
 		},
@@ -390,8 +431,14 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal: stringPtr("2011"),
 			resultMaskSchema: map[string]serializer.MaskInfo{
-				"id":        serializer.MaskInfo{Masked: false},
-				"hashed_id": serializer.MaskInfo{Masked: true},
+				"id": serializer.MaskInfo{Masked: false},
+			},
+			extraMaskSchema: map[string]serializer.ExtraMaskInfo{
+				"hashed_id": serializer.ExtraMaskInfo{
+					Masked:     true,
+					ColumnType: "character varying(50)",
+					DefaultVal: "",
+				},
 			},
 			redshiftTable: redshift.Table{},
 		},
@@ -406,6 +453,7 @@ func TestMasker(t *testing.T) {
 			resultMaskSchema: map[string]serializer.MaskInfo{
 				"plan_enabled": serializer.MaskInfo{Masked: true},
 			},
+			extraMaskSchema: make(map[string]serializer.ExtraMaskInfo),
 			redshiftTable: redshift.Table{
 				Columns: []redshift.ColInfo{
 					redshift.ColInfo{
@@ -428,6 +476,7 @@ func TestMasker(t *testing.T) {
 			resultMaskSchema: map[string]serializer.MaskInfo{
 				"notes": serializer.MaskInfo{Masked: true},
 			},
+			extraMaskSchema: make(map[string]serializer.ExtraMaskInfo),
 			redshiftTable: redshift.Table{
 				Columns: []redshift.ColInfo{
 					redshift.ColInfo{
@@ -445,8 +494,14 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal: stringPtr("3212da4cc0dc4c0023b912dcacab20f55feabb2e"),
 			resultMaskSchema: map[string]serializer.MaskInfo{
-				"favourite_quote":               serializer.MaskInfo{Masked: true},
-				"favourite_quote_has_philosphy": serializer.MaskInfo{Masked: false},
+				"favourite_quote": serializer.MaskInfo{Masked: true},
+			},
+			extraMaskSchema: map[string]serializer.ExtraMaskInfo{
+				"favourite_quote_has_philosphy": serializer.ExtraMaskInfo{
+					Masked:     false,
+					ColumnType: "boolean",
+					DefaultVal: "",
+				},
 			},
 			redshiftTable: redshift.Table{},
 		},
@@ -459,8 +514,14 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal: stringPtr("840ed39a7e650148cbdf0d516194d5c67c035e55"),
 			resultMaskSchema: map[string]serializer.MaskInfo{
-				"favourite_quote":               serializer.MaskInfo{Masked: true},
-				"favourite_quote_has_philosphy": serializer.MaskInfo{Masked: false},
+				"favourite_quote": serializer.MaskInfo{Masked: true},
+			},
+			extraMaskSchema: map[string]serializer.ExtraMaskInfo{
+				"favourite_quote_has_philosphy": serializer.ExtraMaskInfo{
+					Masked:     false,
+					ColumnType: "boolean",
+					DefaultVal: "",
+				},
 			},
 			redshiftTable: redshift.Table{},
 		},
@@ -473,8 +534,14 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal: stringPtr("true"),
 			resultMaskSchema: map[string]serializer.MaskInfo{
-				"favourite_quote":               serializer.MaskInfo{Masked: true},
-				"favourite_quote_has_philosphy": serializer.MaskInfo{Masked: false},
+				"favourite_quote": serializer.MaskInfo{Masked: true},
+			},
+			extraMaskSchema: map[string]serializer.ExtraMaskInfo{
+				"favourite_quote_has_philosphy": serializer.ExtraMaskInfo{
+					Masked:     false,
+					ColumnType: "boolean",
+					DefaultVal: "",
+				},
 			},
 			redshiftTable: redshift.Table{},
 		},
@@ -487,8 +554,14 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal: stringPtr("false"),
 			resultMaskSchema: map[string]serializer.MaskInfo{
-				"favourite_quote":               serializer.MaskInfo{Masked: true},
-				"favourite_quote_has_philosphy": serializer.MaskInfo{Masked: false},
+				"favourite_quote": serializer.MaskInfo{Masked: true},
+			},
+			extraMaskSchema: map[string]serializer.ExtraMaskInfo{
+				"favourite_quote_has_philosphy": serializer.ExtraMaskInfo{
+					Masked:     false,
+					ColumnType: "boolean",
+					DefaultVal: "",
+				},
 			},
 			redshiftTable: redshift.Table{},
 		},
@@ -501,8 +574,14 @@ func TestMasker(t *testing.T) {
 			},
 			resultVal: stringPtr("true"),
 			resultMaskSchema: map[string]serializer.MaskInfo{
-				"favourite_food":           serializer.MaskInfo{Masked: true},
-				"favourite_food_has_pizza": serializer.MaskInfo{Masked: false},
+				"favourite_food": serializer.MaskInfo{Masked: true},
+			},
+			extraMaskSchema: map[string]serializer.ExtraMaskInfo{
+				"favourite_food_has_pizza": serializer.ExtraMaskInfo{
+					Masked:     false,
+					ColumnType: "boolean",
+					DefaultVal: "",
+				},
 			},
 			redshiftTable: redshift.Table{},
 		},
@@ -514,7 +593,9 @@ func TestMasker(t *testing.T) {
 			testMasker(
 				t, salt, tc.topic,
 				tc.cName, tc.columns,
-				tc.resultVal, tc.resultMaskSchema,
+				tc.resultVal,
+				tc.resultMaskSchema,
+				tc.extraMaskSchema,
 				tc.redshiftTable,
 			)
 		})
