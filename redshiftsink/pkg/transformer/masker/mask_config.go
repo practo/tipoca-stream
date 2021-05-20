@@ -50,8 +50,9 @@ type MaskConfig struct {
 	// IncludeTables restrict tables that are allowed to be sinked.
 	IncludeTables *[]string `yaml:"include_tables,omitempty"`
 
-	// RegexPatternBooleanKeys helps on free-text columns which need to be hashed to record
-	// whether a static regex pattern matches the unhashed text.
+	// RegexPatternBooleanKeys helps in keeping free text columns masked
+	// and adds boolean columns giving boolean info about the kind of
+	// value in the free text column.
 	RegexPatternBooleanKeys map[string]interface{} `yaml:"regex_pattern_boolean_keys,omitempty"`
 
 	// regexes cache is used to prevent regex Compile on every message mask run.
