@@ -29,7 +29,9 @@ type SchemaTransformer interface {
 		topic string,
 		schemaId int,
 		schemaIdKey int,
-		maskSchema map[string]serializer.MaskInfo) (interface{}, error)
+		maskSchema map[string]serializer.MaskInfo,
+		extraMaskSchema map[string]serializer.ExtraMaskInfo,
+	) (interface{}, error)
 
 	// Deprecated:
 	// TransformKey transforms the topic schema into name of the primary

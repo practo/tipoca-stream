@@ -309,8 +309,12 @@ func (c *schemaTransformer) TransformValue(
 	topic string,
 	schemaId int,
 	schemaIdKey int,
-	maskSchema map[string]serializer.MaskInfo) (interface{}, error) {
-
+	maskSchema map[string]serializer.MaskInfo,
+	extraMaskSchema map[string]serializer.ExtraMaskInfo,
+) (
+	interface{},
+	error,
+) {
 	s, err := schemaregistry.GetSchemaWithRetry(c.registry, schemaId, 10)
 	if err != nil {
 		return nil, err
@@ -330,33 +334,47 @@ func (c *schemaTransformer) TransformValue(
 		s.Schema(),
 		primaryKeys,
 		maskSchema,
+		extraMaskSchema,
 	)
 }
 
 func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 	primaryKeys []string,
-	maskSchema map[string]serializer.MaskInfo) (interface{}, error) {
+	maskSchema map[string]serializer.MaskInfo,
+	extraMaskSchema map[string]serializer.ExtraMaskInfo,
+) (
+	interface{},
+	error,
+) {
+	var extraColumns []redshift.ColInfo
+	extraColumnsMap := make(map[string]bool)
+	if len(extraMaskSchema) != 0 {
+		for extraColumnName, emSchema := range extraMaskSchema {
+			extraColumnsMap[extraColumnName] = true
+			extraColumns = append(extraColumns, redshift.ColInfo{
+				Name:       extraColumnName,
+				Type:       emSchema.ColumnType,
+				DefaultVal: emSchema.DefaultVal,
+			})
+		}
+	}
 
 	// remove nulls
 	// TODO: this might be required, better if not
 	// schema := strings.ReplaceAll(jobSchema, `"null",`, "")
 	schema := jobSchema
-
 	var debeziumSchema Schema
 	err := json.Unmarshal([]byte(schema), &debeziumSchema)
 	if err != nil {
 		return nil, err
 	}
-
 	d := &schemaParser{
 		tableDelim: ".",
 		schema:     debeziumSchema,
 	}
-
 	columns := d.columnsBefore()
 
 	var redshiftColumns []redshift.ColInfo
-	var extraColumns []redshift.ColInfo
 	for _, column := range columns {
 		sortKey := false
 		distKey := false
@@ -368,55 +386,42 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 				sortKey = mschema.SortCol
 				distKey = mschema.DistCol
 				columnMasked = mschema.Masked
-				if mschema.LengthCol {
-					newColName := strings.ToLower(
-						column.Name) + transformer.LengthColumnSuffix
-					extraColumns = append(extraColumns, redshift.ColInfo{
-						Name:         newColName,
-						Type:         redshift.RedshiftInteger,
-						DebeziumType: "", // not required
-						DefaultVal:   "0",
-						NotNull:      false,
-						PrimaryKey:   false,
-						SortOrdinal:  0,
-						DistKey:      false,
-						SourceType:   redshift.SourceType{}, // not required
-					})
-				}
-				if mschema.MobileCol {
-					newColName := strings.ToLower(
-						column.Name) + transformer.MobileCoulmnSuffix
-					extraColumns = append(extraColumns, redshift.ColInfo{
-						Name:         newColName,
-						Type:         redshift.RedshiftMobileColType,
-						DebeziumType: "", // not required
-						DefaultVal:   "",
-						NotNull:      false,
-						PrimaryKey:   false,
-						SortOrdinal:  0,
-						DistKey:      false,
-						SourceType:   redshift.SourceType{}, // not required
-					})
-				}
-				if mschema.MappingPIICol {
-					newColName := strings.ToLower(
-						transformer.MappingPIIColumnPrefix + column.Name,
-					)
-					extraColumns = append(extraColumns, redshift.ColInfo{
-						Name:         newColName,
-						Type:         redshift.RedshiftMaskedDataType,
-						DebeziumType: "", // not required
-						DefaultVal:   "",
-						NotNull:      false,
-						PrimaryKey:   false,
-						SortOrdinal:  0,
-						DistKey:      false,
-						SourceType:   redshift.SourceType{}, // not required
-					})
-				}
 				if mschema.ConditionalNonPIICol || mschema.DependentNonPIICol {
 					useStringMax = true
 				}
+				//deprecated below started --------------------------------------------------------------------
+				if mschema.LengthCol && len(extraMaskSchema) == 0 { // deprecated in favour of extraMaskSchema
+					newColName := strings.ToLower(column.Name) + transformer.LengthColumnSuffix
+					_, ok := extraColumnsMap[newColName]
+					if !ok {
+						extraColumns = append(extraColumns, redshift.ColInfo{
+							Name:       newColName,
+							Type:       redshift.RedshiftInteger,
+							DefaultVal: "0",
+						})
+					}
+				}
+				if mschema.MobileCol && len(extraMaskSchema) == 0 { // deprecated in favour of extraMaskSchema
+					newColName := strings.ToLower(column.Name) + transformer.MobileCoulmnSuffix
+					_, ok := extraColumnsMap[newColName]
+					if !ok {
+						extraColumns = append(extraColumns, redshift.ColInfo{
+							Name: newColName,
+							Type: redshift.RedshiftMobileColType,
+						})
+					}
+				}
+				if mschema.MappingPIICol && len(extraMaskSchema) == 0 { // deprecated in favour of extraMaskSchema
+					newColName := strings.ToLower(transformer.MappingPIIColumnPrefix + column.Name)
+					_, ok := extraColumnsMap[newColName]
+					if !ok {
+						extraColumns = append(extraColumns, redshift.ColInfo{
+							Name: newColName,
+							Type: redshift.RedshiftMaskedDataType,
+						})
+					}
+				}
+				//deprecated below ended --------------------------------------------------------------------------------------
 			}
 		}
 

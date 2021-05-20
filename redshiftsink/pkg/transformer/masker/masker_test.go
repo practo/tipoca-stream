@@ -436,6 +436,76 @@ func TestMasker(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "test18: boolean_keys regex matched, check value of main free text col",
+			topic: "dbserver.database.customers",
+			cName: "favourite_quote",
+			columns: map[string]*string{
+				"favourite_quote": stringPtr("Life would be tragic if it weren't funny"),
+			},
+			resultVal: stringPtr("3212da4cc0dc4c0023b912dcacab20f55feabb2e"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"favourite_quote":               serializer.MaskInfo{Masked: true},
+				"favourite_quote_has_philosphy": serializer.MaskInfo{Masked: false},
+			},
+			redshiftTable: redshift.Table{},
+		},
+		{
+			name:  "test19: boolean_keys regex match failed, check value of main free text col",
+			topic: "dbserver.database.customers",
+			cName: "favourite_quote",
+			columns: map[string]*string{
+				"favourite_quote": stringPtr("Wife would be tragic if she wasn't funny"),
+			},
+			resultVal: stringPtr("840ed39a7e650148cbdf0d516194d5c67c035e55"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"favourite_quote":               serializer.MaskInfo{Masked: true},
+				"favourite_quote_has_philosphy": serializer.MaskInfo{Masked: false},
+			},
+			redshiftTable: redshift.Table{},
+		},
+		{
+			name:  "test20: boolean_keys regex matched, check value of main free text col",
+			topic: "dbserver.database.customers",
+			cName: "favourite_quote_has_philosphy",
+			columns: map[string]*string{
+				"favourite_quote": stringPtr("Life would be tragic if it weren't funny"),
+			},
+			resultVal: stringPtr("true"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"favourite_quote":               serializer.MaskInfo{Masked: true},
+				"favourite_quote_has_philosphy": serializer.MaskInfo{Masked: false},
+			},
+			redshiftTable: redshift.Table{},
+		},
+		{
+			name:  "test21: boolean_keys regex match failed - check value of extra col",
+			topic: "dbserver.database.customers",
+			cName: "favourite_quote_has_philosphy",
+			columns: map[string]*string{
+				"favourite_quote": stringPtr("Wife would be tragic if she wasn't funny"),
+			},
+			resultVal: stringPtr("false"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"favourite_quote":               serializer.MaskInfo{Masked: true},
+				"favourite_quote_has_philosphy": serializer.MaskInfo{Masked: false},
+			},
+			redshiftTable: redshift.Table{},
+		},
+		{
+			name:  "test22 boolean_keys regex matched",
+			topic: "dbserver.database.customers",
+			cName: "favourite_food_has_pizza",
+			columns: map[string]*string{
+				"favourite_food": stringPtr("pizza,pasta,burgers,kebabs"),
+			},
+			resultVal: stringPtr("true"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"favourite_food":           serializer.MaskInfo{Masked: true},
+				"favourite_food_has_pizza": serializer.MaskInfo{Masked: false},
+			},
+			redshiftTable: redshift.Table{},
+		},
 	}
 
 	for _, tc := range tests {

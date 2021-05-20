@@ -57,3 +57,9 @@ dist_keys:
     - email
     justifications:
     - source
+regex_pattern_boolean_keys:
+    customers:
+        favourite_quote:
+            has_philosphy: 'life|time'
+        favourite_food:
+            has_pizza: 'pizza'

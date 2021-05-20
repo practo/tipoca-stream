@@ -19,6 +19,8 @@ import (
 )
 
 const (
+	RedshiftBoolean = "boolean"
+
 	RedshiftString              = "character varying"
 	RedshiftStringMax           = "character varying(65535)"
 	RedshiftStringMaxLength     = 65535

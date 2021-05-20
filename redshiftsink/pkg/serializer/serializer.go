@@ -14,14 +14,23 @@ const (
 )
 
 type MaskInfo struct {
-	Masked               bool
-	SortCol              bool
-	DistCol              bool
-	LengthCol            bool
-	MobileCol            bool
-	MappingPIICol        bool
-	ConditionalNonPIICol bool
-	DependentNonPIICol   bool
+	Masked bool
+
+	SortCol bool
+	DistCol bool
+
+	LengthCol              bool
+	MobileCol              bool
+	MappingPIICol          bool
+	ConditionalNonPIICol   bool
+	DependentNonPIICol     bool
+	RegexPatternBooleanCol bool
+}
+
+type ExtraMaskInfo struct {
+	Masked     bool
+	ColumnType string
+	DefaultVal string
 }
 
 type Serializer interface {
@@ -61,13 +70,14 @@ func (c *avroSerializer) Deserialize(
 	}
 
 	return &Message{
-		SchemaId:   int(schemaId),
-		Topic:      message.Topic,
-		Partition:  message.Partition,
-		Offset:     message.Offset,
-		Key:        string(message.Key),
-		Value:      native,
-		Bytes:      int64(len(message.Value)),
-		MaskSchema: make(map[string]MaskInfo),
+		SchemaId:        int(schemaId),
+		Topic:           message.Topic,
+		Partition:       message.Partition,
+		Offset:          message.Offset,
+		Key:             string(message.Key),
+		Value:           native,
+		Bytes:           int64(len(message.Value)),
+		MaskSchema:      make(map[string]MaskInfo),
+		ExtraMaskSchema: make(map[string]ExtraMaskInfo),
 	}, nil
 }

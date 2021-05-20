@@ -102,3 +102,17 @@ include_tables:
 - customers
 - orders
 ```
+
+### Regex Pattern Boolean Keys
+Free text columns can contain PII so we do not unmask it, but we want the user to make aggregate analysis on the non pii data in it. So using this a user gets boolean column stating that the text/regex in the complete free text is present.
+
+For example: We add a boolean column `favourite_quote_has_philosphy`.
+If value in column `favourite_quote` matches the regex `'life|time'` (case insensitive), then the value in extra column `favourite_quote_has_philosphy` is `true` else `false`.
+
+```yaml
+regex_pattern_boolean_keys:
+    customers:
+        favourite_quote:
+            has_philosphy: 'life|time'
+            has_text_funny: 'funny'
+```
