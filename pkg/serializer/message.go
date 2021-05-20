@@ -31,8 +31,9 @@ type Message struct {
 	Value     interface{}
 	Bytes     int64
 
-	Operation  string
-	MaskSchema map[string]MaskInfo
+	Operation       string
+	MaskSchema      map[string]MaskInfo
+	ExtraMaskSchema map[string]ExtraMaskInfo
 }
 
 type MessageAsyncBatch struct {

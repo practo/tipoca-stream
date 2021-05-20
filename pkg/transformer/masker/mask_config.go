@@ -50,7 +50,11 @@ type MaskConfig struct {
 	// IncludeTables restrict tables that are allowed to be sinked.
 	IncludeTables *[]string `yaml:"include_tables,omitempty"`
 
-	// regexes cache is used to prevent regex Compile on everytime computations.
+	// RegexPatternBooleanKeys helps on free-text columns which need to be hashed to record
+	// whether a static regex pattern matches the unhashed text.
+	RegexPatternBooleanKeys map[string]interface{} `yaml:"regex_pattern_boolean_keys,omitempty"`
+
+	// regexes cache is used to prevent regex Compile on every message mask run.
 	regexes map[string]*regexp.Regexp
 }
 
@@ -309,6 +313,65 @@ func (m MaskConfig) DependentNonPiiKey(table, cName string) bool {
 	}
 
 	return false
+}
+
+// BoolColumns returns the map of boolean column name and its value
+func (m MaskConfig) BoolColumns(table, cName string, cValue *string) map[string]string {
+	if cValue == nil {
+		return nil
+	}
+
+	columnsToCheckRaw, ok := m.RegexPatternBooleanKeys[table]
+	if !ok {
+		return nil
+	}
+
+	columnsToCheck, ok := columnsToCheckRaw.(map[interface{}]interface{})
+	if !ok {
+		klog.Fatalf(
+			"Type assertion error! table: %s, cName: %s\n", table, cName)
+	}
+
+	boolColumns := make(map[string]string)
+	for freeTextColumnNameRaw, regexesRaw := range columnsToCheck {
+		freeTextColumnName := freeTextColumnNameRaw.(string)
+		freeTextColumnName = strings.ToLower(freeTextColumnName) // favourite_quote
+		if freeTextColumnName != cName {
+			continue
+		}
+
+		regexes, ok := regexesRaw.(map[interface{}]interface{})
+		if !ok {
+			klog.Fatalf(
+				"Type assertion error! table: %s, cName: %s\n",
+				table, cName)
+		}
+
+		for regexNameRaw, patternRaw := range regexes {
+			regexName := regexNameRaw.(string)
+			regexName = strings.ToLower(regexName)
+			pattern := strings.ToLower(patternRaw.(string))
+
+			var err error
+			regex, ok := m.regexes[pattern]
+			if !ok {
+				regex, err = regexp.Compile(pattern)
+				if err != nil {
+					klog.Fatalf(
+						"Regex: %s compile failed, err:%v\n", pattern, err)
+				}
+				m.regexes[pattern] = regex
+			}
+
+			if regex.MatchString(strings.ToLower(*cValue)) {
+				boolColumns[fmt.Sprintf("%s_%s", freeTextColumnName, regexName)] = "true"
+			} else {
+				boolColumns[fmt.Sprintf("%s_%s", freeTextColumnName, regexName)] = "false"
+			}
+		}
+	}
+
+	return boolColumns
 }
 
 // PerformUnMasking checks if unmasking should be done or not

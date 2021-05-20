@@ -12,6 +12,7 @@ func TestToStringMap(t *testing.T) {
 		"kafkaoffset": serializer.MaskInfo{},
 		"id":          serializer.MaskInfo{Masked: true},
 	}
+	extraMaskSchema := map[string]serializer.ExtraMaskInfo{}
 
 	job := NewJob(
 		"upstreamTopic",
@@ -22,6 +23,7 @@ func TestToStringMap(t *testing.T) {
 		1,
 		2,
 		maskSchema,
+		extraMaskSchema,
 		false,
 		10,
 		-1,

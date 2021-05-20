@@ -2,6 +2,7 @@ package redshiftloader
 
 import (
 	"fmt"
+	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"strings"
 )
@@ -18,6 +19,7 @@ var JobAvroSchema string = `{
         {"name": "schemaId", "type": "int"},
         {"name": "schemaIdKey", "type": "int", "default": -1},
         {"name": "maskSchema", "type": "string"},
+        {"name": "extraMaskSchema", "type": "string", default: ""},
         {"name": "skipMerge", "type": "string", "default": ""},
         {"name": "batchBytes", "type": "long", "default": 0},
         {"name": "createEvents", "type": "long", "default": 0},
@@ -27,41 +29,45 @@ var JobAvroSchema string = `{
 }`
 
 type Job struct {
-	UpstreamTopic string                         `json:"upstreamTopic"` // batcher topic
-	StartOffset   int64                          `json:"startOffset"`
-	EndOffset     int64                          `json:"endOffset"`
-	CsvDialect    string                         `json:"csvDialect"`
-	S3Path        string                         `json:"s3Path"`
-	SchemaId      int                            `json:"schemaId"`    // schema id of debezium event for the value for upstream topic (batcher topic)
-	SchemaIdKey   int                            `json:"schemaIdKey"` // schema id of debezium event for the key for upstream topic (batcher topic)
-	MaskSchema    map[string]serializer.MaskInfo `json:"maskSchema"`
-	SkipMerge     bool                           `json:"skipMerge"`    // deprecated in favour of createEvents, updateEvents and deleteEvents
-	BatchBytes    int64                          `json:"batchBytes"`   // batch bytes store sum of all message bytes in this batch
-	CreateEvents  int64                          `json:"createEvents"` // stores count of create events
-	UpdateEvents  int64                          `json:"updateEvents"` // stores count of update events
-	DeleteEvents  int64                          `json:"deleteEvents"` // stores count of delete events
+	UpstreamTopic   string                              `json:"upstreamTopic"` // batcher topic
+	StartOffset     int64                               `json:"startOffset"`
+	EndOffset       int64                               `json:"endOffset"`
+	CsvDialect      string                              `json:"csvDialect"`
+	S3Path          string                              `json:"s3Path"`
+	SchemaId        int                                 `json:"schemaId"`    // schema id of debezium event for the value for upstream topic (batcher topic)
+	SchemaIdKey     int                                 `json:"schemaIdKey"` // schema id of debezium event for the key for upstream topic (batcher topic)
+	MaskSchema      map[string]serializer.MaskInfo      `json:"maskSchema"`
+	ExtraMaskSchema map[string]serializer.ExtraMaskInfo `json:"extraMaskSchema"`
+	SkipMerge       bool                                `json:"skipMerge"`    // deprecated in favour of createEvents, updateEvents and deleteEvents
+	BatchBytes      int64                               `json:"batchBytes"`   // batch bytes store sum of all message bytes in this batch
+	CreateEvents    int64                               `json:"createEvents"` // stores count of create events
+	UpdateEvents    int64                               `json:"updateEvents"` // stores count of update events
+	DeleteEvents    int64                               `json:"deleteEvents"` // stores count of delete events
 }
 
 func NewJob(
 	upstreamTopic string, startOffset int64, endOffset int64,
 	csvDialect string, s3Path string, schemaId int, schemaIdKey int,
-	maskSchema map[string]serializer.MaskInfo, skipMerge bool,
+	maskSchema map[string]serializer.MaskInfo,
+	extraMaskSchema map[string]serializer.ExtraMaskInfo,
+	skipMerge bool,
 	batchBytes, createEvents, updateEvents, deleteEvents int64) Job {
 
 	return Job{
-		UpstreamTopic: upstreamTopic,
-		StartOffset:   startOffset,
-		EndOffset:     endOffset,
-		CsvDialect:    csvDialect,
-		S3Path:        s3Path,
-		SchemaId:      schemaId,
-		SchemaIdKey:   schemaIdKey,
-		MaskSchema:    maskSchema,
-		SkipMerge:     skipMerge, // deprecated
-		BatchBytes:    batchBytes,
-		CreateEvents:  createEvents,
-		UpdateEvents:  updateEvents,
-		DeleteEvents:  deleteEvents,
+		UpstreamTopic:   upstreamTopic,
+		StartOffset:     startOffset,
+		EndOffset:       endOffset,
+		CsvDialect:      csvDialect,
+		S3Path:          s3Path,
+		SchemaId:        schemaId,
+		SchemaIdKey:     schemaIdKey,
+		MaskSchema:      maskSchema,
+		ExtraMaskSchema: extraMaskSchema,
+		SkipMerge:       skipMerge, // deprecated
+		BatchBytes:      batchBytes,
+		CreateEvents:    createEvents,
+		UpdateEvents:    updateEvents,
+		DeleteEvents:    deleteEvents,
 	}
 }
 
@@ -115,9 +121,15 @@ func StringMapToJob(data map[string]interface{}) Job {
 		case "maskSchema":
 			schema := make(map[string]serializer.MaskInfo)
 			if value, ok := v.(string); ok {
-				schema = ToSchemaMap(value)
+				schema = ToMaskSchemaMap(value)
 			}
 			job.MaskSchema = schema
+		case "extraMaskSchema":
+			if value, ok := v.(string); ok {
+				job.ExtraMaskSchema = ToExtraMaskSchemaMap(value)
+			} else { // backward compatibility
+				job.ExtraMaskSchema = nil
+			}
 		case "batchBytes":
 			if value, ok := v.(int64); ok {
 				job.BatchBytes = value
@@ -155,7 +167,7 @@ func StringMapToJob(data map[string]interface{}) Job {
 
 // TODO: hack, to release fast, found unwanted complications in
 // using map[string]interface in goavro(will revisit)
-func ToSchemaMap(r string) map[string]serializer.MaskInfo {
+func ToMaskSchemaMap(r string) map[string]serializer.MaskInfo {
 	m := make(map[string]serializer.MaskInfo)
 
 	columns := strings.Split(r, "|")
@@ -170,7 +182,7 @@ func ToSchemaMap(r string) map[string]serializer.MaskInfo {
 
 		info := strings.Split(col, ",")
 		name := info[0]
-		var masked, sortCol, distCol, lengthCol, mobileCol, mappingPIICol, conditionalNonPIICol, dependentNonPIICol bool
+		var masked, sortCol, distCol, lengthCol, mobileCol, mappingPIICol, conditionalNonPIICol, dependentNonPIICol, regexPatternBooleanCol bool
 		if info[1] == "true" {
 			masked = true
 		}
@@ -196,21 +208,27 @@ func ToSchemaMap(r string) map[string]serializer.MaskInfo {
 				conditionalNonPIICol = true
 			}
 		}
-		if len(info) == 9 {
+		if len(info) >= 9 {
 			if info[8] == "true" {
 				dependentNonPIICol = true
 			}
 		}
+		if len(info) >= 10 {
+			if info[9] == "true" {
+				regexPatternBooleanCol = true
+			}
+		}
 
 		m[name] = serializer.MaskInfo{
-			Masked:               masked,
-			SortCol:              sortCol,
-			DistCol:              distCol,
-			LengthCol:            lengthCol,
-			MobileCol:            mobileCol,
-			MappingPIICol:        mappingPIICol,
-			ConditionalNonPIICol: conditionalNonPIICol,
-			DependentNonPIICol:   dependentNonPIICol,
+			Masked:                 masked,
+			SortCol:                sortCol,
+			DistCol:                distCol,
+			LengthCol:              lengthCol,
+			MobileCol:              mobileCol,
+			MappingPIICol:          mappingPIICol,
+			ConditionalNonPIICol:   conditionalNonPIICol,
+			DependentNonPIICol:     dependentNonPIICol,
+			RegexPatternBooleanCol: regexPatternBooleanCol,
 		}
 	}
 
@@ -218,13 +236,13 @@ func ToSchemaMap(r string) map[string]serializer.MaskInfo {
 }
 
 // TODO: hack, to release fast, found unwanted complications in
-// using map[string]interface in goavro (will revisit)
-func ToSchemaString(m map[string]serializer.MaskInfo) string {
+// using map[string]interface in goavro (may revisit if required)
+func ToMaskSchemaString(m map[string]serializer.MaskInfo) string {
 	var r string
 
 	for name, info := range m {
 		col := fmt.Sprintf(
-			"%s,%t,%t,%t,%t,%t,%t,%t,%t",
+			"%s,%t,%t,%t,%t,%t,%t,%t,%t,%t",
 			name,
 			info.Masked,
 			info.SortCol,
@@ -234,11 +252,67 @@ func ToSchemaString(m map[string]serializer.MaskInfo) string {
 			info.MappingPIICol,
 			info.ConditionalNonPIICol,
 			info.DependentNonPIICol,
+			info.RegexPatternBooleanCol,
 		)
 		r = r + col + "|"
 	}
 
 	return r
+}
+
+// TODO: hack, to release fast, found unwanted complications in
+// using map[string]interface in goavro (may revisit if required)
+func ToExtraMaskSchemaString(m map[string]serializer.ExtraMaskInfo) string {
+	var r string
+
+	for name, info := range m {
+		col := fmt.Sprintf(
+			"%s,%t,%s,%s",
+			name,
+			info.Masked,
+			info.ColumnType,
+			info.DefaultVal,
+		)
+		r = r + col + "|"
+	}
+
+	return r
+}
+
+// TODO: hack, to release fast, found unwanted complications in
+// using map[string]interface in goavro(will revisit)
+func ToExtraMaskSchemaMap(r string) map[string]serializer.ExtraMaskInfo {
+	m := make(map[string]serializer.ExtraMaskInfo)
+
+	columns := strings.Split(r, "|")
+	if len(columns) == 0 {
+		return m
+	}
+
+	for _, col := range columns {
+		if col == "" {
+			continue
+		}
+
+		info := strings.Split(col, ",")
+
+		if len(info) != 3 {
+			klog.Fatalf("expecting extra mask schema to be length 3, got:%+v, schema:%v", len(info), r)
+		}
+
+		var masked bool
+		if info[1] == "true" {
+			masked = true
+		}
+
+		m[info[0]] = serializer.ExtraMaskInfo{
+			Masked:     masked,
+			ColumnType: info[1],
+			DefaultVal: info[2],
+		}
+	}
+
+	return m
 }
 
 // ToStringMap returns a map representation of the Job
@@ -248,18 +322,19 @@ func (c Job) ToStringMap() map[string]interface{} {
 		skipMerge = "true"
 	}
 	return map[string]interface{}{
-		"upstreamTopic": c.UpstreamTopic,
-		"startOffset":   c.StartOffset,
-		"endOffset":     c.EndOffset,
-		"csvDialect":    c.CsvDialect,
-		"s3Path":        c.S3Path,
-		"schemaId":      c.SchemaId,
-		"schemaIdKey":   c.SchemaIdKey,
-		"skipMerge":     skipMerge,
-		"maskSchema":    ToSchemaString(c.MaskSchema),
-		"batchBytes":    c.BatchBytes,
-		"createEvents":  c.CreateEvents,
-		"updateEvents":  c.UpdateEvents,
-		"deleteEvents":  c.DeleteEvents,
+		"upstreamTopic":   c.UpstreamTopic,
+		"startOffset":     c.StartOffset,
+		"endOffset":       c.EndOffset,
+		"csvDialect":      c.CsvDialect,
+		"s3Path":          c.S3Path,
+		"schemaId":        c.SchemaId,
+		"schemaIdKey":     c.SchemaIdKey,
+		"skipMerge":       skipMerge,
+		"maskSchema":      ToMaskSchemaString(c.MaskSchema),
+		"extraMaskSchema": ToExtraMaskSchemaString(c.ExtraMaskSchema),
+		"batchBytes":      c.BatchBytes,
+		"createEvents":    c.CreateEvents,
+		"updateEvents":    c.UpdateEvents,
+		"deleteEvents":    c.DeleteEvents,
 	}
 }

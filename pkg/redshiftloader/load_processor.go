@@ -724,6 +724,7 @@ func (b *loadProcessor) processBatch(
 					schemaId,
 					schemaIdKey,
 					job.MaskSchema,
+					job.ExtraMaskSchema,
 				)
 				if err != nil {
 					return bytesProcessed, fmt.Errorf(
