@@ -125,11 +125,11 @@ func StringMapToJob(data map[string]interface{}) Job {
 			}
 			job.MaskSchema = schema
 		case "extraMaskSchema":
+			extraSchema := make(map[string]serializer.ExtraMaskInfo)
 			if value, ok := v.(string); ok {
-				job.ExtraMaskSchema = ToExtraMaskSchemaMap(value)
-			} else { // backward compatibility
-				job.ExtraMaskSchema = nil
+				extraSchema = ToExtraMaskSchemaMap(value)
 			}
+			job.ExtraMaskSchema = extraSchema
 		case "batchBytes":
 			if value, ok := v.(int64); ok {
 				job.BatchBytes = value
@@ -296,7 +296,7 @@ func ToExtraMaskSchemaMap(r string) map[string]serializer.ExtraMaskInfo {
 
 		info := strings.Split(col, ",")
 
-		if len(info) != 3 {
+		if len(info) != 4 {
 			klog.Fatalf("expecting extra mask schema to be length 3, got:%+v, schema:%v", len(info), r)
 		}
 
@@ -307,8 +307,8 @@ func ToExtraMaskSchemaMap(r string) map[string]serializer.ExtraMaskInfo {
 
 		m[info[0]] = serializer.ExtraMaskInfo{
 			Masked:     masked,
-			ColumnType: info[1],
-			DefaultVal: info[2],
+			ColumnType: info[2],
+			DefaultVal: info[3],
 		}
 	}
 

@@ -391,9 +391,11 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 				}
 				//deprecated below started --------------------------------------------------------------------
 				if mschema.LengthCol && len(extraMaskSchema) == 0 { // deprecated in favour of extraMaskSchema
+					klog.Warningf("Running deprecated code, extraSchema: %+v unused for LengthCol", extraMaskSchema)
 					newColName := strings.ToLower(column.Name) + transformer.LengthColumnSuffix
 					_, ok := extraColumnsMap[newColName]
 					if !ok {
+						klog.Warningf("(deprecated code) Adding extra column: %v", newColName)
 						extraColumns = append(extraColumns, redshift.ColInfo{
 							Name:       newColName,
 							Type:       redshift.RedshiftInteger,
@@ -402,9 +404,11 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 					}
 				}
 				if mschema.MobileCol && len(extraMaskSchema) == 0 { // deprecated in favour of extraMaskSchema
+					klog.Warningf("Running deprecated code, extraSchema: %+v unused for MobileCol", extraMaskSchema)
 					newColName := strings.ToLower(column.Name) + transformer.MobileCoulmnSuffix
 					_, ok := extraColumnsMap[newColName]
 					if !ok {
+						klog.Warningf("(deprecated code) Adding extra column: %v", newColName)
 						extraColumns = append(extraColumns, redshift.ColInfo{
 							Name: newColName,
 							Type: redshift.RedshiftMobileColType,
@@ -412,9 +416,11 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 					}
 				}
 				if mschema.MappingPIICol && len(extraMaskSchema) == 0 { // deprecated in favour of extraMaskSchema
+					klog.Warningf("Running deprecated code, extraSchema: %+v unused for MappingPIICol", extraMaskSchema)
 					newColName := strings.ToLower(transformer.MappingPIIColumnPrefix + column.Name)
 					_, ok := extraColumnsMap[newColName]
 					if !ok {
+						klog.Warningf("(deprecated code) Adding extra column: %v", newColName)
 						extraColumns = append(extraColumns, redshift.ColInfo{
 							Name: newColName,
 							Type: redshift.RedshiftMaskedDataType,
