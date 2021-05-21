@@ -351,20 +351,20 @@ func (m MaskConfig) BoolColumns(table, cName string, cValue *string) map[string]
 		for regexNameRaw, patternRaw := range regexes {
 			regexName := regexNameRaw.(string)
 			regexName = strings.ToLower(regexName)
-			pattern := strings.ToLower(patternRaw.(string))
+			caseInsensitivePattern := fmt.Sprintf("(?i)%s", patternRaw.(string))
 
 			var err error
-			regex, ok := m.regexes[pattern]
+			regex, ok := m.regexes[caseInsensitivePattern]
 			if !ok {
-				regex, err = regexp.Compile(pattern)
+				regex, err = regexp.Compile(caseInsensitivePattern)
 				if err != nil {
 					klog.Fatalf(
-						"Regex: %s compile failed, err:%v\n", pattern, err)
+						"Regex: %s compile failed, err:%v\n", caseInsensitivePattern, err)
 				}
-				m.regexes[pattern] = regex
+				m.regexes[caseInsensitivePattern] = regex
 			}
 
-			if regex.MatchString(strings.ToLower(*cValue)) {
+			if regex.MatchString(*cValue) {
 				boolColumns[fmt.Sprintf("%s_%s", freeTextColumnName, regexName)] = "true"
 			} else {
 				boolColumns[fmt.Sprintf("%s_%s", freeTextColumnName, regexName)] = "false"
