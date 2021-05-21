@@ -625,6 +625,26 @@ func TestMasker(t *testing.T) {
 			},
 			redshiftTable: redshift.Table{},
 		},
+		{
+			name:  "test25 boolean_keys_two_regex",
+			topic: "dbserver.database.customers",
+			cName: "dob_1986born",
+			columns: map[string]*string{
+				"dob": stringPtr("1988-09-21"),
+			},
+			resultVal: stringPtr("false"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"dob": serializer.MaskInfo{Masked: true},
+			},
+			extraMaskSchema: map[string]serializer.ExtraMaskInfo{
+				"dob_1986born": serializer.ExtraMaskInfo{
+					Masked:     false,
+					ColumnType: "boolean",
+					DefaultVal: "",
+				},
+			},
+			redshiftTable: redshift.Table{},
+		},
 	}
 
 	for _, tc := range tests {

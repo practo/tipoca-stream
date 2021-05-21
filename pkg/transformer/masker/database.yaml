@@ -63,3 +63,6 @@ regex_pattern_boolean_keys:
             has_philosphy: 'life|time'
         favourite_food:
             has_pizza: 'pizza'
+        dob:
+            1986born: '1986-.*'
+            1988born: '1988-.*'

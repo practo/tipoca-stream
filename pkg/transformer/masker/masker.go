@@ -152,7 +152,7 @@ func (m *masker) Transform(
 					Masked:     false,
 					ColumnType: redshift.RedshiftBoolean,
 				}
-				extraColumnValue[boolCol] = &boolVal
+				extraColumnValue[boolCol] = boolVal
 			}
 		} // all extra columns handled
 

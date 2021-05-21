@@ -319,7 +319,7 @@ func (m MaskConfig) DependentNonPiiKey(table, cName string) bool {
 // BoolColumns returns extra boolean columns for the parent column(free text col)
 // to make analysis on the data contained in parent column possible using the
 // boolean columns
-func (m MaskConfig) BoolColumns(table, cName string, cValue *string) map[string]string {
+func (m MaskConfig) BoolColumns(table, cName string, cValue *string) map[string]*string {
 	columnsToCheckRaw, ok := m.RegexPatternBooleanKeys[table]
 	if !ok {
 		return nil
@@ -331,7 +331,7 @@ func (m MaskConfig) BoolColumns(table, cName string, cValue *string) map[string]
 			"Type assertion error! table: %s, cName: %s\n", table, cName)
 	}
 
-	boolColumns := make(map[string]string)
+	boolColumns := make(map[string]*string)
 	for freeTextColumnNameRaw, regexesRaw := range columnsToCheck {
 		freeTextColumnName := freeTextColumnNameRaw.(string)
 		freeTextColumnName = strings.ToLower(freeTextColumnName) // favourite_quote
@@ -363,10 +363,11 @@ func (m MaskConfig) BoolColumns(table, cName string, cValue *string) map[string]
 			}
 
 			if cValue != nil && regex.MatchString(*cValue) {
-				boolColumns[fmt.Sprintf("%s_%s", freeTextColumnName, regexName)] = "true"
+				boolColumns[fmt.Sprintf("%s_%s", freeTextColumnName, regexName)] = stringPtr("true")
 			} else {
-				boolColumns[fmt.Sprintf("%s_%s", freeTextColumnName, regexName)] = "false"
+				boolColumns[fmt.Sprintf("%s_%s", freeTextColumnName, regexName)] = stringPtr("false")
 			}
+
 		}
 	}
 
