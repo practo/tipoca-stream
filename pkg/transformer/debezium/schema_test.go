@@ -3,8 +3,67 @@ package debezium
 import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
+	"reflect"
 	"testing"
 )
+
+func TestExtraColumnSort(t *testing.T) {
+	var ec, rec []redshift.ColInfo
+	ec = append(
+		ec,
+		redshift.ColInfo{
+			Name:       "email_length",
+			Type:       "email",
+			DefaultVal: "",
+		},
+		redshift.ColInfo{
+			Name:       "has_covid",
+			Type:       "string",
+			DefaultVal: "",
+		},
+		redshift.ColInfo{
+			Name:       "a1988born",
+			Type:       "string",
+			DefaultVal: "",
+		},
+		redshift.ColInfo{
+			Name:       "b1986born",
+			Type:       "string",
+			DefaultVal: "",
+		},
+	)
+
+	sortExtraColumns(ec)
+
+	rec = append(
+		rec,
+		redshift.ColInfo{
+			Name:       "a1988born",
+			Type:       "string",
+			DefaultVal: "",
+		},
+		redshift.ColInfo{
+			Name:       "b1986born",
+			Type:       "string",
+			DefaultVal: "",
+		},
+		redshift.ColInfo{
+			Name:       "email_length",
+			Type:       "email",
+			DefaultVal: "",
+		},
+		redshift.ColInfo{
+			Name:       "has_covid",
+			Type:       "string",
+			DefaultVal: "",
+		},
+	)
+
+	if !reflect.DeepEqual(rec, ec) {
+		t.Errorf("rec!=ec, got=%+v\n, expected=%+v", rec, ec)
+	}
+
+}
 
 func TestSchemaMysqlDataType(t *testing.T) {
 	t.Parallel()
