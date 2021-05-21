@@ -19,7 +19,7 @@ var JobAvroSchema string = `{
         {"name": "schemaId", "type": "int"},
         {"name": "schemaIdKey", "type": "int", "default": -1},
         {"name": "maskSchema", "type": "string"},
-        {"name": "extraMaskSchema", "type": "string", default: ""},
+        {"name": "extraMaskSchema", "type": "string", "default": ""},
         {"name": "skipMerge", "type": "string", "default": ""},
         {"name": "batchBytes", "type": "long", "default": 0},
         {"name": "createEvents", "type": "long", "default": 0},
