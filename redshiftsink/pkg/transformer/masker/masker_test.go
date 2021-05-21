@@ -585,6 +585,26 @@ func TestMasker(t *testing.T) {
 			},
 			redshiftTable: redshift.Table{},
 		},
+		{
+			name:  "test23 boolean_keys case insensitivity test",
+			topic: "dbserver.database.customers",
+			cName: "favourite_food_has_pizza",
+			columns: map[string]*string{
+				"favourite_food": stringPtr("PIZza, i love it, i love it"),
+			},
+			resultVal: stringPtr("true"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"favourite_food": serializer.MaskInfo{Masked: true},
+			},
+			extraMaskSchema: map[string]serializer.ExtraMaskInfo{
+				"favourite_food_has_pizza": serializer.ExtraMaskInfo{
+					Masked:     false,
+					ColumnType: "boolean",
+					DefaultVal: "",
+				},
+			},
+			redshiftTable: redshift.Table{},
+		},
 	}
 
 	for _, tc := range tests {
