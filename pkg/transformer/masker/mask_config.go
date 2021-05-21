@@ -316,12 +316,10 @@ func (m MaskConfig) DependentNonPiiKey(table, cName string) bool {
 	return false
 }
 
-// BoolColumns returns the map of boolean column name and its value
+// BoolColumns returns extra boolean columns for the parent column(free text col)
+// to make analysis on the data contained in parent column possible using the
+// boolean columns
 func (m MaskConfig) BoolColumns(table, cName string, cValue *string) map[string]string {
-	if cValue == nil {
-		return nil
-	}
-
 	columnsToCheckRaw, ok := m.RegexPatternBooleanKeys[table]
 	if !ok {
 		return nil
@@ -364,7 +362,7 @@ func (m MaskConfig) BoolColumns(table, cName string, cValue *string) map[string]
 				m.regexes[caseInsensitivePattern] = regex
 			}
 
-			if regex.MatchString(*cValue) {
+			if cValue != nil && regex.MatchString(*cValue) {
 				boolColumns[fmt.Sprintf("%s_%s", freeTextColumnName, regexName)] = "true"
 			} else {
 				boolColumns[fmt.Sprintf("%s_%s", freeTextColumnName, regexName)] = "false"

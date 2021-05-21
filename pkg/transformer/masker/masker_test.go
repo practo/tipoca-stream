@@ -605,6 +605,26 @@ func TestMasker(t *testing.T) {
 			},
 			redshiftTable: redshift.Table{},
 		},
+		{
+			name:  "test24 boolean_keys test for nil col",
+			topic: "dbserver.database.customers",
+			cName: "favourite_food_has_pizza",
+			columns: map[string]*string{
+				"favourite_food": stringPtr(""),
+			},
+			resultVal: stringPtr("false"),
+			resultMaskSchema: map[string]serializer.MaskInfo{
+				"favourite_food": serializer.MaskInfo{Masked: true},
+			},
+			extraMaskSchema: map[string]serializer.ExtraMaskInfo{
+				"favourite_food_has_pizza": serializer.ExtraMaskInfo{
+					Masked:     false,
+					ColumnType: "boolean",
+					DefaultVal: "",
+				},
+			},
+			redshiftTable: redshift.Table{},
+		},
 	}
 
 	for _, tc := range tests {
