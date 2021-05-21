@@ -9,6 +9,7 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
+	"sort"
 	"strings"
 )
 
@@ -338,6 +339,15 @@ func (c *schemaTransformer) TransformValue(
 	)
 }
 
+func sortExtraColumns(extraColumns []redshift.ColInfo) {
+	sort.Slice(
+		extraColumns,
+		func(i, j int) bool {
+			return extraColumns[i].Name < extraColumns[j].Name
+		},
+	)
+}
+
 func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 	primaryKeys []string,
 	maskSchema map[string]serializer.MaskInfo,
@@ -430,6 +440,9 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 				//deprecated below ended --------------------------------------------------------------------------------------
 			}
 		}
+
+		// sort to keep the order consistent for the redshift table schema
+		sortExtraColumns(extraColumns)
 
 		var redshiftDataType string
 		if useStringMax {
