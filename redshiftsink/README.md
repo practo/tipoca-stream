@@ -242,15 +242,20 @@ kubectl edit deploy -n kube-system redshiftsink-operator
 ### Enable RedshiftSink Exporter (optional)
 By default the exporter is disabled. This feature will work only when the Prometheus is also enabled.
 
-#### Why export Redshift metrics to Prometheus?
+#### Why to export Redshift metrics to Prometheus?
 We throttle the loads to keep the READ fast. Throttling logic by default treats all tables as same. But if the redshift exporter is enabled the less frequently used tables are throttled and not all tables are treated as the same. This is helpful in reducing the load in Redshift and keeping the queries fast.
 
 #### How to enable?
 - Prerequisite: Enable Throttling. Please see above.
 - Install the table scan view.
+
+#### Schema
 ```sql
 CREATE SCHEMA redshiftsink_operator;
 ```
+
+#### View
+Note: Please substitute `AND s.userid != 100` with the user id(s) of the redshitsink users. We need to ignore the queries from the redshiftsink users to keep the calculation usable.
 ```sql
 CREATE OR REPLACE VIEW redshiftsink_operator.scan_query_total AS
 SELECT DATABASE,
@@ -267,6 +272,7 @@ LEFT JOIN
           COUNT(DISTINCT query) num_qs
    FROM stl_scan s
    WHERE s.userid > 1
+     AND s.userid != 100
      AND s.perm_table_name NOT IN ('Internal Worktable',
                                    'S3')
      AND s.perm_table_name NOT LIKE '%staged%'                                    
