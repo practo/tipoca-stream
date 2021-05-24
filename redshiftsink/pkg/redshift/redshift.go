@@ -971,8 +971,8 @@ func (r *Redshift) CollectQueryTotal(ctx context.Context) error {
 		RedshiftQueryTotalMetric.WithLabelValues(
 			r.conf.Database,
 			row.schema,
-			row.tableID,
 			row.tableName,
+			row.tableID,
 		).Set(row.queryTotal)
 	}
 
