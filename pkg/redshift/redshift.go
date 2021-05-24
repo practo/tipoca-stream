@@ -955,7 +955,7 @@ type queryTotalRow struct {
 func (r *Redshift) CollectQueryTotal(ctx context.Context) error {
 	klog.V(2).Info("collecting redshift.scan.query_total")
 
-	query := `select schemaname,tableid,tablename,query_total from redshiftsink_operator.scan_queries_total`
+	query := `select schemaname,tableid,tablename,query_total from redshiftsink_operator.scan_query_total`
 	rows, err := r.QueryContext(ctx, query)
 	if err != nil {
 		return fmt.Errorf("error running query: %s, err: %s", query, err)
