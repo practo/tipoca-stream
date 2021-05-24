@@ -132,6 +132,7 @@ func main() {
 		DefaultRedshiftMaxIdleConns: redshiftMaxIdleConns,
 		AllowedResources:            allowedResources,
 		PrometheusClient:            prometheusClient,
+		RedshiftMetrics:             collectRedshiftMetrics,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "RedshiftSink")
 		os.Exit(1)
