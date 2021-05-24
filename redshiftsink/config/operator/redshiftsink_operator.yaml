@@ -50,6 +50,7 @@ spec:
        - --default-redshift-max-idle-conns=2
        - --allowed-rsks=
        - --promethus-url=
+       - --collect-redshift-metrics=false
        resources:
          limits:
            cpu: 300m

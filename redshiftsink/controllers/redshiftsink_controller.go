@@ -534,6 +534,9 @@ func (r *RedshiftSinkReconciler) reconcile(
 
 	if len(status.realtime) == 0 {
 		klog.V(2).Infof("rsk/%s nothing done in reconcile", rsk.Name)
+		if len(status.reloading) > 0 || len(status.realtime) > 0 {
+			return resultRequeueMilliSeconds(15000), events, nil
+		}
 		return resultRequeueMilliSeconds(900000), events, nil
 	}
 
@@ -550,7 +553,6 @@ func (r *RedshiftSinkReconciler) reconcile(
 	var releaser *releaser
 	if len(releaseCandidates) > 0 {
 		releaser, err = newReleaser(
-			rsk.Spec.Loader.RedshiftSchema,
 			repo,
 			filePath,
 			currentMaskVersion,

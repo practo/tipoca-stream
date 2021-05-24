@@ -25,7 +25,6 @@ type releaser struct {
 }
 
 func newReleaser(
-	schema string,
 	repo string,
 	filePath string,
 	currentVersion string,
@@ -36,42 +35,11 @@ func newReleaser(
 	*releaser,
 	error,
 ) {
-	redshiftSecret := make(map[string]string)
-	redshiftSecretKeys := []string{
-		"redshiftHost",
-		"redshiftPort",
-		"redshiftDatabase",
-		"redshiftUser",
-		"redshiftPassword",
-	}
-	for _, key := range redshiftSecretKeys {
-		value, err := secretByKey(secret, key)
-		if err != nil {
-			return nil, err
-		}
-		redshiftSecret[key] = value
-	}
-
-	config := redshift.RedshiftConfig{
-		Schema:       schema,
-		Host:         redshiftSecret["redshiftHost"],
-		Port:         redshiftSecret["redshiftPort"],
-		Database:     redshiftSecret["redshiftDatabase"],
-		User:         redshiftSecret["redshiftUser"],
-		Password:     redshiftSecret["redshiftPassword"],
-		Timeout:      10,
-		Stats:        true,
-		MaxOpenConns: 3,
-		MaxIdleConns: 3,
-	}
-
-	redshifter, err := redshift.NewRedshift(config)
+	schema := rsk.Spec.Loader.RedshiftSchema
+	redshifter, err := NewRedshiftConnection(secret, schema)
 	if err != nil {
-		return nil, fmt.Errorf(
-			"Error creating redshift connecton, config: %+v, err: %v",
-			config, err)
+		return nil, err
 	}
-
 	return &releaser{
 		schema:         schema,
 		redshifter:     redshifter,

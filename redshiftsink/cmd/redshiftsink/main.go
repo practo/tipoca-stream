@@ -15,6 +15,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"math/rand"
 	"os"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/practo/klog/v2"
 	prometheus "github.com/practo/tipoca-stream/redshiftsink/pkg/prometheus"
+	redshift "github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	pflag "github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -31,6 +33,7 @@ import (
 	"k8s.io/klog/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
+	metrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
 	"github.com/practo/tipoca-stream/redshiftsink/controllers"
@@ -49,20 +52,23 @@ func init() {
 
 	_ = tipocav1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
+
+	metrics.Registry.MustRegister(redshift.RedshiftQueryTotalMetric)
 }
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-	var enableLeaderElection bool
+	var enableLeaderElection, collectRedshiftMetrics bool
 	var batcherImage, loaderImage, secretRefName, secretRefNamespace, kafkaVersion, metricsAddr, allowedRsks, prometheusURL string
 	var redshiftMaxOpenConns, redshiftMaxIdleConns int
 	flag.StringVar(&batcherImage, "default-batcher-image", "746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftbatcher:latest", "image to use for the redshiftbatcher")
 	flag.StringVar(&loaderImage, "default-loader-image", "746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftloader:latest", "image to use for the redshiftloader")
 	flag.StringVar(&secretRefName, "default-secret-ref-name", "redshiftsink-secret", "default secret name for all redshiftsink secret")
 	flag.StringVar(&secretRefNamespace, "default-secret-ref-namespace", "ts-redshiftsink-latest", "default namespace where redshiftsink secret is there")
+	flag.BoolVar(&collectRedshiftMetrics, "collect-redshift-metrics", false, "collectRedshiftMetrics when enabled collects redshift metrics for better calculations, used for calculating throttling seconds value at present for each table")
 	flag.StringVar(&kafkaVersion, "default-kafka-version", "2.6.0", "default kafka version")
-	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
+	flag.StringVar(&metricsAddr, "metrics-addr", ":8443", "The address the metric endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false, "Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.IntVar(&redshiftMaxOpenConns, "default-redshift-max-open-conns", 10, "the maximum number of open connections allowed to redshift per redshiftsink resource")
 	flag.IntVar(&redshiftMaxIdleConns, "default-redshift-max-idle-conns", 2, "the maximum number of idle connections allowed to redshift per redshiftsink resource")
@@ -132,9 +138,33 @@ func main() {
 	}
 	// +kubebuilder:scaffold:builder
 
+	if !collectRedshiftMetrics {
+		setupLog.Info("Starting manager")
+		if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+			setupLog.Error(err, "problem running manager")
+			os.Exit(1)
+		}
+		return
+	}
+
+	ctx, cancel := context.WithCancel(ctrl.SetupSignalHandler())
+	defer cancel()
+
+	setupLog.Info("Staring Redshift metrics")
+	collector, err := controllers.NewRedshiftCollector(uncachedClient, secretRefName, secretRefNamespace)
+	if err != nil {
+		setupLog.Error(err, "problem initializing collector")
+		os.Exit(1)
+	}
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go collector.Collect(ctx, wg)
+
 	setupLog.Info("Starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+
+	wg.Wait()
 }

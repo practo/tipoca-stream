@@ -2,13 +2,17 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    control-plane: controller-manager
-  name: controller-manager-metrics-service
-  namespace: system
+    app: redshiftsink-operator
+  name: redshiftsink-operator
+  namespace: kube-system
 spec:
+  clusterIP: None
   ports:
-  - name: https
+  - name: redshift-metrics
     port: 8443
-    targetPort: https
+    protocol: TCP
+    targetPort: 8443
   selector:
-    control-plane: controller-manager
+    app: redshiftsink-operator
+  sessionAffinity: None
+  type: ClusterIP

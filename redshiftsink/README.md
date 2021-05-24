@@ -219,3 +219,70 @@ binary: bin/darwin_amd64/redshiftsink
 ```bash
 make run
 ```
+
+### Enable Throttling (optional)
+By default the throttling is disabled.
+
+#### Why throttle?
+By default there is no limit put on the number of concurrent loads to Redshift. But if you have huge number of tables to be loaded and the number of loads is impacting the READ in redshift. We enable this feature to not run more than 10 table load at a time. All the tables above 10 are throttled for 15 seconds if this is enabled. If Redshift Exporter is also enabled then the throttling value is determined by the frequency of table use in Redshift.
+
+#### How to enable?
+- Export RedshiftLoader metrics to Prometheus.
+```
+TODO for adding the manifests here
+
+kubectl create -f config/redshiftloader/service.yaml
+kubectl create -f config/redshiftloader/servicemonitor.yaml
+```
+- Set `--prometheus-url` in the RedshiftSink Operator Deployment.
+```
+kubectl edit deploy -n kube-system redshiftsink-operator
+```
+
+### Enable RedshiftSink Exporter (optional)
+By default the exporter is disabled. This feature will work only when the Prometheus is also enabled.
+
+#### Why to export Redshift metrics to Prometheus?
+We throttle the loads to keep the READ fast. Throttling logic by default treats all tables as same. But if the redshift exporter is enabled the less frequently used tables are throttled and not all tables are treated as the same. This is helpful in reducing the load in Redshift and keeping the queries fast.
+
+#### How to enable?
+- Prerequisite: Enable Throttling. Please see above.
+- Install the table scan view.
+
+#### Schema
+```sql
+CREATE SCHEMA redshiftsink_operator;
+```
+
+#### View
+Note: Please substitute `AND s.userid != 100` with the user id(s) of the redshitsink users. We need to ignore the queries from the redshiftsink users to keep the calculation usable.
+```sql
+CREATE OR REPLACE VIEW redshiftsink_operator.scan_query_total AS
+SELECT DATABASE,
+       SCHEMA AS schemaname,
+                 table_id as tableid,
+                 "table" AS tablename,
+                 SIZE,
+                 sortkey1,
+                 NVL(s.num_qs,0) query_total
+FROM svv_table_info t
+LEFT JOIN
+  (SELECT tbl,
+          perm_table_name,
+          COUNT(DISTINCT query) num_qs
+   FROM stl_scan s
+   WHERE s.userid > 1
+     AND s.userid != 100
+     AND s.perm_table_name NOT IN ('Internal Worktable',
+                                   'S3')
+     AND s.perm_table_name NOT LIKE '%staged%'                                    
+   GROUP BY tbl,
+            perm_table_name) s ON s.tbl = t.table_id
+AND t."schema" NOT IN ('pg_internal')
+ORDER BY 7 DESC;
+```
+
+- Set `--collect-redshift-metrics` as true in the RedshiftSink Operator Deployment.
+```
+kubectl edit deploy -n kube-system redshiftsink-operator
+```
