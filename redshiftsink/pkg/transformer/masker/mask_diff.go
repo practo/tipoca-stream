@@ -107,4 +107,6 @@ func (m *MaskDiffer) Diff() {
 		m.current.ConditionalNonPiiKeys, m.desired.ConditionalNonPiiKeys)
 	m.diffMapInterface(
 		m.current.DependentNonPiiKeys, m.desired.DependentNonPiiKeys)
+	m.diffMapInterface(
+		m.current.RegexPatternBooleanKeys, m.desired.RegexPatternBooleanKeys)
 }
