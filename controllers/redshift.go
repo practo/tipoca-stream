@@ -38,6 +38,11 @@ func (r *RedshiftCollector) Collect(ctx context.Context, wg *sync.WaitGroup) err
 	defer wg.Done()
 	// TODO: make it possible to remove below comment, create the view
 	// expects the view to be present redshiftsink_operator.scan_query_total
+	err := r.redshifter.CollectQueryTotal(ctx)
+	if err != nil {
+		klog.Errorf("Redshift Collector shutdown due to error: %v", err)
+		return err
+	}
 	for {
 		select {
 		case <-ctx.Done():
