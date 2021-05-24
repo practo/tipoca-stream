@@ -77,9 +77,9 @@ func (m *masker) Transform(
 	addMissingColumn(rawColumns, table.Columns)
 
 	columns := make(map[string]*string)
-	extraColumns := make(map[string]*string)
 	maskSchema := make(map[string]serializer.MaskInfo)
-	mappingPIIColumns := make(map[string]bool)
+	extraMaskSchema := make(map[string]serializer.ExtraMaskInfo)
+	extraColumnValue := make(map[string]*string)
 	mappingPIIKeyTable := m.config.hasMappingPIIKey(m.table)
 
 	for cName, cVal := range rawColumns {
@@ -91,17 +91,24 @@ func (m *masker) Transform(
 		mappingPIIKey := m.config.MappingPIIKey(m.table, cName)
 		dependentNonPiiKey := m.config.DependentNonPiiKey(m.table, cName)
 		conditionalNonPiiKey := m.config.ConditionalNonPiiKey(m.table, cName)
+		boolColumns := m.config.BoolColumns(m.table, cName, cVal)
 
+		// extraColumns store the mask info for extra columns
+		// extra columns are added for the following keys:
+		// LengthKey, MobileKey, MappingPIIKey and Boolean keys
 		if lengthKey {
 			var length int
 			if cVal != nil {
 				length = len(*cVal)
 			}
-			extraColumns[cName+transformer.LengthColumnSuffix] = stringPtr(
-				strconv.Itoa(length),
-			)
+			extraColumnName := strings.ToLower(cName + transformer.LengthColumnSuffix)
+			extraMaskSchema[extraColumnName] = serializer.ExtraMaskInfo{
+				Masked:     false,
+				ColumnType: redshift.RedshiftInteger,
+				DefaultVal: "0",
+			}
+			extraColumnValue[extraColumnName] = stringPtr(strconv.Itoa(length))
 		}
-
 		if mobileKey {
 			var tMobile *string
 			if cVal == nil {
@@ -116,9 +123,13 @@ func (m *masker) Transform(
 					mobile[:exposedLength],
 				)
 			}
-			extraColumns[cName+transformer.MobileCoulmnSuffix] = tMobile
+			extraColumnName := strings.ToLower(cName + transformer.MobileCoulmnSuffix)
+			extraMaskSchema[extraColumnName] = serializer.ExtraMaskInfo{
+				Masked:     false,
+				ColumnType: redshift.RedshiftMobileColType,
+			}
+			extraColumnValue[extraColumnName] = tMobile
 		}
-
 		if mappingPIIKey {
 			var hashedValue *string
 			if cVal == nil || strings.TrimSpace(*cVal) == "" {
@@ -126,10 +137,24 @@ func (m *masker) Transform(
 			} else {
 				hashedValue = Mask(*cVal, m.salt)
 			}
-
-			extraColumns[transformer.MappingPIIColumnPrefix+cName] = hashedValue
-			mappingPIIColumns[transformer.MappingPIIColumnPrefix+cName] = true
+			extraColumnName := strings.ToLower(transformer.MappingPIIColumnPrefix + cName)
+			extraMaskSchema[extraColumnName] = serializer.ExtraMaskInfo{
+				Masked:     true,
+				ColumnType: redshift.RedshiftMaskedDataType,
+			}
+			extraColumnValue[extraColumnName] = hashedValue
 		}
+		var boolColumnKey bool
+		if len(boolColumns) > 0 {
+			boolColumnKey = true
+			for boolCol, boolVal := range boolColumns {
+				extraMaskSchema[boolCol] = serializer.ExtraMaskInfo{
+					Masked:     false,
+					ColumnType: redshift.RedshiftBoolean,
+				}
+				extraColumnValue[boolCol] = boolVal
+			}
+		} // all extra columns handled
 
 		// special case for mapping PII keys
 		if mappingPIIKeyTable {
@@ -152,40 +177,31 @@ func (m *masker) Transform(
 		}
 
 		maskSchema[cName] = serializer.MaskInfo{
-			Masked:               !unmasked,
-			SortCol:              sortKey,
-			DistCol:              distKey,
-			LengthCol:            lengthKey,
-			MobileCol:            mobileKey,
-			MappingPIICol:        mappingPIIKey,
-			ConditionalNonPIICol: conditionalNonPiiKey,
-			DependentNonPIICol:   dependentNonPiiKey,
+			Masked: !unmasked,
+
+			SortCol: sortKey,
+			DistCol: distKey,
+
+			LengthCol:              lengthKey,
+			MobileCol:              mobileKey,
+			MappingPIICol:          mappingPIIKey,
+			ConditionalNonPIICol:   conditionalNonPiiKey,
+			DependentNonPIICol:     dependentNonPiiKey,
+			RegexPatternBooleanCol: boolColumnKey,
 		}
 	}
 
-	for cName, cVal := range extraColumns {
+	// append the extra columns so that the data reaches s3
+	for cName, cVal := range extraColumnValue {
 		// send value in json only when it is not nil, so that NULL takes effect
 		if cVal != nil {
 			columns[cName] = cVal
-		}
-
-		var maskedExtraColumn bool
-		_, ok := mappingPIIColumns[cName]
-		if ok {
-			maskedExtraColumn = true
-		}
-
-		maskSchema[cName] = serializer.MaskInfo{
-			Masked: maskedExtraColumn,
-			// extra length column, don't need more extras so below 3
-			LengthCol:     false,
-			MobileCol:     false,
-			MappingPIICol: false,
 		}
 	}
 
 	message.Value = columns
 	message.MaskSchema = maskSchema
+	message.ExtraMaskSchema = extraMaskSchema
 
 	return nil
 }

@@ -182,6 +182,7 @@ type response struct {
 	endOffset         int64
 	messagesProcessed int
 	maskSchema        map[string]serializer.MaskInfo
+	extraMaskSchema   map[string]serializer.ExtraMaskInfo
 	bytesProcessed    int64
 }
 
@@ -270,6 +271,7 @@ func (b *batchProcessor) signalLoad(resp *response) error {
 		resp.batchSchemaID, // schema of upstream topic's value
 		b.schemaIDKey,      // schema of upstream topic's key
 		resp.maskSchema,
+		resp.extraMaskSchema,
 		resp.skipMerge,
 		resp.bytesProcessed,
 		resp.createEvents,
@@ -333,6 +335,7 @@ func (b *batchProcessor) processMessage(
 			resp.batchSchemaID,
 			b.schemaIDKey,
 			resp.maskSchema,
+			resp.extraMaskSchema,
 		)
 		if err != nil {
 			return bytesProcessed, fmt.Errorf(
@@ -389,6 +392,9 @@ func (b *batchProcessor) processMessage(
 
 	if b.maskMessages && len(resp.maskSchema) == 0 {
 		resp.maskSchema = message.MaskSchema
+	}
+	if b.maskMessages && len(resp.extraMaskSchema) == 0 {
+		resp.extraMaskSchema = message.ExtraMaskSchema
 	}
 
 	resp.skipMerge = false // deprecated
@@ -542,16 +548,17 @@ func (b *batchProcessor) Process(
 		responses := []*response{}
 		for i, msgBuf := range msgBufs {
 			resp := &response{
-				err:           nil,
-				batchID:       i + 1,
-				batchSchemaID: -1,
-				skipMerge:     false,
-				createEvents:  0,
-				updateEvents:  0,
-				deleteEvents:  0,
-				s3Key:         "",
-				bodyBuf:       bytes.NewBuffer(make([]byte, 0, 4096)),
-				maskSchema:    make(map[string]serializer.MaskInfo),
+				err:             nil,
+				batchID:         i + 1,
+				batchSchemaID:   -1,
+				skipMerge:       false,
+				createEvents:    0,
+				updateEvents:    0,
+				deleteEvents:    0,
+				s3Key:           "",
+				bodyBuf:         bytes.NewBuffer(make([]byte, 0, 4096)),
+				maskSchema:      make(map[string]serializer.MaskInfo),
+				extraMaskSchema: make(map[string]serializer.ExtraMaskInfo),
 			}
 			wg.Add(1)
 			go b.processBatch(wg, session, msgBuf, resp)

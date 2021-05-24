@@ -102,3 +102,19 @@ include_tables:
 - customers
 - orders
 ```
+
+### Regex Pattern Boolean Keys
+Helps in keeping free text columns masked and adds a boolean column giving boolean info about the kind of value in the free text column.
+
+For example: We add a boolean column `favourite_quote_has_philosphy`.
+If value in column `favourite_quote` matches the regex `'life|time'`, then the value in extra column `favourite_quote_has_philosphy` is `true` else `false`.
+
+Regex match is case insensitive.
+
+```yaml
+regex_pattern_boolean_keys:
+    customers:
+        favourite_quote:
+            has_philosphy: 'life|time'
+            has_text_funny: 'funny'
+```

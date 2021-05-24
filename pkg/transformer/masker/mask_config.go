@@ -50,7 +50,12 @@ type MaskConfig struct {
 	// IncludeTables restrict tables that are allowed to be sinked.
 	IncludeTables *[]string `yaml:"include_tables,omitempty"`
 
-	// regexes cache is used to prevent regex Compile on everytime computations.
+	// RegexPatternBooleanKeys helps in keeping free text columns masked
+	// and adds boolean columns giving boolean info about the kind of
+	// value in the free text column.
+	RegexPatternBooleanKeys map[string]interface{} `yaml:"regex_pattern_boolean_keys,omitempty"`
+
+	// regexes cache is used to prevent regex Compile on every message mask run.
 	regexes map[string]*regexp.Regexp
 }
 
@@ -309,6 +314,64 @@ func (m MaskConfig) DependentNonPiiKey(table, cName string) bool {
 	}
 
 	return false
+}
+
+// BoolColumns returns extra boolean columns for the parent column(free text col)
+// to make analysis on the data contained in parent column possible using the
+// boolean columns
+func (m MaskConfig) BoolColumns(table, cName string, cValue *string) map[string]*string {
+	columnsToCheckRaw, ok := m.RegexPatternBooleanKeys[table]
+	if !ok {
+		return nil
+	}
+
+	columnsToCheck, ok := columnsToCheckRaw.(map[interface{}]interface{})
+	if !ok {
+		klog.Fatalf(
+			"Type assertion error! table: %s, cName: %s\n", table, cName)
+	}
+
+	boolColumns := make(map[string]*string)
+	for freeTextColumnNameRaw, regexesRaw := range columnsToCheck {
+		freeTextColumnName := freeTextColumnNameRaw.(string)
+		freeTextColumnName = strings.ToLower(freeTextColumnName) // favourite_quote
+		if freeTextColumnName != cName {
+			continue
+		}
+
+		regexes, ok := regexesRaw.(map[interface{}]interface{})
+		if !ok {
+			klog.Fatalf(
+				"Type assertion error! table: %s, cName: %s\n",
+				table, cName)
+		}
+
+		for regexNameRaw, patternRaw := range regexes {
+			regexName := regexNameRaw.(string)
+			regexName = strings.ToLower(regexName)
+			caseInsensitivePattern := fmt.Sprintf("(?i)%s", patternRaw.(string))
+
+			var err error
+			regex, ok := m.regexes[caseInsensitivePattern]
+			if !ok {
+				regex, err = regexp.Compile(caseInsensitivePattern)
+				if err != nil {
+					klog.Fatalf(
+						"Regex: %s compile failed, err:%v\n", caseInsensitivePattern, err)
+				}
+				m.regexes[caseInsensitivePattern] = regex
+			}
+
+			if cValue != nil && regex.MatchString(*cValue) {
+				boolColumns[fmt.Sprintf("%s_%s", freeTextColumnName, regexName)] = stringPtr("true")
+			} else {
+				boolColumns[fmt.Sprintf("%s_%s", freeTextColumnName, regexName)] = stringPtr("false")
+			}
+
+		}
+	}
+
+	return boolColumns
 }
 
 // PerformUnMasking checks if unmasking should be done or not

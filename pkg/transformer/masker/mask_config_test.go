@@ -30,7 +30,7 @@ func testMasked(t *testing.T, topic, table, cName, cValue string,
 }
 
 func TestMaskConfig(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	tests := []struct {
 		name       string
