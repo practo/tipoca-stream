@@ -11,20 +11,27 @@ import (
 
 type Client interface {
 	// Topics return all the topics present in kafka, it keeps a cache
-	// which is refreshed every cacheValidity seconds
+	// which is refreshed every cacheValidity seconds.
 	Topics() ([]string, error)
 
-	// LastOffset returns the current offset for the topic partition
+	// LastOffset returns the current offset for the topic partition.
 	LastOffset(topic string, partition int32) (int64, error)
 
 	// CurrentOffset talks to kafka and finds the current offset for the
 	// consumer group. It makes call to all brokers to determine
-	// the current offset. If group is not found it returns -1
+	// the current offset. If group is not found it returns -1.
 	CurrentOffset(id string, topic string, partition int32) (int64, error)
+
+	// List the consumer groups available in the cluster.
+	ListConsumerGroups() (map[string]string, error)
+
+	// Delete a consumer group.
+	DeleteConsumerGroup(name string) error
 }
 
 type kafkaClient struct {
 	client               sarama.Client
+	clusterAdmin         sarama.ClusterAdmin
 	cacheValidity        time.Duration
 	lastTopicRefreshTime *int64
 	brokers              []string
@@ -63,8 +70,14 @@ func NewClient(
 		return nil, fmt.Errorf("Error creating client: %v\n", err)
 	}
 
+	clusterAdmin, err := sarama.NewClusterAdmin(brokers, c)
+	if err != nil {
+		return nil, fmt.Errorf("Error creating admin client: %v\n", err)
+	}
+
 	return &kafkaClient{
 		client:               client,
+		clusterAdmin:         clusterAdmin,
 		cacheValidity:        time.Second * time.Duration(30),
 		lastTopicRefreshTime: nil,
 		brokers:              brokers,
@@ -225,4 +238,12 @@ func (t *kafkaClient) CurrentOffset(
 	}
 
 	return currentOffset, nil
+}
+
+func (t *kafkaClient) ListConsumerGroups() (map[string]string, error) {
+	return t.clusterAdmin.ListConsumerGroups()
+}
+
+func (t *kafkaClient) DeleteConsumerGroup(name string) error {
+	return t.clusterAdmin.DeleteConsumerGroup(name)
 }
