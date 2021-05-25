@@ -298,6 +298,34 @@ func (r *RedshiftSinkReconciler) loadKafkaClient(
 	}
 }
 
+func (r *RedshiftSinkReconciler) removeDeadConsumerGroups(rsk *tipocav1.RedshiftSink, kafkaClient kafka.Client) error {
+	if len(rsk.Status.DeadConsumerGroups) == 0 {
+		return nil
+	}
+
+	cgs, err := kafkaClient.ListConsumerGroups()
+	if err != nil {
+		return err
+	}
+
+	for _, cg := range rsk.Status.DeadConsumerGroups {
+		_, ok := cgs[cg]
+		if ok {
+			err := kafkaClient.DeleteConsumerGroup(cg)
+			if err != nil {
+				return err
+			}
+			klog.V(2).Infof("rsk/%v dead cg: %s deleted", rsk.Name, cg)
+		} else {
+			klog.V(2).Infof("rsk/%v dead cg: %s is already deleted", rsk.Name, cg)
+		}
+	}
+
+	rsk.Status.DeadConsumerGroups = []string{}
+
+	return nil
+}
+
 func (r *RedshiftSinkReconciler) reconcile(
 	ctx context.Context,
 	rsk *tipocav1.RedshiftSink,
@@ -534,8 +562,12 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 
 	if len(status.realtime) == 0 {
+		err := r.removeDeadConsumerGroups(rsk, kafkaClient)
+		if err != nil {
+			return resultRequeueMilliSeconds(15000), events, err
+		}
 		klog.V(2).Infof("rsk/%s nothing done in reconcile", rsk.Name)
-		if len(status.reloading) > 0 || len(status.realtime) > 0 {
+		if len(status.reloading) > 0 {
 			return resultRequeueMilliSeconds(15000), events, nil
 		}
 		return resultRequeueMilliSeconds(900000), events, nil
