@@ -51,7 +51,7 @@ type RedshiftSinkReconciler struct {
 	Recorder record.EventRecorder
 
 	KafkaTopicRegexes  *sync.Map
-	KafkaWatchers      *sync.Map
+	KafkaClients       *sync.Map
 	KafkaTopicsCache   *sync.Map
 	KafkaRealtimeCache *sync.Map
 	ReleaseCache       *sync.Map
@@ -183,7 +183,7 @@ func resultRequeueMilliSeconds(ms int) ctrl.Result {
 }
 
 func (r *RedshiftSinkReconciler) fetchLatestTopics(
-	kafkaWatcher kafka.Watcher,
+	kafkaClient kafka.Client,
 	regexes string,
 ) (
 	[]string,
@@ -194,7 +194,7 @@ func (r *RedshiftSinkReconciler) fetchLatestTopics(
 	topicsAppended := make(map[string]bool)
 	expressions := strings.Split(regexes, ",")
 
-	allTopics, err := kafkaWatcher.Topics()
+	allTopics, err := kafkaClient.Topics()
 	if err != nil {
 		return []string{}, err
 	}
@@ -263,11 +263,11 @@ func (r *RedshiftSinkReconciler) makeTLSConfig(secret map[string]string) (*kafka
 	return &configTLS, nil
 }
 
-func (r *RedshiftSinkReconciler) loadKafkaWatcher(
+func (r *RedshiftSinkReconciler) loadKafkaClient(
 	rsk *tipocav1.RedshiftSink,
 	tlsConfig *kafka.TLSConfig,
 ) (
-	kafka.Watcher,
+	kafka.Client,
 	error,
 ) {
 	values := ""
@@ -282,20 +282,48 @@ func (r *RedshiftSinkReconciler) loadKafkaWatcher(
 	values += kafkaVersion
 	hash := fmt.Sprintf("%x", sha1.Sum([]byte(values)))
 
-	watcher, ok := r.KafkaWatchers.Load(hash)
+	kafkaClient, ok := r.KafkaClients.Load(hash)
 	if ok {
-		return watcher.(kafka.Watcher), nil
+		return kafkaClient.(kafka.Client), nil
 	} else {
-		watcher, err := kafka.NewWatcher(
+		kafkaClient, err := kafka.NewClient(
 			brokers, kafkaVersion, *tlsConfig,
 		)
 		if err != nil {
 			return nil, err
 		}
-		r.KafkaWatchers.Store(hash, watcher)
+		r.KafkaClients.Store(hash, kafkaClient)
 
-		return watcher, nil
+		return kafkaClient, nil
 	}
+}
+
+func (r *RedshiftSinkReconciler) removeDeadConsumerGroups(rsk *tipocav1.RedshiftSink, kafkaClient kafka.Client) error {
+	if len(rsk.Status.DeadConsumerGroups) == 0 {
+		return nil
+	}
+
+	cgs, err := kafkaClient.ListConsumerGroups()
+	if err != nil {
+		return err
+	}
+
+	for _, cg := range rsk.Status.DeadConsumerGroups {
+		_, ok := cgs[cg]
+		if ok {
+			err := kafkaClient.DeleteConsumerGroup(cg)
+			if err != nil {
+				return err
+			}
+			klog.V(2).Infof("rsk/%v dead cg: %s deleted", rsk.Name, cg)
+		} else {
+			klog.V(2).Infof("rsk/%v dead cg: %s is already deleted", rsk.Name, cg)
+		}
+	}
+
+	rsk.Status.DeadConsumerGroups = []string{}
+
+	return nil
 }
 
 func (r *RedshiftSinkReconciler) reconcile(
@@ -324,13 +352,13 @@ func (r *RedshiftSinkReconciler) reconcile(
 		return result, events, err
 	}
 
-	kafkaWatcher, err := r.loadKafkaWatcher(rsk, tlsConfig)
+	kafkaClient, err := r.loadKafkaClient(rsk, tlsConfig)
 	if err != nil {
 		return result, events, fmt.Errorf("Error fetching kafka watcher, %v", err)
 	}
 
 	kafkaTopics, err := r.fetchLatestTopics(
-		kafkaWatcher, rsk.Spec.KafkaTopicRegexes,
+		kafkaClient, rsk.Spec.KafkaTopicRegexes,
 	)
 	if err != nil {
 		return result, events, fmt.Errorf("Error fetching topics, err: %v", err)
@@ -441,7 +469,7 @@ func (r *RedshiftSinkReconciler) reconcile(
 	// Realtime status is always calculated to keep the CurrentOffset
 	// info updated in the rsk status. This is required so that low throughput
 	// release do not get blocked due to missing consumer group currentOffset.
-	calc := newRealtimeCalculator(rsk, kafkaWatcher, r.KafkaRealtimeCache, desiredMaskVersion)
+	calc := newRealtimeCalculator(rsk, kafkaClient, r.KafkaRealtimeCache, desiredMaskVersion)
 	currentRealtime := calc.calculate(status.reloading, status.realtime)
 	if len(status.reloading) > 0 {
 		klog.V(2).Infof("rsk/%v batchersRealtime: %d / %d (current=%d)", rsk.Name, len(calc.batchersRealtime), len(status.reloading), len(rsk.Status.BatcherReloadingTopics))
@@ -534,8 +562,12 @@ func (r *RedshiftSinkReconciler) reconcile(
 	}
 
 	if len(status.realtime) == 0 {
+		err := r.removeDeadConsumerGroups(rsk, kafkaClient)
+		if err != nil {
+			return resultRequeueMilliSeconds(15000), events, err
+		}
 		klog.V(2).Infof("rsk/%s nothing done in reconcile", rsk.Name)
-		if len(status.reloading) > 0 || len(status.realtime) > 0 {
+		if len(status.reloading) > 0 {
 			return resultRequeueMilliSeconds(15000), events, nil
 		}
 		return resultRequeueMilliSeconds(900000), events, nil
