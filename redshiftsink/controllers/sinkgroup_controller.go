@@ -69,7 +69,7 @@ type sinkGroupBuilder interface {
 	setRealtimeCalculator(calc *realtimeCalculator) sinkGroupBuilder
 
 	buildBatchers(secret map[string]string, defaultImage, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig) sinkGroupBuilder
-	buildLoaders(secret map[string]string, defaultImage, tableSuffix string, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig, defaultMaxOpenConns int, defaultMaxIdleConns int, prometheusURL string) sinkGroupBuilder
+	buildLoaders(secret map[string]string, defaultImage, tableSuffix string, defaultKafkaVersion string, tlsConfig *kafka.TLSConfig, defaultMaxOpenConns int, defaultMaxIdleConns int, prometheusURL string, redshiftMetrics bool) sinkGroupBuilder
 
 	build() *sinkGroup
 }
@@ -240,6 +240,7 @@ func (sb *buildSinkGroup) buildLoaders(
 	defaultMaxOpenConns int,
 	defaultMaxIdleConns int,
 	prometheusURL string,
+	redshiftMetrics bool,
 ) sinkGroupBuilder {
 	loaders := []Deployment{}
 	if sb.rsk.Spec.Loader.SinkGroup != nil {
@@ -303,6 +304,7 @@ func (sb *buildSinkGroup) buildLoaders(
 				defaultMaxOpenConns,
 				defaultMaxIdleConns,
 				prometheusURL,
+				redshiftMetrics,
 			)
 			if err != nil {
 				klog.Fatalf("Error making loader: %v", err)
@@ -329,6 +331,7 @@ func (sb *buildSinkGroup) buildLoaders(
 			defaultMaxOpenConns,
 			defaultMaxIdleConns,
 			prometheusURL,
+			redshiftMetrics,
 		)
 		if err != nil {
 			klog.Fatalf("Error making loader: %v", err)

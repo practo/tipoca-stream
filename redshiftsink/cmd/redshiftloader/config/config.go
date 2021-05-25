@@ -20,6 +20,7 @@ type Config struct {
 	PrometheusURL     string                      `yaml:"prometheusURL"`
 	Redshift          redshift.RedshiftConfig     `yaml:"redshift"`
 	RedshiftGroup     *string                     `yaml:"redshiftGroup,omitempty"`
+	RedshiftMetrics   bool                        `yaml:"redshiftMetrics"`
 	Rsk               string                      `yaml:"rsk,omitempty"`
 	SinkGroup         string                      `yaml:"sinkGroup,omitempty"`
 }

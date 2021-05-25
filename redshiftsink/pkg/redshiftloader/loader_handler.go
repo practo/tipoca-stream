@@ -53,10 +53,13 @@ type loaderHandler struct {
 	maxWaitSeconds   *int
 	maxBytesPerBatch *int64
 
-	saramaConfig  kafka.SaramaConfig
-	redshifter    *redshift.Redshift
-	redshiftGroup *string
-	serializer    serializer.Serializer
+	saramaConfig kafka.SaramaConfig
+	serializer   serializer.Serializer
+
+	redshifter      *redshift.Redshift
+	redshiftSchema  string
+	redshiftGroup   *string
+	redshiftMetrics bool
 
 	// prometheusClient is used to query the running loaders
 	// so that concurrency of load can be maintained below a threshold
@@ -75,7 +78,9 @@ func NewHandler(
 	loaderConfig LoaderConfig,
 	saramaConfig kafka.SaramaConfig,
 	redshifter *redshift.Redshift,
+	redshiftSchema string,
 	redshiftGroup *string,
+	redshiftMetrics bool,
 ) *loaderHandler {
 	// apply defaults
 	if loaderConfig.MaxWaitSeconds == nil {
@@ -103,10 +108,14 @@ func NewHandler(
 		maxWaitSeconds:   loaderConfig.MaxWaitSeconds,
 		maxBytesPerBatch: loaderConfig.MaxBytesPerBatch,
 
-		saramaConfig:     saramaConfig,
-		redshifter:       redshifter,
-		redshiftGroup:    redshiftGroup,
-		serializer:       serializer.NewSerializer(viper.GetString("schemaRegistryURL")),
+		saramaConfig: saramaConfig,
+		serializer:   serializer.NewSerializer(viper.GetString("schemaRegistryURL")),
+
+		redshifter:      redshifter,
+		redshiftSchema:  redshiftSchema,
+		redshiftGroup:   redshiftGroup,
+		redshiftMetrics: redshiftMetrics,
+
 		prometheusClient: prometheusClient,
 		loadRunning:      new(sync.Map),
 	}
@@ -133,11 +142,53 @@ func (h *loaderHandler) Cleanup(sarama.ConsumerGroupSession) error {
 	return nil
 }
 
+type throttleBudget struct {
+	max      int
+	interval int // seconds
+}
+
+func (h *loaderHandler) throttleBudget(topic string, firstLoad bool) (throttleBudget, error) {
+	// When Redshift Metric is disabled, all topics are throtted in the
+	// same way, regardless of their usage in Redshift.
+	// i.e. they get the same throttling budget.
+	if !h.redshiftMetrics {
+		klog.V(2).Infof("%s: redshiftMetrics disabled, recommended to enable", topic)
+		if firstLoad {
+			return throttleBudget{max: 120, interval: 15}, nil // 30mins max
+		} else {
+			return throttleBudget{max: 10, interval: 15}, nil // 2.5 mins max
+		}
+	}
+
+	// When Redshift Metric is enabled,
+	// throttling budget is based on the usage of tables in redshift.
+	queries, err := h.prometheusClient.Query(
+		fmt.Sprintf(
+			"increase(redshift_scan_query_total{schema='%s', tablename='%s'}[1d])",
+			h.redshiftSchema,
+			topic,
+		),
+	)
+	if err != nil {
+		return throttleBudget{}, err
+	}
+
+	if queries > 0 && firstLoad {
+		return throttleBudget{max: 120, interval: 15}, nil // 30mins  max
+	} else if queries > 0 {
+		return throttleBudget{max: 3, interval: 10}, nil // 30 seconds max, just to spread out the load
+	} else if queries == 0 && firstLoad { // case of tables which have not been queried in last 1d and this the first run
+		return throttleBudget{max: 8, interval: 900}, nil // 2hrs max
+	} else { // case of tables which have not been queried in last 1d and this not the first run
+		return throttleBudget{max: 4, interval: 900}, nil // 1hr max
+	}
+}
+
 func (h *loaderHandler) throttle(topic string, metric metricSetter) error {
 	// never throttle if promtheus client is not set
 	// this makes throttling using prometheus an addon feature
 	if h.prometheusClient == nil {
-		klog.V(2).Infof("%s: promtheus is not enabled, throttling feature disabled", topic)
+		klog.V(2).Infof("%s: prometheus disabled, throttle disabled", topic)
 		return nil
 	}
 
@@ -151,13 +202,22 @@ func (h *loaderHandler) throttle(topic string, metric metricSetter) error {
 	})
 	klog.V(4).Infof("%s: running loaders(local): %v", topic, localLoadRunning)
 
-	throttleBudget := FirstThrottlingBudget
+	firstLoad := true
 	_, ok := h.loadRunning.Load(topic)
 	if ok {
-		throttleBudget = ThrottlingBudget
+		firstLoad = false
 	}
 
-	for i := 0; i < throttleBudget; i++ {
+	var budget throttleBudget
+	for cnt := 0; ; cnt++ {
+		budget, err := h.throttleBudget(topic, firstLoad)
+		if err != nil {
+			return err
+		}
+		if cnt >= budget.max {
+			break
+		}
+
 		runningLoaders, err := h.prometheusClient.Query("sum(rsk_loader_running > 0)")
 		if err != nil {
 			return err
@@ -168,12 +228,12 @@ func (h *loaderHandler) throttle(topic string, metric metricSetter) error {
 			return nil
 		}
 
-		klog.V(2).Infof("%s: throttled for 15s", topic)
+		klog.V(2).Infof("%s: throttled for %+v seconds", topic, budget.interval)
 		metric.incThrottled()
-		time.Sleep(15 * time.Second)
+		time.Sleep(time.Duration(budget.interval) * time.Second)
 	}
 
-	klog.V(2).Infof("%s: throttle budget exhausted, go load!", topic)
+	klog.V(2).Infof("%s: exhausted throttle budget: %+v, go load!", topic, budget)
 
 	return nil
 }

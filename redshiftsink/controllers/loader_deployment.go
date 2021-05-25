@@ -204,6 +204,7 @@ func NewLoader(
 	defaultMaxOpenConns int,
 	defaultMaxIdleConns int,
 	prometheusURL string,
+	redshiftMetrics bool,
 ) (
 	Deployment,
 	error,
@@ -313,9 +314,10 @@ func NewLoader(
 			MaxOpenConns: maxOpenConns,
 			MaxIdleConns: maxIdleConns,
 		},
-		RedshiftGroup: rsk.Spec.Loader.RedshiftGroup,
-		Rsk:           rsk.Name,
-		SinkGroup:     sinkGroup,
+		RedshiftGroup:   rsk.Spec.Loader.RedshiftGroup,
+		RedshiftMetrics: redshiftMetrics,
+		Rsk:             rsk.Name,
+		SinkGroup:       sinkGroup,
 	}
 	confBytes, err := yaml.Marshal(conf)
 	if err != nil {
