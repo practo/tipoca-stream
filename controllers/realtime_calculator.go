@@ -16,9 +16,9 @@ type topicLast struct {
 }
 
 type realtimeCalculator struct {
-	rsk     *tipocav1.RedshiftSink
-	watcher kafka.Watcher
-	cache   *sync.Map
+	rsk         *tipocav1.RedshiftSink
+	kafkaClient kafka.Client
+	cache       *sync.Map
 
 	batchersRealtime []string
 	loadersRealtime  []string
@@ -31,14 +31,14 @@ type realtimeCalculator struct {
 
 func newRealtimeCalculator(
 	rsk *tipocav1.RedshiftSink,
-	watcher kafka.Watcher,
+	kafkaClient kafka.Client,
 	cache *sync.Map,
 	desiredVersion string,
 ) *realtimeCalculator {
 
 	return &realtimeCalculator{
 		rsk:            rsk,
-		watcher:        watcher,
+		kafkaClient:    kafkaClient,
 		cache:          cache,
 		batchersLast:   []topicLast{},
 		loadersLast:    []topicLast{},
@@ -143,7 +143,7 @@ func (r *realtimeCalculator) fetchRealtimeInfo(
 	}
 
 	// batcher's lag analysis: a) get last
-	batcherLast, err := r.watcher.LastOffset(topic, 0)
+	batcherLast, err := r.kafkaClient.LastOffset(topic, 0)
 	if err != nil {
 		return info, fmt.Errorf("Error getting last offset for %s", topic)
 	}
@@ -151,7 +151,7 @@ func (r *realtimeCalculator) fetchRealtimeInfo(
 	klog.V(4).Infof("rsk/%s %s, lastOffset=%v", r.rsk.Name, topic, batcherLast)
 
 	// batcher's lag analysis: b) get current
-	batcherCurrent, err := r.watcher.CurrentOffset(
+	batcherCurrent, err := r.kafkaClient.CurrentOffset(
 		consumerGroupID(r.rsk.Name, r.rsk.Namespace, desiredGroupID, "-batcher"),
 		topic,
 		0,
@@ -173,7 +173,7 @@ func (r *realtimeCalculator) fetchRealtimeInfo(
 	}
 
 	// loader's lag analysis: a) get last
-	loaderLast, err := r.watcher.LastOffset(*loaderTopic, 0)
+	loaderLast, err := r.kafkaClient.LastOffset(*loaderTopic, 0)
 	if err != nil {
 		return info, fmt.Errorf("Error getting last offset for %s", *loaderTopic)
 	}
@@ -181,7 +181,7 @@ func (r *realtimeCalculator) fetchRealtimeInfo(
 	klog.V(4).Infof("rsk/%s %s, lastOffset=%v", r.rsk.Name, *loaderTopic, loaderLast)
 
 	// loader's lag analysis: b) get current
-	loaderCurrent, err := r.watcher.CurrentOffset(
+	loaderCurrent, err := r.kafkaClient.CurrentOffset(
 		consumerGroupID(r.rsk.Name, r.rsk.Namespace, desiredGroupID, "-loader"),
 		*loaderTopic,
 		0,
@@ -220,7 +220,7 @@ func (r *realtimeCalculator) calculate(reloading []string, currentRealtime []str
 	realtimeTopics := []string{}
 	current := toMap(currentRealtime)
 
-	allTopics, err := r.watcher.Topics()
+	allTopics, err := r.kafkaClient.Topics()
 	if err != nil {
 		klog.Errorf(
 			"Ignoring realtime update. Error fetching all topics, err:%v",
