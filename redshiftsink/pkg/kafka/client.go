@@ -9,7 +9,7 @@ import (
 	"github.com/practo/klog/v2"
 )
 
-type Watcher interface {
+type Client interface {
 	// Topics return all the topics present in kafka, it keeps a cache
 	// which is refreshed every cacheValidity seconds
 	Topics() ([]string, error)
@@ -23,7 +23,7 @@ type Watcher interface {
 	CurrentOffset(id string, topic string, partition int32) (int64, error)
 }
 
-type kafkaWatch struct {
+type kafkaClient struct {
 	client               sarama.Client
 	cacheValidity        time.Duration
 	lastTopicRefreshTime *int64
@@ -35,12 +35,12 @@ type kafkaWatch struct {
 	topics []string
 }
 
-func NewWatcher(
+func NewClient(
 	brokers []string,
 	version string,
 	configTLS TLSConfig,
 ) (
-	Watcher, error,
+	Client, error,
 ) {
 	v, err := sarama.ParseKafkaVersion(version)
 	if err != nil {
@@ -63,7 +63,7 @@ func NewWatcher(
 		return nil, fmt.Errorf("Error creating client: %v\n", err)
 	}
 
-	return &kafkaWatch{
+	return &kafkaClient{
 		client:               client,
 		cacheValidity:        time.Second * time.Duration(30),
 		lastTopicRefreshTime: nil,
@@ -85,7 +85,7 @@ func cacheValid(validity time.Duration, lastCachedTime *int64) bool {
 
 // Topics get the latest topics after refreshing the client with the latest
 // it caches it for t.cacheValidity
-func (t *kafkaWatch) Topics() ([]string, error) {
+func (t *kafkaClient) Topics() ([]string, error) {
 	if cacheValid(t.cacheValidity, t.lastTopicRefreshTime) {
 		return t.topics, nil
 	}
@@ -113,11 +113,11 @@ func (t *kafkaWatch) Topics() ([]string, error) {
 	return t.topics, nil
 }
 
-func (t *kafkaWatch) LastOffset(topic string, partition int32) (int64, error) {
+func (t *kafkaClient) LastOffset(topic string, partition int32) (int64, error) {
 	return t.client.GetOffset(topic, partition, sarama.OffsetNewest)
 }
 
-func (t *kafkaWatch) fetchCurrentOffset(
+func (t *kafkaClient) fetchCurrentOffset(
 	id string,
 	topic string,
 	partition int32,
@@ -179,7 +179,7 @@ func (t *kafkaWatch) fetchCurrentOffset(
 	return defaultCurrentOffset, nil
 }
 
-func (t *kafkaWatch) CurrentOffset(
+func (t *kafkaClient) CurrentOffset(
 	id string,
 	topic string,
 	partition int32,
