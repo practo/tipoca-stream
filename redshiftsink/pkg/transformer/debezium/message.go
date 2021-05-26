@@ -295,6 +295,11 @@ func (c *messageTransformer) Transform(
 	}
 
 	for _, column := range table.Columns {
+		if column.Type == "record" && column.SourceType.ColumnType == "polygon" {
+			empty := ""
+			value[column.Name] = &empty
+			continue
+		}
 		if column.Type != redshift.RedshiftTimeStamp &&
 			column.Type != redshift.RedshiftDate {
 			continue
