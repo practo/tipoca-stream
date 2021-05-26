@@ -1252,6 +1252,7 @@ var mysqlToRedshiftTypeMap = map[string]string{
 	"bigint unsigned":             RedshiftNumeric,
 	"float":                       "real",
 	"json":                        RedshiftStringMax,
+	"polygon":                     "GEOMETRY",
 }
 
 func applyRange(masked bool, min, max, current int) int {
