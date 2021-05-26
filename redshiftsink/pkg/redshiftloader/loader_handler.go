@@ -184,7 +184,11 @@ func (h *loaderHandler) throttleBudget(topic string, firstLoad bool) (throttleBu
 	}
 }
 
-func (h *loaderHandler) throttle(topic string, metric metricSetter) error {
+func (h *loaderHandler) throttle(topic string, metric metricSetter, sinkGroup string) error {
+	if sinkGroup == "reload" {
+		klog.V(2).Infof("%s: throttling is disabled for reload sinkgroup", sinkGroup)
+		return nil
+	}
 	// never throttle if promtheus client is not set
 	// this makes throttling using prometheus an addon feature
 	if h.prometheusClient == nil {
@@ -252,11 +256,12 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 	var lastSchemaId *int
 	var err error
 
+	sinkGroup := viper.GetString("sinkGroup")
 	metric := metricSetter{
 		consumergroup: h.consumerGroupID,
 		topic:         claim.Topic(),
 		rsk:           viper.GetString("rsk"),
-		sinkGroup:     viper.GetString("sinkGroup"),
+		sinkGroup:     sinkGroup,
 	}
 	processor, err := newLoadProcessor(
 		h.consumerGroupID,
@@ -371,7 +376,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 					msg.Topic,
 				)
 				maxWaitTicker.Stop()
-				err = h.throttle(claim.Topic(), metric)
+				err = h.throttle(claim.Topic(), metric, sinkGroup)
 				if err != nil {
 					return err
 				}
@@ -393,7 +398,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			)
 			maxWaitTicker.Stop()
 			if msgBatch.Size() > 0 {
-				err = h.throttle(claim.Topic(), metric)
+				err = h.throttle(claim.Topic(), metric, sinkGroup)
 				if err != nil {
 					return err
 				}
