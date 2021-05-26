@@ -48,7 +48,7 @@ func (r *RedshiftCollector) Collect(ctx context.Context, wg *sync.WaitGroup) err
 		case <-ctx.Done():
 			klog.V(2).Infof("ctx cancelled, bye collector")
 			return nil
-		case <-time.After(time.Second * 1800):
+		case <-time.After(time.Second * 30):
 			err := r.redshifter.CollectQueryTotal(ctx)
 			if err != nil {
 				klog.Errorf("Redshift Collector shutdown due to error: %v", err)
