@@ -35,7 +35,6 @@ func NewRedshiftCollector(client *Redshift) *RedshiftCollector {
 }
 
 func (c *RedshiftCollector) updateQueryTotal(ctx context.Context) {
-	klog.V(2).Info("fetching redshift.scan.query_total")
 	queryTotalRows, err := c.client.ScanQueryTotal(ctx)
 	if err != nil {
 		klog.Fatalf("Redshift Collector shutdown due to error: %v", err)
@@ -47,10 +46,9 @@ func (c *RedshiftCollector) updateQueryTotal(ctx context.Context) {
 func (c *RedshiftCollector) Fetch(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	klog.V(2).Info("fetching redshift.scan.query_total (first scan)")
+	klog.V(2).Info("fetching query_total (first scan)")
 	c.updateQueryTotal(ctx)
 	c.ready = true
-	klog.V(2).Info("fetching redshift.scan.query_total (first scan completed)")
 
 	for {
 		select {
@@ -58,7 +56,9 @@ func (c *RedshiftCollector) Fetch(ctx context.Context, wg *sync.WaitGroup) {
 			klog.V(2).Infof("ctx cancelled, bye collector")
 			return
 		case <-time.After(time.Second * 120):
+			klog.V(2).Info("fetching query_total (every 120s)")
 			c.updateQueryTotal(ctx)
+			klog.V(2).Info("fetch query_total complete")
 		}
 	}
 }
@@ -69,7 +69,7 @@ func (c *RedshiftCollector) Describe(ch chan<- *prometheus.Desc) {
 
 func (c *RedshiftCollector) Collect(ch chan<- prometheus.Metric) {
 	for !c.ready {
-		klog.V(2).Infof("waiting for the scan query to be ready")
+		klog.V(2).Info("waiting for the first query_total fetch to complete...")
 		return
 	}
 
