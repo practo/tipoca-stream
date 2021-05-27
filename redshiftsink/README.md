@@ -255,7 +255,10 @@ CREATE SCHEMA redshiftsink_operator;
 ```
 
 #### View
-Note: Please substitute `AND s.userid != 100` with the user id(s) of the redshitsink users. We need to ignore the queries from the redshiftsink users to keep the calculation usable.
+Please change below in the sql before running:
+- `AND s.userid != 100` with the user id(s) of the redshitsink user you are  using.
+- `AND s.starttime > GETDATE() - interval '3 day'` with the time window you want to consider a table is in use or not.
+
 ```sql
 CREATE OR REPLACE VIEW redshiftsink_operator.scan_query_total AS
 SELECT DATABASE,
@@ -273,6 +276,7 @@ LEFT JOIN
    FROM stl_scan s
    WHERE s.userid > 1
      AND s.userid != 100
+     AND s.starttime > GETDATE() - interval '3 day'
      AND s.perm_table_name NOT IN ('Internal Worktable',
                                    'S3')
      AND s.perm_table_name NOT LIKE '%staged%'                                    
@@ -281,6 +285,7 @@ LEFT JOIN
 AND t."schema" NOT IN ('pg_internal')
 ORDER BY 7 DESC;
 ```
+View [source](https://github.com/awslabs/amazon-redshift-utils/blob/184c2ba7fd9d497027a831ca72e08fe09e79fd0b/src/AdminViews/v_get_tbl_scan_frequency.sql)
 
 - Set `--collect-redshift-metrics` as true in the RedshiftSink Operator Deployment.
 ```

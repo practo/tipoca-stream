@@ -83,7 +83,7 @@ func (c *RedshiftCollector) Collect(ch chan<- prometheus.Metric) {
 	for _, queryTotalRow := range queryTotalRows {
 		ch <- prometheus.MustNewConstMetric(
 			c.queryTotalMetric,
-			prometheus.CounterValue,
+			prometheus.GaugeValue,
 			queryTotalRow.QueryTotal,
 			queryTotalRow.Database,
 			queryTotalRow.Schema,
