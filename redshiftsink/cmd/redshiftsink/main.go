@@ -155,11 +155,17 @@ func main() {
 		setupLog.Error(err, "problem initializing redshift connection")
 		os.Exit(1)
 	}
-	metrics.Registry.MustRegister(redshift.NewRedshiftCollector(redshiftClient))
+	redshiftCollector := redshift.NewRedshiftCollector(redshiftClient)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go redshiftCollector.Fetch(ctx, wg)
+	metrics.Registry.MustRegister(redshiftCollector)
 
 	setupLog.Info("Starting Operator...")
 	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+
+	wg.Wait()
 }
