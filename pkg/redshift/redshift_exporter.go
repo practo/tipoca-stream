@@ -55,10 +55,10 @@ func (c *RedshiftCollector) Fetch(ctx context.Context, wg *sync.WaitGroup) {
 		case <-ctx.Done():
 			klog.V(2).Infof("ctx cancelled, bye collector")
 			return
-		case <-time.After(time.Second * 120):
+		case <-time.After(time.Second * 300):
 			klog.V(2).Info("fetching query_total (every 120s)")
 			c.updateQueryTotal(ctx)
-			klog.V(2).Info("fetch query_total complete")
+			klog.V(4).Info("fetch query_total complete")
 		}
 	}
 }
