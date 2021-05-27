@@ -164,7 +164,7 @@ func (h *loaderHandler) throttleBudget(topic string, firstLoad bool) (throttleBu
 	// throttling budget is based on the usage of tables in redshift.
 	queries, err := h.prometheusClient.Query(
 		fmt.Sprintf(
-			"increase(redshift_scan_query_total{schema='%s', tablename='%s'}[1d])",
+			"redshift_scan_query_total{schema='%s', tablename='%s'}",
 			h.redshiftSchema,
 			topic,
 		),
