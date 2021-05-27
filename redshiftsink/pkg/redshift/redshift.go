@@ -943,7 +943,7 @@ type QueryTotalRow struct {
 func (r *Redshift) ScanQueryTotal(ctx context.Context) ([]QueryTotalRow, error) {
 	var resultRows []QueryTotalRow
 
-	klog.V(2).Info("querying redshift.scan.query_total")
+	klog.V(4).Info("querying redshift.scan.query_total")
 	query := `select database, schemaname,tableid,tablename,query_total from redshiftsink_operator.scan_query_total`
 	rows, err := r.QueryContext(ctx, query)
 	if err != nil {
@@ -966,7 +966,7 @@ func (r *Redshift) ScanQueryTotal(ctx context.Context) ([]QueryTotalRow, error) 
 		resultRows = append(resultRows, row)
 	}
 
-	klog.V(2).Info("queried redshift.scan.query_total")
+	klog.V(4).Info("queried redshift.scan.query_total")
 
 	return resultRows, nil
 }

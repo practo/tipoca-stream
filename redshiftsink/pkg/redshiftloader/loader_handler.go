@@ -9,6 +9,7 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/prometheus"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/util"
 	"github.com/spf13/viper"
 	"sync"
 	"time"
@@ -242,6 +243,28 @@ func (h *loaderHandler) throttle(topic string, metric metricSetter, sinkGroup st
 	return nil
 }
 
+func (h *loaderHandler) randomMaxWait(topic string) *int {
+	var maxAllowed *int
+	queries, err := h.prometheusClient.Query(
+		fmt.Sprintf(
+			"redshift_scan_query_total{schema='%s', tablename='%s'}",
+			h.redshiftSchema,
+			topic,
+		),
+	)
+	if err != nil {
+		klog.Errorf("Can't use prometheus to decide maxWait, err: %v", err)
+		return h.maxWaitSeconds
+	}
+	if queries > 0 {
+		maxAllowed = h.maxWaitSeconds
+	}
+
+	newMaxWait := util.Randomize(*h.maxWaitSeconds, 0.20, maxAllowed)
+
+	return &newMaxWait
+}
+
 // ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages().
 // ConsumeClaim is managed by the consumer.manager routine
 func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
@@ -272,6 +295,13 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		h.redshiftGroup,
 		metric,
 	)
+
+	// randomize maxWait if prometheus and redshift metrics are available
+	if h.prometheusClient != nil && h.redshiftMetrics {
+		h.maxWaitSeconds = h.randomMaxWait(claim.Topic())
+	}
+	klog.V(2).Infof("%s: maxWaitSeconds=%vs", claim.Topic(), *h.maxWaitSeconds)
+
 	if err != nil {
 		return fmt.Errorf(
 			"Error making the load processor for topic: %s, err: %v",
