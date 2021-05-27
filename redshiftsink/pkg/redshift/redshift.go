@@ -6,7 +6,6 @@ import (
 	"fmt"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/practo/klog/v2"
-	"github.com/prometheus/client_golang/prometheus"
 	"math"
 	"strconv"
 
@@ -17,18 +16,6 @@ import (
 	// TCP keep alive support pending: https://github.com/lib/pq/issues/360
 	_ "github.com/practo/pq"
 	"strings"
-)
-
-var (
-	RedshiftQueryTotalMetric = prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Namespace: "redshift",
-			Subsystem: "scan",
-			Name:      "query_total",
-			Help:      "total number of queries executed",
-		},
-		[]string{"database", "schema", "tablename", "tableid"},
-	)
 )
 
 const (
@@ -943,42 +930,45 @@ func (r *Redshift) GetTableMetadata(ctx context.Context, schema, tableName strin
 	return &retTable, nil
 }
 
-type queryTotalRow struct {
-	schema     string
-	tableID    string
-	tableName  string
-	queryTotal float64
+type QueryTotalRow struct {
+	Database   string
+	Schema     string
+	TableName  string
+	TableID    string
+	QueryTotal float64
 }
 
-// CollectQueryTotal collects total queries for each table
-// expects the view redshiftsink_operator.scan_query_total to be present
-func (r *Redshift) CollectQueryTotal(ctx context.Context) error {
-	klog.V(2).Info("collecting redshift.scan.query_total")
+// ScanQueryTotal reads the view on top of STL_SCAN table to get total queries executed for each table
+// TODO: expects the view redshiftsink_operator.scan_query_total to be present
+func (r *Redshift) ScanQueryTotal(ctx context.Context) ([]QueryTotalRow, error) {
+	var resultRows []QueryTotalRow
 
-	query := `select schemaname,tableid,tablename,query_total from redshiftsink_operator.scan_query_total`
+	klog.V(2).Info("querying redshift.scan.query_total")
+	query := `select database, schemaname,tableid,tablename,query_total from redshiftsink_operator.scan_query_total`
 	rows, err := r.QueryContext(ctx, query)
 	if err != nil {
-		return fmt.Errorf("error running query: %s, err: %s", query, err)
+		return resultRows, fmt.Errorf("error running query: %s, err: %s", query, err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var row queryTotalRow
-		err := rows.Scan(&row.schema, &row.tableID, &row.tableName, &row.queryTotal)
+		var row QueryTotalRow
+		err := rows.Scan(
+			&row.Database,
+			&row.Schema,
+			&row.TableID,
+			&row.TableName,
+			&row.QueryTotal,
+		)
 		if err != nil {
-			return fmt.Errorf("error scanning query view, err: %s", err)
+			return resultRows, fmt.Errorf("error scanning query view, err: %s", err)
 		}
-		RedshiftQueryTotalMetric.WithLabelValues(
-			r.conf.Database,
-			row.schema,
-			row.tableName,
-			row.tableID,
-		).Set(row.queryTotal)
+		resultRows = append(resultRows, row)
 	}
 
-	klog.V(2).Info("collected redshift.scan.query_total")
+	klog.V(2).Info("queried redshift.scan.query_total")
 
-	return nil
+	return resultRows, nil
 }
 
 // CheckSchemas takes in two tables and compares their column schemas

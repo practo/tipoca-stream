@@ -52,8 +52,6 @@ func init() {
 
 	_ = tipocav1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
-
-	metrics.Registry.MustRegister(redshift.RedshiftQueryTotalMetric)
 }
 
 func main() {
@@ -140,7 +138,7 @@ func main() {
 	// +kubebuilder:scaffold:builder
 
 	if !collectRedshiftMetrics {
-		setupLog.Info("Starting manager")
+		setupLog.Info("Starting Operator... (redshift metrics feature is disabled)")
 		if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 			setupLog.Error(err, "problem running manager")
 			os.Exit(1)
@@ -151,21 +149,17 @@ func main() {
 	ctx, cancel := context.WithCancel(ctrl.SetupSignalHandler())
 	defer cancel()
 
-	setupLog.Info("Staring Redshift metrics")
-	collector, err := controllers.NewRedshiftCollector(uncachedClient, secretRefName, secretRefNamespace)
+	setupLog.Info("Configuring Redshift exporter...")
+	redshiftClient, err := controllers.NewRedshiftConn(uncachedClient, secretRefName, secretRefNamespace)
 	if err != nil {
-		setupLog.Error(err, "problem initializing collector")
+		setupLog.Error(err, "problem initializing redshift connection")
 		os.Exit(1)
 	}
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	go collector.Collect(ctx, wg)
+	metrics.Registry.MustRegister(redshift.NewRedshiftCollector(redshiftClient))
 
-	setupLog.Info("Starting manager")
+	setupLog.Info("Starting Operator...")
 	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
-
-	wg.Wait()
 }

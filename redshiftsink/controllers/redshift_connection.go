@@ -3,18 +3,18 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sync"
-	"time"
 )
 
-type RedshiftCollector struct {
-	redshifter *redshift.Redshift
-}
-
-func NewRedshiftCollector(client client.Client, secretName, secretNamespace string) (*RedshiftCollector, error) {
+func NewRedshiftConn(
+	client client.Client,
+	secretName,
+	secretNamespace string,
+) (
+	*redshift.Redshift,
+	error,
+) {
 	secret := make(map[string]string)
 	k8sSecret, err := getSecret(context.Background(), client, secretName, secretNamespace)
 	if err != nil {
@@ -24,40 +24,7 @@ func NewRedshiftCollector(client client.Client, secretName, secretNamespace stri
 		secret[key] = string(value)
 	}
 
-	redshifter, err := NewRedshiftConnection(secret, "")
-	if err != nil {
-		return nil, err
-	}
-
-	return &RedshiftCollector{
-		redshifter: redshifter,
-	}, nil
-}
-
-func (r *RedshiftCollector) Collect(ctx context.Context, wg *sync.WaitGroup) error {
-	defer wg.Done()
-	// TODO: make it possible to remove below comment, create the view
-	// expects the view to be present redshiftsink_operator.scan_query_total
-	err := r.redshifter.CollectQueryTotal(ctx)
-	if err != nil {
-		klog.Errorf("Redshift Collector shutdown due to error: %v", err)
-		return err
-	}
-	for {
-		select {
-		case <-ctx.Done():
-			klog.V(2).Infof("ctx cancelled, bye collector")
-			return nil
-		case <-time.After(time.Second * 30):
-			err := r.redshifter.CollectQueryTotal(ctx)
-			if err != nil {
-				klog.Errorf("Redshift Collector shutdown due to error: %v", err)
-				return err
-			}
-		}
-	}
-
-	return nil
+	return NewRedshiftConnection(secret, "")
 }
 
 func NewRedshiftConnection(
