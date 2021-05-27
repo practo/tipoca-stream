@@ -70,7 +70,7 @@ func (c *RedshiftCollector) Describe(ch chan<- *prometheus.Desc) {
 func (c *RedshiftCollector) Collect(ch chan<- prometheus.Metric) {
 	for !c.ready {
 		klog.V(2).Infof("waiting for the scan query to be ready")
-		time.Sleep(10 * time.Second)
+		return
 	}
 
 	loaded, ok := c.queryTotal.Load("")
