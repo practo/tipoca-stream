@@ -157,18 +157,21 @@ func (h *loaderHandler) throttleBudget(topic string, firstLoad bool) (throttleBu
 		}
 	}
 
+	_, _, table := transformer.ParseTopic(topic)
 	// When Redshift Metric is enabled,
 	// throttling budget is based on the usage of tables in redshift.
 	queries, err := h.prometheusClient.Query(
 		fmt.Sprintf(
 			"redshift_scan_query_total{schema='%s', tablename='%s'}",
 			h.redshiftSchema,
-			topic,
+			table,
 		),
 	)
 	if err != nil {
 		return throttleBudget{}, err
 	}
+
+	klog.V(2).Infof("%s: firstLoad:%v, queries:%v", topic, firstLoad, queries)
 
 	if queries > 0 && firstLoad {
 		return throttleBudget{max: 120, interval: 15}, nil // 30mins  max
