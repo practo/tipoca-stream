@@ -254,10 +254,10 @@ func (h *loaderHandler) randomMaxWait(topic string) *int {
 		return h.maxWaitSeconds
 	}
 	if queries != nil && float64(*queries) > 0.0 {
-    klog.V(2).Infof("%s: queries:%+v", topic, *queries)
+		klog.V(2).Infof("%s: queries:%+v", topic, *queries)
 		maxAllowed = h.maxWaitSeconds
 	} else {
-    klog.V(2).Infof("%s: queries:0", topic)
+		klog.V(2).Infof("%s: queries:0", topic)
 		minAllowed = h.maxWaitSeconds
 	}
 	newMaxWait := util.Randomize(*h.maxWaitSeconds, 0.20, maxAllowed, minAllowed)
