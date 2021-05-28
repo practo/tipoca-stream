@@ -82,22 +82,8 @@ func NewHandler(
 	redshiftSchema string,
 	redshiftGroup *string,
 	redshiftMetrics bool,
+	prometheusClient prometheus.Client,
 ) *loaderHandler {
-	// apply defaults
-	if loaderConfig.MaxWaitSeconds == nil {
-		loaderConfig.MaxWaitSeconds = &DefaultMaxWaitSeconds
-	}
-
-	var err error
-	var prometheusClient prometheus.Client
-	prometheusURL := viper.GetString("prometheusURL")
-	if prometheusURL != "" {
-		prometheusClient, err = prometheus.NewClient(prometheusURL)
-		if err != nil {
-			klog.Fatalf("Error initializing prometheus client, err: %v", err)
-		}
-	}
-
 	return &loaderHandler{
 		ready: ready,
 		ctx:   ctx,
