@@ -10,17 +10,19 @@ func Randomize(
 	maxAllowed *int,
 	minAllowed *int,
 ) int {
+	var max, min int
 	diff := int(float32(value) * diffPercent)
-
-	min := value - diff
-	max := value + diff
 
 	if maxAllowed != nil {
 		max = *maxAllowed
+	} else {
+		max = value + diff
 	}
 
 	if minAllowed != nil {
 		min = *minAllowed
+	} else {
+		min = value - diff
 	}
 
 	return min + rand.Intn(max-min)

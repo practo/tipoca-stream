@@ -9,6 +9,7 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/prometheus"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/util"
 	"github.com/prometheus/common/model"
 	"github.com/spf13/viper"
@@ -242,10 +243,11 @@ func (h *loaderHandler) throttle(topic string, metric metricSetter, sinkGroup st
 // this is required to spread the load in Redshift
 func (h *loaderHandler) randomMaxWait(topic string) *int {
 	var maxAllowed, minAllowed *int
+	_, _, table := transformer.ParseTopic(topic)
 	queries, err := h.prometheusClient.FilterVector(
 		*h.schemaQueries,
-		"topic",
-		topic,
+		"tablename",
+		table,
 	)
 	if err != nil {
 		klog.Warningf("Can't use prometheus to decide maxWait, err: %v", err)
