@@ -9,6 +9,9 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/prometheus"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/util"
+	"github.com/prometheus/common/model"
 	"github.com/spf13/viper"
 	"sync"
 	"time"
@@ -65,6 +68,12 @@ type loaderHandler struct {
 	// so that concurrency of load can be maintained below a threshold
 	prometheusClient prometheus.Client
 
+	// schemaQueries stores the queries per topic in schema
+	// if this is available for a topic, we are able to randomize maxWait
+	// better for the topic, it specifies which table is being used more
+	// in redshift
+	schemaQueries *model.Vector
+
 	// loadRunning is used for two purpose
 	// 1. to track total running loaders
 	// 2. to allow more throttling seconds in case of first load
@@ -81,22 +90,9 @@ func NewHandler(
 	redshiftSchema string,
 	redshiftGroup *string,
 	redshiftMetrics bool,
+	prometheusClient prometheus.Client,
+	schemaQueries *model.Vector,
 ) *loaderHandler {
-	// apply defaults
-	if loaderConfig.MaxWaitSeconds == nil {
-		loaderConfig.MaxWaitSeconds = &DefaultMaxWaitSeconds
-	}
-
-	var err error
-	var prometheusClient prometheus.Client
-	prometheusURL := viper.GetString("prometheusURL")
-	if prometheusURL != "" {
-		prometheusClient, err = prometheus.NewClient(prometheusURL)
-		if err != nil {
-			klog.Fatalf("Error initializing prometheus client, err: %v", err)
-		}
-	}
-
 	return &loaderHandler{
 		ready: ready,
 		ctx:   ctx,
@@ -117,6 +113,7 @@ func NewHandler(
 		redshiftMetrics: redshiftMetrics,
 
 		prometheusClient: prometheusClient,
+		schemaQueries:    schemaQueries,
 		loadRunning:      new(sync.Map),
 	}
 }
@@ -160,18 +157,21 @@ func (h *loaderHandler) throttleBudget(topic string, firstLoad bool) (throttleBu
 		}
 	}
 
+	_, _, table := transformer.ParseTopic(topic)
 	// When Redshift Metric is enabled,
 	// throttling budget is based on the usage of tables in redshift.
 	queries, err := h.prometheusClient.Query(
 		fmt.Sprintf(
-			"increase(redshift_scan_query_total{schema='%s', tablename='%s'}[1d])",
+			"redshift_scan_query_total{schema='%s', tablename='%s'}",
 			h.redshiftSchema,
-			topic,
+			table,
 		),
 	)
 	if err != nil {
 		return throttleBudget{}, err
 	}
+
+	klog.V(2).Infof("%s: firstLoad:%v, queries:%v", topic, firstLoad, queries)
 
 	if queries > 0 && firstLoad {
 		return throttleBudget{max: 120, interval: 15}, nil // 30mins  max
@@ -242,6 +242,32 @@ func (h *loaderHandler) throttle(topic string, metric metricSetter, sinkGroup st
 	return nil
 }
 
+// randomMaxWait helps to keep the maxWait +- 20% of the specified value
+// this is required to spread the load in Redshift
+func (h *loaderHandler) randomMaxWait(topic string) *int {
+	var maxAllowed, minAllowed *int
+	_, _, table := transformer.ParseTopic(topic)
+	queries, err := h.prometheusClient.FilterVector(
+		*h.schemaQueries,
+		"tablename",
+		table,
+	)
+	if err != nil {
+		klog.Warningf("Can't use prometheus to decide maxWait, err: %v", err)
+		return h.maxWaitSeconds
+	}
+	if queries != nil && float64(*queries) > 0.0 {
+		klog.V(2).Infof("%s: queries:%+v", topic, *queries)
+		maxAllowed = h.maxWaitSeconds
+	} else {
+		klog.V(2).Infof("%s: queries:0", topic)
+		minAllowed = h.maxWaitSeconds
+	}
+	newMaxWait := util.Randomize(*h.maxWaitSeconds, 0.20, maxAllowed, minAllowed)
+
+	return &newMaxWait
+}
+
 // ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages().
 // ConsumeClaim is managed by the consumer.manager routine
 func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
@@ -272,6 +298,13 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		h.redshiftGroup,
 		metric,
 	)
+
+	// randomize maxWait if prometheus and redshift metrics are available
+	if h.prometheusClient != nil && h.redshiftMetrics {
+		h.maxWaitSeconds = h.randomMaxWait(claim.Topic())
+	}
+	klog.V(2).Infof("%s: maxWaitSeconds=%vs", claim.Topic(), *h.maxWaitSeconds)
+
 	if err != nil {
 		return fmt.Errorf(
 			"Error making the load processor for topic: %s, err: %v",

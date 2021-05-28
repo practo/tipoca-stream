@@ -2,25 +2,25 @@ package main
 
 import (
 	"context"
-	"time"
-
 	"flag"
+	"fmt"
+	"github.com/practo/klog/v2"
+	conf "github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftloader/config"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/prometheus"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
+	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftloader"
+	"github.com/prometheus/common/model"
 	"github.com/spf13/cobra"
 	pflag "github.com/spf13/pflag"
+	"github.com/spf13/viper"
 	"math/rand"
 	"net/http"
-
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
-
-	"github.com/practo/klog/v2"
-	conf "github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftloader/config"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftloader"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/util"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -94,24 +94,38 @@ func run(cmd *cobra.Command, args []string) {
 			klog.Infof("Created Redshift schema: %s", schema)
 		}
 	}
-
-	consumerGroups := make(map[string]kafka.ConsumerGroupInterface)
-	var consumersReady []chan bool
-	wg := &sync.WaitGroup{}
+	var prometheusClient prometheus.Client
+	prometheusURL := viper.GetString("prometheusURL")
+	if prometheusURL != "" {
+		prometheusClient, err = prometheus.NewClient(prometheusURL)
+		if err != nil {
+			klog.Fatalf("Error initializing prometheus client, err: %v", err)
+		}
+	}
 	maxWait := config.Loader.MaxWaitSeconds
 	if maxWait == nil {
 		maxWait = &redshiftloader.DefaultMaxWaitSeconds
 	}
+	config.Loader.MaxWaitSeconds = maxWait
+	var schemaQueries *model.Vector
+	if prometheusClient != nil && config.RedshiftMetrics {
+		schemaQueries, err = prometheusClient.QueryVector(
+			fmt.Sprintf(
+				"redshift_scan_query_total{schema='%s'}",
+				config.Redshift.Schema,
+			),
+		)
+		if err != nil {
+			klog.Fatalf("Error querying prometheus, err: %v", err)
+		}
+	}
 
+	consumerGroups := make(map[string]kafka.ConsumerGroupInterface)
+	var consumersReady []chan bool
+	wg := &sync.WaitGroup{}
 	for _, groupConfig := range config.ConsumerGroups {
 		ready := make(chan bool)
 		groupID := groupConfig.GroupID
-		if config.Loader.MaxWaitSeconds != nil {
-			randomMaxWait := util.Randomize(*maxWait, 0.20)
-			config.Loader.MaxWaitSeconds = &randomMaxWait
-			klog.V(2).Infof("cg: %v maxWait: %v", groupID, randomMaxWait)
-		}
-
 		consumerGroup, err := kafka.NewConsumerGroup(
 			groupConfig,
 			redshiftloader.NewHandler(
@@ -124,6 +138,8 @@ func run(cmd *cobra.Command, args []string) {
 				config.Redshift.Schema,
 				config.RedshiftGroup,
 				config.RedshiftMetrics,
+				prometheusClient,
+				schemaQueries,
 			),
 		)
 		if err != nil {
