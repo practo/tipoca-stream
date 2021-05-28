@@ -10,6 +10,7 @@ import (
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
 	"github.com/practo/tipoca-stream/redshiftsink/pkg/util"
+	"github.com/prometheus/common/model"
 	"github.com/spf13/viper"
 	"sync"
 	"time"
@@ -66,6 +67,12 @@ type loaderHandler struct {
 	// so that concurrency of load can be maintained below a threshold
 	prometheusClient prometheus.Client
 
+	// schemaQueries stores the queries per topic in schema
+	// if this is available for a topic, we are able to randomize maxWait
+	// better for the topic, it specifies which table is being used more
+	// in redshift
+	schemaQueries *model.Vector
+
 	// loadRunning is used for two purpose
 	// 1. to track total running loaders
 	// 2. to allow more throttling seconds in case of first load
@@ -83,6 +90,7 @@ func NewHandler(
 	redshiftGroup *string,
 	redshiftMetrics bool,
 	prometheusClient prometheus.Client,
+	schemaQueries *model.Vector,
 ) *loaderHandler {
 	return &loaderHandler{
 		ready: ready,
@@ -104,6 +112,7 @@ func NewHandler(
 		redshiftMetrics: redshiftMetrics,
 
 		prometheusClient: prometheusClient,
+		schemaQueries:    schemaQueries,
 		loadRunning:      new(sync.Map),
 	}
 }
@@ -229,24 +238,25 @@ func (h *loaderHandler) throttle(topic string, metric metricSetter, sinkGroup st
 	return nil
 }
 
+// randomMaxWait helps to keep the maxWait +- 20% of the specified value
+// this is required to spread the load in Redshift
 func (h *loaderHandler) randomMaxWait(topic string) *int {
-	var maxAllowed *int
-	queries, err := h.prometheusClient.Query(
-		fmt.Sprintf(
-			"redshift_scan_query_total{schema='%s', tablename='%s'}",
-			h.redshiftSchema,
-			topic,
-		),
+	var maxAllowed, minAllowed *int
+	queries, err := h.prometheusClient.FilterVector(
+		*h.schemaQueries,
+		"topic",
+		topic,
 	)
 	if err != nil {
-		klog.Errorf("Can't use prometheus to decide maxWait, err: %v", err)
+		klog.Warningf("Can't use prometheus to decide maxWait, err: %v", err)
 		return h.maxWaitSeconds
 	}
-	if queries > 0 {
+	if queries != nil && float64(*queries) > 0.0 {
 		maxAllowed = h.maxWaitSeconds
+	} else {
+		minAllowed = h.maxWaitSeconds
 	}
-
-	newMaxWait := util.Randomize(*h.maxWaitSeconds, 0.20, maxAllowed)
+	newMaxWait := util.Randomize(*h.maxWaitSeconds, 0.20, maxAllowed, minAllowed)
 
 	return &newMaxWait
 }

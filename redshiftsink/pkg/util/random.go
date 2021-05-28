@@ -4,7 +4,12 @@ import (
 	"math/rand"
 )
 
-func Randomize(value int, diffPercent float32, maxAllowed *int) int {
+func Randomize(
+	value int,
+	diffPercent float32,
+	maxAllowed *int,
+	minAllowed *int,
+) int {
 	diff := int(float32(value) * diffPercent)
 
 	min := value - diff
@@ -12,6 +17,10 @@ func Randomize(value int, diffPercent float32, maxAllowed *int) int {
 
 	if maxAllowed != nil {
 		max = *maxAllowed
+	}
+
+	if minAllowed != nil {
+		min = *minAllowed
 	}
 
 	return min + rand.Intn(max-min)
