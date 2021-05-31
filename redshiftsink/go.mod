@@ -1,25 +1,25 @@
 module github.com/practo/tipoca-stream/redshiftsink
 
-go 1.15
+go 1.16
 
 require (
-	github.com/Shopify/sarama v1.27.2
-	github.com/aws/aws-sdk-go v1.36.21
-	github.com/go-git/go-git/v5 v5.2.0
+	github.com/Shopify/sarama v1.29.0
+	github.com/aws/aws-sdk-go v1.38.51
+	github.com/go-git/go-git/v5 v5.4.1
 	github.com/go-logr/logr v0.3.0
 	github.com/google/uuid v1.1.4
-	github.com/hashicorp/go-multierror v1.1.0
+	github.com/hashicorp/go-multierror v1.1.1
 	github.com/linkedin/goavro/v2 v2.10.0
-	github.com/mitchellh/hashstructure/v2 v2.0.1
+	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/onsi/ginkgo v1.14.2
 	github.com/onsi/gomega v1.10.4
 	github.com/practo/klog/v2 v2.2.1
 	github.com/practo/pq v0.0.0-20200930024154-af3ceb106a20
 	github.com/prometheus/client_golang v1.10.0
-	github.com/prometheus/common v0.18.0
+	github.com/prometheus/common v0.25.0
 	github.com/riferrei/srclient v0.2.1
-	github.com/slack-go/slack v0.8.0
-	github.com/spf13/cobra v1.1.1
+	github.com/slack-go/slack v0.9.1
+	github.com/spf13/cobra v1.1.3
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.7.1
 	github.com/whilp/git-urls v1.0.0
