@@ -3,9 +3,9 @@ package debezium
 import (
 	"fmt"
 	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
+	"github.com/practo/tipoca-stream/pkg/redshift"
+	"github.com/practo/tipoca-stream/pkg/serializer"
+	"github.com/practo/tipoca-stream/pkg/transformer"
 	"strconv"
 	"strings"
 	"time"

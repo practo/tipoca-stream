@@ -2,8 +2,8 @@ package controllers
 
 import (
 	klog "github.com/practo/klog/v2"
-	transformer "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
-	masker "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
+	transformer "github.com/practo/tipoca-stream/pkg/transformer"
+	masker "github.com/practo/tipoca-stream/pkg/transformer/masker"
 	"os"
 	"path/filepath"
 	"sync"

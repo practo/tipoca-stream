@@ -1,4 +1,4 @@
-module github.com/practo/tipoca-stream/redshiftsink
+module github.com/practo/tipoca-stream
 
 go 1.16
 

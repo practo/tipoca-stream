@@ -3,8 +3,8 @@ package controllers
 import (
 	"fmt"
 	"github.com/practo/klog/v2"
-	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
-	transformer "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
+	tipocav1 "github.com/practo/tipoca-stream/api/v1"
+	transformer "github.com/practo/tipoca-stream/pkg/transformer"
 	"sort"
 	"strings"
 )

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	klog "github.com/practo/klog/v2"
-	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
+	tipocav1 "github.com/practo/tipoca-stream/api/v1"
 	"reflect"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	"strings"

@@ -3,11 +3,11 @@ package controllers
 import (
 	"fmt"
 
-	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
-	"github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftbatcher/config"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftbatcher"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/s3sink"
+	tipocav1 "github.com/practo/tipoca-stream/api/v1"
+	"github.com/practo/tipoca-stream/cmd/redshiftbatcher/config"
+	"github.com/practo/tipoca-stream/pkg/kafka"
+	"github.com/practo/tipoca-stream/pkg/redshiftbatcher"
+	"github.com/practo/tipoca-stream/pkg/s3sink"
 	yaml "gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"

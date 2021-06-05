@@ -1,8 +1,8 @@
 package controllers
 
 import (
-	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftbatcher"
+	tipocav1 "github.com/practo/tipoca-stream/api/v1"
+	"github.com/practo/tipoca-stream/pkg/redshiftbatcher"
 	corev1 "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 	"reflect"

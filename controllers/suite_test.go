@@ -28,7 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 
-	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
+	tipocav1 "github.com/practo/tipoca-stream/api/v1"
 	// +kubebuilder:scaffold:imports
 )
 

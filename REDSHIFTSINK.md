@@ -1,20 +1,16 @@
 # RedshiftSink
 
-RedshiftSink reads the debezium events from Kafka and loads them to Redshift. It has rich support for [masking](../MASKING.MD).
-
-----
-
-<img src="arch-operator.png">
+RedshiftSink reads the data events from Kafka and loads them to Redshift. It supports [masking](../MASKING.MD).
 
 # Install Redshiftsink
 
-* Add the secrets in a file.
+* Add the secrets in a file for Redshift, Git, MaskSalt, S3, etc...
 ```bash
 cp config/operator/kustomization_sample.yaml config/operator/kustomization.yaml
 vim config/operator/kustomization.yaml #fill in ur secrets
 ```
 
-* Generate manifests, verify and install.
+* Generate manifests using `kustomize`, verify the manifests and apply them. This will install the RedshiftSink operator, Kubernetes Secrets and the RBAC configuration in the Kubernetes cluster.
 ```bash
 cd config/default
 kubectl kustomize . > manifest.yaml
@@ -24,7 +20,7 @@ kubectl apply -f manifest.yaml
 or `make deploy`
 
 ### Verify Installation
-Check the redshiftsink resource is accessible using kubectl
+Check the redshiftsink resource and the operator deployment is accessible using kubectl
 ```bash
 kubectl get redshiftsink
 kubectl get deploy | redshiftsink-operator
@@ -32,7 +28,7 @@ kubectl get deploy | redshiftsink-operator
 
 # Example
 
-* Create the `Redshiftsink` custom resource. On creating it, the batcher and loader pods would be created which will start batching, masking and loading data to Redshift from Kafka topics.
+* Create the `Redshiftsink` resource. On creating it, the batcher and loader pods would be created which will start batching, masking and loading data to Redshift from Kafka topics.
 
 ```yaml
 apiVersion: tipoca.k8s.practo.dev/v1
@@ -51,7 +47,7 @@ spec:
   batcher:
     suspend: false
     mask: true
-    maskFile: "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker/database.yaml"
+    maskFile: "github.com/practo/tipoca-stream/pkg/transformer/masker/database.yaml"
     sinkGroup:
         all:
           maxSizePerBatch: 10Mi
@@ -84,10 +80,13 @@ spec:
 ```bash
 kubectl create -f config/samples/tipoca_v1_redshiftsink.yaml
 ```
-
 This will start syncing all the Kakfa topics matching regex `"^db.inventory*"` from Kafka to Redshift via S3. If masking is turned on it will also mask the data. More on masking [here](./MASKING.MD)
 
-### Configuration
+----
+
+<img src="./build/arch-operator.png">
+
+----
 
 ## RedshiftSink Managed Pods
 Redshiftsink performs the sink by creating two pods. Creating a RedshiftSink CRD installs the batcher and loader pods. Batcher and loader pods details are below:
@@ -97,7 +96,7 @@ Redshiftsink performs the sink by creating two pods. Creating a RedshiftSink CRD
 - Signals the Redshift loader to load the batch in Redshift using Kafka Topics.
 - **Batcher supports masking the data**. Please follow [this for enabling masking](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/MASKING.md).
 
-<img src="arch-batcher.png">
+<img src="./build/arch-batcher.png">
 
 ```bash
 $ bin/darwin_amd64/redshiftbatcher --help
@@ -124,16 +123,11 @@ rsk_batcher_messages_processed_count{consumergroup="", topic="", sinkGroup=""}
 
 The metrics are histograms in default buckets.
 
-### Configuration
-Create a file config.yaml, refer [config-sample.yaml](./cmd/redshiftbatcher/config/config_sample.yaml).
-```bash
-cd cmd/redshiftbatcher/config/
-cp config.sample.yaml config.yaml
-```
-
 ## Redshift Loader
+- Loader performs schema migration.
+- Loader performs the load of the data to Redshift by performing series of merge operations using Staging tables.
 
-<img src="arch-loader.png">
+<img src="./build/arch-loader.png">
 
 ```bash
 $ bin/darwin_amd64/redshiftloader --help
@@ -147,13 +141,9 @@ Flags:
   -h, --help            help for redshiftloader
   -v, --v Level         number for the log level verbosity
 ```
-- Loader performs schema migration.
-- Loader performs the load of the data to Redshift by performing series of merge operations using Staging tables.
 
 #### Metrics
-
-
-### Histograms
+##### Histograms
 ```
 rsk_loader_bytes_loaded_sum{consumergroup="", topic="", sinkGroup=""}
 rsk_loader_bytes_loaded_sum{consumergroup="", topic="", sinkGroup=""}
@@ -178,25 +168,16 @@ rsk_loader_deletecommon_seconds_count{consumergroup="", topic="", sinkGroup="", 
 rsk_loader_deleteop_seconds_sum{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
 rsk_loader_copytarget_seconds_count{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
 ```
-
 The metrics are histograms in buckets: `10, 30, 60, 120, 180, 240, 300, 480, 600, 900`
 
-
-### Gauge
+#### Gauge
 ```
 rsk_loader_running{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
 ```
 
-### Counter
+#### Counter
 ```
 rsk_loader_throttled_total{consumergroup="", topic="", sinkGroup="", messages="", bytes=""}
-```
-
-### Configuration
-Create a file config.yaml, refer [config-sample.yaml](./cmd/redshiftbatcher/config/config_sample.yaml).
-```bash
-cd cmd/redshiftbatcher/config/
-cp config.sample.yaml config.yaml
 ```
 
 ## Contributing
@@ -207,7 +188,7 @@ make generate
 make manifests
 ```
 
-* Make changes and build code.
+* Build
 ```bash
 make build
 binary: bin/darwin_amd64/redshiftbatcher
@@ -220,44 +201,44 @@ binary: bin/darwin_amd64/redshiftsink
 make run
 ```
 
-### Enable Throttling (optional)
-By default the throttling is disabled.
+### Enable Throttling (optional, recommended)
+By default, throttling is disabled.
 
 #### Why throttle?
-By default there is no limit put on the number of concurrent loads to Redshift. But if you have huge number of tables to be loaded and the number of loads is impacting the READ in redshift. We enable this feature to not run more than 10 table load at a time. All the tables above 10 are throttled for 15 seconds if this is enabled. If Redshift Exporter is also enabled then the throttling value is determined by the frequency of table use in Redshift.
+By default there is no limit on the number of concurrent loads to Redshift. But if there are huge number of tables to be loaded and the number of concurrent loads become a bottleneck. This feature can be enabled to not run more than 10 table load at a time(not configurable at present). When this is enabled, all the tables above 10 are throttled for 15 seconds. This goes  on for about 3 minutes, and then the load is allowed. If Redshift Exporter is enabled then the throttling value for the table is determined by the table usage in Redshift. The exporter metrics helps in figuring out which tables are in use more.
 
 #### How to enable?
 - Export RedshiftLoader metrics to Prometheus.
 ```
-TODO for adding the manifests here
-
 kubectl create -f config/redshiftloader/service.yaml
 kubectl create -f config/redshiftloader/servicemonitor.yaml
 ```
+
 - Set `--prometheus-url` in the RedshiftSink Operator Deployment.
 ```
 kubectl edit deploy -n kube-system redshiftsink-operator
 ```
 
-### Enable RedshiftSink Exporter (optional)
-By default the exporter is disabled. This feature will work only when the Prometheus is also enabled.
+### Enable RedshiftSink Exporter (optional, recommended)
+By default the exporter is disabled. This feature will work only when Prometheus is enabled.
 
 #### Why to export Redshift metrics to Prometheus?
-We throttle the loads to keep the READ fast. Throttling logic by default treats all tables as same. But if the redshift exporter is enabled the less frequently used tables are throttled and not all tables are treated as the same. This is helpful in reducing the load in Redshift and keeping the queries fast.
+We throttle the loads to keep the READ fast. Throttling logic by default treats all tables as same. But if the redshift exporter is enabled the only the less frequently used tables are throttled. This is helpful in reducing the load in Redshift and keeping the queries fast.
 
 #### How to enable?
-- Prerequisite: Enable Throttling. Please see above.
-- Install the table scan view.
+- Prerequisite: Enable Throttling (please see above).
+- Create the below mentioned schema and view.
+- Set `--collect-redshift-metrics` as true in the RedshiftSink Operator Deployment. `kubectl edit deploy -n kube-system redshiftsink-operator`
 
-#### Schema
+##### Create Schema
 ```sql
 CREATE SCHEMA redshiftsink_operator;
 ```
 
-#### View
-Please change below in the sql before running:
-- `AND s.userid != 100` with the user id(s) of the redshitsink user you are  using.
-- `AND s.starttime > GETDATE() - interval '3 day'` with the time window you want to consider a table is in use or not.
+##### Create View
+Please change the below two in the SQL below, before running it to create the view. View [source](https://github.com/awslabs/amazon-redshift-utils/blob/184c2ba7fd9d497027a831ca72e08fe09e79fd0b/src/AdminViews/v_get_tbl_scan_frequency.sql)
+1. `AND s.userid != 100` with the user id(s) of the redshiftsink user
+2. `AND s.starttime > GETDATE() - interval '3 day'` with the time window you want to consider a table is in use or not.
 
 ```sql
 CREATE OR REPLACE VIEW redshiftsink_operator.scan_query_total AS
@@ -284,10 +265,4 @@ LEFT JOIN
             perm_table_name) s ON s.tbl = t.table_id
 AND t."schema" NOT IN ('pg_internal')
 ORDER BY 7 DESC;
-```
-View [source](https://github.com/awslabs/amazon-redshift-utils/blob/184c2ba7fd9d497027a831ca72e08fe09e79fd0b/src/AdminViews/v_get_tbl_scan_frequency.sql)
-
-- Set `--collect-redshift-metrics` as true in the RedshiftSink Operator Deployment.
-```
-kubectl edit deploy -n kube-system redshiftsink-operator
 ```

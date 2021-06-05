@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/git"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
+	"github.com/practo/tipoca-stream/pkg/git"
+	"github.com/practo/tipoca-stream/pkg/transformer"
 	"gopkg.in/yaml.v2"
 )
 

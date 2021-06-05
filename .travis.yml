@@ -1,0 +1,15 @@
+language: go
+go:
+- "1.16.4"
+services:
+  - docker
+script:
+- make build
+- test -f bin/linux_amd64/redshiftbatcher
+- test -f bin/linux_amd64/redshiftloader
+- test -f bin/linux_amd64/redshiftsink
+- make all-container
+- docker images | grep "^practodev/redshiftbatcher"
+- docker images | grep "^practodev/redshiftloader"
+- docker images | grep "^practodev/redshiftsink"
+- make test

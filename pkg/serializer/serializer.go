@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/Shopify/sarama"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/schemaregistry"
+	"github.com/practo/tipoca-stream/pkg/schemaregistry"
 )
 
 const (

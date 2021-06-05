@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/practo/klog/v2"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftbatcher"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/s3sink"
+	"github.com/practo/tipoca-stream/pkg/kafka"
+	"github.com/practo/tipoca-stream/pkg/redshiftbatcher"
+	"github.com/practo/tipoca-stream/pkg/s3sink"
 )
 
 type Config struct {

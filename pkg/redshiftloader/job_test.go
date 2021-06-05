@@ -2,7 +2,7 @@ package redshiftloader
 
 import (
 	// "fmt"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/serializer"
+	"github.com/practo/tipoca-stream/pkg/serializer"
 	"reflect"
 	"testing"
 )

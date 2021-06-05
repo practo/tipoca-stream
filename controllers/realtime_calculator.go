@@ -3,8 +3,8 @@ package controllers
 import (
 	"fmt"
 	klog "github.com/practo/klog/v2"
-	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
-	kafka "github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
+	tipocav1 "github.com/practo/tipoca-stream/api/v1"
+	kafka "github.com/practo/tipoca-stream/pkg/kafka"
 	"math/rand"
 	"sync"
 	"time"

@@ -17,10 +17,10 @@ import (
 	"syscall"
 
 	"github.com/practo/klog/v2"
-	conf "github.com/practo/tipoca-stream/redshiftsink/cmd/redshiftbatcher/config"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshiftbatcher"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer/masker"
+	conf "github.com/practo/tipoca-stream/cmd/redshiftbatcher/config"
+	"github.com/practo/tipoca-stream/pkg/kafka"
+	"github.com/practo/tipoca-stream/pkg/redshiftbatcher"
+	"github.com/practo/tipoca-stream/pkg/transformer/masker"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 

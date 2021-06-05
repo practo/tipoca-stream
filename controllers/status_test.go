@@ -1,7 +1,7 @@
 package controllers
 
 import (
-	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
+	tipocav1 "github.com/practo/tipoca-stream/api/v1"
 	"reflect"
 	"testing"
 )

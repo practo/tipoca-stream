@@ -6,9 +6,9 @@ import (
 	"time"
 
 	klog "github.com/practo/klog/v2"
-	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
-	kafka "github.com/practo/tipoca-stream/redshiftsink/pkg/kafka"
-	transformer "github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
+	tipocav1 "github.com/practo/tipoca-stream/api/v1"
+	kafka "github.com/practo/tipoca-stream/pkg/kafka"
+	transformer "github.com/practo/tipoca-stream/pkg/transformer"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"

@@ -3,7 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
+	"github.com/practo/tipoca-stream/pkg/redshift"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

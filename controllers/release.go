@@ -7,10 +7,10 @@ import (
 
 	"database/sql"
 	"github.com/practo/klog/v2"
-	tipocav1 "github.com/practo/tipoca-stream/redshiftsink/api/v1"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/notify"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/redshift"
-	"github.com/practo/tipoca-stream/redshiftsink/pkg/transformer"
+	tipocav1 "github.com/practo/tipoca-stream/api/v1"
+	"github.com/practo/tipoca-stream/pkg/notify"
+	"github.com/practo/tipoca-stream/pkg/redshift"
+	"github.com/practo/tipoca-stream/pkg/transformer"
 )
 
 type releaser struct {

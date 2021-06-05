@@ -1,5 +1,5 @@
 domain: k8s.practo.dev
-repo: github.com/practo/tipoca-stream/redshiftsink
+repo: github.com/practo/tipoca-stream
 resources:
 - group: tipoca
   kind: RedshiftSink
