@@ -95,7 +95,7 @@ Redshiftsink performs the sink by creating two pods. Creating a RedshiftSink CRD
 ### Redshift Batcher
 - Batches the debezium data in Kafka topics and uploads to S3.
 - Signals the Redshift loader to load the batch in Redshift using Kafka Topics.
-- **Batcher supports masking the data**. Please follow [this for enabling masking](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/MASKING.md).
+- **Batcher supports masking the data**. Please follow [this for enabling masking](https://github.com/practo/tipoca-stream/blob/master/MASKING.md).
 
 <img src="arch-batcher.png">
 

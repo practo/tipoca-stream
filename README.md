@@ -10,26 +10,28 @@ Near real time cloud native data pipeline. Just another data pipeline.
 ## Install
 The pipeline is a combination of services deployed independently.
 
-- **RedshiftSink** Using the CRD written in this repo. [Instructions and code.](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/README.md)
+- **RedshiftSink** Using the CRD written in this repo. Follow this [REDSHIFTSINK.md](https://github.com/practo/tipoca-stream/blob/master/README.md) for installing the RedshiftSink Operator and the the RedshiftSink resource.
 ```
       kubectl get redshiftsink
 ```
-Creating the RedshiftSink CRD object installs Batcher and Loader pods in the cluster. These pods sinks the data from Kafka topics to Redshift, it also takes care of the database migration when required. Redshiftsink also has a rich [masking](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/MASKING.md) support. (TODO=>) It supports table reloads in Redshift when masking configurations are modified in Github.
+Creating the RedshiftSink CRD object installs Batcher and Loader pods in the cluster. These pods sinks the data from Kafka topics to Redshift, it also takes care of the database migration when required. Redshiftsink also has a rich [masking](https://github.com/practo/tipoca-stream/blob/master/MASKING.md) support. It supports table reloads in Redshift when masking configurations are modified in Github.
 
-- **Producer** Using [Strimzi](http://strimzi.io/) CRDs. [Installation Instructions.](https://strimzi.io/docs/operators/latest/deploying.html)
+- **Kafka** Install Kafka using [Strimzi](http://strimzi.io/) CRDs or self hosted or managed kafka.
+```
+      kubectl get kafka
+```
+
+- **Producer** Install producer, using [Strimzi](http://strimzi.io/) CRDs and [Debezium](https://debezium.io/).
 ```
       kubectl get kafkaconnect
       kubectl get kafkaconnector
 ```
 Creating the kafkaconect and kafkaconnector creates a kafkaconnect pod in the cluster which start streaming the data from the source(MYSQL, RDS, etc..) to Kafka.
 
-- **Kafka** Using [Strimzi](http://strimzi.io/) CRDs. [Installation Instructions](https://strimzi.io/docs/operators/latest/deploying.html) or self hosted or managed kafka.
-```
-      kubectl get kafka
-```
+
 
 ## Contribute
-This repo holds the code for [redshiftsink](./redshiftsink) only. Please follow [this](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/README.md#contributing) for bringing a change.
+This repo holds the code for the redshiftsink only but can be expanded to use cases beyond Redshift. Please follow [this](https://github.com/practo/tipoca-stream/blob/master/REDSHIFTSINK.md#contributing) for bringing a change.
 
 ## Thanks
 
