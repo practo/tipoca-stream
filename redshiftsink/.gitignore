@@ -1,7 +1,0 @@
-/bin
-/.go
-/.container-*
-/.dockerfile-*
-bconfig
-lconfig
-maskdiff
