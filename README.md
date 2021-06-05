@@ -10,25 +10,23 @@ Near real time cloud native data pipeline. Just another data pipeline.
 ## Install
 The pipeline is a combination of services deployed independently.
 
-- **RedshiftSink** Using the CRD written in this repo. Follow this [REDSHIFTSINK.md](https://github.com/practo/tipoca-stream/blob/master/README.md) for installing the RedshiftSink Operator and the the RedshiftSink resource.
+- **RedshiftSink** Using the CRD written in this repo. Follow this [REDSHIFTSINK.md](https://github.com/practo/tipoca-stream/blob/master/README.md) for installing the RedshiftSink Operator and the the RedshiftSink resource. Creating the RedshiftSink CRD object installs Batcher and Loader pods in the cluster. These pods sinks the data from Kafka topics to Redshift, it also takes care of the database migration when required. Redshiftsink also has a rich [masking](https://github.com/practo/tipoca-stream/blob/master/MASKING.md) support. It supports table reloads in Redshift when masking configurations are modified in Github.
 ```
       kubectl get redshiftsink
 ```
-Creating the RedshiftSink CRD object installs Batcher and Loader pods in the cluster. These pods sinks the data from Kafka topics to Redshift, it also takes care of the database migration when required. Redshiftsink also has a rich [masking](https://github.com/practo/tipoca-stream/blob/master/MASKING.md) support. It supports table reloads in Redshift when masking configurations are modified in Github.
 
 - **Kafka** Install Kafka using [Strimzi](http://strimzi.io/) CRDs or self hosted or managed kafka.
 ```
       kubectl get kafka
 ```
 
-- **Producer** Install producer, using [Strimzi](http://strimzi.io/) CRDs and [Debezium](https://debezium.io/).
+- **Producer** Install producer, using [Strimzi](http://strimzi.io/) CRDs and [Debezium](https://debezium.io/). Creating the kafkaconect and kafkaconnector creates a kafkaconnect pod in the cluster which start streaming the data from the source(MYSQL, RDS, etc..) to Kafka.
 ```
       kubectl get kafkaconnect
       kubectl get kafkaconnector
 ```
-Creating the kafkaconect and kafkaconnector creates a kafkaconnect pod in the cluster which start streaming the data from the source(MYSQL, RDS, etc..) to Kafka.
 
-
+The project has pluggable libraries which can be composed to solve any other data pipeline use case.
 
 ## Contribute
 This repo holds the code for the redshiftsink only but can be expanded to use cases beyond Redshift. Please follow [this](https://github.com/practo/tipoca-stream/blob/master/REDSHIFTSINK.md#contributing) for bringing a change.
