@@ -4,7 +4,7 @@ RedshiftSink reads the debezium events from Kafka and loads them to Redshift. It
 
 ----
 
-<img src="arch-operator.png">
+<img src="./build/arch-operator.png">
 
 # Install Redshiftsink
 
@@ -97,7 +97,7 @@ Redshiftsink performs the sink by creating two pods. Creating a RedshiftSink CRD
 - Signals the Redshift loader to load the batch in Redshift using Kafka Topics.
 - **Batcher supports masking the data**. Please follow [this for enabling masking](https://github.com/practo/tipoca-stream/blob/master/MASKING.md).
 
-<img src="arch-batcher.png">
+<img src="./build/arch-batcher.png">
 
 ```bash
 $ bin/darwin_amd64/redshiftbatcher --help
@@ -133,7 +133,7 @@ cp config.sample.yaml config.yaml
 
 ## Redshift Loader
 
-<img src="arch-loader.png">
+<img src="./build/arch-loader.png">
 
 ```bash
 $ bin/darwin_amd64/redshiftloader --help

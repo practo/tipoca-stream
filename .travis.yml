@@ -4,11 +4,12 @@ go:
 services:
   - docker
 script:
-- cd redshiftsink 
 - make build
 - test -f bin/linux_amd64/redshiftbatcher
 - test -f bin/linux_amd64/redshiftloader
+- test -f bin/linux_amd64/redshiftsink
 - make all-container
 - docker images | grep "^746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftbatcher"
 - docker images | grep "^746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftloader"
+- docker images | grep "^746161288457.dkr.ecr.ap-south-1.amazonaws.com/redshiftsink"
 - make test
