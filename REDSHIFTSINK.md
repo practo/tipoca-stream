@@ -1,6 +1,6 @@
 # RedshiftSink
 
-RedshiftSink reads the data events from Kafka and loads them to Redshift. It supports [masking](../MASKING.MD).
+RedshiftSink reads the data events from Kafka and loads them to Redshift. It supports [masking](./MASKING.MD).
 
 # Install Redshiftsink
 
@@ -80,7 +80,7 @@ spec:
 ```bash
 kubectl create -f config/samples/tipoca_v1_redshiftsink.yaml
 ```
-This will start syncing all the Kakfa topics matching regex `"^db.inventory*"` from Kafka to Redshift via S3. If masking is turned on it will also mask the data. More on masking [here](./MASKING.MD)
+This will start syncing all the Kakfa topics matching regex `"^db.inventory*"` from Kafka to Redshift via S3. If masking is turned on it will also mask the data. More on masking [here.](./MASKING.md)
 
 ----
 
@@ -94,7 +94,7 @@ Redshiftsink performs the sink by creating two pods. Creating a RedshiftSink CRD
 ### Redshift Batcher
 - Batches the debezium data in Kafka topics and uploads to S3.
 - Signals the Redshift loader to load the batch in Redshift using Kafka Topics.
-- **Batcher supports masking the data**. Please follow [this for enabling masking](https://github.com/practo/tipoca-stream/blob/master/redshiftsink/MASKING.md).
+- **Batcher supports masking the data**. Please follow [this for enabling masking](./MASKING.md).
 
 <img src="./build/arch-batcher.png">
 
