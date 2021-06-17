@@ -20,7 +20,7 @@ The pipeline is a combination of services deployed independently. This repo hold
       kubectl get kafka
 ```
 
-- **Producer** Install Producer using [Strimzi](http://strimzi.io/) CRDs and [Debezium](https://debezium.io/). Creating the kafkaconect and kafkaconnector creates a kafkaconnect pod in the cluster which start streaming the data from the source(MYSQL, RDS, etc..) to Kafka.
+- **Producer** Install Producer using [Strimzi](http://strimzi.io/) CRDs and [Debezium](https://debezium.io/). Creating the kafkaconnect and kafkaconnector creates a kafkaconnect pod in the cluster which start streaming the data from the source(MYSQL, RDS, etc..) to Kafka.
 ```
       kubectl get kafkaconnect
       kubectl get kafkaconnector

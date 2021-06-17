@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: redshiftsink-operator
+  namespace: kube-system
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+ name: redshiftsink-operator
+ namespace: kube-system
+ labels:
+   app: redshiftsink-operator
+spec:
+ strategy:
+   type: Recreate
+ replicas: 1
+ selector:
+   matchLabels:
+     app: redshiftsink-operator
+ template:
+   metadata:
+     labels:
+       app: redshiftsink-operator
+   spec:
+     serviceAccountName: redshiftsink-operator
+     tolerations:
+     - effect: NoExecute
+       operator: Exists
+     - effect: NoSchedule
+       operator: Exists
+     volumes:
+     - name: redshiftsink-secret-volume
+       secret:
+         secretName: redshiftsink-secret
+     containers:
+     - name: rsk-operator
+       image: practodev/redshiftsink:v1.0.0-beta.1
+       imagePullPolicy: Always
+       volumeMounts:
+       - name: redshiftsink-secret-volume
+         mountPath: /secret.yaml
+       command:
+       - /redshiftsink
+       args:
+       - -v=2
+       - --default-batcher-image=practodev/redshiftbatcher:v1.0.0-beta.1
+       - --default-loader-image=practodev/redshiftloader:v1.0.0-beta.1
+       - --default-redshift-max-open-conns=10
+       - --default-redshift-max-idle-conns=2
+       - --allowed-rsks=
+       - --promethus-url=
+       - --collect-redshift-metrics=false
+       resources:
+         limits:
+           cpu: 300m
+           memory: 300Mi
+         requests:
+           cpu: 100m
+           memory: 200Mi
