@@ -5,7 +5,7 @@
 
 ---
 
-A Near realtime cloud native data pipeline.
+A near realtime cloud native data pipeline.
 
 Tipoca Stream is a successor to an internal non-realtime datawarehousing project called Tipoca, which itself derives its name from [Tipoca City](https://starwars.fandom.com/wiki/Tipoca_City) - home of the Clones in the Star Wars universe.
 
