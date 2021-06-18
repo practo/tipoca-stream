@@ -5,7 +5,9 @@
 
 ---
 
-A near realtime cloud native data pipeline.
+A near realtime cloud native data pipeline using Kafka, KafkaConnect, and RedshiftSink in AWS. RedshiftSink is a high performance, low overhead data loader for Redshift, open-sourced by Practo. It comes with a rich data masking support so you can create a universal data access in your organization while preserving your customer's privacy! 
+
+Release [blog](https://towardsdatascience.com/open-sourcing-tipoca-stream-f261cdcc3a13).
 
 Tipoca Stream is a successor to an internal non-realtime datawarehousing project called Tipoca, which itself derives its name from [Tipoca City](https://starwars.fandom.com/wiki/Tipoca_City) - home of the Clones in the Star Wars universe.
 
