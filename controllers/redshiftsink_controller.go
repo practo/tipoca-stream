@@ -73,7 +73,7 @@ type RedshiftSinkReconciler struct {
 }
 
 const (
-	MaxTopicRelease = 50
+	MaxTopicRelease = 5
 )
 
 // +kubebuilder:rbac:groups=tipoca.k8s.practo.dev,resources=redshiftsinks,verbs=get;list;watch;create;update;patch;delete

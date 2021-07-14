@@ -491,10 +491,8 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 		}
 	}
 
-	// add extra columns (length columns)
-	for _, extraColumn := range extraColumns {
-		redshiftColumns = append(redshiftColumns, extraColumn)
-	}
+	// keep extra columns as first column to fix #244
+	redshiftColumns = append(extraColumns, redshiftColumns...)
 
 	table := redshift.Table{
 		Name:    d.tableName(),
