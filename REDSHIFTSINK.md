@@ -239,6 +239,7 @@ CREATE SCHEMA redshiftsink_operator;
 Please change the below two in the SQL below, before running it to create the view. View [source](https://github.com/awslabs/amazon-redshift-utils/blob/184c2ba7fd9d497027a831ca72e08fe09e79fd0b/src/AdminViews/v_get_tbl_scan_frequency.sql)
 1. `AND s.userid != 100` with the user id(s) of the redshiftsink user
 2. `AND s.starttime > GETDATE() - interval '3 day'` with the time window you want to consider a table is in use or not.
+3. Please create the following view for all the databases in Redshift you need. Then, add the list of these databases in the operator flag `--databases=`. This is required so that the operator queries the view for all the databases.
 
 ```sql
 CREATE OR REPLACE VIEW redshiftsink_operator.scan_query_total AS

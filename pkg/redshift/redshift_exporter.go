@@ -15,16 +15,16 @@ var (
 )
 
 type RedshiftCollector struct {
-	client           *Redshift
+	clients          []*Redshift
 	queryTotalMetric *prometheus.Desc
 
 	ready      bool
 	queryTotal sync.Map
 }
 
-func NewRedshiftCollector(client *Redshift) *RedshiftCollector {
+func NewRedshiftCollector(clients []*Redshift) *RedshiftCollector {
 	return &RedshiftCollector{
-		client: client,
+		clients: clients,
 		queryTotalMetric: prometheus.NewDesc(
 			prometheus.BuildFQName(Namespace, SubSystemScan, "query_total"),
 			"Total number of redshift queries executed",
@@ -35,12 +35,17 @@ func NewRedshiftCollector(client *Redshift) *RedshiftCollector {
 }
 
 func (c *RedshiftCollector) updateQueryTotal(ctx context.Context) {
-	queryTotalRows, err := c.client.ScanQueryTotal(ctx)
-	if err != nil {
-		klog.Fatalf("Redshift Collector shutdown due to error: %v", err)
+	var rows []QueryTotalRow
+	for i, client := range c.clients {
+		klog.V(3).Infof("fetching query_total for database:%v", i)
+		dbRows, err := client.ScanQueryTotal(ctx)
+		if err != nil {
+			klog.Fatalf("Redshift Collector shutdown due to error: %v", err)
+		}
+		rows = append(rows, dbRows...)
 	}
 
-	c.queryTotal.Store("", queryTotalRows)
+	c.queryTotal.Store("", rows)
 }
 
 func (c *RedshiftCollector) Fetch(ctx context.Context, wg *sync.WaitGroup) {

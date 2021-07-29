@@ -51,6 +51,7 @@ spec:
        - --allowed-rsks=
        - --promethus-url=
        - --collect-redshift-metrics=false
+       - --databases=
        resources:
          limits:
            cpu: 300m

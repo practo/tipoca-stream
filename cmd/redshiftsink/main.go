@@ -54,11 +54,27 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
+func parseDatabase(databases string) []*string {
+	var dbs []*string
+
+	if databases != "" {
+		supplied := strings.Split(databases, ",")
+		for _, db := range supplied {
+			dbs = append(dbs, &db) // use supplied dbs
+		}
+	} else {
+		dbs = append(dbs, nil) // use default db from config
+	}
+
+	return dbs
+}
+
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
 	var enableLeaderElection, collectRedshiftMetrics bool
-	var batcherImage, loaderImage, secretRefName, secretRefNamespace, kafkaVersion, metricsAddr, allowedRsks, prometheusURL string
+	var batcherImage, loaderImage, secretRefName, secretRefNamespace string
+	var kafkaVersion, metricsAddr, allowedRsks, prometheusURL, databases string
 	var redshiftMaxOpenConns, redshiftMaxIdleConns int
 	flag.StringVar(&batcherImage, "default-batcher-image", "practodev/redshiftbatcher:v1.0.0-beta.1", "image to use for the redshiftbatcher")
 	flag.StringVar(&loaderImage, "default-loader-image", "practodev/redshiftloader:v1.0.0-beta.1", "image to use for the redshiftloader")
@@ -72,6 +88,7 @@ func main() {
 	flag.IntVar(&redshiftMaxIdleConns, "default-redshift-max-idle-conns", 2, "the maximum number of idle connections allowed to redshift per redshiftsink resource")
 	flag.StringVar(&allowedRsks, "allowed-rsks", "", "comma separated list of names of rsk resources to allow, if empty all rsk resources are allowed")
 	flag.StringVar(&prometheusURL, "prometheus-url", "", "optional, giving prometheus makes the operator enable new features using time series data. Features: loader throttling, resetting offsets of 0 throughput topics.")
+	flag.StringVar(&databases, "databases", "", "comma separated list of all redshift databases to query for redshiftsink_operator.scan_query_total view. This is required for throttling support. Please note: the view should be manually created beforehand for all the specified databases.")
 	flag.Parse()
 
 	ctrl.SetLogger(klogr.New())
@@ -148,17 +165,29 @@ func main() {
 
 	ctx, cancel := context.WithCancel(ctrl.SetupSignalHandler())
 	defer cancel()
-
 	setupLog.Info("Configuring Redshift exporter...")
-	redshiftClient, err := controllers.NewRedshiftConn(uncachedClient, secretRefName, secretRefNamespace)
-	if err != nil {
-		setupLog.Error(err, "problem initializing redshift connection")
-		os.Exit(1)
-	}
-	redshiftCollector := redshift.NewRedshiftCollector(redshiftClient)
+
+	// collect redshift metrics for all databases
 	wg := &sync.WaitGroup{}
+	dbs := parseDatabase(databases)
+	redshiftClients := []*redshift.Redshift{}
+	for _, database := range dbs {
+		client, err := controllers.NewRedshiftConn(uncachedClient,
+			secretRefName,
+			secretRefNamespace,
+			database,
+		)
+		if err != nil {
+			setupLog.Error(err, "problem initializing redshift connection")
+			os.Exit(1)
+		}
+		redshiftClients = append(redshiftClients, client)
+	}
+
+	redshiftCollector := redshift.NewRedshiftCollector(redshiftClients)
 	wg.Add(1)
 	go redshiftCollector.Fetch(ctx, wg)
+
 	metrics.Registry.MustRegister(redshiftCollector)
 
 	setupLog.Info("Starting Operator...")

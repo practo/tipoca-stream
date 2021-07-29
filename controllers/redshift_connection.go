@@ -11,6 +11,7 @@ func NewRedshiftConn(
 	client client.Client,
 	secretName,
 	secretNamespace string,
+	database *string,
 ) (
 	*redshift.Redshift,
 	error,
@@ -22,6 +23,9 @@ func NewRedshiftConn(
 	}
 	for key, value := range k8sSecret.Data {
 		secret[key] = string(value)
+	}
+	if database != nil {
+		secret["redshiftDatabase"] = *database
 	}
 
 	return NewRedshiftConnection(secret, "")
