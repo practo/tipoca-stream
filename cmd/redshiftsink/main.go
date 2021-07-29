@@ -59,8 +59,8 @@ func parseDatabase(databases string) []*string {
 
 	if databases != "" {
 		supplied := strings.Split(databases, ",")
-		for _, db := range supplied {
-			dbs = append(dbs, &db) // use supplied dbs
+		for i, _ := range supplied {
+			dbs = append(dbs, &supplied[i]) // use supplied dbs
 		}
 	} else {
 		dbs = append(dbs, nil) // use default db from config
