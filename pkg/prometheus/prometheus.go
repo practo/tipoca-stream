@@ -117,7 +117,9 @@ func (p *promClient) queryWithRetry(
 
 func (p *promClient) Query(queryString string) (float64, error) {
 	// return from cache if cache hit
+	p.mutex.Lock()
 	lastRun, ok := p.queryLastRun[queryString]
+	p.mutex.Unlock()
 	if ok {
 		if cacheValid(p.queryCacheValidity, lastRun) {
 			cache, ok := p.queryCache[queryString]
