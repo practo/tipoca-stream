@@ -244,7 +244,7 @@ func (h *loaderHandler) throttle(topic string, metric metricSetter, sinkGroup st
 
 // randomMaxWait helps to keep the maxWait +- 20% of the specified value
 // this is required to spread the load in Redshift
-func (h *loaderHandler) randomMaxWait(topic string) *int {
+func (h *loaderHandler) randomMaxWait(topic string) int {
 	var maxAllowed, minAllowed *int
 	_, _, table := transformer.ParseTopic(topic)
 	queries, err := h.prometheusClient.FilterVector(
@@ -254,7 +254,7 @@ func (h *loaderHandler) randomMaxWait(topic string) *int {
 	)
 	if err != nil {
 		klog.Warningf("Can't use prometheus to decide maxWait, err: %v", err)
-		return h.maxWaitSeconds
+		return *h.maxWaitSeconds
 	}
 	if queries != nil && float64(*queries) > 0.0 {
 		klog.V(2).Infof("%s: queries:%+v", topic, *queries)
@@ -263,9 +263,8 @@ func (h *loaderHandler) randomMaxWait(topic string) *int {
 		klog.V(2).Infof("%s: queries:0", topic)
 		minAllowed = h.maxWaitSeconds
 	}
-	newMaxWait := util.Randomize(*h.maxWaitSeconds, 0.20, maxAllowed, minAllowed)
 
-	return &newMaxWait
+	return util.Randomize(*h.maxWaitSeconds, 0.20, maxAllowed, minAllowed)
 }
 
 // ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages().
@@ -299,11 +298,12 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		metric,
 	)
 
+	maxWaitSeconds := *h.maxWaitSeconds
 	// randomize maxWait if prometheus and redshift metrics are available
 	if h.prometheusClient != nil && h.redshiftMetrics {
-		h.maxWaitSeconds = h.randomMaxWait(claim.Topic())
+		maxWaitSeconds = h.randomMaxWait(claim.Topic())
 	}
-	klog.V(2).Infof("%s: maxWaitSeconds=%vs", claim.Topic(), *h.maxWaitSeconds)
+	klog.V(2).Infof("%s: maxWaitSeconds=%vs", claim.Topic(), maxWaitSeconds)
 
 	if err != nil {
 		return fmt.Errorf(
@@ -323,7 +323,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		processor,
 	)
 	maxWaitTicker := time.NewTicker(
-		time.Duration(*h.maxWaitSeconds) * time.Second,
+		time.Duration(maxWaitSeconds) * time.Second,
 	)
 
 	klog.V(4).Infof("%s: read msgs", claim.Topic())
@@ -395,7 +395,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				)
 				maxWaitTicker.Stop()
 				err = msgBatch.Process(session)
-				maxWaitTicker.Reset(time.Duration(*h.maxWaitSeconds) * time.Second)
+				maxWaitTicker.Reset(time.Duration(maxWaitSeconds) * time.Second)
 				if err != nil {
 					return err
 				}
@@ -415,7 +415,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 				}
 				h.loadRunning.Store(claim.Topic(), true)
 				err = msgBatch.Process(session)
-				maxWaitTicker.Reset(time.Duration(*h.maxWaitSeconds) * time.Second)
+				maxWaitTicker.Reset(time.Duration(maxWaitSeconds) * time.Second)
 				if err != nil {
 					h.loadRunning.Store(claim.Topic(), false)
 					return err
@@ -426,8 +426,9 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 		case <-maxWaitTicker.C:
 			// Process the batch by time
 			klog.V(2).Infof(
-				"%s: maxWaitSeconds hit",
+				"%s: maxWaitSeconds: %vs hit",
 				claim.Topic(),
+				maxWaitSeconds,
 			)
 			maxWaitTicker.Stop()
 			if msgBatch.Size() > 0 {
@@ -438,7 +439,7 @@ func (h *loaderHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 			}
 			h.loadRunning.Store(claim.Topic(), true)
 			err = msgBatch.Process(session)
-			maxWaitTicker.Reset(time.Duration(*h.maxWaitSeconds) * time.Second)
+			maxWaitTicker.Reset(time.Duration(maxWaitSeconds) * time.Second)
 			if err != nil {
 				h.loadRunning.Store(claim.Topic(), false)
 				return err
