@@ -26,7 +26,7 @@ func Randomize(
 	}
 
 	gap := max - min
-	if gap == 0 || gap < 0 {
+	if gap <= 0 {
 		return min
 	}
 
