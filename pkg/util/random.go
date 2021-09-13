@@ -25,5 +25,10 @@ func Randomize(
 		min = value - diff
 	}
 
-	return min + rand.Intn(max-min)
+	gap := max - min
+	if gap == 0 || gap < 0 {
+		return min
+	}
+
+	return min + rand.Intn(gap)
 }
