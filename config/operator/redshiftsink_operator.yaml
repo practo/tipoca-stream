@@ -35,7 +35,7 @@ spec:
          secretName: redshiftsink-secret
      containers:
      - name: rsk-operator
-       image: practodev/redshiftsink:v1.0.0-beta.1
+       image: practodev/redshiftsink:v1.0.0-beta.4
        imagePullPolicy: Always
        volumeMounts:
        - name: redshiftsink-secret-volume
@@ -44,8 +44,8 @@ spec:
        - /redshiftsink
        args:
        - -v=2
-       - --default-batcher-image=practodev/redshiftbatcher:v1.0.0-beta.1
-       - --default-loader-image=practodev/redshiftloader:v1.0.0-beta.1
+       - --default-batcher-image=practodev/redshiftbatcher:v1.0.0-beta.4
+       - --default-loader-image=practodev/redshiftloader:v1.0.0-beta.4
        - --default-redshift-max-open-conns=10
        - --default-redshift-max-idle-conns=2
        - --allowed-rsks=

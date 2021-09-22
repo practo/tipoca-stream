@@ -76,8 +76,8 @@ func main() {
 	var batcherImage, loaderImage, secretRefName, secretRefNamespace string
 	var kafkaVersion, metricsAddr, allowedRsks, prometheusURL, databases string
 	var redshiftMaxOpenConns, redshiftMaxIdleConns int
-	flag.StringVar(&batcherImage, "default-batcher-image", "practodev/redshiftbatcher:v1.0.0-beta.1", "image to use for the redshiftbatcher")
-	flag.StringVar(&loaderImage, "default-loader-image", "practodev/redshiftloader:v1.0.0-beta.1", "image to use for the redshiftloader")
+	flag.StringVar(&batcherImage, "default-batcher-image", "practodev/redshiftbatcher:v1.0.0-beta.4", "image to use for the redshiftbatcher")
+	flag.StringVar(&loaderImage, "default-loader-image", "practodev/redshiftloader:v1.0.0-beta.4", "image to use for the redshiftloader")
 	flag.StringVar(&secretRefName, "default-secret-ref-name", "redshiftsink-secret", "default secret name for all redshiftsink secret")
 	flag.StringVar(&secretRefNamespace, "default-secret-ref-namespace", "ts-redshiftsink-latest", "default namespace where redshiftsink secret is there")
 	flag.BoolVar(&collectRedshiftMetrics, "collect-redshift-metrics", false, "collectRedshiftMetrics when enabled collects redshift metrics for better calculations, used for calculating throttling seconds value at present for each table")
