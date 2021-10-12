@@ -1,7 +1,7 @@
 BINS := redshiftbatcher redshiftloader redshiftsink
 
 # Where to push the docker image.
-REGISTRY ?= public.ecr.aws
+REGISTRY ?= public.ecr.aws/practo
 
 # This version-strategy uses git tags to set the version string
 VERSION ?= $(shell git describe --tags --always --dirty)
