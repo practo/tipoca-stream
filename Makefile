@@ -1,7 +1,7 @@
 BINS := redshiftbatcher redshiftloader redshiftsink
 
 # Where to push the docker image.
-REGISTRY ?= practodev
+REGISTRY ?= public.ecr.aws
 
 # This version-strategy uses git tags to set the version string
 VERSION ?= $(shell git describe --tags --always --dirty)
@@ -247,7 +247,7 @@ help:
 
 # TODO: to make it work with kubectl kustomize edit
 # Image URL to use all building/pushing image targets
-# CONTROLLER_MANAGER_IMAGE ?= practodev/redshiftsink:latest
+# CONTROLLER_MANAGER_IMAGE ?= public.ecr.aws/practo/redshiftsink:latest
 
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"

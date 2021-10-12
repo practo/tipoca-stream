@@ -9,7 +9,7 @@ script:
 - test -f bin/linux_amd64/redshiftloader
 - test -f bin/linux_amd64/redshiftsink
 - make all-container
-- docker images | grep "^practodev/redshiftbatcher"
-- docker images | grep "^practodev/redshiftloader"
-- docker images | grep "^practodev/redshiftsink"
+- docker images | grep "^public.ecr.aws/practo/redshiftbatcher"
+- docker images | grep "^public.ecr.aws/practo/redshiftloader"
+- docker images | grep "^public.ecr.aws/practo/redshiftsink"
 - make test
