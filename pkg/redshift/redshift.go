@@ -1201,7 +1201,7 @@ var debeziumToRedshiftTypeMap = map[string]string{
 var mysqlToRedshiftTypeMap = map[string]string{
 	"bigint":                      "bigint",
 	"integer unsigned":            "bigint",
-	"bit":                         "bigint",
+	"bit":                         "boolean",
 	"bool":                        "boolean",
 	"boolean":                     "boolean",
 	"date":                        RedshiftDate,

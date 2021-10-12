@@ -308,7 +308,7 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 			expectError:     false,
 		},
 		{
-			name:            "test25: JSON",
+			name:            "test26: JSON",
 			sqlType:         "mysql",
 			debeziumType:    "string",
 			sourceColType:   "JSON",
@@ -318,13 +318,23 @@ func TestRedshiftDataTypeGet(t *testing.T) {
 			expectError:     false,
 		},
 		{
-			name:            "test25: TEXT",
+			name:            "test27: TEXT",
 			sqlType:         "mysql",
 			debeziumType:    "string",
 			sourceColType:   "TEXT",
 			sourceColLength: "",
 			columnMasked:    false,
 			expectedResult:  "character varying(65535)",
+			expectError:     false,
+		},
+		{
+			name:            "test28: BIT",
+			sqlType:         "mysql",
+			debeziumType:    "string",
+			sourceColType:   "bit",
+			sourceColLength: "",
+			columnMasked:    false,
+			expectedResult:  "boolean",
 			expectError:     false,
 		},
 	}
@@ -378,6 +388,4 @@ func TestTableMetadataToMysqlRedshiftMap(t *testing.T) {
 
 	createTable = strings.TrimSuffix(createTable, ",")
 	createTable = createTable + " );"
-
-	fmt.Println(createTable)
 }
