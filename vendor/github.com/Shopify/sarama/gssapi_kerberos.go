@@ -2,18 +2,20 @@ package sarama
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"time"
 
 	"github.com/jcmturner/gofork/encoding/asn1"
-	"gopkg.in/jcmturner/gokrb5.v7/asn1tools"
-	"gopkg.in/jcmturner/gokrb5.v7/gssapi"
-	"gopkg.in/jcmturner/gokrb5.v7/iana/chksumtype"
-	"gopkg.in/jcmturner/gokrb5.v7/iana/keyusage"
-	"gopkg.in/jcmturner/gokrb5.v7/messages"
-	"gopkg.in/jcmturner/gokrb5.v7/types"
+	"github.com/jcmturner/gokrb5/v8/asn1tools"
+	"github.com/jcmturner/gokrb5/v8/gssapi"
+	"github.com/jcmturner/gokrb5/v8/iana/chksumtype"
+	"github.com/jcmturner/gokrb5/v8/iana/keyusage"
+	"github.com/jcmturner/gokrb5/v8/messages"
+	"github.com/jcmturner/gokrb5/v8/types"
 )
 
 const (
@@ -53,15 +55,14 @@ type KerberosClient interface {
 	Destroy()
 }
 
-/*
-*
-* Appends length in big endian before payload, and send it to kafka
-*
- */
-
+// writePackage appends length in big endian before the payload, and sends it to kafka
 func (krbAuth *GSSAPIKerberosAuth) writePackage(broker *Broker, payload []byte) (int, error) {
-	length := len(payload)
-	finalPackage := make([]byte, length+4) //4 byte length header + payload
+	length := uint64(len(payload))
+	size := length + 4 // 4 byte length header + payload
+	if size > math.MaxInt32 {
+		return 0, errors.New("payload too large, will overflow int32")
+	}
+	finalPackage := make([]byte, size)
 	copy(finalPackage[4:], payload)
 	binary.BigEndian.PutUint32(finalPackage, uint32(length))
 	bytes, err := broker.conn.Write(finalPackage)
@@ -71,12 +72,7 @@ func (krbAuth *GSSAPIKerberosAuth) writePackage(broker *Broker, payload []byte) 
 	return bytes, nil
 }
 
-/*
-*
-* Read length (4 bytes) and then read the payload
-*
- */
-
+// readPackage reads payload length (4 bytes) and then reads the payload into []byte
 func (krbAuth *GSSAPIKerberosAuth) readPackage(broker *Broker) ([]byte, int, error) {
 	bytesRead := 0
 	lengthInBytes := make([]byte, 4)
@@ -154,7 +150,7 @@ func (krbAuth *GSSAPIKerberosAuth) createKrb5Token(
 *
  */
 func (krbAuth *GSSAPIKerberosAuth) appendGSSAPIHeader(payload []byte) ([]byte, error) {
-	oidBytes, err := asn1.Marshal(gssapi.OID(gssapi.OIDKRB5))
+	oidBytes, err := asn1.Marshal(gssapi.OIDKRB5.OID())
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +215,6 @@ func (krbAuth *GSSAPIKerberosAuth) Authorize(broker *Broker) error {
 	spn := fmt.Sprintf("%s/%s", broker.conf.Net.SASL.GSSAPI.ServiceName, host)
 
 	ticket, encKey, err := kerberosClient.GetServiceTicket(spn)
-
 	if err != nil {
 		Logger.Printf("Error getting Kerberos service ticket : %s", err)
 		return err
