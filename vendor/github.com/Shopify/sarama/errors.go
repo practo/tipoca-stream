@@ -9,6 +9,9 @@ import (
 // or otherwise failed to respond.
 var ErrOutOfBrokers = errors.New("kafka: client has run out of available brokers to talk to (Is your cluster reachable?)")
 
+// ErrBrokerNotFound is the error returned when there's no broker found for the requested ID.
+var ErrBrokerNotFound = errors.New("kafka: broker for ID is not found")
+
 // ErrClosedClient is the error returned when a method is called on a client that has been closed.
 var ErrClosedClient = errors.New("kafka: tried to use a client that was closed")
 
@@ -49,6 +52,9 @@ var ErrControllerNotAvailable = errors.New("kafka: controller is not available")
 // the metadata.
 var ErrNoTopicsToUpdateMetadata = errors.New("kafka: no specific topics to update metadata")
 
+// ErrUnknownScramMechanism is returned when user tries to AlterUserScramCredentials with unknown SCRAM mechanism
+var ErrUnknownScramMechanism = errors.New("kafka: unknown SCRAM mechanism provided")
+
 // PacketEncodingError is returned from a failure while encoding a Kafka packet. This can happen, for example,
 // if you try to encode a string over 2^15 characters in length, since Kafka's encoding rules do not permit that.
 type PacketEncodingError struct {
@@ -87,7 +93,7 @@ type MultiError struct {
 }
 
 func (mErr MultiError) Error() string {
-	var errString = ""
+	errString := ""
 	for _, err := range *mErr.Errors {
 		errString += err.Error() + ","
 	}
@@ -95,7 +101,7 @@ func (mErr MultiError) Error() string {
 }
 
 func (mErr MultiError) PrettyError() string {
-	var errString = ""
+	errString := ""
 	for _, err := range *mErr.Errors {
 		errString += err.Error() + "\n"
 	}
@@ -205,6 +211,12 @@ const (
 	ErrPreferredLeaderNotAvailable        KError = 80
 	ErrGroupMaxSizeReached                KError = 81
 	ErrFencedInstancedId                  KError = 82
+	ErrEligibleLeadersNotAvailable        KError = 83
+	ErrElectionNotNeeded                  KError = 84
+	ErrNoReassignmentInProgress           KError = 85
+	ErrGroupSubscribedToTopic             KError = 86
+	ErrInvalidRecord                      KError = 87
+	ErrUnstableOffsetCommit               KError = 88
 )
 
 func (err KError) Error() string {
@@ -379,6 +391,18 @@ func (err KError) Error() string {
 		return "kafka server: Consumer group The consumer group has reached its max size. already has the configured maximum number of members."
 	case ErrFencedInstancedId:
 		return "kafka server: The broker rejected this static consumer since another consumer with the same group.instance.id has registered with a different member.id."
+	case ErrEligibleLeadersNotAvailable:
+		return "kafka server: Eligible topic partition leaders are not available."
+	case ErrElectionNotNeeded:
+		return "kafka server: Leader election not needed for topic partition."
+	case ErrNoReassignmentInProgress:
+		return "kafka server: No partition reassignment is in progress."
+	case ErrGroupSubscribedToTopic:
+		return "kafka server: Deleting offsets of a topic is forbidden while the consumer group is actively subscribed to it."
+	case ErrInvalidRecord:
+		return "kafka server: This record has failed the validation on broker and hence will be rejected."
+	case ErrUnstableOffsetCommit:
+		return "kafka server: There are unstable offsets that need to be cleared."
 	}
 
 	return fmt.Sprintf("Unknown error, how did this happen? Error code = %d", err)
