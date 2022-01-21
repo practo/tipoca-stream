@@ -210,8 +210,8 @@ By default there is no limit on the number of concurrent loads to Redshift. But 
 #### How to enable?
 - Export RedshiftLoader metrics to Prometheus.
 ```
-kubectl create -f config/redshiftloader/service.yaml
-kubectl create -f config/redshiftloader/servicemonitor.yaml
+kubectl create -f build/redshiftloader-service.yaml
+kubectl create -f build/redshiftloader-servicemonitor.yaml  # Ensure namespaceSelector is set to the right value
 ```
 
 - Set `--prometheus-url` in the RedshiftSink Operator Deployment.

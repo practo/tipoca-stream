@@ -49,7 +49,7 @@ spec:
        - --default-redshift-max-open-conns=10
        - --default-redshift-max-idle-conns=2
        - --allowed-rsks=
-       - --promethus-url=
+       - --prometheus-url=
        - --collect-redshift-metrics=false
        - --databases=
        resources:
