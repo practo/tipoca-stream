@@ -316,7 +316,7 @@ func getDistColumnSQL(columns []ColInfo) (string, error) {
 		}
 	}
 	if len(k) == 0 {
-		return "diststyle even", nil
+		return "", nil
 	}
 	if len(k) > 1 {
 		return "", fmt.Errorf(
@@ -392,6 +392,8 @@ func (r *Redshift) CreateTable(
 		if err != nil {
 			return err
 		}
+	} else {
+		distColumnSQL = "diststyle even"
 	}
 
 	tableCreate := `CREATE TABLE "%s"."%s" (%s %s) %s %s;`
