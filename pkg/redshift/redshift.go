@@ -314,7 +314,7 @@ func getDistColumnSQL(columns []ColInfo) (string, error) {
 		}
 	}
 	if len(k) == 0 {
-		return "", nil
+		return "diststyle even", nil
 	}
 	if len(k) > 1 {
 		return "", fmt.Errorf(
