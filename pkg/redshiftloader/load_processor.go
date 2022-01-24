@@ -4,6 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"path/filepath"
+	"strings"
+	"time"
+
 	"github.com/Shopify/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/pkg/kafka"
@@ -14,9 +18,6 @@ import (
 	"github.com/practo/tipoca-stream/pkg/transformer/debezium"
 	"github.com/practo/tipoca-stream/pkg/util"
 	"github.com/spf13/viper"
-	"path/filepath"
-	"strings"
-	"time"
 )
 
 const (
@@ -505,7 +506,7 @@ func (b *loadProcessor) loadStagingTable(
 	if err != nil {
 		return fmt.Errorf("Error creating database tx, err: %v\n", err)
 	}
-	err = b.redshifter.CreateTable(ctx, tx, *b.stagingTable)
+	err = b.redshifter.CreateTable(ctx, tx, *b.stagingTable, true)
 	if err != nil {
 		tx.Rollback()
 		orgiErr := fmt.Errorf("Error creating staging table, err: %v\n", err)
@@ -619,7 +620,7 @@ func (b *loadProcessor) migrateSchema(ctx context.Context, schemaId int, inputTa
 		if err != nil {
 			return fmt.Errorf("Error creating database tx, err: %v\n", err)
 		}
-		err = b.redshifter.CreateTable(ctx, tx, inputTable)
+		err = b.redshifter.CreateTable(ctx, tx, inputTable, false)
 		if err != nil {
 			tx.Rollback()
 			return fmt.Errorf(

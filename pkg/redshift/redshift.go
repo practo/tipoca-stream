@@ -4,18 +4,20 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	multierror "github.com/hashicorp/go-multierror"
-	"github.com/practo/klog/v2"
 	"math"
 	"strconv"
+
+	multierror "github.com/hashicorp/go-multierror"
+	"github.com/practo/klog/v2"
 
 	// TODO:
 	// Use our own version of the postgres library so we get keep-alive support.
 	// See https://github.com/Clever/pq/pull/1
 	// TODO: https://github.com/Clever/s3-to-redshift/issues/163
 	// TCP keep alive support pending: https://github.com/lib/pq/issues/360
-	_ "github.com/practo/pq"
 	"strings"
+
+	_ "github.com/practo/pq"
 )
 
 const (
@@ -353,7 +355,12 @@ func getColumnSQL(c ColInfo) string {
 	)
 }
 
-func (r *Redshift) CreateTable(ctx context.Context, tx *sql.Tx, table Table) error {
+func (r *Redshift) CreateTable(
+	ctx context.Context,
+	tx *sql.Tx,
+	table Table,
+	skipDist bool,
+) error {
 	var primaryKeys []string
 	for _, c := range table.Columns {
 		if c.PrimaryKey {
@@ -377,9 +384,14 @@ func (r *Redshift) CreateTable(ctx context.Context, tx *sql.Tx, table Table) err
 	}
 
 	sortColumnsSQL := getSortColumnsSQL(table.Columns)
-	distColumnSQL, err := getDistColumnSQL(table.Columns)
-	if err != nil {
-		return err
+
+	var distColumnSQL string
+	var err error
+	if !skipDist {
+		distColumnSQL, err = getDistColumnSQL(table.Columns)
+		if err != nil {
+			return err
+		}
 	}
 
 	tableCreate := `CREATE TABLE "%s"."%s" (%s %s) %s %s;`
@@ -544,7 +556,7 @@ func (r *Redshift) ReplaceTable(
 		return err
 	}
 
-	err = r.CreateTable(ctx, tx, inputTable)
+	err = r.CreateTable(ctx, tx, inputTable, false)
 	if err != nil {
 		return err
 	}
