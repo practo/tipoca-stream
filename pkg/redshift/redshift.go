@@ -1241,7 +1241,7 @@ var mysqlToRedshiftTypeMap = map[string]string{
 	"smallint unsigned":           RedshiftInteger,
 	"double":                      "double precision",
 	"double [precision]":          "double precision",
-        "double precision":            "double precision",
+	"double precision":            "double precision",
 	"double [precision] unsigned": "double precision",
 	"time":                        RedshiftTime,
 	"datetime":                    RedshiftTimeStamp,
