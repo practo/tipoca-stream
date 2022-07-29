@@ -253,7 +253,6 @@ SELECT DATABASE,
 FROM svv_table_info t
 LEFT JOIN
   (SELECT tbl,
-          perm_table_name,
           COUNT(DISTINCT query) num_qs
    FROM stl_scan s
    WHERE s.userid > 1
@@ -262,8 +261,7 @@ LEFT JOIN
      AND s.perm_table_name NOT IN ('Internal Worktable',
                                    'S3')
      AND s.perm_table_name NOT LIKE '%staged%'                                    
-   GROUP BY tbl,
-            perm_table_name) s ON s.tbl = t.table_id
+   GROUP BY tbl) s ON s.tbl = t.table_id
 AND t."schema" NOT IN ('pg_internal')
 ORDER BY 7 DESC;
 ```
