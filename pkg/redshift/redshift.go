@@ -1243,6 +1243,7 @@ var mysqlToRedshiftTypeMap = map[string]string{
 	"double [precision]":          "double precision",
 	"double precision":            "double precision",
 	"double [precision] unsigned": "double precision",
+	"float unsigned":              "double precision",
 	"time":                        RedshiftTime,
 	"datetime":                    RedshiftTimeStamp,
 	"timestamp":                   RedshiftTimeStamp,
