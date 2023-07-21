@@ -12,7 +12,7 @@ More Info: Debezium Docker images https://github.com/debezium/docker-images/tree
 
 ## Instructions to build the image
 ```
-export DOCKER_ORG=practodev
+export DOCKER_ORG=public.ecr.aws/practo
 docker build . -t ${DOCKER_ORG}/connect-debezium:0.18.0-kakfa-2.5.0-mysqlconnector-1.2.1
 docker push ${DOCKER_ORG}/connect-debezium:0.18.0-kakfa-2.5.0-mysqlconnector-1.2.1
 ```
