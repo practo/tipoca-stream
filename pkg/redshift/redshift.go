@@ -624,13 +624,13 @@ func (r *Redshift) GrantSchemaAccess(
 	group string,
 ) error {
 	grantSelectSQL := fmt.Sprintf(
-		`GRANT SELECT ON TABLE %s.%s TO GROUP %s`,
+		`GRANT SELECT ON TABLE "%s"."%s" TO GROUP %s`,
 		schema,
 		table,
 		group,
 	)
 	grantUsageSQL := fmt.Sprintf(
-		`GRANT USAGE ON SCHEMA %s TO GROUP %s`,
+		`GRANT USAGE ON SCHEMA "%s" TO GROUP %s`,
 		schema,
 		group,
 	)
