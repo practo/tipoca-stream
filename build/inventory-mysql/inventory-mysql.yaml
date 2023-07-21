@@ -32,7 +32,7 @@ spec:
           value: mysqluser
         - name: MYSQL_PASSWORD
           value: mysqlpw
-        image: practodev/example-mysql:1.4
+        image: public.ecr.aws/practo/example-mysql:1.4
         imagePullPolicy: IfNotPresent
         name: mysql
         ports:
