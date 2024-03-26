@@ -385,12 +385,13 @@ func (b *loadProcessor) dropTable(ctx context.Context, schema string, table stri
 
 // merge:
 // begin transaction
-// 1. deDupe
-// 2. delete all rows in target table by pk which are present in
-//    in staging table
-// 3. delete all the DELETE rows in staging table
-// 4. insert all the rows from staging table to target table
-// 5. drop the staging table
+//  1. deDupe
+//  2. delete all rows in target table by pk which are present in
+//     in staging table
+//  3. delete all the DELETE rows in staging table
+//  4. insert all the rows from staging table to target table
+//  5. drop the staging table
+//
 // end transaction
 func (b *loadProcessor) merge(ctx context.Context) error {
 	start := time.Now()
@@ -615,6 +616,9 @@ func (b *loadProcessor) migrateSchema(ctx context.Context, schemaId int, inputTa
 	if err != nil {
 		return fmt.Errorf("Error querying table exist, err: %v\n", err)
 	}
+
+	// Creates table here
+
 	if !tableExist {
 		tx, err := b.redshifter.Begin(ctx)
 		if err != nil {
