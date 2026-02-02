@@ -79,6 +79,25 @@ func (r *releaser) releaseTopic(
 	_, _, table := transformer.ParseTopic(topic)
 	reloadedTable := table + tableSuffix
 
+	// Check if reload table exists before attempting release
+	// This prevents the "relation does not exist" error and allows recovery
+	reloadTableExist, err := r.redshifter.TableExist(ctx, schema, reloadedTable)
+	if err != nil {
+		return fmt.Errorf("error checking reload table existence: %v", err)
+	}
+	if !reloadTableExist {
+		klog.Warningf(
+			"rsk/%s reload table %s.%s does not exist for topic %s, moving back to reloading",
+			r.rsk.Name, schema, reloadedTable, topic,
+		)
+		// Move topic back to reloading state so it can be reprocessed
+		status.moveTopicToReloading(topic)
+		return fmt.Errorf(
+			"reload table %s.%s does not exist, topic %s moved back to reloading state",
+			schema, reloadedTable, topic,
+		)
+	}
+
 	tableExist, err := r.redshifter.TableExist(ctx, schema, table)
 	if err != nil {
 		return err
