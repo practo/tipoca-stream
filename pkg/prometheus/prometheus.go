@@ -63,6 +63,10 @@ func cacheValid(validity time.Duration, lastCachedTime *int64) bool {
 }
 
 func convertValueToFloat(val model.Value) float64 {
+	if val == nil {
+		klog.Warning("prometheus query returned nil value")
+		return 0
+	}
 	switch {
 	case val.Type() == model.ValScalar:
 		scalarVal := val.(*model.Scalar)
@@ -98,8 +102,10 @@ func (p *promClient) queryWithRetry(
 	queryString string, maxRetry int,
 ) (model.Value, prometheusv1.Warnings, error) {
 	var err error
+	var value model.Value
+	var warning prometheusv1.Warnings
 	for retry := 0; retry < maxRetry; retry++ {
-		value, warning, err := p.client.Query(
+		value, warning, err = p.client.Query(
 			context.Background(),
 			queryString,
 			time.Now(),
