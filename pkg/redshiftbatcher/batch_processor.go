@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/pkg/kafka"

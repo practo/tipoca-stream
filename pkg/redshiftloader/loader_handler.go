@@ -3,7 +3,7 @@ package redshiftloader
 import (
 	"context"
 	"fmt"
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/pkg/kafka"
 	"github.com/practo/tipoca-stream/pkg/prometheus"

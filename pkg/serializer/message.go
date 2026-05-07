@@ -2,7 +2,7 @@ package serializer
 
 import (
 	"context"
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/practo/klog/v2"
 	"sync"
 )

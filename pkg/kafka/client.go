@@ -1,11 +1,12 @@
 package kafka
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/practo/klog/v2"
 )
 
@@ -148,7 +149,7 @@ func (t *kafkaClient) fetchCurrentOffset(
 	offsetFetchRequest.AddPartition(topic, partition)
 
 	err := broker.Open(t.client.Config())
-	if err != nil && err != sarama.ErrAlreadyConnected {
+	if err != nil && !errors.Is(err, sarama.ErrAlreadyConnected) {
 		return defaultCurrentOffset, fmt.Errorf("Error opening broker connection again, err: %v", err)
 	}
 
@@ -215,7 +216,7 @@ func (t *kafkaClient) CurrentOffset(
 		defer broker.Close()
 
 		err = broker.Open(t.client.Config())
-		if err != nil && err != sarama.ErrAlreadyConnected {
+		if err != nil && !errors.Is(err, sarama.ErrAlreadyConnected) {
 			return currentOffset, fmt.Errorf("Error opening broker connection, err: %v", err)
 		}
 
