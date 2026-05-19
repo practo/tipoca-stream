@@ -98,7 +98,7 @@ func main() {
 		MetricsBindAddress: metricsAddr,
 		Port:               9443,
 		LeaderElection:     enableLeaderElection,
-		LeaderElectionID:   "854ae6e3.",
+		LeaderElectionID:   "redshiftsink-operator-leader",
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")

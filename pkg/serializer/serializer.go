@@ -3,7 +3,7 @@ package serializer
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/practo/tipoca-stream/pkg/schemaregistry"
 )
 
