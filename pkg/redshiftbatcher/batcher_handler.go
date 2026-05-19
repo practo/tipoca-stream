@@ -192,6 +192,7 @@ func (h *batcherHandler) ConsumeClaim(
 	go processor.Process(wg, session, processChan, errChan)
 
 	defer func() {
+		close(processChan)
 		klog.V(2).Infof("%s: wg wait() for processing to return", claim.Topic())
 		wg.Wait()
 		klog.V(2).Infof("%s: wg done. processing returned", claim.Topic())

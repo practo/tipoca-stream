@@ -528,7 +528,14 @@ func (b *batchProcessor) Process(
 					b.topic,
 				)
 				return
-			case msgBuf := <-processChan:
+			case msgBuf, ok := <-processChan:
+				if !ok {
+					klog.V(2).Infof(
+						"%s: processor returning, processChan closed",
+						b.topic,
+					)
+					return
+				}
 				msgBufs = append(msgBufs, msgBuf)
 				if len(msgBufs) == b.maxConcurrency {
 					breakLoop = true
