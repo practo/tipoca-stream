@@ -1,7 +1,10 @@
 name: tipoca-stream
 # Migrated from .travis.yml (Travis CI -> GitHub Actions), following the
-# platform migration guide conventions used by migrate-to-gha.sh:
-#   - runs-on: self-hosted ARC runner (arc-runner-pr-ci)
+# platform migration guide conventions used by migrate-to-gha.sh, EXCEPT:
+#   - runs-on: ubuntu-latest, NOT the self-hosted ARC runner — this repo is
+#     PUBLIC, and the org runner group excludes public repos (the run never
+#     leaves "queued"); GitHub-hosted runners are free for public repos and
+#     ship with Docker + make
 #   - no job container: the Makefile already runs the Go toolchain inside
 #     BUILD_IMAGE (public.ecr.aws/practo/golang:1.17.1-alpine) via `docker run`,
 #     so the job only needs the runner's Docker daemon (Travis `services: docker`)
@@ -14,7 +17,7 @@ on:
 
 jobs:
   build:
-    runs-on: arc-runner-pr-ci
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
