@@ -1,0 +1,47 @@
+name: tipoca-stream
+# Migrated from .travis.yml (Travis CI -> GitHub Actions), following the
+# platform migration guide conventions used by migrate-to-gha.sh, EXCEPT:
+#   - runs-on: ubuntu-latest, NOT the self-hosted ARC runner — this repo is
+#     PUBLIC, and the org runner group excludes public repos (the run never
+#     leaves "queued"); GitHub-hosted runners are free for public repos and
+#     ship with Docker + make
+#   - no job container: the Makefile already runs the Go toolchain inside
+#     BUILD_IMAGE (public.ecr.aws/practo/golang:1.17.1-alpine) via `docker run`,
+#     so the job only needs the runner's Docker daemon (Travis `services: docker`)
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # Full history + tags: the Makefile derives VERSION from
+          # `git describe --tags --always --dirty`
+          fetch-depth: 0
+
+      - name: Build binaries
+        run: |
+          make build
+          test -f bin/linux_amd64/redshiftbatcher
+          test -f bin/linux_amd64/redshiftloader
+          test -f bin/linux_amd64/redshiftsink
+
+      - name: Build containers
+        run: |
+          make all-container
+          docker images | grep "^public.ecr.aws/practo/redshiftbatcher"
+          docker images | grep "^public.ecr.aws/practo/redshiftloader"
+          docker images | grep "^public.ecr.aws/practo/redshiftsink"
+
+      - name: Run tests
+        run: make test
