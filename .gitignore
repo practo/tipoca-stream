@@ -5,3 +5,6 @@
 bconfig
 lconfig
 maskdiff
+
+# Claude Code: session log is local-only, not committed
+.claude/memory/session-log.md
