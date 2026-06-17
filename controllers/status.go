@@ -346,6 +346,31 @@ func (s *status) updateTopicsOnRelease(releasedTopic string) {
 	s.realtime = removeFromSlice(s.realtime, releasedTopic)
 }
 
+// moveTopicToReloading moves a topic from realtime back to reloading state.
+// This is used when release fails due to missing reload table, allowing
+// the topic to be reprocessed by the reload sink group.
+func (s *status) moveTopicToReloading(topic string) {
+	klog.V(2).Infof("rsk/%s moving topic %s from realtime to reloading", s.rsk.Name, topic)
+
+	// Remove from realtime
+	s.realtime = removeFromSlice(s.realtime, topic)
+
+	// Add to reloading
+	s.reloading = appendIfMissing(s.reloading, topic)
+
+	// Clear the cached loader offset so realtime calculator doesn't use stale data
+	s.deleteLoaderTopicGroupCurrentOffset(topic)
+
+	// Update the mask status for this topic to Reloading
+	if s.rsk.Status.MaskStatus != nil && s.rsk.Status.MaskStatus.CurrentMaskStatus != nil {
+		if topicStatus, ok := s.rsk.Status.MaskStatus.CurrentMaskStatus[topic]; ok {
+			topicStatus.Phase = tipocav1.MaskReloading
+			s.rsk.Status.MaskStatus.CurrentMaskStatus[topic] = topicStatus
+			klog.V(2).Infof("rsk/%s updated topic %s phase to Reloading", s.rsk.Name, topic)
+		}
+	}
+}
+
 func (s *status) computerCurrentMaskStatus() map[string]tipocav1.TopicMaskStatus {
 	topicsReleased := toMap(s.released)
 	topicsRealtime := toMap(s.realtime)
