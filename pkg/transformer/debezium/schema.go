@@ -316,7 +316,7 @@ func (c *schemaTransformer) TransformValue(
 	interface{},
 	error,
 ) {
-	s, err := schemaregistry.GetSchemaWithRetry(c.registry, schemaId, 10)
+	schema, err := schemaregistry.GetSchemaWithRetry(c.registry, schemaId, 10)
 	if err != nil {
 		return nil, err
 	}
@@ -332,7 +332,7 @@ func (c *schemaTransformer) TransformValue(
 	}
 
 	return c.transformSchemaValue(
-		s.Schema(),
+		schema.Schema(),
 		primaryKeys,
 		maskSchema,
 		extraMaskSchema,
@@ -373,6 +373,9 @@ func (c *schemaTransformer) transformSchemaValue(jobSchema string,
 	// TODO: this might be required, better if not
 	// schema := strings.ReplaceAll(jobSchema, `"null",`, "")
 	schema := jobSchema
+
+	//Debezium schema is declared here, most probably it holds the format in which debezium pushes data to Kafka
+
 	var debeziumSchema Schema
 	err := json.Unmarshal([]byte(schema), &debeziumSchema)
 	if err != nil {

@@ -265,13 +265,23 @@ func convertDebeziumFormattedTime(
 	}
 }
 
+//This comment confirms
+
 // Transform debezium event into a s3 message annotating extra information
 func (c *messageTransformer) Transform(
+
+	// need to find format of this Message
 	message *serializer.Message, table redshift.Table) error {
+
+	// How is this parsing? Where is the definition?
+	// A: It's not really parsing. `before()` and `after()` do the casting
 
 	d := &messageParser{
 		message: message.Value,
 	}
+
+	// https://debezium.io/documentation/reference/stable/integrations/serdes.html
+	// Assuming we are using `without schema`
 
 	before := d.before()
 	after := d.after()
@@ -294,6 +304,7 @@ func (c *messageTransformer) Transform(
 		return fmt.Errorf("Unknown operation: %s\n", operation)
 	}
 
+	// Where is this table object coming from?
 	for _, column := range table.Columns {
 		if column.Type == "record" && column.SourceType.ColumnType == "polygon" {
 			empty := ""
@@ -326,6 +337,9 @@ func (c *messageTransformer) Transform(
 
 	// redshift only has all columns as lower cases
 	kafkaOffset := fmt.Sprintf("%v", message.Offset)
+
+	// this is the place where those 2 props are added
+
 	value[transformer.TempTablePrimary] = &kafkaOffset
 	value[transformer.TempTableOp] = &operation
 	message.Operation = operation

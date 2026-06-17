@@ -429,6 +429,9 @@ func (r *Redshift) CreateTable(
 // 3. Strategy3: table-migration using UNLOAD and COPY and a temp table
 // 				 Supports: all the other migration scenarios
 //               Exectued by ReplaceTable(), triggered by this function
+
+// Loader checks for migration need here
+
 func (r *Redshift) UpdateTable(ctx context.Context, inputTable, targetTable Table) (bool, error) {
 	klog.V(4).Infof("inputt Table: \n%+v\n", inputTable)
 	klog.V(4).Infof("target Table: \n%+v\n", targetTable)

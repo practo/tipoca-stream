@@ -363,6 +363,10 @@ func (b *batchProcessor) processMessage(
 		)
 	}
 
+	// I think this transforms message in redshift format
+	// checked https://s3.console.aws.amazon.com/s3/buckets/prod-tipoca-stream?region=ap-south-1&bucketType=general&prefix=k8sqredshiftbatcher/tipoca-stream-redshiftsink-q-latest-abha-2-abha_addresses-951581-batcher/ts.abha.abha_addresses/9515811a1a100949a9939cfaaf746f36dbbd266c/&showversions=false
+	// there are 2 additional props debeziumop, kafkaoffset. I guess this is added by this function, need to check
+
 	err := b.messageTransformer.Transform(message, resp.batchSchemaTable)
 	if err != nil {
 		return bytesProcessed, fmt.Errorf(
