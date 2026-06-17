@@ -1,0 +1,15 @@
+FROM quay.io/strimzi/kafka:0.27.0-kafka-3.0.0
+USER root:root
+RUN mkdir -p /opt/kafka/plugins/dynamodb
+
+COPY ./kafka-connect-dynamodb-0.11.0.jar /opt/kafka/plugins/dynamodb/
+
+COPY ./kafka-connect-avro-converter-6.0.2.jar /opt/kafka/libs/
+COPY ./kafka-connect-avro-data-6.0.2.jar /opt/kafka/libs/
+COPY ./kafka-avro-serializer-6.0.2.jar /opt/kafka/libs/
+COPY ./kafka-schema-serializer-6.0.2.jar /opt/kafka/libs/
+COPY ./kafka-schema-registry-client-6.0.2.jar /opt/kafka/libs/
+COPY ./avro-1.9.2.jar /opt/kafka/libs/
+COPY ./common-config-6.0.2.jar /opt/kafka/libs/
+COPY ./common-utils-6.0.2.jar /opt/kafka/libs/
+USER 1001
