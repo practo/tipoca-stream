@@ -577,7 +577,6 @@ func (b *loadProcessor) migrateTable(
 		if err != nil {
 			return err
 		}
-		return err
 	}
 
 	err = tx.Commit()
