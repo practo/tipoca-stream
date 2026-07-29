@@ -133,7 +133,7 @@ func convertDebeziumDate(days int) string {
 	ts := FromUnixMilli(int64(days * 86400 * 1000))
 	ts = ts.UTC()
 	return fmt.Sprintf(
-		"%d-%02d-%02d",
+		"%04d-%02d-%02d",
 		ts.Year(), ts.Month(), ts.Day(),
 	)
 }
@@ -149,7 +149,7 @@ func convertDebeziumMilliseconds(ms int, length int) string {
 	ts = ts.UTC()
 
 	result := fmt.Sprintf(
-		"%d-%02d-%02d %02d:%02d:%02d",
+		"%04d-%02d-%02d %02d:%02d:%02d",
 		ts.Year(), ts.Month(), ts.Day(),
 		ts.Hour(), ts.Minute(), ts.Second(),
 	)
@@ -177,7 +177,7 @@ func convertDebeziumMicroseconds(us int, length int) string {
 	ts = ts.UTC()
 
 	result := fmt.Sprintf(
-		"%d-%02d-%02d %02d:%02d:%02d",
+		"%04d-%02d-%02d %02d:%02d:%02d",
 		ts.Year(), ts.Month(), ts.Day(),
 		ts.Hour(), ts.Minute(), ts.Second(),
 	)

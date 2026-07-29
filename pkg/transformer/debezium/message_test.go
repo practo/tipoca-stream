@@ -91,6 +91,72 @@ func TestConvertDebeziumFormattedTime(t *testing.T) {
 			sourceLength:  "3",
 			formattedTime: "2020-10-15 04:31:57.708",
 		},
+		{
+			name:          "test11: DATE epoch",
+			value:         "0",
+			sourceType:    "DATE",
+			sourceLength:  "",
+			formattedTime: "1970-01-01",
+		},
+		{
+			name:          "test12: DATE recent",
+			value:         "19181",
+			sourceType:    "DATE",
+			sourceLength:  "",
+			formattedTime: "2022-07-08",
+		},
+		{
+			name:          "test13: DATE max year",
+			value:         "2932896",
+			sourceType:    "DATE",
+			sourceLength:  "",
+			formattedTime: "9999-12-31",
+		},
+		// Years < 1000 must be zero-padded to 4 digits, else Redshift
+		// COPY rejects the value (Invalid Date Format - length must be
+		// 10 or more) and the loader retries the batch forever.
+		{
+			name:          "test14: DATE year < 1000 is zero-padded",
+			value:         "-645643",
+			sourceType:    "DATE",
+			sourceLength:  "",
+			formattedTime: "0202-04-17",
+		},
+		{
+			name:          "test15: DATE 3 digit year is zero-padded",
+			value:         "-361910",
+			sourceType:    "DATE",
+			sourceLength:  "",
+			formattedTime: "0979-02-15",
+		},
+		{
+			name:          "test16: DATE last 3 digit year",
+			value:         "-354286",
+			sourceType:    "DATE",
+			sourceLength:  "",
+			formattedTime: "0999-12-31",
+		},
+		{
+			name:          "test17: DATE first 4 digit year",
+			value:         "-354285",
+			sourceType:    "DATE",
+			sourceLength:  "",
+			formattedTime: "1000-01-01",
+		},
+		{
+			name:          "test18: DATETIME year < 1000 is zero-padded",
+			value:         "-55704758400000",
+			sourceType:    "DATETIME",
+			sourceLength:  "",
+			formattedTime: "0204-10-15 00:00:00",
+		},
+		{
+			name:          "test19: DATETIME(6) year < 1000 is zero-padded",
+			value:         "-55805894999243000",
+			sourceType:    "DATETIME",
+			sourceLength:  "6",
+			formattedTime: "0201-08-01 10:30:00.757000",
+		},
 	}
 
 	for _, tc := range tests {
