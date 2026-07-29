@@ -1392,6 +1392,13 @@ func GetRedshiftDataType(sqlType, debeziumType, sourceColType,
 			}
 		}
 
+		// BIGINT UNSIGNED propagates no column length, and the default
+		// numeric(18,0) cannot hold its full range: COPY fails with
+		// "Overflow for NUMERIC(18,0)". Size it to 20 digits.
+		if sourceColType == "bigint unsigned" && sourceColLength == "" {
+			sourceColLength = "20"
+		}
+
 		return applyLength(
 			RedshiftToMysqlCharacterRatio,
 			redshiftType,
