@@ -576,9 +576,9 @@ func (b *loadProcessor) migrateTable(
 		klog.V(2).Infof("%s, granting schema access for table: %v to group: %v", b.topic, inputTable.Name, *b.redshiftGroup)
 		err = b.redshifter.GrantSchemaAccess(ctx, tx, inputTable.Meta.Schema, inputTable.Name, *b.redshiftGroup)
 		if err != nil {
+			tx.Rollback()
 			return err
 		}
-		return err
 	}
 
 	err = tx.Commit()
