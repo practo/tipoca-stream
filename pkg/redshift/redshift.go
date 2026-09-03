@@ -422,13 +422,13 @@ func (r *Redshift) CreateTable(
 }
 
 // UpdateTable migrates the table schema using below 3 strategy:
-// 1. Strategy1: inplace-migration-varchar-type Change length of VARCHAR col
-//               Executed by this function
-// 2. Strategy2: inplace-migration using ALTER COMMANDS
-//               Supports: AddCol and DropCol
-// 3. Strategy3: table-migration using UNLOAD and COPY and a temp table
-// 				 Supports: all the other migration scenarios
-//               Exectued by ReplaceTable(), triggered by this function
+//  1. Strategy1: inplace-migration-varchar-type Change length of VARCHAR col
+//     Executed by this function
+//  2. Strategy2: inplace-migration using ALTER COMMANDS
+//     Supports: AddCol and DropCol
+//  3. Strategy3: table-migration using UNLOAD and COPY and a temp table
+//     Supports: all the other migration scenarios
+//     Exectued by ReplaceTable(), triggered by this function
 func (r *Redshift) UpdateTable(ctx context.Context, inputTable, targetTable Table) (bool, error) {
 	klog.V(4).Infof("inputt Table: \n%+v\n", inputTable)
 	klog.V(4).Infof("target Table: \n%+v\n", targetTable)

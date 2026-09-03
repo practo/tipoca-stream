@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/pkg/kafka"
@@ -528,7 +528,14 @@ func (b *batchProcessor) Process(
 					b.topic,
 				)
 				return
-			case msgBuf := <-processChan:
+			case msgBuf, ok := <-processChan:
+				if !ok {
+					klog.V(2).Infof(
+						"%s: processor returning, processChan closed",
+						b.topic,
+					)
+					return
+				}
 				msgBufs = append(msgBufs, msgBuf)
 				if len(msgBufs) == b.maxConcurrency {
 					breakLoop = true

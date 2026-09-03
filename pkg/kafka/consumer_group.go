@@ -3,7 +3,7 @@ package kafka
 import (
 	"context"
 	"fmt"
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 )
 
 type ConsumerGroupInterface interface {

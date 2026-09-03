@@ -3,7 +3,7 @@ package kafka
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/linkedin/goavro/v2"
 	"time"
 )

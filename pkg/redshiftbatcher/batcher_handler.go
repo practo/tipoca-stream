@@ -3,7 +3,7 @@ package redshiftbatcher
 import (
 	"context"
 	"fmt"
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/pkg/kafka"
 	"github.com/practo/tipoca-stream/pkg/serializer"
@@ -192,6 +192,7 @@ func (h *batcherHandler) ConsumeClaim(
 	go processor.Process(wg, session, processChan, errChan)
 
 	defer func() {
+		close(processChan)
 		klog.V(2).Infof("%s: wg wait() for processing to return", claim.Topic())
 		wg.Wait()
 		klog.V(2).Infof("%s: wg done. processing returned", claim.Topic())

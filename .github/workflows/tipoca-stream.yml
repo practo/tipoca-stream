@@ -6,7 +6,7 @@ name: tipoca-stream
 #     leaves "queued"); GitHub-hosted runners are free for public repos and
 #     ship with Docker + make
 #   - no job container: the Makefile already runs the Go toolchain inside
-#     BUILD_IMAGE (public.ecr.aws/practo/golang:1.17.1-alpine) via `docker run`,
+#     BUILD_IMAGE (golang:1.25-alpine) via `docker run`,
 #     so the job only needs the runner's Docker daemon (Travis `services: docker`)
 
 on:

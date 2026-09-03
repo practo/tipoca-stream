@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/practo/klog/v2"
 	"github.com/practo/tipoca-stream/pkg/kafka"
 	"github.com/practo/tipoca-stream/pkg/redshift"
@@ -385,12 +385,13 @@ func (b *loadProcessor) dropTable(ctx context.Context, schema string, table stri
 
 // merge:
 // begin transaction
-// 1. deDupe
-// 2. delete all rows in target table by pk which are present in
-//    in staging table
-// 3. delete all the DELETE rows in staging table
-// 4. insert all the rows from staging table to target table
-// 5. drop the staging table
+//  1. deDupe
+//  2. delete all rows in target table by pk which are present in
+//     in staging table
+//  3. delete all the DELETE rows in staging table
+//  4. insert all the rows from staging table to target table
+//  5. drop the staging table
+//
 // end transaction
 func (b *loadProcessor) merge(ctx context.Context) error {
 	start := time.Now()
@@ -575,9 +576,9 @@ func (b *loadProcessor) migrateTable(
 		klog.V(2).Infof("%s, granting schema access for table: %v to group: %v", b.topic, inputTable.Name, *b.redshiftGroup)
 		err = b.redshifter.GrantSchemaAccess(ctx, tx, inputTable.Meta.Schema, inputTable.Name, *b.redshiftGroup)
 		if err != nil {
+			tx.Rollback()
 			return err
 		}
-		return err
 	}
 
 	err = tx.Commit()
